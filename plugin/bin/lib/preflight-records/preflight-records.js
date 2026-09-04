@@ -51,16 +51,17 @@ function fetchIssues({ numbers, runner = defaultRunner } = {}) {
 }
 
 // fetchNativeDependencies({ numbers, owner, repo, runner }) -> Map<number,
-// {blockedBy: number[], openBlocker: boolean}>. Executes the batched,
-// aliased GraphQL call (bin/lib/issues/record.js's buildNativeDependencyQuery)
-// and parses the response — moved to bin/lib/issues/native-dependencies.js
-// (#538) so this CLI's call site and bin/resolve-blockers.js's single-record
-// CLI share one implementation instead of two copies of the same GraphQL-
-// call-and-parse logic. Re-exported here (with the same default-runner
-// convenience this module's other fetchers use) for this module's existing
-// callers/tests. `runner` defaults to `defaultRunner` (execFileSync('gh', ...))
-// the same way `fetchIssues` above does; native-dependencies.js itself takes
-// no default so its behavior stays fully injectable for every caller.
+// {blockedBy: number[], openBlocker: boolean, openBlockerIds: number[]}>.
+// Executes the batched, aliased GraphQL call (bin/lib/issues/record.js's
+// buildNativeDependencyQuery) and parses the response — moved to
+// bin/lib/issues/native-dependencies.js (#538) so this CLI's call site and
+// bin/resolve-blockers.js's single-record CLI share one implementation instead
+// of two copies of the same GraphQL-call-and-parse logic. Re-exported here
+// (with the same default-runner convenience this module's other fetchers use)
+// for this module's existing callers/tests. `runner` defaults to
+// `defaultRunner` (execFileSync('gh', ...)) the same way `fetchIssues` above
+// does; native-dependencies.js itself takes no default so its behavior stays
+// fully injectable for every caller.
 function fetchNativeDependencies({ numbers, owner, repo, runner = defaultRunner } = {}) {
   return sharedFetchNativeDependencies({ numbers, owner, repo, runner });
 }

@@ -12,7 +12,7 @@
 // their normal merge-consult checkpoint, never a separate scheduled job, per
 // `docs/donts.md`'s [IL-94].
 
-// Mirrors skills/backlog/grant-mode.md's audit-comment marker, narrowed to the
+// Mirrors skills/backlog/refine-headless.md's audit-comment marker, narrowed to the
 // `pending` variant and capturing its date. `fleet-counters.js`'s
 // GRANT_AUDIT_RE matches the same marker family for a different purpose.
 const PENDING_GRANT_MARKER_RE = /<!--\s*grant-mode-audit:\s*date=(\S+)\s+auto-merge=pending\s*-->/g;

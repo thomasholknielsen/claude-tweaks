@@ -158,7 +158,11 @@ test('(a) two absent targets: both claimed, create-only writes, label + comment 
   assert.equal(code, 0);
   const body = JSON.parse(io.out[0]);
   assert.deepEqual(body, {
-    claimed: [720, 721], alreadyOwned: [], skipped: [], labelFailures: [],
+    claimed: [720, 721],
+    alreadyOwned: [],
+    skipped: [],
+    labelFailures: [],
+    transportByIssue: { 720: 'contents-api', 721: 'contents-api' },
   });
   const w720 = apiCalls.find((a) => isWrite(a, '720'));
   const w721 = apiCalls.find((a) => isWrite(a, '721'));
@@ -169,6 +173,24 @@ test('(a) two absent targets: both claimed, create-only writes, label + comment 
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '720'));
   assert.ok(ghCalls.some((a) => a[0] === 'issue' && a[1] === 'comment' && a[2] === '721'));
   assert.ok(ghCalls.some((a) => a[0] === 'label' && a[1] === 'create'), 'label did not exist -> bootstrap create call made');
+});
+
+// (a5) #1486: a successful contents-API claim is permanently tagged as such
+// on the JSON envelope — no extra read, derived from write.commitSha's
+// absence on this transport.
+test('(a5) successful contents-API claims report transportByIssue: contents-api', () => {
+  const { ghApi } = makeGhApi({
+    reads: { 720: [readAbsent] },
+    writes: { 720: [writeOk] },
+  });
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '720'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transportByIssue, { 720: 'contents-api' });
 });
 
 // (a2) the same absent target, but with a `gitRunner` dep (the real CLI's
@@ -209,6 +231,167 @@ test('(a2) absent target with a gitRunner: create-only claim goes through git-CA
   const push = gitCalls.find((a) => a[0] === 'push');
   assert.ok(push, 'a create-only claim must reach the git-CAS push');
   assert.ok(push.some((a) => String(a).startsWith(`--force-with-lease=refs/heads/claims-registry:${TIP}`)), 'the push must lease against the tip this run read');
+});
+
+// (a2b) #1486: the git-CAS counterpart to (a5) — a successful git-CAS claim
+// is tagged 'git', derived from write.commitSha being a real string on this
+// transport (never present on a contents-API success).
+test('(a2b) successful git-CAS claims report transportByIssue: git', () => {
+  const TIP = 'a'.repeat(40);
+  const gitRunner = (args) => {
+    if (args[0] === 'fetch') return '';
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') return `${TIP}\n`;
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
+    if (args[0] === 'show') throw new Error(`fatal: path 'claims/issue-720.json' does not exist in '${TIP}'`);
+    if (args[0] === 'hash-object') return 'deadbeef\n';
+    if (args[0] === 'read-tree') return '';
+    if (args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'newtree\n';
+    if (args[0] === 'commit-tree') return 'newcommit\n';
+    if (args[0] === 'push') return '';
+    throw new Error(`unexpected git ${args.join(' ')}`);
+  };
+  const ghApi = (args) => { throw new Error(`contents-API must not be called when git-CAS works: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = gitRunner;
+
+  const code = run(['--run-id', 'r1', '--targets', '720'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.transportByIssue, { 720: 'git' });
+});
+
+// #1467: a fake git-CAS runner that tracks each call class separately (not
+// just a flat log) so a batch test can assert fetch/rev-parse counts
+// directly, and so `show`'s sha argument can be inspected to prove the
+// SECOND issue's read actually chained off the FIRST issue's write — not
+// just that fetch was skipped for some unrelated reason. `commit-tree`
+// returns a distinct, incrementing sha per call so that chain is observable.
+function makeBatchGitRunner() {
+  const fetchCalls = [];
+  const revParseCalls = [];
+  const showCalls = [];
+  const readTreeCalls = [];
+  const pushCalls = [];
+  let commitCounter = 0;
+  const runner = (args) => {
+    if (args[0] === 'fetch') { fetchCalls.push(args); return ''; }
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') { revParseCalls.push(args); return 'tip0\n'; }
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
+    if (args[0] === 'show') {
+      showCalls.push(args);
+      const [sha, ...pathParts] = String(args[1]).split(':');
+      const targetPath = pathParts.join(':');
+      throw new Error(`fatal: path '${targetPath}' does not exist in '${sha}'`);
+    }
+    if (args[0] === 'hash-object') return 'blobsha\n';
+    if (args[0] === 'read-tree') { readTreeCalls.push(args); return ''; }
+    if (args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'treesha\n';
+    if (args[0] === 'commit-tree') { commitCounter += 1; return `commit-${commitCounter}\n`; }
+    if (args[0] === 'push') { pushCalls.push(args); return ''; }
+    throw new Error(`unexpected git call: ${args.join(' ')}`);
+  };
+  return {
+    runner, fetchCalls, revParseCalls, showCalls, readTreeCalls, pushCalls,
+  };
+}
+
+// (a3) #1467's headline AC: a batch of N absent, uncontended targets performs
+// a bounded, sub-N number of `git fetch` calls — one for the whole batch,
+// not one per issue — because each issue after the first chains its read off
+// the PREVIOUS issue's own write, which is the only tip mutation this run
+// itself can cause.
+test('(a3) #1467: a two-issue no-contention batch performs exactly ONE git fetch, not two — the second read chains off the first write', () => {
+  const batch = makeBatchGitRunner();
+  const ghApi = (args) => { throw new Error(`contents-API must not be called when git-CAS works: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = batch.runner;
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721'], deps);
+
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(io.out[0]).claimed, [720, 721]);
+  assert.equal(batch.fetchCalls.length, 1, 'only the FIRST issue fetches — the second must chain off the first write instead of re-fetching');
+  assert.equal(batch.revParseCalls.length, 1, 'the scratch-ref rev-parse is paired 1:1 with the fetch it skipped for issue 2');
+  assert.equal(batch.showCalls.length, 2, 'both issues still each get their own read (absence check), just without a fetch');
+  const secondShaQueried = String(batch.showCalls[1][1]).split(':')[0];
+  assert.equal(secondShaQueried, 'commit-1', "issue 721's read must query the commit issue 720's write just produced, not the original fetched tip");
+  const secondReadTreeSha = batch.readTreeCalls[1][1];
+  assert.equal(secondReadTreeSha, 'commit-1', "issue 721's write must lease against the chained tip, matching what its own read just used");
+});
+
+// (a4) Mixed-outcome correctness (#1467's third AC): issue A's write is
+// rejected and verified as a genuine contest, which must discard the tip
+// chain — issue B's subsequent read must NOT trust A's now-stale believed
+// tip and must fetch fresh instead of trusting a tip that was never actually
+// confirmed current. `--keep-going` is required to observe this: a default
+// (non-keep-going) run aborts the whole batch on A's contest and never
+// reaches B at all.
+test('(a4) #1467: issue A rejected mid-batch discards the tip chain — issue B fetches fresh rather than trusting a stale tip', () => {
+  const HELD_BY_RIVAL = JSON.stringify({ runId: 'rival' });
+  const fetchCalls = [];
+  const pushCalls = [];
+  let fetchCount = 0;
+  // One tip per fetch: A's own read (absent), A's post-rejection write
+  // verification (rival landed — a genuine contest), claim-targets.js's own
+  // best-effort `holderFromFreshRead` re-read for the contested report
+  // (also a fresh fetch — it never threads a knownTip either), then B's read.
+  const tips = ['tip0', 'tip1', 'tip2', 'tip3'];
+  const runner = (args) => {
+    if (args[0] === 'fetch') { fetchCalls.push(args); fetchCount += 1; return ''; }
+    if (args[0] === 'rev-parse' && args[1] !== 'FETCH_HEAD') return `${tips[fetchCount - 1]}\n`;
+    if (args[0] === 'update-ref' && args[1] === '-d') return '';
+    if (args[0] === 'show') {
+      const [sha, ...pathParts] = String(args[1]).split(':');
+      const targetPath = pathParts.join(':');
+      if (sha === 'tip0' && targetPath === 'claims/issue-720.json') {
+        throw new Error(`fatal: path '${targetPath}' does not exist in '${sha}'`); // absent — reclaimable
+      }
+      if ((sha === 'tip1' || sha === 'tip2') && targetPath === 'claims/issue-720.json') {
+        return HELD_BY_RIVAL; // a rival genuinely landed — both post-rejection reads see it
+      }
+      if (sha === 'tip3' && targetPath === 'claims/issue-721.json') {
+        throw new Error(`fatal: path '${targetPath}' does not exist in '${sha}'`); // B, on its OWN fresh tip, is genuinely absent
+      }
+      throw new Error(`unexpected show ${sha}:${targetPath} — issue B must never be read against A's stale/rejected tip`);
+    }
+    if (args[0] === 'hash-object') return 'blobsha\n';
+    if (args[0] === 'read-tree' || args[0] === 'update-index') return '';
+    if (args[0] === 'write-tree') return 'treesha\n';
+    if (args[0] === 'commit-tree') return 'commit-x\n';
+    if (args[0] === 'push') {
+      pushCalls.push(args);
+      if (pushCalls.length === 1) { // A's push: rejected
+        const e = new Error('! [rejected] claims-registry -> claims-registry (stale info)');
+        e.stderr = e.message;
+        throw e;
+      }
+      return ''; // B's push: succeeds cleanly
+    }
+    throw new Error(`unexpected git call: ${args.join(' ')}`);
+  };
+  const ghApi = (args) => { throw new Error(`contents-API must not be called: ${args.join(' ')}`); };
+  const { gh } = makeGh({});
+  const { deps, io } = baseDeps({ ghApi, gh });
+  deps.gitRunner = runner;
+  deps.sleep = () => {};
+
+  const code = run(['--run-id', 'r1', '--targets', '720,721', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.claimed, [721]);
+  assert.deepEqual(body.skipped, [{ issue: 720, reason: 'contested', holder: { runId: 'rival' } }]);
+  // The load-bearing assertion: A's rejection triggers its own fresh fetches
+  // (write-rejection verification + the contested report's holder re-read —
+  // 3 fetches for A alone), and B — despite following immediately after in
+  // the batch — gets its OWN fresh fetch rather than reusing anything from
+  // A's now-discarded, proven-wrong tip belief.
+  assert.equal(fetchCalls.length, 4, "B must fetch fresh after A's contest discarded the chain — reusing A's tip would be trusting a proven-stale belief");
 });
 
 // (b) tombstone target -> conditional PUT with sha
@@ -316,6 +499,34 @@ test('(k5) pr-opened tombstone whose link points at a DIFFERENT repo: falls thro
   const w = calls.find((a) => isWrite(a, '764'));
   assert.equal(fieldOf(w, 'sha'), 'sha764', 'a wrong-repo link must fall through to the ordinary conditional reclaim write');
   assert.ok(!ghCalls.some((a) => a[0] === 'pr' && a[1] === 'view'), 'a wrong-repo link must never trigger the PR-state check');
+});
+
+// #977: two targets released together from one multi-spec build tombstone
+// with the identical `link` — `tombstoneInFlightPr`'s `gh pr view` call must
+// be memoized per `$LINK` within this one `run()` invocation, so the second
+// target's check is answered from cache instead of a second real call.
+test('(k6) two targets sharing the identical in-flight link: only one `gh pr view` call for both', () => {
+  const link = 'https://github.com/acme/w/pull/309';
+  const { ghApi } = makeGhApi({
+    reads: {
+      765: [readOk(prOpenedTombstoneMarker('otherRun', link), 'sha765')],
+      766: [readOk(prOpenedTombstoneMarker('otherRun', link), 'sha766')],
+    },
+    writes: {},
+  });
+  const { gh, calls: ghCalls } = makeGh({ prState: 'OPEN' });
+  const { deps, io } = baseDeps({ ghApi, gh });
+
+  const code = run(['--run-id', 'r1', '--targets', '765,766', '--keep-going'], deps);
+
+  assert.equal(code, 0);
+  const body = JSON.parse(io.out[0]);
+  assert.deepEqual(body.skipped, [
+    { issue: 765, reason: 'in-flight', link },
+    { issue: 766, reason: 'in-flight', link },
+  ]);
+  const prViewCalls = ghCalls.filter((a) => a[0] === 'pr' && a[1] === 'view');
+  assert.equal(prViewCalls.length, 1, 'the second target must reuse the first target\'s cached gh pr view result');
 });
 
 // (c) stale target -> conditional PUT (re-claim)

@@ -12,12 +12,20 @@ and from this skill's own sub-files (`design-pre-steps.md`, `record-creation.md`
 addition** — a new step, not a renumbering, so no pre-existing cross-reference moved. Shaping mode never reaches any of them — it runs `shaping-mode.md` in
 this skill's directory instead and exits straight to `SKILL.md`'s `## Next Actions`.
 
-**Split across two files (#611).** This file holds Steps 1-4 (through Step 2.5's design
-pre-steps and Step 3's record creation). Step 5 onward — the multi-persona red-team through
-Step 9's summary and commit — lives in `decomposition-mode-closeout.md` in this same directory.
-Step numbering is unchanged across the split, so a cross-reference naming a step by number still
-resolves regardless of which of the two files it lands in. When Step 9 completes, return to
-`SKILL.md`'s `## Next Actions` block.
+**Split across two files, at the interactive/mechanical boundary (#832; originally the Step 4/5
+boundary under #611).** This file holds only the interactive steps — 1, 2, 2.6, 2.5, and 2.5d —
+the ones that must run where a human can answer an `AskUserQuestion` call. Step 3 onward — record
+creation, linking, the multi-persona red-team dispatch, self-review, deletion of consumed
+artifacts, and the Step 9 summary/commit — is mechanical and now lives entirely in
+`decomposition-mode-closeout.md` in this same directory. Step numbering is unchanged across the
+split, so a cross-reference naming a step by number still resolves regardless of which of the two
+files it lands in. A caller that has finished the interactive steps in the main thread can
+delegate the rest to a subagent that loads only `decomposition-mode-closeout.md` — never this
+file — using `mechanical-handoff.md`'s canonical dispatch prompt (this skill's directory) instead
+of hand-authoring a bridge prompt per invocation. The default, single-threaded path is unchanged:
+the same thread continues straight from Step 2.5d into `decomposition-mode-closeout.md`'s Step 3;
+delegation is an option a caller reaches for, not the default behavior. When Step 9 completes,
+return to `SKILL.md`'s `## Next Actions` block.
 
 ---
 
@@ -287,14 +295,10 @@ Place these recommendations in the Step 9 summary under a `### Diagram suggestio
 
 **Auto mode:** the diagram suggestion is always advisory — `auto` mode emits the recommendation without prompting, logs `STAGED {time} — Step 2.5d: diagram-suggestion ({type}) for {spec/slug}. Reversibility: high.` to the decision log, and continues. No mid-flow stop.
 
-## Step 3: Create the records
-
-When Step 2.6 kept the parent, records are created **parent-first**: the parent's number has to exist before any sub-issue can link to it. Under collapse (Step 2.6), there is no parent — every produced record is created independently, using deterministic fingerprints for idempotent resume across partial or concurrent runs exactly as today. **Decomposition mode only** — shaping mode never reaches this step. Read `record-creation.md` in this skill's directory for the full procedure: the Idempotency (resume path) map, Parent record creation (skipped under collapse), and Sub-issue creation — including the origin-set carve-out where a 1-unit collapse's "create" is an in-place write onto the origin record (body composition — including the `Visual-reference:` line when Step 2.5b-ii accepted a variant — Type, Scoring, Ceremony, slug/fingerprint derivation, and both drivers' write calls), plus write-path resilience and the body size ceiling.
-
-## Step 4: Link and order
-
-Every record this run is going to create now has a number (a parent's, under a kept parent; every unit's own, under collapse). This pass wires the relationships between them and absorbs the last of the design doc's context, before Step 7 deletes it. Read `record-creation.md` in this skill's directory for the full procedure: Linking (branches on driver and `work-links`), and Decision Rationale / Assumptions / Cross-Spec Promises absorption.
-
 ---
 
-Continue at Step 5 in `decomposition-mode-closeout.md` (this skill's directory) — the multi-persona red-team dispatch, record self-review, deletion of consumed artifacts, and the Step 9 summary/commit.
+Continue at Step 3 in `decomposition-mode-closeout.md` (this skill's directory) — record creation
+and linking, the multi-persona red-team dispatch, record self-review, deletion of consumed
+artifacts, and the Step 9 summary/commit. Delegating this range to a subagent instead of
+continuing in this same thread? Use `mechanical-handoff.md`'s canonical dispatch prompt (this
+skill's directory) rather than hand-authoring one.

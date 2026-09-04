@@ -394,6 +394,15 @@ the same self-classifying convention Work-Record Backend Drift
 both already use, so Phase 1u.6's own "Contract Drift entries from 1u.5" formula picks it up
 without that table needing its own edit.
 
+### Port Isolation Drift
+
+A literal port that crept back into a file `bootstrap/step-06-5-port-isolation.md`'s rewrite table
+already covers — most commonly a re-added `server.port: 3000` after a merge or a manual edit.
+
+| Signal | Detection | Surfacing |
+|---|---|---|
+| A file previously rewritten by Step 6.5 now contains a literal port again, at a location that rewrite table covers | Re-run the same detection list against the six rewrite-row locations only (not the hard-case ones, which were never rewritten) | "Port literal drift" finding naming the file and line, pointing back at Step 6.5 to re-offer the rewrite |
+
 ### Routine Relevance
 
 Skip entirely when the Routine Drift check above found no routines (same gate — reuse its

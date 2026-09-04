@@ -19,6 +19,9 @@ const { ISSUE_REF_SOURCE } = require('../issue-branch-tracking');
 // `parseWorktreeList` is reused for the same reason, for the tool-result
 // fallback path below.
 const { resolveIntegrationBranch, parseWorktreeList } = require('./worktree-reap');
+// Session-scoped marker path for the non-EnterWorktree ad-hoc-run-dir rate-limit (#1333) — see
+// stampAdHocRunDir below.
+const { sessionTmpPath } = require('../session-tmp');
 
 // Field/record separators for recentCommits' combined --format string below.
 // ASCII 0x1f/0x1e (unit/record separator) — practically never appear in a
@@ -349,18 +352,34 @@ function extractToolResponseText(toolResponse) {
 // EnterWorktree exists to capture a "before" list — but it is equivalent for
 // this purpose: the entry matching the caller's OWN cwd is definitionally the
 // one EnterWorktree just switched this session into.
+// The porcelain-based lookup half of resolveCreatedWorktreePath below, split out (#1333) so a
+// non-EnterWorktree caller (stampAdHocRunDir's widened trigger) can reuse this exact lookup
+// without going through the EnterWorktree-tool-response-text fast path first — there is no
+// tool_response shaped like an EnterWorktree result to parse for any other tool name, so that
+// fast path would only ever waste a regex test for those callers, never actually match.
+// Returns `{ path, isMain }` — `isMain` is true for the entry `git worktree list` always lists
+// first (the primary/main checkout, per git's own porcelain output convention) — or null when
+// `ctx.cwd` doesn't resolve to a listed worktree at all (not a git repo, or the `git worktree
+// list` call itself failed).
+function resolveWorktreePathViaPorcelain(ctx) {
+  const cwd = ctx.cwd;
+  if (typeof cwd !== 'string' || !cwd) return null;
+  const { stdout, failure } = runGit(['worktree', 'list', '--porcelain'], cwd);
+  if (failure || stdout === null) return null;
+  const entries = parseWorktreeList(stdout);
+  const idx = entries.findIndex((e) => e.path === cwd);
+  if (idx === -1) return null;
+  return { path: entries[idx].path, isMain: idx === 0 };
+}
+
 function resolveCreatedWorktreePath(ctx) {
   const text = extractToolResponseText(ctx.input.tool_response);
   if (text) {
     const m = ENTER_WORKTREE_PATH_RE.exec(text);
     if (m) return m[1];
   }
-  const cwd = ctx.cwd;
-  if (typeof cwd !== 'string' || !cwd) return null;
-  const { stdout, failure } = runGit(['worktree', 'list', '--porcelain'], cwd);
-  if (failure || stdout === null) return null;
-  const match = parseWorktreeList(stdout).find((e) => e.path === cwd);
-  return match ? match.path : null;
+  const viaPorcelain = resolveWorktreePathViaPorcelain(ctx);
+  return viaPorcelain ? viaPorcelain.path : null;
 }
 
 // Ad-hoc-session run-dir stamping (#500, log-tier bookkeeping only — never
@@ -390,13 +409,37 @@ function resolveCreatedWorktreePath(ctx) {
 // had never happened. The ad-hoc dir itself is left behind, unowned by
 // nobody currently active — the Friction Lens's fallback read (`worktree`
 // field match, not session-id match) is what finds it again later.
+//
+// Trigger (#1333): fires either on an `EnterWorktree` call (the original path, unchanged) OR
+// the first time this session's `ctx.cwd` is observed resolving to a worktree entry that isn't
+// the main checkout, per `resolveWorktreePathViaPorcelain` above — covering a worktree created
+// by a tool other than claude-tweaks' own `EnterWorktree` (another plugin's worktree-management
+// skill, or a raw `git worktree add` run directly), which never fires `EnterWorktree` and so
+// never reached this function at all before. The non-EnterWorktree path is rate-limited to at
+// most once per session via a session-scoped marker file (`ADHOC_WORKTREE_CHECKED_MARKER`
+// below) — this hook fires on every `PostToolUse` event across every session in the harness, so
+// running `git worktree list` unconditionally on every call would be a real perf cost.
+const ADHOC_WORKTREE_CHECKED_MARKER = 'adhoc-worktree-checked';
+
 function stampAdHocRunDir(ctx) {
-  if (ctx.input.tool_name !== 'EnterWorktree') return;
   if (ctx.ownedRun && ctx.ownedRun.dir) return; // this session already owns a run dir — nothing to stamp
   const sessionId = ctx.input.session_id;
   if (typeof sessionId !== 'string' || !sessionId) return; // no identity to stamp ownership against
+  const isEnterWorktree = ctx.input.tool_name === 'EnterWorktree';
   try {
-    const worktreePath = resolveCreatedWorktreePath(ctx);
+    let worktreePath;
+    if (isEnterWorktree) {
+      worktreePath = resolveCreatedWorktreePath(ctx);
+    } else {
+      const markerPath = sessionTmpPath(sessionId, ADHOC_WORKTREE_CHECKED_MARKER);
+      if (markerPath && fs.existsSync(markerPath)) return; // already checked (or ruled out) this session — skip the git call entirely
+      const viaPorcelain = resolveWorktreePathViaPorcelain(ctx);
+      // Record "checked" regardless of outcome — best-effort: a write failure here just costs
+      // this session the rate-limit next call, never a correctness issue (the ctx.ownedRun.dir
+      // guard above still prevents a double-stamp once this path succeeds once).
+      if (markerPath) { try { fs.writeFileSync(markerPath, ''); } catch { /* best-effort */ } }
+      worktreePath = (viaPorcelain && !viaPorcelain.isMain) ? viaPorcelain.path : null;
+    }
     if (!worktreePath) return;
     // Deliberately NOT process.env — a stray PIPELINE_RUN_DIR left over from
     // an unrelated earlier command in this shell must never redirect this

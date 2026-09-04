@@ -45,8 +45,10 @@ against reality than trusting it in the abstract; do that for whichever check yo
    new check populates a new top-level result key, this literal needs that key added too — an
    omission here doesn't throw or fail a lint; it just silently under-reports on the one code path
    (a genuine throw inside `reconcile()`) that almost never runs in normal testing, which is
-   exactly what makes it easy to miss. The current fallback is already missing `redTip` — a live
-   instance of this exact hazard, not a hypothetical one (#1009).
+   exactly what makes it easy to miss. This hazard has a precedent, not just a hypothetical: the
+   fallback silently drifted out of sync by omitting `redTip`, and stayed that way until #1009
+   (`407f6207e`) added it back. The literal is in sync with `reconcile()`'s result shape today —
+   re-check it against `index.js` rather than trusting this line.
 5. **`bin/lib/reconcile/format-summary.js`'s `CATEGORIES` table** — only if the check's result is
    array-shaped (like `worktrees`/`claims`/`runs`/`branches`/`remoteBranches`). Add a row so
    `bin/hooks.js reconcile`'s compact human-readable default output covers the new check's taken

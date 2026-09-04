@@ -51,6 +51,20 @@ test('CLI --json round-trips the same numbers as the text report', () => {
   assert.match(textOut, /Refused proposals: 0/);
 });
 
+test('CLI renders a named Failed writes bucket, not silent other', () => {
+  const root = makeFixtureRoot();
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', 'run-1');
+  fs.writeFileSync(
+    path.join(dir, 'decisions.md'),
+    '- AUTO 12:00:00 — Review Console: terminal decision approve-all. Reversibility: n/a.\n' +
+    '- FAILED 09:00:00 — apply-refine-labels: priority write failed on #42: HTTP 500.\n',
+  );
+  const jsonOut = JSON.parse(run(['--json'], root));
+  const textOut = run([], root);
+  assert.strictEqual(jsonOut.failedCount, 1);
+  assert.match(textOut, /Failed writes: 1/);
+});
+
 test('missing TSV exits 0 with an explicit "no telemetry yet" line', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'calib-empty-'));
   const out = run([], root);

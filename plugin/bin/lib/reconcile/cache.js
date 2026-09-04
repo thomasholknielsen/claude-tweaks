@@ -18,6 +18,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { escalateResidue } = require('./escalate-residue');
 
 const CACHE_FILENAME = 'reconcile-cache.json';
 const DEFAULT_TTL_MS = 7 * 60 * 1000;
@@ -122,6 +123,30 @@ function recordResidueSuccess(root, reason, targetPath) {
   writeCache(root, { ...cache, residueFailures: failures });
 }
 
+// #1233 — the shared success/fail branch-into-{recordResidueSuccess,
+// recordResidueFailure,escalate} shape that reap-merged.js's
+// trackReapResidue and archive-merged.js's trackArchiveResult each used to
+// duplicate (differing only in the hardcoded `reason` string and each
+// carrying its own near-identical best-effort try/catch around `escalate`).
+// Callers keep their own reason-specific vocabulary at the call site —
+// archive-merged.js's `result.reason !== 'move-failed'` early-return guard
+// in particular stays there, not here, since it's archive-specific and
+// unrelated to this branching.
+function trackResidue(root, repoSlug, reason, targetPath, { failed, lastError }, { escalate = escalateResidue } = {}) {
+  if (!failed) {
+    recordResidueSuccess(root, reason, targetPath);
+    return;
+  }
+  const streak = recordResidueFailure(root, reason, targetPath, { lastError });
+  if (!streak.shouldEscalate) return;
+  try {
+    escalate({
+      repo: repoSlug, reason, targetPath,
+      count: streak.count, firstFailedAt: streak.firstFailedAt, lastError,
+    });
+  } catch { /* best-effort — never let escalation turn a residue-tracking call into a thrown error */ }
+}
+
 // Snapshot for reporting (e.g. the #644 flow closing-report line): every
 // currently-tracked residue entry, reason and path split back out of the
 // composite key. Read-only — never mutates.
@@ -140,4 +165,5 @@ function listResidueFailures(root) {
 module.exports = {
   readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS, cachePath,
   RESIDUE_ESCALATE_THRESHOLD, residueKey, recordResidueFailure, recordResidueSuccess, listResidueFailures,
+  trackResidue,
 };

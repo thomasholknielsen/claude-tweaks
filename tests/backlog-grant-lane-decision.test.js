@@ -44,11 +44,11 @@ test('go-red control: pre-change Step 3 bullets do not cite grant-lane-decision.
   assert.ok(!PRE_CHANGE_STEP_3_BULLETS.includes('needs:decision'), 'control must not already mention needs:decision');
 });
 
-const GRANT_MODE_FLAT = readFlat('plugin/skills/backlog/grant-mode.md');
+const GRANT_MODE_FLAT = readFlat('plugin/skills/backlog/refine-headless.md');
 
-test('grant-mode.md Step 4 carves failedKey grant-check out of the generic Skip rows silence into a needs:decision write', () => {
-  assert.ok(GRANT_MODE_FLAT.includes('grant-lane-decision.md'), 'grant-mode.md Step 4 must cite grant-lane-decision.md');
-  assert.ok(GRANT_MODE_FLAT.includes("failedKey === 'grant-check'") || GRANT_MODE_FLAT.includes('`grant-check`'), 'grant-mode.md must name the grant-check failedKey as the carved-out case');
+test('refine-headless.md carves failedKey grant-check out of the generic Skip rows silence into a needs:decision write', () => {
+  assert.ok(GRANT_MODE_FLAT.includes('grant-lane-decision.md'), 'refine-headless.md must cite grant-lane-decision.md');
+  assert.ok(GRANT_MODE_FLAT.includes("failedKey === 'grant-check'") || GRANT_MODE_FLAT.includes('`grant-check`'), 'refine-headless.md must name the grant-check failedKey as the carved-out case');
 });
 
 const PRE_CHANGE_SKIP_ROWS = '**Skip rows** (any `failedKey` set, at any phase): no label change, no comment on the record — a skip is silent to the record itself (a human-filed record, an out-of-cap record, or a transiently-unclean class should not accumulate visible noise every firing). Log to `decisions.md` only, naming the exact `failedKey` and `reason` — no per-verdict branching, per this record\'s own gate-chain design.';

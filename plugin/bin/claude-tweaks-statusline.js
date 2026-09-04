@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { pathToFileURL } = require('url');
 const { execSync } = require('child_process');
 const color = require('./lib/color');
 
@@ -92,12 +93,64 @@ function resolveMainProjectDir(dir) {
   }
 }
 
+// Normalizes an origin remote URL to the repo's browse URL — the three forms
+// git actually stores (scp-like ssh, ssh://, https), with or without the
+// `.git` suffix. Anything not github.com, or not owner/repo shaped, is null:
+// the glyph's presence is the "GitHub connected" indicator, so a non-GitHub
+// remote must render nothing rather than a dead link.
+function githubRepoUrl(remoteUrl) {
+  if (typeof remoteUrl !== 'string') return null;
+  const trimmed = remoteUrl.trim();
+  const m =
+    trimmed.match(/^git@github\.com:(.+?)(?:\.git)?\/?$/) ||
+    trimmed.match(/^ssh:\/\/git@github\.com\/(.+?)(?:\.git)?\/?$/) ||
+    trimmed.match(/^https:\/\/github\.com\/(.+?)(?:\.git)?\/?$/);
+  if (!m) return null;
+  const repoPath = m[1];
+  if (repoPath.split('/').length !== 2 || repoPath.split('/').some((p) => !p)) return null;
+  return `https://github.com/${repoPath}`;
+}
+
+function readOriginRemote(dir) {
+  try {
+    const url = execSync('git config --get remote.origin.url', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      cwd: dir,
+    }).trim();
+    return url || null;
+  } catch {
+    return null;
+  }
+}
+
+// U+F09B, the Nerd Font octocat — written as an escape because the literal
+// is invisible in most editors. Renders as a tofu box in unpatched fonts —
+// a deliberate trade for the real GitHub mark on Nerd Font terminals.
+const GITHUB_GLYPH = '\uf09b';
+
+// Cmd/Ctrl+click targets: the name opens the project folder in Finder/Explorer
+// (pathToFileURL handles this host's path shape, Windows drive letters
+// included), the glyph — present only when origin is a GitHub remote — opens
+// the repo page. Both resolve against the main checkout, matching the name.
 function renderProject(input, fallbackCwd) {
   const ws = input.workspace || {};
   const dir = ws.project_dir || ws.current_dir || input.cwd || fallbackCwd;
   if (!dir || typeof dir !== 'string') return null;
-  const name = path.basename(resolveMainProjectDir(dir));
-  return name || null;
+  const mainDir = resolveMainProjectDir(dir);
+  const name = path.basename(mainDir);
+  if (!name) return null;
+  let linked = name;
+  try {
+    // Trailing slash matters: a directory file:// URL without it makes macOS
+    // reveal the folder selected in its parent window instead of opening the
+    // folder itself.
+    linked = color.link(`${pathToFileURL(mainDir).href}/`, name);
+  } catch {
+    /* unconvertible path — keep the plain name */
+  }
+  const repoUrl = githubRepoUrl(readOriginRemote(mainDir));
+  return repoUrl ? `${linked} ${color.link(repoUrl, GITHUB_GLYPH)}` : linked;
 }
 
 function renderContext(input) {
@@ -156,6 +209,52 @@ function renderGit(cwd) {
     return dirty ? `${branch}${color.yellow('●')}` : branch;
   } catch {
     return null;
+  }
+}
+
+// Spawn-free git-toplevel walk: the nearest ancestor (including `dir`
+// itself) carrying a `.git` entry, file or directory alike — a linked
+// worktree's `.git` is a FILE pointing at the real gitdir, but the toplevel
+// is still the directory CONTAINING that file, not anything derived from
+// where it points. This intentionally does NOT resolve to the main
+// checkout (unlike bin/lib/hooks/worktree-detect.js's mainCheckoutRoot): a
+// port lease is keyed by each checkout's OWN toplevel — main or worktree
+// alike — since that's the same path `git rev-parse --show-toplevel`
+// resolves to, and therefore what registry.allocate keys leases on.
+function nearestGitToplevel(dir) {
+  let cur = path.resolve(dir);
+  for (;;) {
+    let exists = false;
+    try {
+      fs.statSync(path.join(cur, '.git'));
+      exists = true;
+    } catch { /* not here — keep walking up */ }
+    if (exists) return cur;
+    const parent = path.dirname(cur);
+    if (parent === cur) return null;
+    cur = parent;
+  }
+}
+
+// Renders `:{base}` for the port block leased to this cwd's checkout, `''`
+// when there is none (or none can be determined). No `execFileSync` for
+// git, no lock acquisition — the statusline runs on every prompt render, so
+// this must stay spawn-free and side-effect-free beyond what the file
+// already does. The whole thing — including the `require` itself, so an
+// older wrapper install missing the ports module degrades identically to a
+// present-but-unreadable registry — is one try/catch.
+function renderPorts(cwd, { home = os.homedir() } = {}) {
+  try {
+    const toplevel = nearestGitToplevel(cwd);
+    if (!toplevel) return '';
+    const real = fs.realpathSync(toplevel);
+    // eslint-disable-next-line global-require
+    const { readRegistry } = require('./lib/ports/registry');
+    const registry = readRegistry({ home });
+    const entry = Object.entries((registry && registry.leases) || {}).find(([, lease]) => lease.path === real);
+    return entry ? `:${entry[0]}` : '';
+  } catch {
+    return '';
   }
 }
 
@@ -309,6 +408,7 @@ async function main() {
     renderContext(input),
     renderEffort(input),
     renderGit(cwd),
+    renderPorts(cwd),
     renderRateLimit('sess', rateLimits.five_hour, now),
     renderRateLimit('week', rateLimits.seven_day, now),
     findActiveSpec(cwd),
@@ -327,9 +427,12 @@ module.exports = {
   main,
   renderModel,
   renderProject,
+  githubRepoUrl,
   renderContext,
   renderEffort,
   renderGit,
+  renderPorts,
+  nearestGitToplevel,
   renderRateLimit,
   findActiveSpec,
   findOpenLedger,

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // bin/log-decision.js — append one _shared/auto-decision-log.md entry to a run's decisions.md.
-//   node bin/log-decision.js --run <run-dir> --status AUTO|STAGED|KEPT-PROMPT|SCANNED|REFUSED --text "..." \
+//   node bin/log-decision.js --run <run-dir> --status AUTO|STAGED|KEPT-PROMPT|SCANNED|REFUSED|SKIP --text "..." \
 //     [--spec <n>] [--step <text>] [--reversibility high|med|low|n/a] [--lever "<k>=<v> (<source>)"] \
 //     [--section "/<skill>"] [--help]
 // Exit 0 appended (entry echoed to stdout); 2 malformed invocation; 3 run dir missing or not
@@ -10,7 +10,7 @@
 
 const { STATUSES, formatEntry, resolveTarget, appendEntry } = require('./lib/log-decision/append');
 
-const USAGE = 'usage: log-decision.js --run <run-dir> --status AUTO|STAGED|KEPT-PROMPT|SCANNED|REFUSED --text "..." [--spec <n>] [--step <text>] [--reversibility high|med|low|n/a] [--lever "<k>=<v> (<source>)"] [--section "/<skill>"] [--help]\n';
+const USAGE = 'usage: log-decision.js --run <run-dir> --status AUTO|STAGED|KEPT-PROMPT|SCANNED|REFUSED|SKIP --text "..." [--spec <n>] [--step <text>] [--reversibility high|med|low|n/a] [--lever "<k>=<v> (<source>)"] [--section "/<skill>"] [--help]\n';
 const REVERSIBILITY = ['high', 'med', 'low', 'n/a'];
 
 function parseArgs(argv) {

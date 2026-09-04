@@ -18,16 +18,20 @@ If CLAUDE.md doesn't document verification commands, scan `package.json` scripts
 Run every resolved check through the deterministic runner — one plain command at the invocation level (no `;`, `&&`, or pipe chains):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --log-dir "$(git rev-parse --git-dir)/claude-tweaks-verify" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
+node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --log-dir "$(git rev-parse --git-dir)/claude-tweaks-verify" --count-stamp "$(git rev-parse --git-dir)/claude-tweaks-test-count.json" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
 ```
 
-Substitute the project's own commands from Step 1, one `--cmd <name>=<command>` per resolved check, and omit any stage the project doesn't have (`--cmd tests="npm test"` alone is valid — in this repo it is the whole set). The reserved names `types`, `lint`, and `tests` get the ordering policy: `types` and `lint` run concurrently, `tests` starts only after every supplied one of them exits 0, and a stage-1 failure reports `tests` as `skipped: fail-fast`. Any other name runs serially after the known stages under the same fail-fast. The `--log-dir` shape above anchors logs in the checkout's own git dir — per-worktree unique, so a concurrent session's run can never clobber it; leave `--log-dir` off to get a fresh directory under the OS tmpdir instead.
+Substitute the project's own commands from Step 1, one `--cmd <name>=<command>` per resolved check, and omit any stage the project doesn't have (`--cmd tests="npm test"` alone is valid — in this repo it is the whole set). The reserved names `types`, `lint`, and `tests` get the ordering policy: `types` and `lint` run concurrently, `tests` starts only after every supplied one of them exits 0, and a stage-1 failure reports `tests` as `skipped: fail-fast`. Any other name runs serially after the known stages under the same fail-fast. The `--log-dir` shape above anchors logs in the checkout's own git dir — per-worktree unique, so a concurrent session's run can never clobber it; leave `--log-dir` off to get a fresh directory under the OS tmpdir instead. The `--count-stamp` shape anchors the same way, for the same reason — see "Suite-count regression caveat" below; leave it off to disable count persistence and comparison entirely.
 
 `--cmd` values are opaque strings executed by the child shell. If a compound value (e.g. `--cmd tests="a && b"`) trips a worktree session's command text-shape guard (see `_shared/scratch-worktree.md`'s "## 7. Shell constraint"), split it into two `--cmd` checks instead.
 
 ### Reading the result
 
-The runner's stdout is already bounded — one table row per check plus at most one ≤100-line failing region per failed check, never raw check output — and it exits 0 iff every non-skipped check passed. It writes `{log-dir}/report.json`: per-check `{command, exitCode, durationMs, logPath, summary, failingRegion}` (plus `counts` where a test summary parses; a skipped check carries `{skipped: "fail-fast"}` in place of an exit code), and top-level `pass`, `startedAt`, `durationMs`, `sha`, and `dirty`. The recorded `exitCode` is the check command's own — judge each check by it, never by grep side effects. Each check's full output is in its own `{log-dir}/{name}.log` for a recovery read of last resort; read the failing region the runner already extracted, never `cat` the log.
+The runner's stdout is already bounded — one table row per check plus at most one ≤100-line failing region per failed check, never raw check output — and it exits 0 iff every non-skipped check passed. It writes `{log-dir}/report.json`: per-check `{command, exitCode, durationMs, logPath, summary, failingRegion}` (plus `counts` where a test summary parses; a skipped check carries `{skipped: "fail-fast"}` in place of an exit code), and top-level `pass`, `startedAt`, `durationMs`, `sha`, and `dirty` (plus `testCountRegression` — see below — when one fired). The recorded `exitCode` is the check command's own — judge each check by it, never by grep side effects. Each check's full output is in its own `{log-dir}/{name}.log` for a recovery read of last resort; read the failing region the runner already extracted, never `cat` the log.
+
+### Suite-count regression caveat (#881)
+
+When `--count-stamp` is passed, the runner compares the `tests` check's own parsed count (`counts.tests`) against the count persisted at that path by the previous run, and rewrites the stamp with this run's count regardless of outcome. A **drop** — this run's count strictly lower than the previous one — never fails the run (the `tests` check's `exitCode` alone still decides pass/fail); it surfaces as a `CAVEAT:` line in the runner's stdout, distinct from the pass/fail table, and as a `testCountRegression: {previousTests, currentTests, droppedBy}` field on `report.json`. Present that line verbatim in Step 3's report when it fires — a quieter suite reads identical to a clean pass otherwise (IL-84: an enumerated glob silently excluded a whole test directory while `npm test` still exited 0). A steady or higher count, or no previous stamp (first run — bootstrap), produces no caveat. A legitimate test removal also drops the count; the caveat flags it for a human to judge, not to block on.
 
 ### Skip-if-recent (for /flow pipelines)
 
@@ -41,6 +45,24 @@ When running inside a `/claude-tweaks:flow` pipeline and the previous step alrea
 ### Pre-existing failures (multi-spec batches)
 
 In a multi-spec `/flow` run, `flow/multi-spec.md`'s pre-flight verify sweep runs this procedure once against the unmodified base, before spec 1's build begins, and records any failures to the parent run directory's ledger (phase `test`, status `open`). Before diagnosing a verification failure for an individual spec, check that ledger for an existing entry describing the same failure — if found, cite it (`Pre-existing — see ledger #{N}, batch pre-flight sweep`) instead of independently re-deriving the same root cause. Only diagnose failures not already covered by the sweep.
+
+### Isolating pre-existing failures by file, not by keyword grep
+
+A failure count that falls within a documented baseline range (e.g. "239-241 fail on this host")
+is not, by itself, proof that none of those failures are new. Confirm it by extracting each
+failing test's **source file path** — node's test runner prints one in the stack trace
+(`at TestContext.<anonymous> (path/to/file.test.js:N)`) — and checking that none of those paths
+are files this build's diff changes or adds, never by grepping the failure summary text for a
+component-name or path-fragment substring. A test's assertion message has no obligation to
+mention the file or component it protects: a real CI-visible regression from record #1579
+(`dispatch/SKILL.md` exceeding the 40 KB per-invocation ceiling) surfaced in local output as
+`no SKILL.md exceeds the 40 KB per-invocation ceiling` with an actual array entry
+`['dispatch 41.4 KB']` — a keyword grep for `dispatch-SKILL` (a plausible-looking but wrong
+guess at the failure's own vocabulary) found zero hits and let the regression through a run that
+otherwise reported `TEST_PASSED=true`, undetected until the hosted CI check caught it
+independently. Diff the **set of failing file paths** against a baseline run's own set (or,
+absent a baseline run, against this build's own changed/added test files) — a substring search
+over free-text failure messages is not a substitute.
 
 ## Step 2.5: Verification pass stamp
 
@@ -72,7 +94,7 @@ Present results in a consistent format:
 | Tests | {pass/fail} | {Xs} | {passed}/{total}, {failed count} failures |
 ```
 
-Source the table from report.json: Status from each check's exitCode (or skipped), Duration from durationMs, Details from summary/counts. Capture VERIFICATION_SHA from report.json's sha — with the dirty caveat: dirty: true means "verified this tree, which is not exactly commit sha".
+Source the table from report.json: Status from each check's exitCode (or skipped), Duration from durationMs, Details from summary/counts. Capture VERIFICATION_SHA from report.json's sha — with the dirty caveat: dirty: true means "verified this tree, which is not exactly commit sha". When report.json carries `testCountRegression`, render its `CAVEAT:` line (see "Suite-count regression caveat" above) as its own paragraph directly under the table — never folded into the Tests row, since it is not a pass/fail signal.
 
 ### On failure
 

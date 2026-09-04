@@ -230,6 +230,20 @@ test('link-records CLI: --repo with no value is a malformed invocation (exit 2)'
   assert.match(err.join(''), /missing value for --repo/);
 });
 
+test('link-records CLI: --repo owner/.. is rejected before any gh call (#1443: parseRepo accepts ".." segments)', () => {
+  const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
+  const code = run(['--parent', '592', '--subs', '595', '--repo', 'owner/..'], deps);
+  assert.equal(code, 2);
+  assert.match(err.join(''), /invalid --repo value/);
+});
+
+test('link-records CLI: --repo ../evil is rejected before any gh call', () => {
+  const { deps, err } = cliDeps({ runner: () => { throw new Error('must not call gh'); } });
+  const code = run(['--parent', '592', '--subs', '595', '--repo', '../evil'], deps);
+  assert.equal(code, 2);
+  assert.match(err.join(''), /invalid --repo value/);
+});
+
 test('resolveDatabaseIds: GraphQL errors[] surface in the missing-id message', () => {
   const runner = (args) => (isGraphQL(args) ? JSON.stringify({ data: { repository: null }, errors: [{ message: 'Could not resolve to a Repository' }] }) : '{}');
   assert.throws(

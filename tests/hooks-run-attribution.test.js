@@ -23,6 +23,7 @@ const path = require('node:path');
 const ctxLib = require('../plugin/bin/lib/hooks/context.js');
 const sessionEnd = require('../plugin/bin/lib/hooks/session-end.js');
 const preCompact = require('../plugin/bin/lib/hooks/pre-compact.js');
+const { gitRepo, linkedWorktreeOf } = require('./helpers/git-fixtures');
 
 function project() {
   return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-attr-')));
@@ -214,4 +215,88 @@ test('a run with a corrupt run-state.json and no decisions.md is still not a min
   fs.writeFileSync(path.join(dir, 'run-state.json'), '{"status":"active", "worktree": "/trunc');
 
   assert.deepStrictEqual(ctxLib.resolveRun(cwd, {}, 'me'), { dir, attribution: 'fallback' });
+});
+
+// ─── worktree-bound foreign candidates (#1402) ─────────────────────────────
+//
+// #1033's own events.jsonl accumulated six events belonging to unrelated,
+// concurrently-live sibling worktrees — every one carried attribution
+// "fallback". Neither fallback branch checked the guessed run's worktree
+// binding against the caller's own cwd; these pin that it now does, via
+// classifyOwnership (#1098), without touching the 'session'/'env' arms.
+// Needs a REAL git repo + linked worktrees — classifyOwnership only ever
+// returns 'foreign' when it can prove the caller's cwd resolves to a
+// different, still-live worktree than the recorded binding; a bare tmpdir
+// (as `project()` above builds) has no git repo, so it can only ever read
+// 'indeterminate' and would never exercise this branch.
+
+test('an unknown-session fallback skips a candidate bound to a different live worktree, in favor of an older compatible one', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const compatible = mkRun(main, '2026-07-01T090000-mine', { status: 'active', worktree: callerWt });
+  mkRun(main, '2026-07-02T090000-foreign', { status: 'active', worktree: otherWt });
+
+  // Newest-first would pick "foreign" under the pre-#1402 guess — the
+  // worktree-binding check must skip it and fall through to the older,
+  // worktree-compatible candidate instead.
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, null), { dir: compatible, attribution: 'fallback' });
+});
+
+test('an unknown-session fallback resolves null when every non-mint candidate is bound to a different live worktree', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  mkRun(main, '2026-07-01T090000-foreign', { status: 'active', worktree: otherWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, null), { dir: null, attribution: null });
+});
+
+test('a known-session fallback skips an unowned candidate bound to a different live worktree', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const compatible = mkRun(main, '2026-07-01T090000-mine', { status: 'active', worktree: callerWt });
+  mkRun(main, '2026-07-02T090000-foreign', { status: 'active', worktree: otherWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: compatible, attribution: 'fallback' });
+});
+
+test('a known-session fallback still resolves an unowned run with no worktree binding at all — the asymmetry is preserved', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const unbound = mkRun(main, '2026-07-01T090000-unbound', { status: 'active' });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: unbound, attribution: 'fallback' });
+});
+
+test('a foreign-owned run is still never resolved for another session, worktree binding notwithstanding', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  mkRun(main, '2026-07-01T090000-theirs', { status: 'active', sessionId: 'them', worktree: callerWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: null, attribution: null });
+});
+
+// close-run's own regression (whole-branch review finding, pre-v6.110.0): its
+// implicit (no --run) fallback shares resolveRun's unknown-session arm with
+// post-tool-use.js's event attribution, but needs the OPPOSITE answer for a
+// worktree-foreign candidate — it must still find that run so closeRunState's
+// own sessionId check can report "belongs to another session," rather than
+// silently reporting "no run found" the way the bare #1410 filter above does.
+// includeWorktreeForeign is the opt-out close-run's resolveRunArg call passes;
+// every other caller (including the tests above) omits it and keeps the
+// worktree-safe fallback.
+test('includeWorktreeForeign lets an unknown-session fallback still find a candidate bound to a different live worktree (close-run\'s need)', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const otherWt = linkedWorktreeOf(main);
+  const foreign = mkRun(main, '2026-07-01T090000-foreign', { status: 'active', worktree: otherWt });
+
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, null), { dir: null, attribution: null }, 'sanity: the default (no opt-out) still filters it, per the test above');
+  assert.deepStrictEqual(
+    ctxLib.resolveRun(callerWt, {}, null, { includeWorktreeForeign: true }),
+    { dir: foreign, attribution: 'fallback' },
+  );
+  assert.strictEqual(ctxLib.resolveRunDir(callerWt, {}, null, { includeWorktreeForeign: true }), foreign);
 });

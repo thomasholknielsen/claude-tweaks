@@ -1,7 +1,7 @@
 ---
 name: flow
 description: Use when you want to run an automated build → test → review → polish → wrap-up pipeline on a work record without stopping between steps. Accepts record references (#N) only — design docs must be decomposed via /claude-tweaks:specify first.
-argument-hint: "<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [cleanup-only] [step1,step2,step3]"
+argument-hint: "#N[,#M...] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [cleanup-only] [step1,step2,step3]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -31,12 +31,12 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 
 ## Input
 
-`$ARGUMENTS` is parsed as `<#n>[,#m,#o] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [cleanup-only] [step1,step2,step3]` — see Syntax and Arguments below for what each token resolves to.
+`$ARGUMENTS` is parsed as `#N[,#M...] [worktree|current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto|interactive|hybrid|confirm] [keep-going] [cleanup-only] [step1,step2,step3]` — see Syntax and Arguments below for what each token resolves to.
 
 ## Syntax
 
 ```
-/claude-tweaks:flow <#n>[,#m,#o] [worktree | current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto | interactive | hybrid | confirm] [keep-going] [cleanup-only] [step1,step2,step3]
+/claude-tweaks:flow #N[,#M...] [worktree | current-branch] [no-stories] [no-polish] [no-deepen] [no-creative] [auto | interactive | hybrid | confirm] [keep-going] [cleanup-only] [step1,step2,step3]
 ```
 
 All bracketed tokens are optional and order-independent. `worktree` is the default git strategy when neither `worktree` nor `current-branch` is set. `keep-going` applies to multi-record runs only. Design doc paths are rejected at Step 2.7 — run `/claude-tweaks:specify` first.
@@ -47,7 +47,7 @@ All bracketed tokens are optional and order-independent. `worktree` is the defau
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `#<n>[,#<m>...]` | Yes* | **Primary input.** One or more work record references (e.g. `#123` or `#123,#456`) — a GitHub issue number under `work-backend: github-issues`, or (drop the `#`) a local record id under `work-backend: local-files`. Resolved, shape-gated, and materialized into `{run-dir}/work/{n}-spec.md` per `materialize.md` in this skill's directory — an unshaped record hard-stops the run with a pointer to `/claude-tweaks:specify #{n}`. `/flow` never selects or filters records — `/claude-tweaks:dispatch` does that and mints the run directory (`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #{n}[,#{m}...]`); `/flow` claims its named targets itself at Step 2.8 (`claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly against any record carrying no live claim. `/wrap-up`'s Section E / `multispec-review-console.md` release step derives the claim's identity as `basename($PIPELINE_RUN_DIR)` — the same directory dispatch minted and flow adopted, not a separately threaded value. *Not required when a topic name is passed instead. **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into records. See Step 2.7. |
+| `#N[,#M...]` | Yes* | **Primary input.** One or more work record references (e.g. `#123` or `#123,#456`; grammar — notation, tokenization, classification — is `_shared/record-batch-input.md`'s contract) — a GitHub issue number under `work-backend: github-issues`, or (drop the `#`) a local record id under `work-backend: local-files`. Resolved, shape-gated, and materialized into `{run-dir}/work/{n}-spec.md` per `materialize.md` in this skill's directory — an unshaped record hard-stops the run with a pointer to `/claude-tweaks:specify #{n}`. `/flow` never selects or filters records — `/claude-tweaks:dispatch` does that and mints the run directory (`PIPELINE_RUN_DIR="{minted-run-dir}" /claude-tweaks:flow #{n}[,#{m}...]`); `/flow` claims its named targets itself at Step 2.8 (`claim-targets.md`), whether the invocation came from dispatch's hand-off or a human running `/flow #{n}` directly against any record carrying no live claim. `/wrap-up`'s Section E / `multispec-review-console.md` release step derives the claim's identity as `basename($PIPELINE_RUN_DIR)` — the same directory dispatch minted and flow adopted, not a separately threaded value. *Not required when a topic name is passed instead. **Design docs are not accepted** — run `/claude-tweaks:specify {design-doc}` first to decompose into records. See Step 2.7. |
 | `worktree` | No | Use worktree git strategy — isolated workspace on a feature branch (this is the default for flow). See "Parallel Development with Worktrees" below. |
 | `current-branch` | No | Override the default and commit directly on the current branch instead of creating a worktree. |
 | `no-stories` | No | Skip automatic story generation even if UI files changed. By default, flow auto-generates stories when the build produces UI file changes. |

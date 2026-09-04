@@ -28,30 +28,14 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { splitFrontmatterFence } = require('../plugin/bin/lib/health-core/frontmatter-list');
 const { listSkillDirs } = require('../plugin/bin/lib/skill-audit/skill-catalog');
+const { extractArgumentHint } = require('../plugin/bin/lib/skill-audit/argument-hint');
 
 const ROOT = path.join(__dirname, '..');
 const SKILLS_DIR = path.join(ROOT, 'plugin', 'skills');
 const SKILLS = listSkillDirs(path.join(ROOT, 'plugin'));
 
 const read = (name) => fs.readFileSync(path.join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
-
-// argument-hint is a single-line scalar frontmatter value, quoted with either
-// ' or " (CLAUDE.md: "Always quote the value"). Strip the surrounding quotes
-// only -- the hint's own content may itself contain the other quote style
-// (e.g. capture's `--title="..."` inside a single-quoted hint).
-function extractArgumentHint(content) {
-  const split = splitFrontmatterFence(content);
-  if (!split) return null;
-  const line = split.frontmatter.find((l) => /^argument-hint:\s*/.test(l));
-  if (!line) return null;
-  const raw = line.replace(/^argument-hint:\s*/, '').trim();
-  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-    return raw.slice(1, -1);
-  }
-  return raw;
-}
 
 // Split `group` on `|` characters that are not nested inside `<...>` or
 // `[...]` -- e.g. `tier=<fast|standard|capable>` stays one leaf (the pipes
@@ -187,5 +171,3 @@ test('every bracketed leaf in argument-hint appears in ## Input', () => {
     }
   }
 });
-
-module.exports = { extractArgumentHint };

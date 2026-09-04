@@ -24,10 +24,13 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, skipGlobalFlags } = require('./git-command');
+const {
+  gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, resolveGitCommand,
+} = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
+const { resolveIntegrationBranch } = require('./worktree-reap');
 const { runGit, FAILURE } = require('./git-exec');
 const { detectIntegrationModel, resolvePolicyConfig } = require('../policy-schema');
 
@@ -37,8 +40,10 @@ function pluginRoot() {
 
 // The gate's two path-prefix/path-identity exemptions. `.claude-tweaks/pipelines/`
 // holds plugin-owned pipeline bookkeeping — run config, the auto-decision log,
-// staged proposals — which is gitignored and is not the project work this
-// gate exists to isolate. `.claude-tweaks/policy.yml` is the second: the one
+// staged proposals — which is gitignored (except *-tidy-standalone*/
+// *-sweep-standalone* audit files, #1493/#1494 — the exemption is
+// path-prefix-based either way) and is not
+// the project work this gate exists to isolate. `.claude-tweaks/policy.yml` is the second: the one
 // file a session legitimately needs to edit from a non-isolated checkout in
 // order to CONFIGURE the very gate that would otherwise deny every other
 // write there (spec #537) — see isPolicyFile below for how its comparison
@@ -108,10 +113,17 @@ const GATE_COVERAGE = Object.freeze({
   // The two exemptions above (paths) plus the allowlisted-commit rule (see
   // POLICY_COMMIT_ALLOWLIST / isPolicyOnlyCommit below). `paths[0]` carries a
   // trailing slash to mark it as a PREFIX; `paths[1]` is an exact-file match.
+  // `target` (#1395) is a third kind again: not a fixed path at all, but a
+  // per-write git query (isUntrackedOrIgnored) — see that function's own
+  // header comment for exactly what it proves before exempting a target, and
+  // for why this reads `gitignored` rather than the issue's originally-asked
+  // `untracked-or-ignored`: the standalone untracked-but-not-ignored branch
+  // was built, then reverted, after it proved unsafe against real tests.
   exemptions: Object.freeze({
     paths: Object.freeze([`${toPosix(PIPELINE_STATE_DIR)}/`, toPosix(POLICY_FILE)]),
     commit: 'policy-only',
     push: 'delete-only',
+    target: 'gitignored',
   }),
 });
 
@@ -180,6 +192,73 @@ function isPolicyFile(repoRoot, targetPath) {
   const canonical = canonicalRepoPath(repoRoot, POLICY_FILE);
   if (!canonical) return false;
   return real === canonical;
+}
+
+// The third path exemption (#1395): an exemptible write target (see
+// `exemptible` in checkWorktreeRequired below — file-tool targets AND Bash
+// write-shape targets both qualify, unlike isPolicyFile's fileTool-only
+// scope) whose fully-resolved path is git-ignored in its OWN repo. Real-world
+// motivation: a gitignored runtime `.env` a docker compose in the main
+// checkout reads is not the project work this gate isolates, even though
+// writing it looks identical, mechanically, to a genuine wrong-checkout code
+// write. `cp realfile.js .env` still resolves correctly here because the
+// caller passes only the write's TARGET path — `.env` — never the source; a
+// tracked source file is never exempted by association with an untracked
+// destination.
+//
+// git check-ignore -q's exit codes (verified empirically, since this file's
+// header comment on the gotcha warns not to assume): 0 = ignored, a
+// definitive positive. 1 with NO stderr = a normal negative ("not ignored" —
+// not a git failure). Anything else — a non-zero exit that DID produce
+// stderr, e.g. exit 128 "fatal: ... is outside repository" or "Invalid
+// path" — is a real git failure, indeterminate about the answer this
+// function needs: fails closed, matching isPipelineBookkeeping's own posture
+// just above.
+//
+// DELIBERATELY NOT IMPLEMENTED: a standalone "untracked, but NOT git-ignored"
+// branch via `git ls-files --error-unmatch`, despite the issue's (#1395)
+// literal ask for one. Built and empirically tested during triage, then
+// reverted after it broke three existing, deliberately-designed security
+// tests (`tests/hooks-policy-exemption.test.js`'s "Edit to CLAUDE.md stays
+// denied", "policy.yml SWAPPED for a symlink escaping elsewhere resolves to
+// denied", and "a Bash WRITE SHAPE (tee/cp) targeting policy.yml stays
+// denied") — proving the hazard is real, not hypothetical. The root cause:
+// git has NO signal that distinguishes "a legitimate untracked deploy/scratch
+// artifact" from "real, valuable project content that simply has not been
+// `git add`ed yet" — both read back identically from `ls-files
+// --error-unmatch` (a non-zero exit, no matching index entry), regardless of
+// whether the path exists on disk. Trusting "untracked" alone as a signal
+// would blanket-exempt (a) every not-yet-`git add`ed file created during
+// ordinary iterative development — the single most common real-world state
+// of new project work, not an edge case — and (b) any write whose LITERAL
+// target path happens to coincide with an untracked enforcement-relevant
+// file, including `.claude-tweaks/policy.yml` itself before its first commit
+// (undermining both isPolicyFile's fileTool-only Bash-write-shape gating,
+// spec #537 Non-Goals, and its symlink-swap identity defense, since neither
+// check-ignore nor ls-files follow symlinks — they answer for the literal
+// pathname, not the swapped-in target). No git-observable heuristic (parent
+// directory has no tracked siblings, no history for the path, etc.) closes
+// this gap without inventing arbitrary, unlisted logic. This finding is
+// recorded on #1395 and in this build's PR description rather than silently
+// narrowing the implementation without a trace — the issue's own
+// conservatism directive ("fail closed on any ambiguity, never widen the
+// exemption beyond exactly what the acceptance criteria specify") takes
+// precedence over the literal "untracked-file allow" acceptance criterion
+// where the two conflict.
+//
+// Absolute-path-only, like isPipelineBookkeeping and realTarget: a relative
+// path is unprovable (the cwd it would resolve against is not necessarily
+// the one the write executes in), so it is never exempt.
+function isUntrackedOrIgnored(repoRoot, targetPath) {
+  if (!repoRoot || typeof targetPath !== 'string' || !targetPath) return false;
+  if (!path.isAbsolute(targetPath)) return false;
+  const resolved = path.resolve(targetPath);
+
+  const ignoreCheck = runGit(['check-ignore', '-q', resolved], repoRoot);
+  if (ignoreCheck.failure === null) return true; // ignored
+  // Not a clean "not ignored" negative -> indeterminate/fatal -> not exempt.
+  if (ignoreCheck.failure !== FAILURE.GIT_ERROR || ignoreCheck.stderr) return false;
+  return false; // not ignored -> not exempt (see the header comment above)
 }
 
 // The commit exemption's allowlist grammar (spec #537 Deliverables): admits
@@ -336,15 +415,19 @@ function teardownTargets(ctx) {
   if (toolName !== 'Bash' || !toolInput || typeof toolInput.command !== 'string') return [];
   const out = [];
   forEachCommandSegment(toolInput.command, ctx.cwd || process.cwd(), (toks, effCwd) => {
-    if (toks[0] !== 'git') return;
-    // Shares gitTargets' own global-flag skipper: any global flag ahead of
-    // the subcommand (-C, -c, --exec-path, --namespace, --git-dir,
-    // --work-tree, or an unrecognized `-...` flag) used to defeat this
-    // parser entirely when it only checked for a literal `-C`, silently
-    // allowing `git -c foo=bar worktree remove <path>` past the gate.
-    const { index: i, dir, unprovable } = skipGlobalFlags(toks, 1, effCwd);
-    if (unprovable) return;
-    if (dir === null) return; // cwd unknown and no provable -C -> no target
+    // Shares gitTargets' own findGitLead -> skipGlobalFlags preamble via
+    // resolveGitCommand: findGitLead walks past a leading NAME=value
+    // assignment and/or the env builtin (with env's own flags, including
+    // -C/--chdir) to find the real git/.../git lead token — a bare
+    // `toks[0] !== 'git'` check misses every wrapped form (#1308) — and
+    // skipGlobalFlags then walks past any global flag ahead of the
+    // subcommand (-C, -c, --exec-path, --namespace, --git-dir, --work-tree,
+    // or an unrecognized `-...` flag), which used to defeat this parser
+    // entirely when it only checked for a literal `-C`, silently allowing
+    // `git -c foo=bar worktree remove <path>` past the gate.
+    const resolved = resolveGitCommand(toks, effCwd);
+    if (!resolved) return; // not git, or unprovable, or cwd unknown with no provable -C
+    const { index: i, dir } = resolved;
     // Derived from GATE_COVERAGE.teardownGitCommands rather than a hardcoded
     // comparison, so the constant stays load-bearing (see tools/gitActions
     // above) instead of a parallel hand-kept list nothing reads (#hooks-gate-coverage).
@@ -637,6 +720,23 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
     // pipelines/ prefix rule above but must stay gated here (spec #537
     // Non-Goals; review finding — a shell rewrite of the enforcement file).
     if (fileTool && isPolicyFile(repoRoot, targetPath)) continue;
+    // The third path exemption (#1395): see isUntrackedOrIgnored's own header
+    // comment for what it proves (and for why it checks ONLY git-ignored
+    // status, not untracked status standalone). Keyed on `exemptible`, NOT
+    // `fileTool` — unlike isPolicyFile just above, this must cover a Bash
+    // write shape (cp/mv/tee/sed -i/…) targeting a gitignored path too, not
+    // only Edit/Write/NotebookEdit. Leaves its own allow breadcrumb (distinct
+    // from the deny breadcrumb below) so an operator can audit which writes
+    // this exemption let through — the issue's explicit auditability ask,
+    // since the two pre-existing path exemptions leave no breadcrumb at all.
+    if (exemptible && isUntrackedOrIgnored(repoRoot, targetPath)) {
+      const ownedRun = ctx.ownedRun || {};
+      const testTag = process.env.CT_HOOKS_TEST_MODE === '1' ? { test: true } : null;
+      ctxLib.appendEvent(
+        ownedRun.dir, 'gate-exempt-gitignored', { tool: toolName, path: targetPath, ...testTag }, ownedRun.attribution,
+      );
+      continue;
+    }
     // The commit exemption (#537): ONLY for a target this loop resolved from a
     // 'commit' action (never 'push' — see the field comment above), and only
     // when the allowlist-matched command's staged set is provably nothing but
@@ -694,7 +794,8 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
       `${GATE_COVERAGE.bashWriteShapes.join('/')} writes (not every possible Bash write shape — ` +
       `see _shared/policy-schema-coverage.md's worktree-always coverage block; exempt: ` +
       `${GATE_COVERAGE.exemptions.paths.join(', ')}, an allowlisted (${GATE_COVERAGE.exemptions.commit}) commit, ` +
-      `and an allowlisted (${GATE_COVERAGE.exemptions.push}) push) ` +
+      `an allowlisted (${GATE_COVERAGE.exemptions.push}) push, and a write target that is ` +
+      `${GATE_COVERAGE.exemptions.target} in its own repo) ` +
       `(policy: worktree-always in .claude-tweaks/policy.yml). You're currently working in ` +
       `a non-isolated checkout (${repoRoot}). ${retryGuidance}`,
     );
@@ -740,12 +841,73 @@ function hasMaterializeCommit(worktreeRoot, runDir) {
   // pattern, so a wildcard directory component followed by a literal tail
   // never matches. 'spec-*/work/*' keeps the wildcard trailing so the
   // multi-record form ({run-dir}/spec-{slug}/work/{n}-spec.md) is reached.
-  const { stdout, failure } = runGit(
-    ['log', '--oneline', '-1', '--', `${runRel}/work`, `${runRel}/spec-*/work/*`],
-    worktreeRoot,
-  );
-  if (failure) return false;
-  return Boolean(stdout && stdout.trim());
+  // Range-bound to this worktree's own commits (#1674). The unbounded walk
+  // this replaces matched the run-id pathspec anywhere in HEAD's reachable
+  // history — so once a run's materialize commit shipped and merged into the
+  // integration branch, it became part of every LATER worktree's inherited
+  // history and armed this gate against runs that had never materialized
+  // anything of their own. `{integration}..HEAD` is "reachable from HEAD but
+  // not from integration": exactly the commits unique to this worktree.
+  //
+  // When the integration branch can't be resolved, fall back to the
+  // pre-#1674 UNBOUNDED walk rather than returning false.
+  //
+  // #1674's acceptance criteria asked for `false` here, reasoning that
+  // "fail open" means "never a false denial". That reasoning does not hold
+  // in this function: `false` means *the gate is not armed*, and this gate
+  // is a protection (IL-131 — a build agent skipping mandatory bookkeeping),
+  // not an alarm. Returning `false` would disable it outright for every repo
+  // with no resolvable integration branch — which is every no-remote /
+  // `local-merge` project, a permanently supported configuration
+  // (`_shared/integration-model.md`). That trades a rare, self-correcting
+  // false deny for the total loss of the guard in a whole project class.
+  // Twenty pre-existing gate tests going red on the `false` version is the
+  // measured evidence: they are ordinary repos with no `origin`.
+  //
+  // The fallback is strictly non-regressive — an unbounded walk is exactly the
+  // behavior that shipped before #1674 — but it is NOT harmless, and an earlier
+  // version of this comment overclaimed that it was. It said the #1674 false
+  // positive "cannot arise where no integration branch exists". That is wrong,
+  // and this record's own review caught it by reproduction: a no-remote
+  // `local-merge` repo still has a real local integration branch (`main`) that
+  // materialize commits merge into — it is merely not *resolvable* here, since
+  // `resolveIntegrationBranch` needs either an `integration-branch:` policy key
+  // (normally unset; `policy-schema.js` documents it as needed only when the
+  // active branch is not the default) or an `origin/HEAD` (absent with no
+  // remote). Unresolvable is not the same as nonexistent, so on this path the
+  // pre-#1674 false positive genuinely persists.
+  //
+  // Accepted deliberately as the status quo ante for those repos rather than as
+  // a fix for them: the alternative (`false`) trades a recoverable false deny
+  // for silently disabling IL-131 there. Extending #1674's actual improvement to
+  // no-remote repos needs a third resolution source (a local default-branch
+  // probe) — real new scope, filed separately.
+  //
+  // Known limitation on the bounded path: resolveIntegrationBranch returns a
+  // LOCAL branch name, which can lag origin/{integration}. Usually that only
+  // widens the range (the conservative false-deny direction) — but when HEAD
+  // has already merged origin/{integration} in, as `_shared/worktree-setup.md`'s
+  // post-creation catch-up does routinely, the lagging local ref can leave those
+  // merged-in commits inside the range and reproduce the very inherited-history
+  // arm this bound exists to stop. Resolving origin/{integration} instead would
+  // need a fetch, which this file must not do: it runs on every covered tool
+  // call and must stay offline and cheap. Filed with the probe above.
+  const paths = ['--', `${runRel}/work`, `${runRel}/spec-*/work/*`];
+  const integration = resolveIntegrationBranch(worktreeRoot);
+  // Two distinct ways the bound can be unusable, and both must fall back the
+  // same way. `null` is the obvious one. The other: `policy.readIntegrationBranch`
+  // returns the raw `integration-branch:` string with no ref-existence check (it
+  // only rejects whitespace), so a stale, renamed, or mistyped key yields a
+  // TRUTHY name for which `git log {bogus}..HEAD` exits 128 (`fatal: bad
+  // revision` — measured). Collapsing that into the blanket `if (failure) return
+  // false` below would disarm IL-131 on a config typo: the same silent loss of
+  // protection this comment rejects, reached by a different route.
+  let res = integration
+    ? runGit(['log', '--oneline', '-1', `${integration}..HEAD`, ...paths], worktreeRoot)
+    : null;
+  if (!res || res.failure) res = runGit(['log', '--oneline', '-1', ...paths], worktreeRoot);
+  if (res.failure) return false;
+  return Boolean(res.stdout && res.stdout.trim());
 }
 
 // Graceful-degrade exemption for the PR-stamp check below: pr-early-run-lifecycle.md
@@ -802,6 +964,12 @@ function hasNoUpstreamYet(dir) {
 // received as `mainRoot` here (wtDetect.mainCheckoutRoot's fs-only result) —
 // shelling out to re-derive a value the caller already has would undercut
 // the spawn budget I5 exists to protect.
+//
+// This call site never passes detectIntegrationModel's mcpReachable override
+// (see that function's own comment in policy-schema.js) — a lifecycle hook
+// runs with no agent turn active, so there is no MCP call this gate could
+// ever source a reachability signal from. This is a permanent, structural
+// gap, not an oversight (docs/incident-log.md IL-63).
 function resolveRunPinnedIntegrationModel(mainRoot, runDir) {
   const git = () => mainRoot;
   const readFile = (p) => {
@@ -908,17 +1076,22 @@ function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText, isF
 // gate, making Step 6 structurally impossible to ever complete.
 //
 // Four checks now compose here, in this order:
-//   1. Coverage + cheap outs — the tool isn't covered, no run resolved, the
-//      run is already clean, BOTH stamps are already present OR the worktree
-//      stamp is present and the PR stamp is durably not required
+//   1. Coverage + cheap outs — the tool isn't covered, `ctx.runDir` itself
+//      never resolved (a run dir that resolved but has no run-state.json yet
+//      is NOT this case — see #1456 below), the run is already clean, BOTH
+//      stamps are already present OR the worktree stamp is present and the
+//      PR stamp is durably not required
 //      (`runState.prExempt` — the common case once a run's first covered call
 //      after the worktree stamp has resolved its PR posture, and the one
 //      that must never pay for a git/gh spawn again for the rest of the
 //      run), or the call site is outside a linked worktree.
 //   2. Scoping — a Bash git target in an unrelated repository is not this
 //      run's business (mirrors E1's own mainRoot/actualMainRoot foreign-repo
-//      check below), and a write to the pipeline-bookkeeping tree or
-//      policy.yml is exempt (isStampsGateExemptTarget above).
+//      check below), an Edit/Write/NotebookEdit whose own target resolves
+//      outside this run's repository entirely is likewise not this run's
+//      business (the file-tool branch's own foreign-target scoping, #1678),
+//      and a write to the pipeline-bookkeeping tree or policy.yml is exempt
+//      (isStampsGateExemptTarget above).
 //   3. This run's materialize commit hasn't landed yet (hasMaterializeCommit
 //      above) — Common Step 1 is still legitimately in progress.
 //   4. The two stamp checks themselves — record-worktree unconditionally,
@@ -961,8 +1134,18 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   const isFileTool = GATE_COVERAGE.tools.includes(toolName);
   const isGitWrite = toolName === 'Bash' && Array.isArray(commandGitTargets) && commandGitTargets.length > 0;
   if (!isFileTool && !isGitWrite) return {};
-  if (!ctx.runDir || !ctx.runState) return {};
-  if (ctx.runState.status === 'clean') return {};
+  if (!ctx.runDir) return {};
+  // ctx.runState is null both when no run resolved (already excluded above)
+  // AND when a real, adopted run dir exists but record-worktree never ran
+  // yet (bin/hooks.js: `runState = runDir ? ctxLib.readRunState(runDir) :
+  // null`, and readRunState returns null on a missing run-state.json the
+  // same way it does on a missing run dir). Only the first case is "nothing
+  // to gate" — the second is exactly the materialize-then-implement-directly
+  // shortcut this gate exists to catch (#1456), so it must fall through to
+  // the same stamp checks below as an explicit `runState.worktree` unset,
+  // not no-op here.
+  const runState = ctx.runState || {};
+  if (runState.status === 'clean') return {};
   // Both stamps already recorded, OR the worktree stamp is recorded and the
   // PR stamp is durably exempt (`prExempt`, memoized by the PR-stamp branch
   // below the first time it proves no further denial is possible): neither
@@ -973,7 +1156,7 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
   // state, which never sets `runState.pr` and previously never reached this
   // short-circuit at all. Purely an optimization; it changes no deny/allow
   // outcome.
-  if (ctx.runState.worktree && (ctx.runState.pr || ctx.runState.prExempt)) return {};
+  if (runState.worktree && (runState.pr || runState.prExempt)) return {};
 
   const { repoRoot: wtRoot, isLinkedWorktree, indeterminate } = wtDetect.repoInfo(ctx.cwd || process.cwd());
   if (indeterminate || !wtRoot || !isLinkedWorktree) return {};
@@ -997,11 +1180,75 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
       if (!ownsATarget) return {};
     }
   }
+
+  // Foreign-target scoping for the file-tool branch (#1678): an
+  // Edit/Write/NotebookEdit whose OWN target path resolves outside any git
+  // repository at all (a session scratchpad, e.g. under
+  // /private/tmp/claude-*/.../scratchpad/**) — or inside an unrelated repo
+  // entirely — is not this run's implementation work, mirroring the
+  // Foreign-repos rule the isGitWrite branch already applies above. The
+  // isFileTool branch previously gated on `ctx.cwd` (the calling session)
+  // being inside a linked worktree, with no check that the write's own
+  // TARGET was anywhere near that worktree — this closes that gap. Fails
+  // CLOSED on an unprovable target (`indeterminate: true`), matching every
+  // other file-tool exemption in this file (isPipelineBookkeeping,
+  // isStampsGateExemptTarget): only a DEFINITIVE "not a repo" or "different
+  // repo" answer exempts; an unresolvable target falls through to the
+  // existing (denying) checks below, unchanged. Two more fail-closed layers
+  // (whole-branch review findings 1+2, #1678):
+  //   - `fileTargetPath` must be ABSOLUTE, mirroring isPipelineBookkeeping /
+  //     realTarget / isUntrackedOrIgnored's own guard above — a relative
+  //     path resolves against the HOOK PROCESS's cwd (repoInfo's internal
+  //     path.resolve), not the calling session's `ctx.cwd`, so a relative
+  //     target is unprovable here and must fall through unchanged, exactly
+  //     like an indeterminate one.
+  //   - `mainCheckoutRoot` returning null is NOT itself a "different repo"
+  //     signal — it also means "the answer is unknown" (an EACCES/ELOOP/EIO
+  //     stat, an unreadable/unparseable .git file, a gitdir outside
+  //     .git/worktrees/ — see that function's own header). Only a
+  //     resolved-AND-different targetMainRoot exempts; an unresolvable one
+  //     falls through. A target that repoInfo itself already proved has NO
+  //     repo root at all (the scratchpad case, targetRoot null but NOT
+  //     indeterminate) still exempts on its own, unconditionally.
+  if (isFileTool) {
+    const fileTargetPath = fileToolTargetPath(toolName, ctx.input && ctx.input.tool_input);
+    if (fileTargetPath && path.isAbsolute(fileTargetPath)) {
+      // Resolve a symlink AT THE LEAF before asking repoInfo where the target
+      // lives -- otherwise a symlink whose own location sits outside any repo
+      // (e.g. a session scratchpad) but whose target resolves inside this
+      // run's protected worktree would let the write bypass this gate
+      // entirely, the same bypass class `realTarget()` (above) already
+      // exists to close for `isPolicyFile`. A path with nothing at the leaf
+      // yet (an ordinary new-file Write) is passed through UNRESOLVED on
+      // purpose -- repoInfo's own nearestExistingDir already walks up to the
+      // nearest existing ancestor correctly for that case, and resolving
+      // only the parent here too would narrow that walk-up to one level.
+      let resolvedTargetPath = fileTargetPath;
+      let danglingSymlink = false;
+      try {
+        if (fs.lstatSync(fileTargetPath).isSymbolicLink()) {
+          const real = safeReal(fileTargetPath);
+          if (real) resolvedTargetPath = real;
+          else danglingSymlink = true; // exists but unresolvable -> unprovable, fail closed
+        }
+      } catch { /* nothing at this path yet -- ordinary new-file case, use the literal path */ }
+      if (!danglingSymlink) {
+        const { repoRoot: targetRoot, indeterminate: targetIndeterminate } = wtDetect.repoInfo(resolvedTargetPath);
+        if (!targetIndeterminate) {
+          if (!targetRoot) return {}; // provably not a repo at all -- unconditional, matches the comment above
+          const mainRoot = safeReal(wtDetect.mainCheckoutRoot(wtRoot));
+          const targetMainRoot = mainRoot && safeReal(wtDetect.mainCheckoutRoot(targetRoot));
+          if (targetMainRoot && targetMainRoot !== mainRoot) return {}; // provably a different repo
+        }
+      }
+    }
+  }
+
   if (isStampsGateExemptTarget(ctx)) return {};
 
   if (!hasMaterializeCommit(wtRoot, ctx.runDir)) return {};
 
-  if (!ctx.runState.worktree) {
+  if (!runState.worktree) {
     return stampCheckOutcome(
       ctx, 'record-worktree', wtRoot, warnings,
       `claude-tweaks: pipeline run ${path.basename(ctx.runDir)} has a landed materialize commit but no recorded ` +
@@ -1015,7 +1262,7 @@ function checkBookkeepingStampsGate(ctx, commandGitTargets, deps = {}, warnings 
     );
   }
 
-  if (!ctx.runState.pr) {
+  if (!runState.pr) {
     // #989: exempt an in-flight initial publish (see hasNoUpstreamYet above)
     // before doing anything else in this branch — this is a narrow, one-shot
     // allowance for THIS call only, never persisted as `prExempt`, so a push
@@ -1214,7 +1461,35 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
 // this parameter is what lets a test exercise checkBookkeepingStampsGate's
 // pr-first branch through run()'s own dispatch instead of calling the gate
 // function directly, bypassing every gate ahead of it in runInner (record #1268).
+// #1501: env-gated debug capture. Every reproduction attempt for the #989
+// exemption's repro-resistant failure (a real `git push` denied even though
+// it should match `hasNoUpstreamYet`) matched a synthetic replay field-for-
+// field and still allowed — the discrepancy must live in some field of the
+// real invocation's `ctx` that no synthetic payload has captured yet.
+// Setting CT_HOOKS_DEBUG_CAPTURE to a file path appends this call's
+// `ctx.input`/`cwd`/`runDir`/`runState`/`ownedRun` to that file on every
+// pre-tool-use invocation, so the next live occurrence can be diffed
+// byte-for-byte against a synthetic payload built from the same fields.
+// Best-effort and silent on failure — a debug aid must never itself change
+// gate behavior or crash a real session; unset by default, so this never
+// runs (or costs anything) outside a deliberate capture session.
+function captureDebugPayload(ctx) {
+  const target = process.env.CT_HOOKS_DEBUG_CAPTURE;
+  if (!target) return;
+  try {
+    fs.appendFileSync(target, `${JSON.stringify({
+      at: new Date().toISOString(),
+      input: ctx.input,
+      cwd: ctx.cwd,
+      runDir: ctx.runDir,
+      runState: ctx.runState,
+      ownedRun: ctx.ownedRun,
+    })}\n`);
+  } catch { /* best-effort — a debug capture must never break a real hook call */ }
+}
+
 function run(ctx, deps = {}) {
+  captureDebugPayload(ctx);
   const indeterminateTargets = [];
   const warnings = [];
   const out = runInner(ctx, indeterminateTargets, warnings, deps) || {};
@@ -1251,6 +1526,8 @@ module.exports = {
   POLICY_FILE,
   isPipelineBookkeeping,
   isPolicyFile,
+  isUntrackedOrIgnored,
+  hasMaterializeCommit,
   isPolicyOnlyCommit,
   POLICY_COMMIT_ALLOWLIST,
   isDeleteOnlyPush,
@@ -1259,4 +1536,5 @@ module.exports = {
   checkPipelineShadowGuard,
   checkBookkeepingStampsGate,
   hasLoggedPrDegrade,
+  teardownTargets,
 };

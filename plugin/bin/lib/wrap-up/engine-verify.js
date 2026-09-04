@@ -25,16 +25,21 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 
-function defaultGit(args, cwd) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 });
+// Shared factory (not two hand-duplicated functions) so defaultGit and
+// defaultGh can never again drift on their execFileSync options the way
+// #1230 found them to (defaultGit missing the `timeout` defaultGh already
+// had) -- one options object, reused by construction.
+function makeDefaultRunner(cmd) {
+  return function run(args, cwd) {
+    return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 });
+  };
 }
 
-function defaultGh(args, cwd) {
-  return execFileSync('gh', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 5000 });
-}
+const defaultGit = makeDefaultRunner('git');
+const defaultGh = makeDefaultRunner('gh');
 
 // Registry of check functions, populated by Tasks 2-5. Each entry:
-// { name: string, fn: ({runDir, originalRunDir, base, repoRoot, expectations, deps}) => {result, detail} }.
+// { name: string, fn: ({runDir, originalRunDir, base, repoRoot, cwd, expectations, deps}) => {result, detail} }.
 // A flat array (not an object keyed by name) preserves the fixed row order
 // the table renders in, matching the prose checklist's original order.
 const CHECKS = [];
@@ -136,34 +141,32 @@ function expectationsUnknownDetail(expectations) {
 // wrap-up finishes -- slug-matching a plan's TOPIC filename against the
 // run's SPEC identity essentially never matches (they come from unrelated
 // naming schemes), so this scans for untracked entries via `git status`
-// instead. repoRoot -- not runDir, not process.cwd() -- since these paths
-// are relative to the repo root and the CLI may be invoked from a worktree.
-//
-// Known, deliberate gap (record #900 whole-branch re-review, finding #3):
-// under this project's default `worktree`/`pr-first` mode, an execution-plan
-// or design-cache file created by THIS run lives in the worktree's own
-// working tree, not the main checkout's -- repoRoot resolves to the main
-// checkout, which cannot see worktree-local untracked state at all (a
-// worktree's untracked files never appear in any other checkout's `git
-// status`, even though they share one object store). So under the default
-// mode this check is effectively blind to the run's own leftovers and can
-// only catch leftovers from a run invoked directly against the main
-// checkout (current-branch / local-merge mode). Fixing this correctly
-// requires threading the invoking checkout's own cwd through separately
-// from repoRoot (repoRoot must stay the main checkout for
-// run-dir-archived's `.claude-tweaks/pipelines/` lookups) and reworking
-// this suite's test fixtures, which default to isolating repoRoot from live
-// repo state specifically to avoid depending on this worktree's own churn
-// (see makeCleanRepoRoot() in the test file) -- deliberately left as a
-// known limitation rather than widened in this fix round; ruled and
-// captured for follow-up rather than silently dropped.
+// instead. `cwd` -- the invoking checkout's own working tree, not `repoRoot`
+// (always the main checkout) -- since under this project's default
+// `worktree`/`pr-first` mode, an execution-plan or design-cache file created
+// by a run lives in that run's WORKTREE's own working tree, not the main
+// checkout's: a worktree's untracked files never appear in any other
+// checkout's `git status`, even though they share one object store.
+// `repoRoot`-scoped scanning was blind to a run's own leftovers under the
+// default mode and could only ever catch leftovers left directly in the main
+// checkout (record #900 whole-branch re-review, finding #3; fixed here,
+// record #1222). Residual: in the mainline single-spec `worktree`/`pr-first`
+// flow this verb's own cleanup (including worktree removal) runs BEFORE
+// verify, so by the time this check runs there `cwd` has already collapsed
+// back to the main checkout anyway -- the fix's real value is realized on
+// the `MULTISPEC_REVIEW_DEFER=1` path (parent `/flow` console defers
+// worktree removal) and standalone/manual `wrap-up` invocations run from
+// inside a still-live worktree. `run-dir-archived` still needs `repoRoot`
+// for its `.claude-tweaks/pipelines/` lookups (that path genuinely only
+// exists in the main checkout, gitignored, never in a worktree) -- this
+// check alone reads `cwd`.
 // `--porcelain=v1 -uall` (not the default `-uno`) so a wholly-untracked
 // directory reports every file inside it individually instead of collapsing
 // to one `?? {dir}/` line the suffix/name filters below could never match.
-registerCheck('plans-ledger', ({ repoRoot, deps }) => {
+registerCheck('plans-ledger', ({ cwd, deps }) => {
   let status;
   try {
-    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/superpowers/plans', 'docs/plans'], repoRoot);
+    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/superpowers/plans', 'docs/plans'], cwd);
   } catch (err) {
     return { result: 'unknown', detail: `git status failed: ${err.message}` };
   }
@@ -174,7 +177,7 @@ registerCheck('plans-ledger', ({ repoRoot, deps }) => {
   // deleted at wrap-up. Dotfiles (the directory's own `.gitignore`
   // scaffolding, always present) are not leftovers -- only real content
   // counts.
-  const sddDir = path.join(repoRoot, '.superpowers', 'sdd');
+  const sddDir = path.join(cwd, '.superpowers', 'sdd');
   let sddEntries = [];
   try {
     if (fs.existsSync(sddDir)) {
@@ -190,16 +193,16 @@ registerCheck('plans-ledger', ({ repoRoot, deps }) => {
 
 // ---- design caches deleted --------------------------------------------------
 //
-// repoRoot, matching plans-ledger's reasoning above (including its known
-// gap under the default worktree/pr-first mode -- see the comment there).
-registerCheck('design-caches', ({ repoRoot, expectations, deps }) => {
+// `cwd`, matching plans-ledger's reasoning above -- this check scans the
+// invoking checkout's own working tree, not always the main checkout.
+registerCheck('design-caches', ({ cwd, expectations, deps }) => {
   const deferred = deferredSet(expectations);
   if (deferred.has('design-caches')) return { result: 'skip', detail: 'deferred to parent console' };
-  const cacheDir = path.join(repoRoot, 'docs', 'plans');
+  const cacheDir = path.join(cwd, 'docs', 'plans');
   if (!fs.existsSync(cacheDir)) return { result: 'pass', detail: '' };
   let status;
   try {
-    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/plans'], repoRoot);
+    status = deps.git(['status', '--porcelain=v1', '-uall', '--', 'docs/plans'], cwd);
   } catch (err) {
     return { result: 'unknown', detail: `git status failed: ${err.message}` };
   }
@@ -587,10 +590,11 @@ registerCheck('upstream-feedback', ({ expectations, deps }) => {
   return { result: 'pass', detail: '' };
 });
 
-function runVerify({ runDir, originalRunDir, base, repoRoot, deps = {} }) {
+function runVerify({ runDir, originalRunDir, base, repoRoot, cwd, deps = {} }) {
   const git = deps.git || defaultGit;
   const gh = deps.gh || defaultGh;
   const resolvedRepoRoot = repoRoot || process.cwd();
+  const resolvedCwd = cwd || process.cwd();
   const resolvedOriginalRunDir = originalRunDir || runDir;
   const expectations = runDir === null ? null : readExpectations(runDir);
 
@@ -616,7 +620,7 @@ function runVerify({ runDir, originalRunDir, base, repoRoot, deps = {} }) {
         try {
           const { result, detail } = fn({
             runDir, originalRunDir: resolvedOriginalRunDir, base, repoRoot: resolvedRepoRoot,
-            expectations, deps: { git, gh },
+            cwd: resolvedCwd, expectations, deps: { git, gh },
           });
           return { check: name, result, detail: detail || '' };
         } catch (err) {

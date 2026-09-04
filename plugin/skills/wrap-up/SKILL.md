@@ -111,6 +111,10 @@ echo "$RUN_DIR"
 
 Carry that verdict as a run-scoped fact for the rest of the run, alongside the run dir path itself, and state it in the Phase 1 report table. **Never re-read it from disk later.** Phase 4's cleanup item 8 archives the run directory, so by the time the Component-Skill Contract is consulted the `run-state.json` this determination came from has usually moved to `.claude-tweaks/pipelines/archive/{run-id}/` — a re-read at that point fails on exactly the standalone runs that must render Next Actions.
 
+### Diff-derived ceremony default (headless firings only, #1545)
+
+Read `ceremony-derivation.md` in this skill's directory and follow it, before the Reflect step below reads `config.yml`'s `ceremony-profile` — it can narrow a headless firing's `standard` default down to `fast-lane` when the diff itself is low-surface, so Reflect's own mode selection just below sees the derived value.
+
 ### Reflect (formerly Step 3)
 
 Read `config.yml`'s `ceremony-profile` from the run directory. Run `/claude-tweaks:reflect` in **light** mode when it is `fast-lane`; **full** mode otherwise (including standalone wrap-up, where no `config.yml` exists to read). Pass:
@@ -241,7 +245,7 @@ The Review Console is the **second bookend** of the pipeline (see `_shared/auto-
 
 **Multi-spec defer:** when `MULTISPEC_REVIEW_DEFER=1` is set by `/flow` multi-spec orchestration, skip the per-spec console — the consolidated end-of-run console at `/flow` handles all approvals across every spec in the run. Leave `staged/` and `decisions.md` untouched, append a "deferred" log entry, and proceed to the report.
 
-Empty-console fast path: skip the console entirely and proceed to the report when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` holds no decision-bearing entries — `SCANNED` audit lines are excluded — `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes, memory updates, or upstream feedback proposals are pending). Unconditional bookkeeping rows — run-dir archival — do not count as cleanup actions for that test; archival executes regardless.
+Empty-console fast path: skip the console entirely and proceed to the report when all of `review-console.md`'s Empty-console fast path conditions hold (`decisions.md` holds no decision-bearing entries — `SCANNED` and `SKIP` audit lines are excluded — `staged/` is empty, no skill/config updates exist, no cleanup actions apply, no queue writes, memory updates, or upstream feedback proposals are pending). Unconditional bookkeeping rows — run-dir archival — do not count as cleanup actions for that test; archival executes regardless.
 
 **Gate the read.** Read `review-console.md` in this skill's directory — for the run-directory resolution sequence, the multi-spec defer protocol, and the Auto-merge short-circuit's applicability check — when **either** holds. Once a real stop will actually render (i.e. neither the Auto-resolution short-circuit nor the Empty-console fast path resolved and returned), also read `review-console-interactive.md` for the full console template with every section table (including the conditionally-rendered Low-confidence, Contested findings, and Reference repairs sections), override/stop semantics, and the sort-order requirement:
 

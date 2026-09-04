@@ -120,6 +120,25 @@ test('bookkeeping-stamps gate: same deny fires for a Bash git-commit call, not j
   assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-worktree/);
 });
 
+test('bookkeeping-stamps gate: materialize commit landed, run dir resolved but run-state.json never written (record-worktree never ran) -> deny, not allow', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const project = projectDir();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', RUN_ID);
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), '# Auto-Decision Log\n');
+  // Deliberately no run-state.json -- mirrors bin/hooks.js's real wiring
+  // (`runState = runDir ? ctxLib.readRunState(runDir) : null`), where a
+  // resolved-but-uninitialized run dir yields runState === null, not {}.
+  const out = pre.run({ input: editInput(path.join(wt, 'src', 'x.js')), runDir: run, runState: null, cwd: wt });
+  assert.ok(out.json, 'expected a deny result -- a landed materialize commit with no run-state.json at all must not be treated as "no run resolved"');
+  const spec = out.json.hookSpecificOutput;
+  assert.strictEqual(spec.permissionDecision, 'deny');
+  assert.match(spec.permissionDecisionReason, /record-worktree/);
+  assert.match(spec.permissionDecisionReason, /IL-131/);
+});
+
 test('bookkeeping-stamps gate: materialize commit landed AND worktree stamp present -> allow (pr-first check runs but resolves local-merge, no origin remote on this fixture)', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
@@ -549,6 +568,167 @@ test('bookkeeping-stamps gate (I2.2): one in-project git target is enough to kee
     cwd: wt,
   });
   assert.ok(out.json, 'expected a deny — one target is this run\'s own worktree');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678): an Edit to a path outside any git repo at all (a session scratchpad) is not this run\'s business -> allow', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  // A plain mkdtemp dir with no `git init` — provably outside any git repo,
+  // the same shape as a Claude Code session scratchpad directory
+  // (/private/tmp/claude-<uid>/<slug>/<session-id>/scratchpad/**).
+  const scratchpad = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(path.join(scratchpad, 'pr-body.md')),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.deepStrictEqual(out, {}, 'a Write whose target is outside any git repo must not be denied by this run\'s bookkeeping gate');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678): an Edit to a path inside an unrelated repository is not this run\'s business -> allow', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const foreign = gitRepo();
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(path.join(foreign, 'notes.md')),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.deepStrictEqual(out, {}, 'a Write whose target is inside an unrelated repository must not be denied by this run\'s bookkeeping gate');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678): control — an Edit whose target is inside THIS run\'s own worktree still denies (scoping narrows, it does not disable, the gate)', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.ok(out.json, 'expected a deny — the target is this run\'s own worktree, unchanged from existing behavior');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678): an UNPROVABLE target answer (indeterminate: true) never exempts — fails closed, still denies', () => {
+  // The single safety-critical property the whole file-tool scoping block
+  // depends on: an unresolvable target answer must fall through to the
+  // existing (denying) checks, exactly like a target inside this run's own
+  // worktree — never be read as a definitive "not a repo"/"different repo"
+  // exemption. Path-conditional stub: only the call for the file-tool
+  // TARGET is forced indeterminate; every other wtDetect.repoInfo call
+  // (including the one against ctx.cwd for the worktree/session-linkage
+  // check) resolves for real.
+  const wtDetect = require('../plugin/bin/lib/hooks/worktree-detect');
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const targetPath = path.join(wt, 'src', 'x.js');
+  const real = wtDetect.repoInfo;
+  wtDetect.repoInfo = (p, ...rest) => {
+    if (p === targetPath) return { repoRoot: null, isLinkedWorktree: false, indeterminate: true };
+    return real(p, ...rest);
+  };
+  let out;
+  try {
+    out = pre.run({
+      input: editInput(targetPath),
+      runDir: run,
+      runState: { status: 'active' },
+      cwd: wt,
+    });
+  } finally {
+    wtDetect.repoInfo = real;
+  }
+  assert.ok(out.json, 'expected a deny — an unprovable target must never be exempted by the new scoping check');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678, review finding): the "provably not a repo at all" exemption fires even when this worktree\'s OWN mainCheckoutRoot transiently fails to resolve -> still allows', () => {
+  // Regression for a review finding on #1678's own file-tool scoping fix: the
+  // exemption for a target repoInfo already proved has no repo root at all
+  // must not depend on `mainCheckoutRoot(wtRoot)` (a separate, unrelated
+  // fs read) resolving successfully — an EACCES/ELOOP/EIO on the worktree's
+  // own `.git` file must not turn a genuinely-outside-any-repo target
+  // (the scratchpad case) into a deny.
+  const wtDetect = require('../plugin/bin/lib/hooks/worktree-detect');
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const scratchpad = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const realMainCheckoutRoot = wtDetect.mainCheckoutRoot;
+  wtDetect.mainCheckoutRoot = (p, ...rest) => {
+    if (p === wt) return null; // simulate the worktree's OWN mainCheckoutRoot failing to resolve
+    return realMainCheckoutRoot(p, ...rest);
+  };
+  let out;
+  try {
+    out = pre.run({
+      input: editInput(path.join(scratchpad, 'pr-body.md')),
+      runDir: run,
+      runState: { status: 'active' },
+      cwd: wt,
+    });
+  } finally {
+    wtDetect.mainCheckoutRoot = realMainCheckoutRoot;
+  }
+  assert.deepStrictEqual(out, {}, 'a target repoInfo already proved is not a repo at all must exempt unconditionally, even when this worktree\'s own mainCheckoutRoot fails to resolve');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678, review finding): a symlink located outside any repo whose TARGET resolves inside this run\'s own worktree is NOT exempted -> still denies', () => {
+  // Regression for a review finding (security, lens 3b) on #1678's own
+  // file-tool scoping fix: the "provably not a repo at all" exemption must
+  // resolve a symlink AT THE LEAF before asking where the target lives --
+  // otherwise a symlink whose own location sits outside any repo (a session
+  // scratchpad) but whose target resolves inside the protected worktree
+  // would bypass this gate entirely, even though the write's real bytes
+  // land inside the worktree the gate exists to protect.
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const realFile = path.join(wt, 'src', 'x.js');
+  fs.mkdirSync(path.dirname(realFile), { recursive: true });
+  fs.writeFileSync(realFile, 'existing content\n');
+  const scratchpad = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const link = path.join(scratchpad, 'link.js');
+  fs.symlinkSync(realFile, link);
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(link),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.ok(out.json, 'expected a deny — a symlink located outside any repo but pointing INTO this run\'s own worktree must not bypass the gate');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('bookkeeping-stamps gate (I2.3, #1678, review finding): a dangling symlink located outside any repo is unprovable -> fails closed, still denies', () => {
+  const main = gitRepo();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializedSpec(wt, path.join('work', '991-spec.md'));
+  const scratchpad = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-scratch-'));
+  const link = path.join(scratchpad, 'dangling-link.js');
+  fs.symlinkSync(path.join(scratchpad, 'nothing-here.js'), link);
+  const { run } = mkRunDir(projectDir(), null, undefined);
+  const out = pre.run({
+    input: editInput(link),
+    runDir: run,
+    runState: { status: 'active' },
+    cwd: wt,
+  });
+  assert.ok(out.json, 'expected a deny — a dangling symlink is unprovable and must fail closed');
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 

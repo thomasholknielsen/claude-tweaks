@@ -22,13 +22,19 @@ matches compare-shell's `serializeEvent` serializer, `plugin/skills/design-wrapp
 No other `type` value is valid. A consumer that needs to recognize an event checks `type` against
 exactly this set. `tweak` nudges a single design token in the live focus view — a hue, a spacing
 scale, a corner radius — without triggering a full reroll. It never changes which variant is
-selected, and it never restyles the judged candidate itself: the focused variant renders inside a
-cross-origin sandboxed `<iframe sandbox="allow-scripts">` (deliberately without `allow-same-origin`,
-a security boundary this feature must not loosen), which a parent-page CSS custom property cannot
-reach. `tweak` records a token nudge and previews it only in the compare-shell's own UI — a numeric
-readout and a preview swatch, both driven by the same `--tweak-*` custom properties the event
-carries — while the judged candidate's rendering is untouched. This is a stated, deliberate scope
-boundary, not a gap.
+selected. The focused variant renders inside a cross-origin sandboxed
+`<iframe sandbox="allow-scripts">` (deliberately without `allow-same-origin`, a security boundary
+this feature must not loosen), so a parent-page CSS custom property still cannot reach into it —
+but as of #1336, `applyTweak()` also `postMessage`s `{type: 'compare-shell-tweak', token, value}`
+into that iframe's `contentWindow` (targetOrigin `'*'`, since the sandboxed candidate's own origin
+is opaque). Reflection in the judged candidate itself is opt-in per candidate: a candidate whose own
+markup registers a `message` listener for `type: 'compare-shell-tweak'` and applies `token`/`value`
+to its own styling is restyled live; a candidate that registers no such listener is unaffected —
+the message is sent but nothing reads it, so its rendering is untouched, same as before #1336 (see
+`compare-shell/seed-compare.mjs`'s header comment for the opt-in snippet). `tweak` still records a
+token nudge and previews it in the compare-shell's own UI regardless — a numeric readout and a
+preview swatch, both driven by the same `--tweak-*` custom properties the event carries — that part
+of the scope boundary is unchanged.
 
 ## Turn loop
 
@@ -99,3 +105,4 @@ is user-authored (see Steer trust boundary above), not third-party content.
 | Consumer | Uses it for |
 |---|---|
 | `plugin/skills/design-wrapper/modes/explore.md` (Compare/Verdict/Lock-in, both scopes via "Machinery reuse") | Replaces the hand-authored switcher + terminal-only `AskUserQuestion` verdict with the browser loop above; the `AskUserQuestion` call site is kept as the documented fallback (empty/absent events file, or an ambiguous conflict) |
+| `plugin/skills/demo/SKILL.md` (Verdict, `rendered-page`/`app-route` records only) | Single-variant recap-page round: pick replaces the terminal Approve question directly; exit falls back to the terminal question with Approve omitted (ambiguous between Request-changes/Skip); reroll/steer/tweak/empty/unparsable/ambiguous all fall back to the unmodified terminal question — there is no second candidate to reroll or steer toward (#1208) |

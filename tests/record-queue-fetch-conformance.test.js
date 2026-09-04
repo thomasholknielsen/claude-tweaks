@@ -19,7 +19,7 @@ const FRAGMENT = 'record-queue-fetch.md';
 // but no --label (a --label fetch is a deliberate, narrower, server-side-filtered
 // call that legitimately stays outside the shared snapshot; see
 // _shared/record-queue-fetch.md's "This block always fetches --state all" note and
-// grant-mode.md's/refine-mode.md's own ready-label fetches).
+// refine-headless.md's/refine-mode.md's own ready-label fetches).
 const BARE_FETCH_RE = /gh issue list --state (?:open|all)(?![^\n]*--label)[^\n]*--limit/;
 
 // The record's own named consumer list (record-queue-fetch.md's header + the
@@ -31,7 +31,7 @@ const BARE_FETCH_RE = /gh issue list --state (?:open|all)(?![^\n]*--label)[^\n]*
 const CONSUMERS = [
   'backlog/overview-mode.md',
   'backlog/refine-mode.md',
-  'backlog/grant-mode.md',
+  'backlog/refine-headless.md',
   'capture/SKILL.md',
   'specify/decomposition-mode.md',
   'specify/record-creation.md',

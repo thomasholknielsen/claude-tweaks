@@ -14,8 +14,13 @@ const REPO_ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 
 const CHALLENGE = read('plugin/skills/challenge/SKILL.md');
-const SHAPING = read('plugin/skills/specify/shaping-mode.md');
-const RECORD_CREATION = read('plugin/skills/specify/record-creation.md');
+// #1346 split shaping-mode.md at the ### Metadata block boundary; the Framing bullet,
+// Self-check, and Compose-then-write-once section all landed in shaping-mode-stamping.md.
+const SHAPING = read('plugin/skills/specify/shaping-mode-stamping.md');
+// #1346 split record-creation.md at the Step 3 Parent record/Sub-issues boundary; the
+// per-sub-issue self-check, create call, and framing-check mirror sentence all landed in
+// record-creation-subissues.md.
+const RECORD_CREATION = read('plugin/skills/specify/record-creation-subissues.md');
 const CEREMONY_CHECK = read('plugin/skills/assess-agent-autonomy/ceremony-check.md');
 
 test('challenge/SKILL.md argument-hint documents framing-check\'s optional #{n}', () => {

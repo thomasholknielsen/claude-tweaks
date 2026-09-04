@@ -46,10 +46,12 @@ When in doubt, give less context. If the agent comes back with `NEEDS_CONTEXT`, 
 
 ## Working Directory Discipline
 
-Agents do not inherit the dispatcher's CWD reliably. When a dispatch will run `git`, `node --test`, or any path-sensitive command, **anchor the working directory explicitly** in the prompt. Both forms work; pick one and use it consistently:
+Agents do not inherit the dispatcher's CWD reliably. When a dispatch will run `git`, `node --test`, or any path-sensitive command, **anchor the working directory explicitly** in the prompt — and do it **without a preceding `cd`**:
 
-- **Explicit cd**: every shell step begins with `cd "/absolute/path/to/worktree" && ...`
-- **`git -C` form**: every git command is `git -C "/absolute/path/to/worktree" <subcommand>`
+- **`git` commands**: `git -C "/absolute/path/to/worktree" <subcommand>` for every invocation, never `cd "..." && git ...`.
+- **Non-`git` commands** (`grep`, `node --test`, etc.): pass the absolute path as the command's own argument (e.g. `grep -rn "pattern" "/absolute/path/to/worktree/tests/"`) rather than `cd`-ing first.
+
+**Never precede a path-sensitive command with `cd`, even in a `&&` chain.** The harness's Bash permission checker statically scans a command for paths it might read before running it; a `cd "<dir>" && <command>` shape asks it to resolve `<command>`'s target relative to a `cd` argument it cannot always evaluate (an interpolated variable, worktree-relative form, or platform path rewriting), and a git revision range like `origin/master...HEAD` gets misread as a path token on top of that because it contains a slash. When the checker cannot resolve where a command reads from, and any `Read()` deny rule is configured anywhere in the session's settings — common baseline hardening (`.env`, `.ssh/**`, `*.pem`, and similar), unrelated to the file actually being read — it cannot prove the read avoids that rule and escalates to the user instead of auto-approving, even under `--dangerously-skip-permissions` (a deny rule is a hard block that bypass mode does not lift). The `git -C` / absolute-path forms above are the actual fix: a self-contained command with no `cd` gives the checker a target it can resolve on the first line, so it clears without a prompt. See `docs/incident-log.md` `[IL-151]`.
 
 **Substitute the path before dispatching.** The prompt must carry the resolved absolute path, never an unexpanded placeholder like `$WORKTREE` — the agent's shell does not share the dispatcher's variables. A brief that says "verify `cd "$WORKTREE"`" while also forbidding the agent from creating worktrees leaves it no legal move when the substitution didn't happen: `BLOCKED` is then the correct response, and the round-trip is pure waste. If the dispatch template interpolates a path, check one rendered prompt before sending the batch.
 
@@ -105,6 +107,8 @@ Need: actual file path of the auth middleware, or confirmation it doesn't exist.
 ```
 
 SubagentStop hook (E3) logs replies missing the status line to the run dir's `events.jsonl` (best-effort — the event fires unreliably for Task dispatches, claude-code#27755).
+
+**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) tests one regex against the last assistant text it can reach and has no way to know *which* agent replied or what contract that dispatch declared, so at least two non-violating cases land in the log identically: a dispatch whose own template specifies a different first line (its header comment names this one), and a **third-party agent exempt from this contract entirely** (see Exemption below — an exempt agent "is not violating a format it was never given", yet its reply still trips the regex; `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch is the everyday instance). Triage each entry against the dispatch that produced it before treating it as a finding — and never re-prompt an exempt agent on the strength of one.
 
 ## Model Selection
 
@@ -211,6 +215,15 @@ tail — either a non-blocking `TaskOutput` call read for its trailing `<error>`
 raw transcript internals (measured at ~6% of one run's total tool-result characters for zero
 net information when read in full).
 
+**The session-limit signature is a terminal, non-retryable-now failure class, distinct from a
+transient 5xx.** An agent whose trailing `<error>` block reads `Agent terminated early due to an
+API error: You've hit your session limit` will not succeed on an immediate retry the way a
+transient 5xx/timeout might — the caller's account-level limit, not the agent's own work, caused
+the termination. A dispatch site handling a reproduction-pair partner's death this way retries
+once (to rule out a spurious one-off) and, on a second failure, degrades rather than retrying
+again in a loop — see `review/step3-lens-dispatch.md`'s reproduction-pair section for the
+degrade procedure this classification feeds.
+
 ## Exemption: third-party agents
 
 **The condition is structural, not a judgment call.** An agent is exempt from this contract when **its definition file lives outside the `agents/` directory this plugin owns** — it ships with a third-party plugin and is invoked as a delegation. Everything under this repository's `agents/` (declared in `.claude-plugin/plugin.json`'s `agents` array) is claude-tweaks-authored and is **never** exempt, however awkward its output is to parse. "This agent's output is inconvenient" is not a reading this paragraph supports: a dispatch site settles its own eligibility by asking where the agent file lives, with no appeal to intent.
@@ -230,7 +243,7 @@ Re-prompting on format (below) does not apply to an exempt agent: it is not viol
 
 ## Re-prompt on violation
 
-When an agent returns malformed output (no table, narration before the table, wrong columns), the dispatcher re-prompts:
+When an agent returns malformed output — a wrong or missing status line, no table, narration before the table, wrong columns — the dispatcher re-prompts:
 
 ```
 Your output didn't match the required format. Re-emit using only this format:
@@ -239,6 +252,8 @@ Do not add explanation.
 ```
 
 Cap at one retry. If still malformed, accept what you got and move on (do not loop).
+
+**Check the status word's position, not merely its presence.** A reply that opens with narration and states the status word only later ("Based on my review, DONE") violates the Implementer Status Protocol even though the literal token appears somewhere in the reply. Verify line 1 is exactly the status word before accepting it: reading a reply for its content does not check this, and a dispatcher that trusts its own read-through accepts the violation silently. Observed twice — #606's wrap-up (a lens agent accepted on token presence alone), and record #1653, where 3 of 8 `/claude-tweaks:review` lens dispatches opened with narration and all three were accepted with no re-prompt, despite every prompt carrying the explicit `WRONG: "Based on my review, DONE"` example.
 
 ## Anti-Patterns
 

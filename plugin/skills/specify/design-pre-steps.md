@@ -1,6 +1,6 @@
 # Specify — Design Pre-Steps (Step 2.5)
 
-Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a, Step 2.5c, and Step 2.5c2 run in both modes (Shaping mode calls them directly against the record's own body — see `shaping-mode.md` in this skill's directory); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
+Loaded by `/claude-tweaks:specify` Step 2.5 when the design doc (decomposition mode) or the record's own content (shaping mode) covers a frontend surface. Skip this file entirely when the input is backend / infra-only — the frontend-detection sniff below determines whether to load this file at all. Step 2.5a, Step 2.5c, and Step 2.5c2 run in both modes (Shaping mode calls them directly against the record's own body — see `shaping-mode-stamping.md` in this skill's directory, #1346's split of `shaping-mode.md`); Step 2.5b is decomposition-mode only, since there's no design doc to plan UX/UI for ahead of a shaping-mode record that already exists.
 
 These pre-steps capture design context (`shape`), an optional accepted visual direction (`Visual-reference:`), creative direction (`Design-intent:`), and a UI-stack preference (`Ui-stack:`) so the resulting records carry all four forward to `/build` and `/flow`'s polish phase as body-metadata lines.
 
@@ -28,7 +28,7 @@ On `{skipped}` (Impeccable not installed, design integration disabled): note the
 
 **Interactive mode:** offer the shape pre-step:
 
-**Call `AskUserQuestion`:**
+**Call `AskUserQuestion`:** this block must render verbatim — do not reorder, drop, or relabel the options, and keep `(Recommended)` on Option 1 exactly as written, the same verbatim requirement `red-team.md`'s Template A block states for Step 5's dispatch prompt.
 
 - `question`: `"Frontend design detected. Run /impeccable:impeccable shape to plan UX/UI before decomposition?"`, `header`: `"Shape pre-step"`, `multiSelect`: `false`
 - Option 1 — `label`: `"Yes — run shape (Recommended)"`, `description`: `"Run /impeccable:impeccable shape and append output to the design doc."`
@@ -125,7 +125,7 @@ Sets the `Design-intent:` body-metadata line that Phase 3's `polish` mode will r
 
 **Interactive mode (or KEPT-PROMPT fallback):** ask the user:
 
-**Call `AskUserQuestion`:**
+**Call `AskUserQuestion`:** this block must render verbatim — all six options, in this order, exactly as labeled below; do not drop, reorder, or relabel any of them, the same verbatim requirement `red-team.md`'s Template A block states for Step 5's dispatch prompt.
 
 - `question`: `"Design vibe for this record? (sets the Design-intent body-metadata line — select one or more)"`, `header`: `"Design intent"`, `multiSelect`: `true`
 - Option 1 — `label`: `"Bold"`, `description`: `"Eye-catching, confident."`
@@ -147,7 +147,7 @@ The user can select multiple options (e.g., Bold + Delightful). Map the answers:
 | `6` (or no answer) | `none` |
 | `1,4` (multiple) | `bold, delightful` (comma-separated) |
 
-Record the chosen value(s) — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode.md`) writes them into the record's body-metadata block.
+Record the chosen value(s) — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode-stamping.md`, #1346's split of `shaping-mode.md`) writes them into the record's body-metadata block.
 
 **For multi-record decompositions:** ask the question once per design doc and apply the same intent across all generated sub-issue records. If the user wants different intents per sub-issue, they can edit individual records after Step 3 (`gh issue edit` / `writeRecord`).
 
@@ -194,6 +194,6 @@ When no run directory resolves, note the outcome in the returned output only, as
 
 The tool's built-in `Other` field covers any UI stack not listed above (e.g. `Material UI`, `Chakra UI`, a project-specific design system) — the same escape hatch `step-09-establish-github-remote.md` documents for its own org-selection question. Map the answer to the `Ui-stack:` value verbatim: a preset option writes that option's label text (`shadcn/ui + Tailwind`, `Plain CSS / no library`); Option 3 writes `none — no preference, defer to reference codebase`; an `Other` answer writes the user's typed text verbatim.
 
-Record the chosen value — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode.md`) writes it into the record's body-metadata block, immediately after `Design-intent:`.
+Record the chosen value — the calling mode's compose-then-write-once step (decomposition mode's Step 3 in `decomposition-mode.md`; Shaping mode's own Metadata block / Compose-then-write-once subsections in `shaping-mode-stamping.md`, #1346's split of `shaping-mode.md`) writes it into the record's body-metadata block, immediately after `Design-intent:`.
 
 **For multi-record decompositions:** ask the question once per design doc and apply the same UI stack across all generated sub-issue records covering a frontend surface — the same batching rule Step 2.5c already applies to `Design-intent:`.

@@ -30,8 +30,8 @@
 const { execFileSync } = require('child_process');
 const { CLAIMS_BRANCH } = require('./claims');
 const { readClaimBlobGit, writeClaimBlobGit } = require('./claims-git-cas');
+const { GH_TIMEOUT_MS, escapeRegExp } = require('../shared-primitives');
 
-const GH_TIMEOUT_MS = 5000;
 // How many times `writeClaimBlob` re-leases and re-pushes a git-CAS write
 // whose rejection a fresh read proves spurious (#787 final-review finding I1 —
 // see that function). Bounded: an unbounded retry against a busy
@@ -150,7 +150,7 @@ function listClaimNames(ghApi, repoSlug) {
   return { names: entries.map((e) => e.name), failure };
 }
 
-// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber) -> { content, sha, failure, absent }
+// (deps: {ghApi, gitRunner?}, repoSlug, issueNumber, knownTip?) -> { content, sha, failure, absent, via? }
 // Tries git-CAS first (no `gitRunner` dep = skip straight to contents-API,
 // the gh-absent/MCP-only-sandbox seam #787's amendment requires — see
 // `_shared/issue-claims.md`). A git-CAS transport failure (auth, no remote
@@ -166,12 +166,23 @@ function listClaimNames(ghApi, repoSlug) {
 // sets `status` (release-merged's own, pre-extraction) simply never sees
 // `absent: true` there; every failure still lands as
 // `gh-absent`/`network-failure`, exactly as before this extraction.
-function readClaimBlob(deps, repoSlug, issueNumber) {
+//
+// `knownTip` (#1467) is an optional pre-known git-CAS branch tip, forwarded
+// verbatim to `readClaimBlobGit` — see that function's own doc comment for
+// why trusting a caller-supplied tip here is safe. Every existing caller
+// omits it (defaults to `null`, i.e. "fetch fresh") and is unaffected.
+// `via: 'git'` is set ONLY on a genuine git-CAS success, so a batch caller
+// (`bin/lib/claim-targets/claim-targets.js`) can tell a chainable git tip
+// (`sha` is a commit sha) apart from a contents-API blob sha — which is
+// never chainable and must never carry a `via` key, to avoid changing the
+// shape of the plain contents-API-only path any existing caller already
+// depends on.
+function readClaimBlob(deps, repoSlug, issueNumber, knownTip = null) {
   if (deps.gitRunner) {
-    const gitResult = readClaimBlobGit({ issueNumber, runner: deps.gitRunner });
+    const gitResult = readClaimBlobGit({ issueNumber, runner: deps.gitRunner, knownTip });
     if (gitResult.failure === null) {
       return {
-        content: gitResult.content, sha: gitResult.tipSha, failure: null, absent: gitResult.absent,
+        content: gitResult.content, sha: gitResult.tipSha, failure: null, absent: gitResult.absent, via: 'git',
       };
     }
     // fall through to contents-API on a git-side transport failure
@@ -354,13 +365,6 @@ function writeClaimBlob(deps, repoSlug, issueNumber, {
     return { ok: false, conflict: true, failure: null };
   }
   return { ok: r.failure === null, failure: r.failure };
-}
-
-// Escapes a literal string for embedding inside a `new RegExp(...)` pattern —
-// `owner`/`repo` come from this claim's own caller (trusted), but are still
-// escaped defensively since GitHub does allow `.` in either.
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function isSameRepoPrUrl(link, owner, repo) {

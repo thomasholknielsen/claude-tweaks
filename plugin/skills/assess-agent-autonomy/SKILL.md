@@ -9,15 +9,15 @@ argument-hint: "<grant-check|merge-check|failure-check|ceremony-check> [#{n}] [-
 
 Four-mode inline helper that replaces mechanical label lookups with judgment read from actual
 record/diff/failure content. Never invoked directly by a human — always a component step inside
-`/claude-tweaks:backlog refine`, `/claude-tweaks:backlog grant`, `/claude-tweaks:dispatch`,
+`/claude-tweaks:backlog refine` (human-present or headless posture), `/claude-tweaks:dispatch`,
 `/claude-tweaks:specify`, or (fallback only) `/claude-tweaks:flow`:
 
 ```
-/claude-tweaks:backlog refine         [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
-/claude-tweaks:backlog grant          [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
-/claude-tweaks:dispatch Auto-merge    [ merge-check ]    -> VERDICT: auto-merge | needs-human
-/claude-tweaks:dispatch Settle        [ failure-check ]  -> CLASSIFICATION + NOTIFY_NOW
-/claude-tweaks:specify Step 3         [ ceremony-check ] -> CEREMONY: fast-lane | standard
+/claude-tweaks:backlog refine (human-present)     [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
+/claude-tweaks:backlog refine (headless posture)  [ grant-check ]    -> RECOMMEND_BUILD / RECOMMEND_MERGE
+/claude-tweaks:dispatch Auto-merge                [ merge-check ]    -> VERDICT: auto-merge | needs-human
+/claude-tweaks:dispatch Settle                    [ failure-check ]  -> CLASSIFICATION + NOTIFY_NOW
+/claude-tweaks:specify Step 3                     [ ceremony-check ] -> CEREMONY: fast-lane | standard
 ```
 
 Each mode's full Gather/Judge/Render procedure lives in its own sub-file — read only the one the
@@ -32,7 +32,7 @@ caller needs:
 
 The diagram above names each mode's call site; each sub-file's own "Called from" line gives the
 full detail, including secondary same-mode callers (e.g. `grant-check` also covers
-`/claude-tweaks:backlog grant`'s gate chain; `merge-check` also covers `/claude-tweaks:wrap-up`'s
+`refine`'s headless posture's gate chain; `merge-check` also covers `/claude-tweaks:wrap-up`'s
 Review Console Auto-merge short-circuit).
 
 Not for: granting `auto:build`/`auto:merge` (still `/claude-tweaks:backlog refine`'s
@@ -93,7 +93,7 @@ fallback, `ceremony-check`, only when a record carries no `ceremony:*` label) �
 
 | Pattern | Why It Fails |
 |---------|--------------|
-| Dispatching this as a fresh Task agent instead of an inline Skill invocation | The caller already holds the diff/review-findings/failure-output — a subagent only pays to re-derive it. |
+| Dispatching this as a fresh Task agent instead of an inline Skill invocation | The caller already holds the diff/review-findings/failure-output. `challenge/SKILL.md`'s framing-check mode declined the same structural isolation on three grounds, not cost alone (#1276) — see its Called-from paragraph for the full declined-isolation rationale. |
 | Treating `ceremony-check`'s verdict as a merge-safety signal | `ceremony-profile` and `auto:merge` are independent axes — a `fast-lane` record can still fail `merge-check`. Ceremony depth never influences merge eligibility, or vice versa. |
 | Writing to `decisions.md` from inside this skill | This skill doesn't resolve run dirs; logging is the caller's job (`/claude-tweaks:backlog refine` or `/claude-tweaks:dispatch`). |
 | Rendering a conservative verdict with a content-judgment-style rationale when the gather itself failed | Misreports a tooling/transport gap as if the record/diff/failure content had been weighed and found wanting — indistinguishable from principled caution to anyone reading the log. Name the gather failure verbatim instead (could-not-gather, above). |

@@ -407,7 +407,7 @@ test('re-authorization (bot:blocked) path is unaffected by this module — it is
   // grant-gate itself doesn't special-case bot:blocked records; the mode's own
   // prose treats a passing gate result on a bot:blocked record as
   // "re-authorize" rather than "first grant" (auto:merge withheld regardless
-  // of autoMerge, per grant-mode.md). Confirm the gate's own output shape does
+  // of autoMerge, per refine-headless.md). Confirm the gate's own output shape does
   // not vary by bot state so that distinction is safe to layer on top.
   const result = evaluateGrantGate({
     record: baseRecord({ labels: ['by:code-health', 'ready', 'risk:low', 'size:low', 'bot:blocked'] }),

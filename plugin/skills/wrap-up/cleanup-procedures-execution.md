@@ -115,7 +115,28 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    **`integration-model: local-merge`:** verify the feature branch reached an outcome (merged, PR
    created, discarded, or explicitly kept as-is) via `/superpowers:finishing-a-development-branch`:
    - **Already completed (merged, PR created, or discarded)** → proceed to step 4.
-   - **Not yet decided** → run `/superpowers:finishing-a-development-branch` now (do not stop and ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the skill normally would, unmodified — step 2's carrier commit already guarantees closure regardless of which option is chosen, so this skill's own literal git commands need no adaptation. Then branch on the outcome:
+   - **Not yet decided** → check `_shared/local-merge-auto-finish.md`'s Precondition
+     (`integration-model` resolves `local-merge` AND `{run-dir}/config.yml` exists — see
+     `_shared/integration-model.md` for the resolution and `flow/manifesto.md` for why
+     `config.yml`'s presence is the "not interactive" proxy). When it holds, read and follow that
+     file's Procedure instead of invoking `/superpowers:finishing-a-development-branch` — it never
+     presents that skill's interactive menu, and every outcome it produces is already logged per
+     `_shared/auto-decision-log.md`'s canonical schema. Map its outcome onto this branch structure:
+     - **`merged`** → proceed to step 4, same as "Merged, PR created, or discarded" below.
+     - **`pending-review`** → a merge conflict or a failed merged-result verification — do NOT
+       proceed to step 4. Skip steps 3.5, 3.6, 4, and 5 below entirely for this spec (do NOT close
+       the run, do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue
+       claim release) — same posture as "Kept as-is" below, since the worktree and branch are
+       exactly as `local-merge-auto-finish.md` left them: unmerged, unmodified, awaiting a human.
+       Note in the wrap-up summary that this spec parked pending resolution of a merge conflict or
+       failed post-merge verification, distinct from a deliberate keep-as-is.
+
+     When the Precondition does not hold (an `interactive` or standalone run — no `config.yml` in
+     this run's directory), run `/superpowers:finishing-a-development-branch` now (do not stop and
+     ask the user to run it separately). Present the merge/PR/discard/keep-as-is options as the
+     skill normally would, unmodified — step 2's carrier commit already guarantees closure
+     regardless of which option is chosen, so this skill's own literal git commands need no
+     adaptation. Then branch on the outcome:
      - **Merged, PR created, or discarded** → proceed to step 4.
      - **Kept as-is** → the user is deliberately continuing work in this worktree. Skip steps 3.5, 3.6, 4, and 5 below entirely for this spec (do NOT close the run, do NOT remove the worktree, do NOT delete the branch) and skip Section E (issue claim release) — the claim stays held since the work is still in progress; releasing it here would let another agent claim an issue that's still mid-work. Note in the wrap-up summary that this spec's worktree/branch/claim cleanup is deliberately incomplete, pending a future finish decision (a later re-run of `/superpowers:finishing-a-development-branch`, directly or via `/claude-tweaks:wrap-up`).
    In `current-branch` mode (no worktree, no branch finish) there is no feature branch to stamp
@@ -180,7 +201,13 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    checks before allowing an `ExitWorktree`/`git worktree remove` call — skipping this step is the
    pattern the gate exists to deny (`[IL-116]`), and its own deny message points back here as the
    fix. Skip silently if no run directory resolves (a pre-v4.6 pipeline that never created one).
-4. Remove the worktree. Use **`ExitWorktree`** (`action: "remove"`) for the worktree this
+4. **Before removing it**, best-effort release the worktree's port lease with the path captured
+   explicitly (the CLI's own cwd-based `--path` default stops resolving once `ExitWorktree` has
+   moved the session out, or the directory is gone) — release before `ExitWorktree`, not after,
+   since either order is equally correct with an explicit `--path` but this is the one stated
+   sequence: `node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" release --path {worktree-path}` — on
+   failure, print to stderr only, never blocks teardown. Then remove the worktree. Use
+   **`ExitWorktree`** (`action: "remove"`) for the worktree this
    session is standing in: the harness holds a live lock on it, so raw `git worktree remove`
    fails with exit 128 (`[IL-58]`), and `SessionStart`'s reaper never touches a live-pid lock
    either — it returns `in-use` and skips, correctly, because a session's own worktree at
@@ -234,7 +261,7 @@ If no worktree exists for this spec, skip this section silently.
 If `/visual-review` or `/stories` auto-started a dev server during this run (`dev-url-detection.md` "Ephemeral server start"), it recorded the PID, port, and worktree root in `{run-dir}/ephemeral-server.txt`.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section** — the server is shared across all specs in the run. The parent `/flow` kills it once after the consolidated Review Console (otherwise each later spec's visual review would have to restart it).
-2. Read `{run-dir}/ephemeral-server.txt`. Stop the process: `kill {pid}` (fall back to `lsof -ti tcp:{port} | xargs kill` if the PID is stale).
+2. Read `{run-dir}/ephemeral-server.txt`. Stop the process: `kill {pid}` — with a port-isolation lease (#1795), the recorded port is known and the PID kill alone is sufficient; the `lsof -ti tcp:{port} | xargs kill` fallback for a stale PID is a no-lease/POSIX-only path (see `dev-url-detection.md`'s Step 0.5).
 3. Confirm the port is free, then delete `ephemeral-server.txt`.
 
 This only stops servers *this pipeline started*. A dev server the user was already running (or one on the main checkout) is never touched — it was never recorded in `ephemeral-server.txt`.

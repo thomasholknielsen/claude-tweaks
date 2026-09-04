@@ -26,6 +26,24 @@
 //                                       // tweak event
 //   }
 // All paths are relative to the manifest's own directory.
+//
+// Live-tweak opt-in (#1336): template.html's live focus view postMessages
+// {type: 'compare-shell-tweak', token, value} into the focused candidate's
+// own iframe on every tweak-lever change. This file does NOT inject a
+// listener into variant markup — a candidate opts in by adding its own, e.g.:
+//   window.addEventListener('message', function (e) {
+//     if (!e.data || e.data.type !== 'compare-shell-tweak') return;
+//     document.documentElement.style.setProperty('--tweak-' + e.data.token, e.data.value);
+//   });
+// then styling itself off the same --tweak-{hue,spacing-scale,corner-radius}
+// custom properties the compare-shell's own preview swatch uses. A variant
+// that adds no such listener renders exactly as it does today — the message
+// is sent but nothing reads it. Deliberately not auto-injected here: this
+// file's job is assembling a variant's own already-authored files/skin CSS
+// (buildVariantData above) into a served or embedded document, not mutating
+// arbitrary — possibly malformed — candidate markup with bootstrap script
+// injection, which the identity-scope `</head>`-detection code above already
+// shows is not a risk-free pattern to repeat for every variant unconditionally.
 'use strict';
 
 import fs from 'node:fs';

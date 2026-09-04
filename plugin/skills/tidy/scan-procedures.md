@@ -71,21 +71,23 @@ Before recommending Delete, also sanity-check that no open work record's body re
 
 **Reconcile first:** before any probe below, run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" reconcile --json` — converges `{REPO_ROOT}` toward origin (`bin/lib/reconcile`, #407) so this step's worktree/branch audit reads already-current state instead of racing a stale mirror, the same placement `dispatch/SKILL.md` Step 2 uses for its own queue pull. `--json` is required here, not the plain `reconcile` default (#638's compact summary) — this step parses the result's `console.ready` array below. Log the JSON result to this run's `decisions.md`. A non-empty `console.ready` array names answered consoles this sweep is well-placed to close out — follow `_shared/console-execution.md` for each before continuing.
 
-**Worktrees and merged remote branches — shared probe.** Run, anchored at `{REPO_ROOT}`:
+**Worktrees and merged remote branches — shared probe.** Resolve `{integration-branch}`: policy value when pinned, else repo default (`git -C "{REPO_ROOT}" symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's@^origin/@@'`) — `_shared/integration-branch.md`. Run, anchored at `{REPO_ROOT}`:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {merge-base} --scope repo --no-suite --json
+node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {merge-base} --integration-branch {integration-branch} --scope repo --no-suite --json
 ```
 
 `{merge-base}` resolves to `HEAD` for this step — /tidy has no single feature branch to diff, unlike `/wrap-up`'s own close-time invocation of this same CLI (`residue-sweep.md`), which passes its run's actual base; `--base` gates the whole invocation on a resolvable commit-ish but isn't otherwise read by the worktree/branch probes. `--no-suite` skips the CLI's own test-suite probe, which this step has no use for.
 
 Each `kind: worktree` finding is one candidate — every worktree beyond the main working tree, `subject` the path, `evidence` reporting locked/unlocked state, branch, `dirty: true|false|unknown`, and reaper-domain membership; replaces `git worktree list` one-for-one. Under `ran: false` treat worktrees as **`unknown`**, not clean — an empty `findings` array there is never "no worktrees."
 
-Each `kind: branch` finding is a **remote-tracking** branch (of the integration branch's own remote — `origin` by default) already merged into the integration branch and not yet deleted. This does **not** replace the local `build/*` scan below — it is a narrower, differently-shaped catch: it never surfaces an unmerged branch (the probe filters to `--merged` only, so an unmerged `build/*` branch is invisible to it — exactly the case the "Unmerged changes" row needs), and it never surfaces a branch that was only ever merged locally, e.g. via `_shared/scratch-worktree.md` §5's `git push . <sha>:{integration-branch}` pattern, which is this repo's own dominant merge shape for worktree-derived branches and leaves no remote-tracking ref at all. Fold its findings in as an **additional** repo-wide check for stray already-merged remote branches (of any name, not just `build/*`), never as a substitute for the scan below.
+Each `kind: branch` finding is a **remote-tracking** branch (of the integration branch's own remote — `origin` by default) already merged into the integration branch and not yet deleted. This does **not** replace the local `build/*` scan below: it never surfaces an unmerged branch (`--merged`-only filter — the "Unmerged changes" row still needs the scan below), and it never surfaces a branch merged only locally (e.g. `_shared/scratch-worktree.md` §5's `git push . <sha>:{integration-branch}` pattern, this repo's own dominant worktree-branch merge shape, which leaves no remote-tracking ref). Fold its findings in as an **additional** check for stray merged remote branches (any name, not just `build/*`), never as a substitute for the scan below.
 
 Each `kind: artifact` finding is aged QA-artifact residue (an aged dir under `.claude-tweaks/artifacts/`, or a legacy pre-relocation `screenshots/`/`traces/` root) — collect as `[git] {subject} — {evidence} — Delete` when `remedy: auto`, or `— Delete (judgment)` when `remedy: record`.
 
 Each `kind: pipeline-run` finding is an un-archived clean run directory (`run-state.json` status `clean`, not yet moved under `.claude-tweaks/pipelines/archive/`) — collect as `[git] {subject} — {evidence} — Archive` (`remedy` is always `auto` for this kind — the archival move documented in `wrap-up/cleanup-procedures.md` Section B).
+
+Each `kind: release` finding is a gap in this repo's release triple at `HEAD` — the shipped `plugin.json` version's `CHANGELOG.md` heading (`## v{version} — {summary}`) or its `docs/shipped-versions.tsv` line (`{version}\t{date}\trelease`) is missing — collect as `[git] {subject} — {evidence} — Backfill` (`remedy` is always `auto`: add the missing heading/line by hand, matching the format the finding's `evidence` field names, then re-run `node --test tests/changelog-coverage.test.js` before committing — the same "backfill" remedy `docs/releasing.md` already documents for a shipped version missing its CHANGELOG entry). This probe (`bin/lib/residue/probes/release.js`) fires only when `manifest.name === 'claude-tweaks'` — a generic claude-tweaks-installed project always sees `ran: false` here; this is a claude-tweaks-repo-specific check, not a general-project convention.
 
 This step's per-kind coverage above is not a fixed list — treat `bin/residue.js`'s probe directory (`bin/lib/residue/probes/`) as the authoritative kind set under `--scope repo`, and give any probe added there a paragraph here (or an explicit exclusion note) before relying on the assertion in `step-6-auto.md` that every Step 4.5 pass reads it. `kind: pr` is the one deliberate exception: Step 4.8 below fetches PRs directly instead of reading it from this CLI — see that step's own "Not re-pointed at `bin/residue.js`" paragraph for why.
 
@@ -114,7 +116,7 @@ gh pr view {pr-number} --repo {owner}/{repo} --json state,isDraft
 |---|---|
 | `OPEN` (draft or not) | **in-flight** — keep, PR #{number} open (never reached by the table above's "Unmerged changes" row's ambiguity — this is a positive, not a default) |
 | `MERGED` | Same as "Related spec complete + changes merged" — the reconciler (`bin/lib/reconcile`) should have already reaped this; a survivor here means the reconciler hasn't run recently, not a different disposition |
-| `CLOSED` (unmerged) — check for the tombstone marker: `gh pr view {pr-number} --json comments --jq '.comments[] \| select(.body \| startswith("<!-- run-comment: failure -->"))'` | **Non-empty result → tombstoned.** Keep — same as `bin/lib/reconcile/reap-merged.js`'s own `pr-closed-unmerged` skip decision; this row states in prose what that module already enforces in code, never contradicting it. Recommendation: `Keep (tombstoned — retry via /claude-tweaks:dispatch or /claude-tweaks:flow, PR #{number})`. **Empty result → abandoned**, not tombstoned — a human closed the draft without the run ever reaching the failure path. Recommendation: `Keep (abandoned — closed PR #{number} carries no failure marker; manual review before removing worktree)`. Never auto-remove either case — `/tidy` never escalates a "manual review" row to a destructive delete on its own. |
+| `CLOSED` (unmerged) — check for the tombstone marker: `gh pr view {pr-number} --json comments --jq '.comments[] \| select(.body \| startswith("<!-- run-comment: failure -->"))'` | **Non-empty result → tombstoned.** Keep — same as `bin/lib/reconcile/reap-merged.js`'s own `pr-closed-unmerged` skip decision. Recommendation: `Keep (tombstoned — retry via /claude-tweaks:dispatch or /claude-tweaks:flow, PR #{number})`. **Empty result → abandoned**, not tombstoned — a human closed the draft without the run ever reaching the failure path. Recommendation: `Keep (abandoned — closed PR #{number} carries no failure marker; manual review before removing worktree)`. Never auto-remove either case — `/tidy` never escalates a "manual review" row to a destructive delete on its own. |
 
 Absent a `pr` object (`local-merge`, or a degraded `pr-first` run), or when the `gh` calls above
 fail, fall back to the table above unchanged — this override only ever adds information, never
@@ -122,7 +124,7 @@ removes the pre-#410 classification's own coverage.
 
 → Collect each as: `[git] {worktree/branch} — {recommendation}`
 
-Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete). `-d` only proves containment in `HEAD`/the branch's own `@{upstream}` — it refuses identically whether the branch is genuinely unmerged or merged into a *different* long-lived base (a `dev` → `staging` → `main` promotion chain is the common shape). Treat a refusal as **ambiguous**, not as proof of unmerged work: before surfacing anything, resolve every other configured base to a **plain branch name** — the project's `integration-branch` policy value (when pinned) plus the repo's own default branch, resolved via `git -C "{REPO_ROOT}" symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's@^origin/@@'` — per `_shared/integration-branch.md`'s canonical ladder, deduped when they're the same. **Never use the raw `origin/HEAD` form as `{base}` below** — substituting it into `origin/{base}` yields the malformed ref `origin/origin/HEAD`. For each resolved `{base}`, check `{branch}`'s membership **both** ways — this repo's own dominant merge shape for worktree-derived branches (`_shared/scratch-worktree.md` §5's `git push . <sha>:{integration-branch}` pattern) leaves no remote-tracking ref at all, so checking the remote-tracking form alone reproduces the exact false negative this fix exists to eliminate:
+Use `git -C "{REPO_ROOT}" branch -d {branch}` (safe delete). `-d` only proves containment in `HEAD`/the branch's own `@{upstream}` — it refuses identically whether the branch is genuinely unmerged or merged into a *different* long-lived base (a `dev` → `staging` → `main` promotion chain is the common shape). Treat a refusal as **ambiguous**, not as proof of unmerged work: before surfacing anything, resolve every other configured base to a **plain branch name** — `{integration-branch}` (above) plus repo default when it differs, deduped when equal. **Never use the raw `origin/HEAD` form as `{base}` below** — substituting it into `origin/{base}` yields the malformed ref `origin/origin/HEAD`. For each resolved `{base}`, check `{branch}`'s membership **both** ways — this repo's own dominant merge shape for worktree-derived branches (the pattern the `kind: branch` paragraph above names) leaves no remote-tracking ref, so checking that form alone reproduces the exact false negative this fix exists to eliminate:
 
 - `git -C "{REPO_ROOT}" branch --merged origin/{base}` (remote-tracking ref, when it exists)
 - `git -C "{REPO_ROOT}" branch --merged {base}` (local branch, when it exists)
@@ -133,14 +135,15 @@ checked out in another worktree (`git -C "{REPO_ROOT}" worktree list --porcelain
 state, and since this step deliberately keeps locked worktrees (see below), that refusal reason is
 otherwise indistinguishable from "needs -D" and would get the wrong remedy.
 
-`{branch}` counts as merged into `{base}` if either form lists it. Four outcomes, never three:
+`{branch}` counts as merged into `{base}` if either form lists it. Five outcomes (#613):
 
 | Outcome | Recommendation |
 |---|---|
 | `{branch}` is checked out in another worktree | **`checked out in {worktree-path} — remove worktree first, then re-run`**. `-D` would refuse for the same reason `-d` did; this is not a merge-state question |
 | `-d` succeeds | Deleted — no further action |
-| `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is never invoked autonomously in /tidy — surface for manual approval, never auto-escalate |
-| `-d` refuses, and `{branch}` is merged into no configured base (either form) | **`unmerged — manual review required`** — this is the only case that actually means unmerged work |
+| `-d` refuses, but `{branch}` is merged into some other configured `{other-base}` (either form above) | **`merged into {other-base} — needs -D, manual review required`**. Safe in principle (no unmerged work), but `-d` cannot delete it and `-D` is not autonomous for this outcome — surface for manual approval, never auto-escalate |
+| `-d` refuses, no configured base, net-empty vs. fork point (#613) | **`net-empty — delete via -D`** |
+| `-d` refuses, no configured base, not net-empty | **`unmerged — manual review required`** — the only unmerged case |
 
 **Dirty-worktree override** (#1424, before `Remove/delete`): `dirty: true` routes to
 `dirty — manual review required` with the changed files (`git -C {path} status --porcelain`) —
@@ -148,22 +151,12 @@ never `Remove/delete` or `--force`. `dirty: unknown` (the status check itself fa
 **not** trigger the override — a read failure is never proof of uncommitted work
 (`probes/worktrees.js`) — but still appears in the evidence line.
 
-Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees.
+Use `git -C "{REPO_ROOT}" worktree remove {path}` for worktrees. After a successful removal, best-effort release its port lease: `node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" release --path {path}` — on failure, print to stderr only; never blocks the finding.
 
 A **locked** worktree will refuse to remove. Do not force it: a live lock means a session
 is using it. Surface it as `locked — manual review required`.
 
-`SessionStart`'s reaper (`bin/lib/hooks/worktree-reap.js`) collects *some* of these
-unattended, but its reach is deliberately narrower than this step's, so do not read a
-still-locked worktree as one the reaper has already judged. It only considers worktrees
-under `{REPO_ROOT}/.claude/worktrees/` (ADR-0004's harness-owned domain — `.worktrees/`
-belongs to superpowers' `finishing-a-development-branch`), it unlocks only when the lock's
-owning pid is provably dead **and** nothing in the worktree has been modified for 24h, and
-it reaps nothing at all on a repo where its own integration-branch resolution comes up empty
-(`_shared/integration-branch.md` — the reaper's row in the per-consumer fallback table; it
-may consult only the `integration-branch:` policy key and `origin/HEAD`, never the checked-out
-branch). Anything still locked at `/tidy` time is therefore in use, unrecognized, recently
-active, out of the reaper's domain, or on a repo where the reaper is inert.
+A still-locked worktree may not be reaper-judged — `SessionStart`'s reaper (`bin/lib/hooks/worktree-reap.js`) has a narrower reach than this step's. See `worktree-reaper-scope.md` in this skill's directory for its exact domain.
 
 ## Step 4.6: Audit Doc Registry
 
@@ -234,7 +227,7 @@ removal, empty `decisions.md` on a completed standalone run, and preserved-but-u
 feedback drafts — each one's find/gh command, per-match fields, and collection line. Nothing of
 their procedures remains here — these headings survive so an external reference naming any of the
 four by name still resolves in one hop. The `[unfiled]` collection tag from the fourth backstop
-still routes via this file's own Collection routing table below.
+still routes via `collection-routing.md` (see "Collection routing" above).
 
 The dispatcher inlines `issue-claims-backstops.md` **whole** into the Issue Claims agent's
 prompt, **after** this file's own Step 4.7 section above (the primary claim listing, "Backstops"
@@ -271,7 +264,7 @@ GitHub mutations recommended here (Close (GitHub), Resolve thread), `acceptance-
 
 Main thread, parallel with the agent batch — like Steps 4 and 4.6, this is one Skill-tool call that shells out to a JSON-emitting script, and dispatching it as an agent would pay the full inherited `CLAUDE.md` cost to run it.
 
-Invoke `/claude-tweaks:design-wrapper doctor --source tidy` via the Skill tool. It takes **no target**: `doctor` audits the project's own Impeccable artifacts (`PRODUCT.md`, `DESIGN.md` + sidecar, `.impeccable/config.json`, surface briefs, the design hook), not a diff. `--source tidy` is unconditional — /tidy is standalone-only and never has a `$PIPELINE_RUN_DIR` to forward (see `design-wrapper/SKILL.md`'s Component-Skill Contract).
+Invoke `/claude-tweaks:design-wrapper doctor --source tidy` via the Skill tool. It takes **no target**: `doctor` audits the project's own Impeccable artifacts (`PRODUCT.md`, `DESIGN.md` + sidecar, `.impeccable/config.json`, surface briefs, the design hook), not a diff. `--source tidy` is unconditional — even under its one sanctioned parent (`/claude-tweaks:sweep`), /tidy never has a `$PIPELINE_RUN_DIR` to forward (see `design-wrapper/SKILL.md`'s Component-Skill Contract).
 
 ### Degrade silently
 
@@ -375,12 +368,4 @@ Patterns and health observations are informational — they surface systemic iss
 
 ## Collection routing
 
-| Collection prefix | Renders in Step 6 report | Notes |
-|---|---|---|
-| `[backlog]`, `[parked]`, `[unsynced]`, `[doc]`, `[plan]`, `[git]`, `[registry]`, `[pr]`, `[gh-issue]`, `[parent-gate]`, `[claim]` | **Approve ({N})** (or **Applied automatically** when the tier auto-applied it) | Each row gets a pre-filled recommendation carrying its exact executable action. Some of these tags also emit non-mutating outcomes on individual findings — `[backlog]`/`[parked]`/`[plan]` Keep rows land in **Clean:** instead; `[backlog]`/`[parked]` Promote and `[doc]`'s "Run `/claude-tweaks:specify`" outcome land in **Yours ({N})**; `[pr]` awaiting-review and unarmed-ungranted outcomes land in **Yours ({N})**; `[claim]` Release and both missed-restoration backstops (`parked` / `bot:in-progress`) are staged, executable actions here, but `[claim]` Manual review outcomes (unreadable/unparseable blobs, empty-`decisions.md` backstop) land in **Yours ({N})** and Keep (live claim, issue open) lands in **Clean:** — the destination follows the actual routing outcome (`step-6-auto.md`'s Bucket mapping), never the tag alone. |
-| `[scoring]`, `[blocked]`, `[legacy]` (`step-1-records.md`'s Shape 5.5), `[acceptance-gap]`, `[sizing]`, `[unfiled]` | **Yours ({N})** | Auto (no-op, always surfaced) at every aggressiveness tier — no mutation exists to stage; each finding carries its own paste-ready command. |
-| `[pattern]` | **Yours ({N})** | Informational; presented as items in Yours. |
-| `[doctor]` | **Yours ({N})** | Surface-or-suppress, never apply — this step mutates nothing. Deliberately **not** **Approve ({N})**, whose every row carries a mutating Action Vocabulary recommendation. Section omitted entirely when the scan skipped or found nothing. |
-| `[calibration]` | **Yours ({N})** | Report-only, surface-or-suppress, never applied — matches `[doctor]`'s semantics. No action drill. |
-| `[health]` | **Yours ({N})** — each line carries the finding's own follow-up command (e.g. the matching `/claude-tweaks:*-health` skill or the file to review) | Project-level observations. |
-| Keep / nothing-to-report scans (any tag above) | **Clean:** (counted) | Never itemized rows. |
+Read `collection-routing.md` in this skill's directory for the full prefix → report-section table.

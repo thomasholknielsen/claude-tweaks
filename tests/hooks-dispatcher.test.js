@@ -130,17 +130,20 @@ test('close-run does NOT warn about un-archived work/ when no work/ content exis
   assert.doesNotMatch(result.stdout, /still holds un-archived work\/ content/);
 });
 
-// #1124: record-worktree without --run (including a bare --help) used to
-// fall through to resolveRunDir's "newest non-terminal run" GUESS and could
-// silently clobber a DIFFERENT live session's run-state.json — reproduced 3x
-// independently on 2026-08-20, across three different dispatched subagents,
-// each time hitting a different live sibling run's run-state.json. This is
-// the regression test: two concurrent run directories, each already carrying
-// its own run-state.json (representing two genuinely live sibling sessions,
-// neither of which this invocation is scoped to), and an invocation omitting
-// --run (bare, or `--help`) must leave BOTH byte-unchanged and exit non-zero
-// — never guess which one to write into.
-test('record-worktree without --run (including --help) is a true no-op against two concurrent run directories, and exits non-zero', () => {
+// #1124: record-worktree without --run used to fall through to
+// resolveRunDir's "newest non-terminal run" GUESS and could silently clobber
+// a DIFFERENT live session's run-state.json — reproduced 3x independently on
+// 2026-08-20, across three different dispatched subagents, each time hitting
+// a different live sibling run's run-state.json. This is the regression
+// test: two concurrent run directories, each already carrying its own
+// run-state.json (representing two genuinely live sibling sessions, neither
+// of which this invocation is scoped to), and a bare invocation omitting
+// --run must leave BOTH byte-unchanged and exit non-zero — never guess which
+// one to write into. #1143 adds a dedicated, verb-agnostic --help/-h
+// intercept ahead of this whole branch (exit 0, usage text, no resolveRunArg
+// call at all) — a --help probe is exercised below too, but now as that
+// earlier, distinct no-op path rather than this "missing --run" refusal.
+test('record-worktree without --run is a true no-op against two concurrent run directories, and exits non-zero; --help is a separate, earlier no-op (#1143)', () => {
   const project = gitRepo(); // #790: --run must resolve under a real git checkout
   const staleDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-15T090000-record-19');
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
@@ -160,9 +163,14 @@ test('record-worktree without --run (including --help) is a true no-op against t
   assert.match(bare.stdout, /record-worktree requires --run/);
   assert.doesNotMatch(bare.stdout, /worktree recorded/);
 
+  // #1143: --help must never be treated as an implicit-resolution
+  // invocation — it's intercepted before resolveRunArg ever runs, so it
+  // gets its own dedicated no-op path (usage text, exit 0), not the
+  // "requires --run" refusal above (which stays non-zero on genuinely
+  // missing --run).
   const help = runHook(['record-worktree', '--help'], { cwd: project });
-  assert.notStrictEqual(help.code, 0, '--help must never be treated as an implicit-resolution invocation either');
-  assert.match(help.stdout, /record-worktree requires --run/);
+  assert.strictEqual(help.code, 0, '#1143: --help is a dedicated no-op path, distinct from the missing-args refusal');
+  assert.match(help.stdout, /usage: record-worktree --run <dir> <worktree-path>/);
   assert.doesNotMatch(help.stdout, /worktree recorded/);
 
   assert.deepStrictEqual(readRunState(staleDir), staleStateBefore, 'staleDir must be byte-unchanged');
@@ -191,25 +199,30 @@ test('record-worktree accepts --run before or after the worktree positional', ()
 });
 
 // #1124 review finding: the fix's OTHER guard — rejecting a flag-shaped
-// worktree positional (e.g. `--run <dir> --help`) — had no regression test,
-// even though it's the exact shape every observed pre-fix incident hit and
-// the code's own comment calls out. Discrimination check: reverting just the
+// worktree positional (e.g. `--run <dir> --bogus-flag`) — had no regression
+// test, even though it's the exact shape every observed pre-fix incident hit
+// (originally reproduced with a stray `--help`) and the code's own comment
+// calls out. Discrimination check: reverting just the
 // `worktreeArg.startsWith('-')` branch (hooks.js's "unrecognized argument"
 // guard) would let this test's run-state.json end up with a literal
-// `worktree: "--help"` value and exit 0 — this assertion set fails in that
-// case, not just on the guard's total absence.
-test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --help)', () => {
+// `worktree: "--bogus-flag"` value and exit 0 — this assertion set fails in
+// that case, not just on the guard's total absence. Uses a non-help flag
+// (rather than the original `--help`) because #1143 added a dedicated,
+// earlier `--help`/`-h` intercept that now short-circuits before this
+// branch is ever reached — see the `--help` case covered separately above
+// and in tests/hooks-help-guard.test.js.
+test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --bogus-flag)', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
   fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active' }));
   const before = readRunState(run);
 
-  const result = runHook(['record-worktree', '--run', run, '--help'], { cwd: project });
+  const result = runHook(['record-worktree', '--run', run, '--bogus-flag'], { cwd: project });
   assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
-  assert.match(result.stdout, /unrecognized argument --help/);
+  assert.match(result.stdout, /unrecognized argument --bogus-flag/);
   assert.doesNotMatch(result.stdout, /worktree recorded/);
-  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--help\\"" write');
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--bogus-flag\\"" write');
 });
 
 // #1124: --run is now required unconditionally — a call that omits it exits
@@ -260,6 +273,73 @@ test('record-worktree reports a distinct failure when the run-state write itself
     assert.doesNotMatch(result.stdout, /worktree recorded for/);
   } finally {
     fs.chmodSync(run, 0o700);
+  }
+});
+
+// #1566: resolveRunArg's plain anchored branch used to accept ANY real
+// anchored directory as --run, never checking it was actually an
+// initialized run dir (decisions.md/run-state.json/config.yml) — a
+// malformed-but-real --run (a stray `--run .`, a caller bug interpolating
+// $RUN_ROOT) was silently accepted and written to. record-worktree is the
+// one deliberate exception: it's the sole first-writer in the dispatch
+// mint-then-claim handoff (dispatch/SKILL.md Step 4 mkdir-only mints a run
+// dir, flow/steps-and-gates.md case 2 adopts it with no config.yml yet,
+// worktree-setup.md Step 4.5's record-worktree call is what performs the
+// actual first write) — so it alone may target a freshly-minted,
+// completely uninitialized run-id-shaped directory.
+test('record-worktree accepts a freshly-minted, completely uninitialized --run dir (dispatch mint-then-claim pattern)', () => {
+  const project = gitRepo();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true }); // bare mkdir only — no decisions.md/run-state.json/config.yml
+  const result = runHook(['record-worktree', '--run', run, '/tmp/wt-mint'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /worktree recorded for 2026-07-01T090000-spec-1/);
+  assert.strictEqual(readRunState(run).worktree, path.resolve('/tmp/wt-mint'));
+});
+
+// The exact reproduction from #1566's Current State: `--run .` from a bare
+// git repo root wrote run-state.json directly into the repo root, with a
+// false-success message and exit 0. The repo root carries none of the three
+// markers, so it's rejected the same as any other uninitialized target —
+// record-worktree's mint exception (above) only ever fires for a
+// genuinely-empty directory, and this repo root has real content (.git) but
+// no run markers, so it fails both the record-worktree exception and every
+// other verb's default gate.
+test('record-worktree rejects the main checkout root itself as --run when it carries no run markers (#1566 repro)', () => {
+  const project = gitRepo();
+  const result = runHook(['record-worktree', '--run', '.', '/tmp/wt-evil'], { cwd: project });
+  assert.strictEqual(result.code, 0, 'record-worktree always exits 0, even on a rejected --run — see the other --run-rejection tests above');
+  assert.match(result.stdout, /--run path rejected/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.strictEqual(fs.existsSync(path.join(project, 'run-state.json')), false,
+    'a rejected --run must never write run-state.json into the repo root');
+});
+
+// The other 7 verbs sharing resolveRunArg have no legitimate "first write to
+// a fresh dir" pattern of their own — by the time any of them runs in a real
+// pipeline, record-worktree (or the Manifesto) has already initialized the
+// target. Each must reject a freshly-minted, uninitialized --run target
+// (record-worktree's own exception does not extend to them) rather than
+// silently accepting a malformed or wrong-but-real path. archive-run is
+// deliberately excluded from this list — see archive-run-verb.test.js's
+// "refuses a run dir with no run-state.json, naming archiveOrphanedMint",
+// its own documented exception for reporting a stale, never-claimed mint.
+test('record-pr, spec-status, close-run, teardown-run, check-resume-freshness, and check-staged-inventory each reject an uninitialized --run target', () => {
+  const verbs = [
+    ['record-pr', '7', 'https://github.com/o/r/pull/7'],
+    ['spec-status', '--spec', '1', '--status', 'running', '--phase', 'build'],
+    ['close-run'],
+    ['teardown-run'],
+    ['check-resume-freshness'],
+    ['check-staged-inventory'],
+  ];
+  for (const [verb, ...rest] of verbs) {
+    const project = gitRepo();
+    const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+    fs.mkdirSync(run, { recursive: true }); // bare mkdir only — no markers at all
+    const result = runHook([verb, '--run', run, ...rest], { cwd: project });
+    assert.strictEqual(result.code, 0, `${verb}: unexpected exit code`);
+    assert.match(result.stdout, /--run path rejected/, `${verb}: expected a rejected---run diagnostic, got: ${result.stdout}`);
   }
 });
 
@@ -370,6 +450,27 @@ test('close-run WITH an explicit --run still closes a run recorded by another se
   assert.match(result.stdout, /recorded by another session/);
   assert.doesNotMatch(result.stdout, /refusing to close/);
   assert.strictEqual(readRunState(run).status, 'clean', 'an explicitly-targeted --run intentionally overrides the cross-session refusal');
+});
+
+test("close-run without --run still detects and refuses a run bound to a different, still-live worktree — not just a different session (whole-branch review finding, pre-v6.110.0)", () => {
+  // #1410's worktree-foreign filter (added to resolveRun's shared fallback
+  // helper for post-tool-use.js's event attribution) also silently applied to
+  // close-run's implicit fallback, which needs the opposite behavior: it must
+  // still FIND a worktree-foreign run so closeRunState's own sessionId check
+  // can report it, rather than resolveRunDir hiding it and close-run printing
+  // "no pipeline run dir found" as if nothing were there at all.
+  const project = tmpProject();
+  execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
+  const otherWt = linkedWorktreeOf(project);
+  const callerWt = linkedWorktreeOf(project);
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', run, otherWt], { cwd: project, env: { CLAUDE_CODE_SESSION_ID: 'owner' } });
+
+  const result = runHook(['close-run'], { cwd: callerWt, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /recorded by another session/);
+  assert.match(result.stdout, /refusing to close/);
+  assert.strictEqual(readRunState(run).status, 'active', "the foreign worktree's run must remain active — found and refused, not silently invisible");
 });
 
 test('e2e: foreign-session commit in the main checkout is allowed with a systemMessage, not denied', () => {
@@ -575,6 +676,95 @@ test('#1337: a gate-denial event is untagged when CT_HOOKS_TEST_MODE is not set'
   assert.strictEqual('test' in events[0], false, 'a real denial must not carry the test-mode tag');
 });
 
+// #750 deliverable 1: hooks.json registers checkWorktreeRequired's pre-tool-use
+// dispatch under MANY separate "if": "Bash(<shape> *)" entries on the SAME
+// Bash matcher (git commit/push/-C/-c/--exec-path/--namespace, cp, mv,
+// mkdir, tee, sed, perl, install, ln, truncate, dd, git worktree, ...) — the
+// harness independently evaluates each "if" against a real compound Bash
+// command and can spawn `pre-tool-use.js` once per matching entry for what
+// is, from the operator's perspective, ONE tool call. This reproduces that
+// shape directly (looping every registered "if" pattern's underlying command
+// shape against the SAME compound command, exactly as N separate harness
+// dispatches would) in a project with NO worktree-always policy — i.e. a
+// command that genuinely executes successfully, no actual denial anywhere.
+// checkWorktreeRequired's own fast-reject (`wtDetect.findPolicyFile` finds
+// nothing) means every one of those N invocations returns `{}` before ever
+// reaching the gate-denial write — so the burst reported in #750 cannot be
+// per-segment/per-matching-hook duplicate logging of a non-denial: this
+// invariant already holds structurally. (The reported burst's actual cause —
+// a genuinely-denied SIBLING session's events landing in the WRONG run's
+// events.jsonl via fallback attribution — is a `resolveRun` cross-worktree
+// misattribution bug tracked separately: #721 fixed the narrower
+// unadopted-mint case, and the broader cross-worktree case is #1402/PR #1577,
+// already built+tested+reviewed and awaiting merge as of this writing — not
+// re-implemented here to avoid duplicating that in-flight fix.)
+test('#750: a compound Bash command with no policy violation never logs a gate-denial event, no matter how many registered "if" hook entries would independently fire on it', () => {
+  const project = gitRepo(); // no writeWorktreeAlwaysPolicy(project) -- nothing to enforce
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), '');
+  const compoundCommand = [
+    'git commit -m "x"', 'git push', 'git -C . status', 'git -c user.name=t status',
+    'cp a b', 'mv a b', 'mkdir -p scratch', 'tee out.txt', 'sed -i "" -e s/a/b/ f',
+    'perl -e 1', 'install -m 644 a b', 'ln -s a b', 'truncate -s 0 f', 'dd if=a of=b',
+    'git worktree list',
+  ].join(' && ');
+  const hooksConfig = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashEntry = hooksConfig.hooks.PreToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashEntry.hooks.length > 10, 'expected many registered "if" entries under the Bash matcher (the mechanism under test)');
+  for (const { if: ifPattern } of bashEntry.hooks) {
+    const result = runHook(['pre-tool-use'], {
+      input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: compoundCommand } }),
+      cwd: project,
+    });
+    assert.strictEqual(result.code, 0, `invocation simulating "if": "${ifPattern}" should not error`);
+    assert.doesNotMatch(result.stdout, /"permissionDecision":"deny"/, `invocation simulating "if": "${ifPattern}" must not deny — no policy is set`);
+  }
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')), 'no gate-denial (or any) event should ever have been written across all simulated invocations');
+});
+
+// #1395: the gitignored-target exemption's own allow breadcrumb — unlike
+// the two pre-existing path exemptions (pipeline bookkeeping, policy.yml),
+// which leave no event at all, this one records a `gate-exempt-gitignored`
+// event so an operator can audit which writes it let through. (The issue
+// also asked for a standalone "untracked, not gitignored" branch — deliberately
+// not implemented; see isUntrackedOrIgnored's header comment in
+// pre-tool-use.js for the concrete regression evidence that made it unsafe.)
+test('an allowed gitignored write appends a gate-exempt-gitignored event', () => {
+  const { project, run } = policyRepoWithRun();
+  fs.writeFileSync(path.join(project, '.gitignore'), '*.env\n');
+  const target = path.join(project, 'deploy.env');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: target } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.doesNotMatch(result.stdout, /"permissionDecision":"deny"/, 'a gitignored write target must be allowed');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1, 'expected exactly one breadcrumb event');
+  assert.strictEqual(events[0].type, 'gate-exempt-gitignored');
+  assert.strictEqual(events[0].tool, 'Write');
+  assert.strictEqual(events[0].path, target);
+});
+
+// Regression guard for the reverted branch above: an EXISTING, never-`git
+// add`ed file that is NOT gitignored must stay denied — proving the
+// exemption really is gitignored-only, not untracked-status-only.
+test('an existing, never-added file that is NOT gitignored stays denied (no gate-exempt-gitignored event)', () => {
+  const { project, run } = policyRepoWithRun();
+  const target = path.join(project, 'scratch.txt');
+  fs.writeFileSync(target, 'pre-existing, never git-added, not ignored');
+  const result = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: `cp source.txt ${target}` } }),
+    cwd: project,
+  });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /"permissionDecision":"deny"/, 'an untracked-but-not-ignored write target must stay denied');
+  const events = fs.readFileSync(path.join(run, 'events.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.strictEqual(events.length, 1);
+  assert.strictEqual(events[0].type, 'gate-denial', 'must be the ordinary deny breadcrumb, not a gitignored-exemption allow');
+});
+
 // #1270 regression: the #1130 fix (`PIPELINE_RUN_DIR: ''` in runHook's spread,
 // proven above at 'record-pr does not resolve against an ambient
 // PIPELINE_RUN_DIR...') guards run-state.json field writes. This is the sibling
@@ -681,6 +871,12 @@ test('record-pr --run pins the target run dir, same as record-worktree', () => {
   fs.writeFileSync(path.join(staleDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
   const ownDir = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(ownDir, { recursive: true });
+  // #1566: record-pr has no first-write exception the way record-worktree
+  // does — its own target must already be an initialized run dir. This test
+  // is about --run PINNING (own dir vs. a stale sibling), not about
+  // uninitialized-dir acceptance, so seed the one marker record-worktree
+  // would already have written in a real pipeline.
+  fs.writeFileSync(path.join(ownDir, 'decisions.md'), '');
 
   const result = runHook(['record-pr', '--run', ownDir, '7', 'https://github.com/o/r/pull/7'], { cwd: project });
   assert.strictEqual(result.code, 0);
@@ -713,6 +909,23 @@ test('record-pr with a non-numeric or missing number/url prints a usage notice i
     assert.match(result.stdout, /usage: record-pr/);
     assert.strictEqual(fs.existsSync(path.join(run, 'run-state.json')), false);
   }
+});
+
+// #1672: the branch is only reliably knowable while the worktree is still
+// live, so record-pr stamps it into pr.branch at that moment — the
+// torn-down-worktree fallback in run-integrity.js reads it back later, once
+// `git worktree list` no longer has an entry to derive it from.
+test('record-pr records the branch alongside the PR — deriveBranch() run while the worktree is still live', () => {
+  const project = tmpProject();
+  execFileSync('git', ['-C', project, 'commit', '--allow-empty', '-q', '-m', 'init']);
+  const worktree = linkedWorktreeOf(project);
+  const branch = execFileSync('git', ['-C', worktree, 'branch', '--show-current'], { encoding: 'utf8' }).trim();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  runHook(['record-worktree', '--run', run, worktree], { cwd: project });
+
+  const result = runHook(['record-pr', '--run', run, '7', 'https://github.com/o/r/pull/7'], { cwd: project });
+  assert.strictEqual(result.code, 0);
+  assert.deepStrictEqual(readRunState(run).pr, { number: 7, url: 'https://github.com/o/r/pull/7', branch });
 });
 
 test('check-resume-freshness: reports OK when the run is not interrupted', () => {

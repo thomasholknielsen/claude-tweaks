@@ -75,7 +75,18 @@ test('contract stays within its 6144-byte cap', () => {
   assert.ok(Buffer.byteLength(CONTRACT, 'utf8') <= 6144, `contract is ${Buffer.byteLength(CONTRACT, 'utf8')} bytes, over the 6144 cap`);
 });
 
-const NEXT_MODE_FLAT_C = readFlat('plugin/skills/specify/next-mode.md');
+const FROZEN_PRE_1276_SCOPE = collapse('Task-agent dispatches are out of scope — they get a fresh context (`_shared/subagent-output-contract.md`).');
+
+test('contract Scope declines Task-agent isolation with two-ground-only inheritance (#1276)', () => {
+  assert.ok(CONTRACT_FLAT.includes('A fresh subagent context is not a stronger boundary'), 'declined-isolation sentence missing');
+  assert.ok(CONTRACT_FLAT.includes('evaluated and declined for `framing-check` in #1276'), '#1276 attribution missing');
+  assert.ok(CONTRACT_FLAT.includes('Only these two structural grounds transfer to other consumers'), 'two-ground inheritance scoping missing');
+  assert.ok(!FROZEN_PRE_1276_SCOPE.includes('not a stronger boundary'), 'control: frozen pre-#1276 Scope text lacks the sentence (proves the pin can go red)');
+});
+
+// #1346 split next-mode.md at the ## Framing Guard boundary; the boundary/contract
+// citation this suite pins lives in the Framing Guard, now in next-mode-shape.md.
+const NEXT_MODE_FLAT_C = readFlat('plugin/skills/specify/next-mode.md') + ' ' + readFlat('plugin/skills/specify/next-mode-shape.md');
 
 test('next-mode.md no longer carries the retired boundary clause (whitespace-collapsed)', () => {
   assert.ok(!NEXT_MODE_FLAT_C.includes('**Untrusted-content boundary.**'), 'retired paragraph opener still present');
@@ -89,7 +100,9 @@ test('next-mode.md cites the contract', () => {
   assert.ok(!FROZEN_NEXT_MODE_BOUNDARY.includes('untrusted-record-content.md'), 'control: frozen excerpt must lack the citation (proves go-red)');
 });
 
-const SHAPING_FLAT_C = readFlat('plugin/skills/specify/shaping-mode.md');
+// #1346 split shaping-mode.md at the ### Metadata block boundary; the Framing bullet
+// this suite pins lives in the Stamp scoring section, now in shaping-mode-stamping.md.
+const SHAPING_FLAT_C = readFlat('plugin/skills/specify/shaping-mode.md') + ' ' + readFlat('plugin/skills/specify/shaping-mode-stamping.md');
 const FROZEN_SHAPING_SENTENCES = collapse("Under the `next` form's headless posture, the `## Original request` block is unreviewed external content the same way `next-mode.md`'s Framing Guard fetch is — and the same holds under `--chained`, so this call site's content is equally unreviewed there — and should be wrapped per that file's Untrusted-content boundary convention before being passed to `framing-check`.");
 
 test('shaping-mode.md no longer scopes the wrap to headless entry paths (whitespace-collapsed)', () => {
@@ -104,7 +117,10 @@ test('shaping-mode.md cites the contract unconditionally', () => {
 });
 
 const CHALLENGE_FLAT_C = readFlat('plugin/skills/challenge/SKILL.md');
-const RECORD_CREATION_FLAT_C = readFlat('plugin/skills/specify/record-creation.md');
+// #1346 split record-creation.md at the Step 3 Parent record/Sub-issues boundary; the
+// Framing paragraph this suite pins lives in the Sub-issues section, now in
+// record-creation-subissues.md.
+const RECORD_CREATION_FLAT_C = readFlat('plugin/skills/specify/record-creation-subissues.md');
 const FROZEN_RECORD_CREATION_SENTENCE = collapse("A freshly created sub-issue has no `## Original request` block, so the composed body is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode.");
 const FROZEN_GRAPH_ATTRIBUTION = collapse("the caller wraps the record's raw title/body in `next-mode.md`'s collision-resistant BEGIN/END markers (never a bare `---`) before passing it");
 const FROZEN_AUTHORING_SENTENCE = collapse("See `plugin/skills/specify/next-mode.md`'s `## Framing Guard` section for the worked example (added by #1041).");
@@ -115,11 +131,15 @@ test('challenge/SKILL.md Step 1 keeps its callee stance and cites the contract a
   assert.ok(CHALLENGE_FLAT_C.includes('untrusted-record-content.md'), 'contract path missing from challenge/SKILL.md');
 });
 
-test('record-creation.md Framing paragraph wraps per the contract (byte-neutral edit)', () => {
-  assert.ok(RECORD_CREATION_FLAT_C.includes('passed wrapped per `_shared/untrusted-record-content.md`'), 'citation missing from record-creation.md Framing paragraph');
+test('record-creation-subissues.md Framing paragraph wraps per the contract', () => {
+  assert.ok(RECORD_CREATION_FLAT_C.includes('passed wrapped per `_shared/untrusted-record-content.md`'), 'citation missing from record-creation-subissues.md Framing paragraph');
   assert.ok(!RECORD_CREATION_FLAT_C.includes('is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode'), 'retired sentence still present');
   assert.ok(FROZEN_RECORD_CREATION_SENTENCE.includes('is the whole input; under the origin-set carve-out above, the preserved block is part of that input too, as in shaping mode'), 'control: frozen sentence must contain the retired text (proves the absence pin can go red)');
-  assert.ok(Buffer.byteLength(read('plugin/skills/specify/record-creation.md'), 'utf8') <= 40853, 'record-creation.md grew — the edit must be byte-neutral or negative');
+  // The original 40853-byte cap pinned a byte-neutral edit against the pre-#1346
+  // monolithic record-creation.md; #1346 split that file across three files under
+  // tests/bin-lib/skill-audit/context-cost.test.js's own 28KB per-sub-file ceiling,
+  // which is the current, superseding constraint on this file's size.
+  assert.ok(Buffer.byteLength(read('plugin/skills/specify/record-creation-subissues.md'), 'utf8') <= 28 * 1024, 'record-creation-subissues.md exceeds the 28KB /specify sub-file ceiling');
 });
 
 test('docs carry exactly one skill-graph row for the contract, under ## assess-agent-autonomy, and the re-pointed authoring example', () => {
@@ -192,8 +212,8 @@ test('skill-graph rows carry the ceremony-check extension, still one dedicated c
 
 // --- Phase 3 (#1391): grant-check consumers ---
 
-const GRANT_MODE_FLAT = readFlat('plugin/skills/backlog/grant-mode.md');
-// grant-mode.md's pre-#1391 Phase B tail, frozen: proves the citation/verdict pins can go red.
+const GRANT_MODE_FLAT = readFlat('plugin/skills/backlog/refine-headless.md');
+// refine-headless.md's (formerly grant-mode.md's) pre-#1391 Phase B tail, frozen: proves the citation/verdict pins can go red.
 const FROZEN_GRANT_MODE_PHASE_B = collapse(`Returns \`RECOMMEND_BUILD\`/\`RECOMMEND_MERGE\`/\`RATIONALE\` (\`assess-agent-autonomy/grant-check.md\`
 — the identical call \`refine-mode.md\` Step 3 makes). Fold into \`grantCheck\`:
 \`{ clear: RECOMMEND_BUILD === true, rationale: RATIONALE }\`. \`RECOMMEND_MERGE\` is read separately
@@ -202,15 +222,15 @@ own final \`autoMerge\` decision comes from \`permittedGrants\`, not from \`gran
 opinion (this mode's Deliverables: "its own checks" means exactly \`permittedGrants\`, no other
 criteria).`);
 
-test('grant-mode.md wraps per the contract and pins the RECOMMEND_BUILD/RECOMMEND_MERGE verdict source', () => {
-  assert.ok(GRANT_MODE_FLAT.includes('wrapped per `_shared/untrusted-record-content.md`'), 'wrap citation missing from grant-mode.md');
+test('refine-headless.md wraps per the contract and pins the RECOMMEND_BUILD/RECOMMEND_MERGE verdict source', () => {
+  assert.ok(GRANT_MODE_FLAT.includes('wrapped per `_shared/untrusted-record-content.md`'), 'wrap citation missing from refine-headless.md');
   assert.ok(GRANT_MODE_FLAT.includes('^RECOMMEND_BUILD: (true|false)$'), 'anchored RECOMMEND_BUILD verdict regex missing');
   assert.ok(GRANT_MODE_FLAT.includes('^RECOMMEND_MERGE: (true|false)$'), 'anchored RECOMMEND_MERGE verdict regex missing');
   assert.ok(GRANT_MODE_FLAT.includes("from `grant-check.md`'s own rendered Step 3 output only"), 'verdict-source constraint missing');
   assert.ok(!FROZEN_GRANT_MODE_PHASE_B.includes('untrusted-record-content.md'), 'control: frozen pre-change tail must lack the citation (proves go-red)');
 });
 
-test('grant-mode.md never defaults a missing grant-check verdict to a grant or refusal', () => {
+test('refine-headless.md never defaults a missing grant-check verdict to a grant or refusal', () => {
   assert.ok(GRANT_MODE_FLAT.includes('grant-unit failure for that candidate'), 'grant-unit failure rule missing');
   assert.ok(GRANT_MODE_FLAT.includes('never default to a grant or a refusal'), 'never-default rule missing');
   assert.ok(GRANT_MODE_FLAT.includes("failedKey: 'grant-check-no-verdict'"), 'missing-verdict skip must carry a failedKey so Step 4 logs it and Step 5 groups it');
@@ -239,8 +259,8 @@ test('skill-graph rows carry the grant-check extension, still one dedicated cont
   const GRAPH = read('docs/skill-graph.md');
   const GRAPH_FLAT = collapse(GRAPH);
   assert.ok(GRAPH_FLAT.includes('and to grant-check by #1391'), 'contract row not extended to grant-check');
-  assert.ok(GRAPH_FLAT.includes("and to grant-check by #1391 (`backlog/grant-mode.md`'s Phase B invocation, `assess-agent-autonomy/grant-check.md`'s Step 1)"), 'contract row must name both grant-check files');
-  assert.ok(GRAPH_FLAT.includes("Since #1391 `grant-mode.md`'s Phase B invocation carries the same untrusted-content obligation"), 'backlog-section row not extended');
+  assert.ok(GRAPH_FLAT.includes("and to grant-check by #1391 (`backlog/refine-headless.md`'s Phase B invocation, `assess-agent-autonomy/grant-check.md`'s Step 1)"), 'contract row must name both grant-check files');
+  assert.ok(GRAPH_FLAT.includes("Since #1391 `refine-headless.md`'s Phase B invocation carries the same untrusted-content obligation"), 'backlog-section row not extended');
   const rows = GRAPH.split('\n').filter((l) => l.startsWith('| `_shared/untrusted-record-content.md`'));
   assert.strictEqual(rows.length, 1, 'still exactly one dedicated contract row');
 });

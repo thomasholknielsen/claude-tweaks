@@ -7,7 +7,7 @@
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Mirrors skills/backlog/grant-mode.md's audit-comment marker (#269) — the
+// Mirrors skills/backlog/refine-headless.md's audit-comment marker (#269) — the
 // machine-grant signal. A grant with no marker anywhere is human-granted.
 const GRANT_AUDIT_RE = /<!--\s*grant-mode-audit:\s*date=\S+\s+auto-merge=(?:true|false|pending)\s*-->/;
 

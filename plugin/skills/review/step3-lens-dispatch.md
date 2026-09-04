@@ -57,6 +57,8 @@ At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatch
 > ```
 > A dispatched lens agent that fails mid-flight is a different case from one that completes — see `_shared/subagent-output-contract.md`'s "Failed-agent retrieval" section for how to read its result cheaply, without blocking on the full envelope.
 >
+> **Reproduction-pair partner dies to a session/usage limit.** When one agent in a reproduction pair terminates early on an account session/usage limit (the `Agent terminated early due to an API error: You've hit your session limit` signature), retry that one agent once. If the retry also terminates the same way, treat the surviving partner as a Low-tier single read for that lens only — its findings enter `unconfirmed` unless elevated via the Direct-verification override below, never auto-promoted to `confirmed` on the strength of one agent alone. Log `STAGED {HH:MM:SS} — Reproduction: lens "{lens}" partner agent terminated on a session limit twice; single-read coverage. Reversibility: high.` to `decisions.md`, and carry a one-line coverage-caveat into the Step 7 summary and the PR verdict comment naming the affected lens.
+>
 > - Findings present in both agents' outputs (path exact, line ±2, matching severity bucket) → emit as `confirmed`. Write to `decisions.md`: `AUTO {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} reproduced. Confirmed. Reversibility: high.`
 > - Findings present in only one agent's output → emit as `unconfirmed`. Write: `STAGED {HH:MM:SS} — Reproduction: lens "{lens}" finding {path}:{line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.` Unconfirmed findings do **not** enter Step 3 Routing — they route directly to the Wrap-Up Console's Low-confidence subsection.
 >
@@ -91,6 +93,8 @@ When in doubt: would a calibrated senior engineer block a PR on this finding alo
 OUTPUT FORMAT (required):
 First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED — nothing before it, not even a lead-in sentence.
 WRONG: "Based on my review, DONE" — narration before the status word still violates this.
+WRONG: "I reviewed the diff and found two issues worth flagging. DONE_WITH_CONCERNS" — same violation even when the narration states real content instead of filler; the rule is about position, not about whether the lead-in is empty.
+Self-check before sending: is the very first token of your reply literally one of the four status words? If you were about to write a summary, transition, or acknowledgment first, delete it and start the reply with the status word instead.
 Then return ONLY a markdown table, no preamble:
 
 | Severity | Path:Line | Finding | Evidence |
@@ -125,6 +129,7 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 - Authentication/authorization checks present where needed?
 - No secrets or sensitive data in code?
 - OWASP top 10 considerations?
+- Does every path-based allow/exemption decision resolve the real path (leaf symlink followed, `..` normalized) before deciding, and fail closed when the path is unprovable? (#1678: a file-tool gate exemption decided on the raw literal path let a symlink located outside any repo but pointing inside a protected worktree bypass the check entirely — see `docs/donts.md`'s matching rule, `[IL-150]`.)
 
 ### 3c: Error Handling
 

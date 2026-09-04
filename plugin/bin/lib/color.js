@@ -20,4 +20,9 @@ const yellow = (s) => wrap('33', s);
 const green = (s) => wrap('32', s);
 const dim = (s) => wrap('2', s);
 
-module.exports = { red, yellow, green, dim, colorEnabled };
+// OSC 8 hyperlink, BEL-terminated (the form Claude Code's statusline docs
+// show). Not gated on NO_COLOR — that convention governs color (SGR), not
+// hyperlinks — and terminals without OSC 8 support render the text plain.
+const link = (url, s) => `\x1b]8;;${url}\x07${s}\x1b]8;;\x07`;
+
+module.exports = { red, yellow, green, dim, link, colorEnabled };

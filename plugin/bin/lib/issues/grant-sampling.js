@@ -9,7 +9,7 @@
 //
 // "Machine-granted" reuses fleet-counters.js's own detection — a grant only
 // counts as machine-origin when its audit comment carries the
-// `grant-mode-audit:` marker (skills/backlog/grant-mode.md, #269); the
+// `grant-mode-audit:` marker (skills/backlog/refine-headless.md, #269); the
 // `auto:merge` label alone is not enough, since a human can grant it too.
 const { isMachineGrant } = require('./fleet-counters.js');
 

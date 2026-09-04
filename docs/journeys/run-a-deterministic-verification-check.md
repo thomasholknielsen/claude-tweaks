@@ -5,6 +5,8 @@ files:
   - plugin/bin/lib/verify/run.js
   - plugin/bin/lib/verify/extract.js
   - plugin/bin/lib/verify/report.js
+  - plugin/bin/lib/verify/count-stamp.js
+  - plugin/bin/lib/verify/atomic-write.js
   - plugin/skills/test/verification.md
 ---
 
@@ -52,6 +54,14 @@ files:
 - **Should understand:** A malformed invocation prints the specific problem plus the usage line to stderr and exits `2`, before anything runs. `--json <path>` relocates the report away from the `{log-dir}/report.json` default used elsewhere in this journey — pass it when a caller needs the report at a fixed, predictable path.
 - **Red flags:** Any check spawning despite a malformed invocation; an exit code other than `2` for a usage error.
 
+### 6. Watch a quieter suite surface as a caveat, not a silent pass
+- **URL:** two consecutive runs sharing one `--count-stamp` path, e.g. `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --log-dir /tmp/verify-demo1 --count-stamp "$(git rev-parse --git-dir)/claude-tweaks-test-count.json" --cmd tests="npm test"`, then again with fewer tests actually running (e.g. after narrowing a glob)
+- **Action:** Compare the first run's stdout/`report.json` against the second's.
+- **Should feel:** A quieter suite is impossible to miss — the CAVEAT reads as its own paragraph, distinct from the pass/fail table, not buried in a check's `summary` field.
+- **Should understand:** IL-84 (`docs/incident-log.md`) is what this closes: an enumerated-glob `npm test` config once silently excluded a whole test directory while still exiting 0, so under-coverage read identical to a clean pass. `--count-stamp` persists the `tests` check's own parsed count (`extract.js`'s `parseCounts`) across runs; a strict drop between consecutive runs prints a `CAVEAT: test count dropped from {previous} to {current} …` line on stdout and sets `report.json`'s `testCountRegression: {previousTests, currentTests, droppedBy}` — without flipping `report.pass`, since a legitimate test removal also drops the count. Omitting `--count-stamp` disables persistence and comparison entirely — no stamp file, no caveat, ever.
+- **Red flags:** A count drop that silently passes with no CAVEAT line; a count drop that fails the run outright (this is a caveat, not a gate); a stamp-write failure (e.g. `--count-stamp` pointing at an unwritable path) that crashes the whole run and discards `report.json` even though every check passed — the write is best-effort and must degrade to "no baseline persisted," never to a lost report.
+
 ## Origin
 - Created during build of #892 (deterministic verification runner + `verification.md` migration) — replaces the retired prose-orchestrated `LOG=`/`tail`/`grep` capture discipline `verification.md` Step 2 used to document directly.
-- Related specs: #891 (parent — deterministic verification runner family), #881 (suite-count regression detection, a future consumer of `report.json`'s `counts` field), #882 (flake adjudication — landed as a standalone `node --test` isolated re-run recipe in `verification.md`'s own "Flake adjudication" section; does not consume `verify.js`'s per-check log files)
+- Step 6 added after #881 shipped (suite-count regression stamp) — the journey previously only forward-referenced it as "a future consumer of `report.json`'s `counts` field."
+- Related specs: #891 (parent — deterministic verification runner family), #881 (suite-count regression detection), #882 (flake adjudication — landed as a standalone `node --test` isolated re-run recipe in `verification.md`'s own "Flake adjudication" section; does not consume `verify.js`'s per-check log files)

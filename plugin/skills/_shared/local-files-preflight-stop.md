@@ -3,12 +3,14 @@
 Every skill whose workflow, under `work-backend: local-files`, would otherwise proceed to
 build, claim, or authorize application work that only `work-backend: github-issues`'s RBAC +
 atomic claim mechanism actually supports MUST phrase its local-files Preflight stop using the
-pattern below. Referenced by `/claude-tweaks:backlog` (refine mode's grant sub-stage),
-`/claude-tweaks:dispatch`'s own Preflight section, and `/claude-tweaks:specify`'s `next-mode.md`
-Preflight — each keeps its own full paragraph (the specific unmet condition, the list of skills
-it would otherwise invoke, and its own forbidden-action list are genuinely skill-specific and
-don't compress into one shared template), but all three must stay consistent with the pattern
-here rather than drift toward weaker phrasing independently.
+pattern below. Referenced by `/claude-tweaks:backlog` — three call sites: `refine` mode's grant
+sub-stage (human-present or headless posture, `--source` notwithstanding), the `refine
+#N[,#M...]`/`refine --reset-breaker` forms, and `attention` mode — `/claude-tweaks:dispatch`'s own
+Preflight section, and `/claude-tweaks:specify`'s `next-mode.md` Preflight — each keeps its own
+full paragraph (the specific unmet condition, the list of skills it would otherwise invoke, and
+its own forbidden-action list are genuinely skill-specific and don't compress into one shared
+template), but all call sites must stay consistent with the pattern here rather than drift toward
+weaker phrasing independently.
 
 ## Why this exists
 

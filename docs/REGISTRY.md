@@ -16,7 +16,7 @@
 | docs/getting-started.md | Full skill reference — every `/claude-tweaks:*` command with its behavior | `plugin/skills/**/*.md` |
 | docs/plugin-structure.md | Directory tree, per-skill sub-file table, command reference | `plugin/skills/**/*.md`, `plugin/skills/**/*.yml`, `plugin/skills/**/*.html`, `plugin/skills/**/*.mjs`, `plugin/bin/**/*.js` |
 | docs/skill-graph.md | Every skill-to-skill relationship/edge (single source of truth) | `plugin/skills/**/*.md`, `plugin/skills/**/routine-template.yml` |
-| docs/donts.md | Full Don'ts rule list (extracted from CLAUDE.md's `## Don'ts`, which now holds only a pointer) | CLAUDE.md `## Don'ts` |
+| docs/donts.md | Full Don'ts rule list (extracted from CLAUDE.md's `## Don'ts`, which now holds only a pointer) | CLAUDE.md `## Don'ts`, `plugin/bin/lib/hooks/**` |
 | docs/hooks.md | Hook dispatcher contract — tiered posture, run-dir resolution and ownership, never-break-a-session invariant, consumers (extracted from CLAUDE.md's `### Hooks`, which now holds only a pointer) | `plugin/bin/hooks.js`, `plugin/bin/lib/hooks/**`, `plugin/hooks/hooks.json`, `plugin/bin/lib/reconcile/**` |
 | docs/reconcile-checks.md | Reconcile dispatcher contract — dispatch order and why it's significant, the fast/background check split, the full "adding a new check" registration procedure (extracted from `docs/hooks.md`'s inventory-only reconcile coverage; `CLAUDE.md`'s `### Reconcile` pointer) | `plugin/bin/lib/reconcile/**` |
 | docs/incident-log.md | Post-mortems behind each `[IL-nn]`-tagged Don't in CLAUDE.md | CLAUDE.md `## Don'ts`, docs/donts.md |
@@ -28,3 +28,4 @@
 | docs/superpowers/plans/*.md, docs/superpowers/specs/*.md | Execution plans and design docs produced and consumed by the pipeline (`/superpowers:writing-plans`, `/superpowers:brainstorming`) | *(no auto-detect — generated per run; consumed artifacts are deleted at wrap-up)* |
 | docs/skill-authoring.md | Skill-file authoring conventions — structure, frontmatter, interaction patterns, CSC | `plugin/skills/**/*.md` |
 | docs/releasing.md | Release procedure + judgment calls | `plugin/bin/release.js`, `plugin/bin/lib/release/**` |
+| docs/demo-evidence/*.md | Per-record demo verification evidence produced by `/claude-tweaks:demo` | *(no auto-detect — generated per record by `/claude-tweaks:demo`)* |

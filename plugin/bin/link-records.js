@@ -77,6 +77,16 @@ function run(argv, deps = realDeps) {
   const repoSpec = opts.repo ? parseRepo(`github.com/${opts.repo}`) : parseRepo(remote);
   if (!repoSpec) { deps.stderr('link-records.js: could not resolve owner/repo — pass --repo owner/name\n'); return 2; }
   const { owner, repo } = repoSpec;
+  // #1443: parseRepo's regex accepts any non-'/' owner/repo segment, including '.'/'..'
+  // (#1153 review finding). link.linkSubIssues/linkBlockedBy build a `repos/${owner}/${repo}/
+  // issues/.../sub_issues|dependencies/blocked_by` REST path via direct string interpolation
+  // rather than gh's bound-variable mechanism, so a crafted --repo value reaches that path
+  // string. Reject it here rather than narrowing the shared parseRepo, which 8 other CLIs also
+  // call — same guard shape as fetch-sub-issues.js's own #1153 fix.
+  if (owner === '.' || owner === '..' || repo === '.' || repo === '..') {
+    deps.stderr('link-records.js: invalid --repo value — owner/repo cannot be "." or ".."\n');
+    return 2;
+  }
   const numbers = [...(hasSubs ? [opts.parent, ...opts.subs] : []), ...opts.blockedBy.flatMap((e) => [e.dependent, e.blocker])];
   let ids;
   try {

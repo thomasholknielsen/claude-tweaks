@@ -113,6 +113,77 @@ test('a fail-fast skip appears in the report and in stdout as skipped (AC1 repor
   assert.ok(stdout.includes('skipped'));
 });
 
+// IL-84's exact shape end-to-end (#881): an enumerated-glob npm test config
+// silently excluded a whole test directory while still exiting 0 -- a drop
+// invisible to exit-code-only reporting. Reproduce it via two verify.js runs
+// sharing one --count-stamp: the first "sees" a wider glob (10 tests), the
+// second simulates the exclusion (7 tests) with the same exit code (0).
+test('a suite-count drop between two runs sharing --count-stamp fires the caveat (#881, IL-84 shape)', async () => {
+  const logDir1 = tmpDir();
+  const logDir2 = tmpDir();
+  const countStamp = path.join(tmpDir(), 'count.json');
+  const tapOutput = (n) => `node -e "console.log('# tests ${n}'); console.log('# pass ${n}'); console.log('# fail 0')"`;
+
+  const first = await runCli([
+    '--log-dir', logDir1, '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(10)}`]);
+  assert.strictEqual(first.code, 0);
+  assert.ok(!first.stdout.includes('CAVEAT'), 'first run has no baseline to regress against');
+  assert.ok(fs.existsSync(countStamp), 'first run must persist a baseline stamp');
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(countStamp, 'utf8')).tests, 10);
+
+  const second = await runCli([
+    '--log-dir', logDir2, '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(7)}`]);
+  assert.strictEqual(second.code, 0, 'the tests check itself still passes -- this is a caveat, not a gate');
+  assert.match(second.stdout, /^CAVEAT:.*from 10 to 7/ms);
+  const report2 = JSON.parse(fs.readFileSync(path.join(logDir2, 'report.json'), 'utf8'));
+  assert.deepStrictEqual(report2.testCountRegression, { previousTests: 10, currentTests: 7, droppedBy: 3 });
+  assert.strictEqual(report2.pass, true, 'a count drop must not flip the report to failing');
+  assert.strictEqual(JSON.parse(fs.readFileSync(countStamp, 'utf8')).tests, 7, 'stamp advances to the new count');
+});
+
+test('a steady or higher count between runs never fires the caveat', async () => {
+  const countStamp = path.join(tmpDir(), 'count.json');
+  const tapOutput = (n) => `node -e "console.log('# tests ${n}'); console.log('# pass ${n}'); console.log('# fail 0')"`;
+
+  await runCli(['--log-dir', tmpDir(), '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(10)}`]);
+  const same = await runCli(['--log-dir', tmpDir(), '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(10)}`]);
+  assert.ok(!same.stdout.includes('CAVEAT'));
+  const higher = await runCli(['--log-dir', tmpDir(), '--count-stamp', countStamp, '--cmd', `tests=${tapOutput(15)}`]);
+  assert.ok(!higher.stdout.includes('CAVEAT'));
+});
+
+test('a --count-stamp write failure never crashes the run or discards report.json (review fix: fail-toward-absence, write side)', async () => {
+  const logDir = tmpDir();
+  const blockerFile = path.join(tmpDir(), 'blocker'); // a FILE, not a directory
+  fs.writeFileSync(blockerFile, 'not a directory');
+  // A path component of the stamp is a file, not a directory -- mkdirSync's
+  // recursive create throws ENOTDIR, and (pre-fix) the stamp write's own
+  // writeFileSync would too. Both must be swallowed, never propagated to
+  // main()'s top-level catch, which would otherwise skip report.json
+  // entirely even though the "tests" check itself passed.
+  const countStamp = path.join(blockerFile, 'nested', 'count.json');
+  // Must be a TAP-shaped "tests" command (parseCounts-parseable), not a bare
+  // console.log — a non-parseable count leaves currentCount null, which
+  // skips the stamp write entirely and would make this test pass
+  // vacuously even against the unguarded pre-fix code (verified against
+  // 57ed3752d before landing this test).
+  const { code, stdout } = await runCli([
+    '--log-dir', logDir, '--count-stamp', countStamp,
+    '--cmd', 'tests=node -e "console.log(\'# tests 1\'); console.log(\'# pass 1\'); console.log(\'# fail 0\')"']);
+  assert.strictEqual(code, 0, 'a stamp-write failure must not fail an otherwise-passing run');
+  assert.ok(fs.existsSync(path.join(logDir, 'report.json')), 'report.json must still be written despite the stamp-write failure');
+  const report = JSON.parse(fs.readFileSync(path.join(logDir, 'report.json'), 'utf8'));
+  assert.strictEqual(report.pass, true);
+  assert.ok(stdout.includes('report:'), 'stdout must still print the normal report line, not just an uncaught-error message');
+});
+
+test('omitting --count-stamp disables persistence and comparison entirely', async () => {
+  const { code, stdout } = await runCli([
+    '--log-dir', tmpDir(), '--cmd', 'tests=node -e "console.log(String(1))"']);
+  assert.strictEqual(code, 0);
+  assert.ok(!stdout.includes('CAVEAT'));
+});
+
 test('--log-dir defaults to a fresh tmpdir and --json defaults inside it', async () => {
   const { code, stdout } = await runCli(['--cmd', 'tests=node -e "console.log(String(1))"']);
   assert.strictEqual(code, 0);

@@ -81,3 +81,49 @@ test('PIPELINE_RUN_DIR env attributes only that run dir under --scope blast-radi
   // the one finding or an extra one, and this pins which of the two it is.
   assert.match(pipelineRunFindings[0].subject, /record-1118/, 'the sibling run dir must not be attributed to this run');
 });
+
+// #1281: runner()'s execFileSync call set no `maxBuffer`, so it silently
+// inherited Node's 1 MiB default; probeRelease's `git show HEAD:CHANGELOG.md`
+// is the one call through that seam that reads a file this repo's own
+// CHANGELOG.md (~268KB and growing) could plausibly outgrow. A >1 MiB
+// CHANGELOG.md used to overflow the default buffer, get swallowed by
+// runner()'s bare `catch { return null; }`, and read as an ordinary
+// `reason: 'could not read CHANGELOG.md or docs/shipped-versions.tsv at
+// HEAD'` degraded probe rather than a distinguishable failure. Confirmed red
+// against the pre-fix runner(): this exact fixture reproduced that reason.
+test('probeRelease reads a >1 MiB CHANGELOG.md at HEAD without silently overflowing the default maxBuffer (#1281)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'residue-cli-maxbuffer-'));
+  execFileSync('git', ['-C', root, 'init', '-q']);
+  execFileSync('git', ['-C', root, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', root, 'config', 'user.name', 'Test']);
+
+  // readProjectManifest (bin/residue.js) reads .claude-plugin/plugin.json —
+  // NOT package.json — per lib/manifest-path.js's MANIFEST_PATHS.
+  fs.mkdirSync(path.join(root, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'claude-tweaks', version: '9.9.9' }));
+  // '# padding\n' is 10 bytes; 150,000 repeats is ~1.43 MiB, comfortably past
+  // execFileSync's 1 MiB default so a real overflow (not a near-miss) is
+  // what this fixture exercises.
+  const changelog = '# padding\n'.repeat(150000) + '## v9.9.9 — test release\n';
+  fs.writeFileSync(path.join(root, 'CHANGELOG.md'), changelog);
+  assert.ok(Buffer.byteLength(changelog) > 1024 * 1024, 'fixture CHANGELOG.md must actually exceed the 1 MiB default');
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs', 'shipped-versions.tsv'), '9.9.9\t2026-08-29\trelease\n');
+
+  execFileSync('git', ['-C', root, 'add', '-A']);
+  execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'init']);
+
+  const out = execFileSync('node', [CLI, '--base', 'HEAD', '--no-suite', '--json'], {
+    cwd: root, encoding: 'utf8',
+  });
+  const parsed = JSON.parse(out);
+  const overflowReason = /could not read CHANGELOG\.md or docs\/shipped-versions\.tsv at HEAD/;
+  assert.ok(
+    !parsed.results.some((r) => typeof r.reason === 'string' && overflowReason.test(r.reason)),
+    `probeRelease must not silently fail to read a >1 MiB CHANGELOG.md, got results: ${JSON.stringify(parsed.results)}`,
+  );
+  assert.ok(
+    !parsed.results.flatMap((r) => r.findings).some((f) => f.kind === 'release'),
+    'both the CHANGELOG heading and the shipped-versions line are present, so a successful read reports zero release findings',
+  );
+});
