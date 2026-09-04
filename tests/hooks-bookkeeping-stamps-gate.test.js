@@ -7,6 +7,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const pre = require('../plugin/bin/lib/hooks/pre-tool-use');
+const ctxLib = require('../plugin/bin/lib/hooks/context');
 
 function gitRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-'));
@@ -504,6 +505,68 @@ test('bookkeeping-stamps gate (#1259): a distinct ownedRun does NOT loosen the P
   assert.ok(out.json, 'expected a deny — the PR-stamp branch must not consult ownedRun');
   assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
   assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-pr|PR-early/);
+});
+
+// --- #1520: end-to-end reproduction of #815's build-phase gap ---
+//
+// #815's build landed a materialize commit and a second commit in its own
+// worktree, but never called record-worktree — run-state.json was never
+// written for that run at all. The bookkeeping-stamps gate above (armed
+// since #991, well before #815 ran) should have denied that second commit
+// outright, but its own `hasDistinctOwnedRun` escape hatch (#1259) read
+// `ctx.ownedRun` from `resolveRun`'s pre-#1099 session-scoped arm, which
+// matched purely on `sessionId` with no worktree-binding check — so an
+// OLDER run this same session had already stamped elsewhere (a stale
+// sibling, still `sessionId`-equal) was returned as this session's "own"
+// run, made `ownedRun.dir !== ctx.runDir` true, and the gate treated the
+// call as a different session's business and only warned. #1099 closed
+// that gap in `resolveRun` itself (see the "same-session sibling
+// worktrees" tests in hooks-run-attribution.test.js); this section proves
+// the fix all the way through to the gate's actual verdict — the shape
+// #815 needed, not just the unit-level resolveRun behavior.
+
+test('bookkeeping-stamps gate (#1520, real resolveRun): a stale same-session sibling run in another worktree no longer defeats the record-worktree deny', () => {
+  const main = gitRepo();
+  const staleWt = linkedWorktreeOf(main); // a prior run's worktree, same session
+  const wt = linkedWorktreeOf(main); // THIS run's worktree — the one under test
+  const runId = '2026-08-26T215430-record-815';
+  commitMaterializedSpec(wt, path.join('work', '815-spec.md'), runId);
+
+  // The stale sibling: already fully stamped (worktree + sessionId), exactly
+  // like a completed-or-abandoned earlier run from the same session — #815's
+  // record-769 stand-in. Newer run-id than the current run, so a naive
+  // newest-first guess would prefer it too. Run dirs are anchored to the MAIN
+  // checkout (resolveRun resolves `wt`'s main checkout internally), so both
+  // live under `main`, not an unrelated project dir.
+  const staleRun = path.join(main, '.claude-tweaks', 'pipelines', '2026-08-26T212441-record-769');
+  fs.mkdirSync(staleRun, { recursive: true });
+  fs.writeFileSync(path.join(staleRun, 'run-state.json'), JSON.stringify({ status: 'active', sessionId: 'me', worktree: staleWt }));
+
+  // THIS run: materialize commit landed (in `wt`), but record-worktree never
+  // ran — no run-state.json at all, the exact #815 gap.
+  const run = path.join(main, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'decisions.md'), ''); // a real run dir, not an unadopted mint
+
+  // Step 1: resolveRun must not be fooled by the stale sibling's sessionId
+  // match — it must skip it (worktree-foreign) and land on THIS run via the
+  // unowned/fallback arm.
+  const ownedRun = ctxLib.resolveRun(wt, {}, 'me');
+  assert.deepStrictEqual(ownedRun, { dir: run, attribution: 'fallback' });
+
+  // Step 2: feeding that real resolution into the gate must deny — not warn
+  // — proving #815's actual failure mode (a silently-allowed second commit
+  // with no record-worktree ever called) is closed end-to-end.
+  const out = pre.run({
+    input: editInput(path.join(wt, 'src', 'x.js')),
+    runDir: run,
+    runState: null,
+    ownedRun,
+    cwd: wt,
+  });
+  assert.ok(out.json && out.json.hookSpecificOutput, 'expected a deny — must not fall through to the wd-foreign-session warn path');
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.match(out.json.hookSpecificOutput.permissionDecisionReason, /record-worktree/);
 });
 
 // --- I2: path and foreign-repo exemptions ---

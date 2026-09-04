@@ -85,3 +85,58 @@ test('e2e: nonexistent --run dir exits 1 with the bad-path message and NO stdout
   assert.match(res.stderr, /blast-radius: --run dir does not exist or is not a directory: /);
   assert.strictEqual(res.stdout, '', 'a bad --run path must never print a summary');
 });
+
+// #1592: a repo with a stale local `main` (behind a same-named origin/main
+// remote-tracking ref) — reproducing the shared-checkout hazard observed live
+// during a merge-check for record #897, where a stale local main pulled
+// unrelated already-landed commits into the blast radius. `unrelated.txt`
+// lands on main AFTER the point `feature` actually branches from (origin/main's
+// true position); local `main` is then force-set back to the pre-unrelated-work
+// commit, exactly like a shared checkout whose local ref never got fetched.
+function makeStaleLocalMainFixture() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'blast-radius-stale-'));
+  git(dir, 'init', '-b', 'main');
+  git(dir, 'config', 'user.email', 'test@example.invalid');
+  git(dir, 'config', 'user.name', 'Test');
+  fs.writeFileSync(path.join(dir, 'root.txt'), 'root\n');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-m', 'root');
+  const rootSha = git(dir, 'rev-parse', 'HEAD').trim();
+
+  fs.writeFileSync(path.join(dir, 'unrelated.txt'), 'unrelated\n');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-m', 'unrelated main work');
+  const advancedSha = git(dir, 'rev-parse', 'HEAD').trim();
+
+  git(dir, 'checkout', '-b', 'feature');
+  fs.writeFileSync(path.join(dir, 'impl.js'), 'x\ny\nz\n');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-m', 'feature work');
+
+  // origin/main correctly tracks the advanced commit...
+  git(dir, 'update-ref', 'refs/remotes/origin/main', advancedSha);
+  // ...but local main is stale, still pointing at the root commit.
+  git(dir, 'branch', '-f', 'main', rootSha);
+
+  return dir;
+}
+
+test('e2e #1592: a stale local main resolves against origin/main, excluding unrelated already-landed commits (AC2)', () => {
+  const dir = makeStaleLocalMainFixture();
+  const res = spawnSync('node', [CLI, '--integration-branch', 'main'], { cwd: dir, encoding: 'utf8' });
+  assert.strictEqual(res.status, 0, res.stderr);
+  const out = JSON.parse(res.stdout);
+  const originMainSha = git(dir, 'rev-parse', 'refs/remotes/origin/main').trim();
+  assert.strictEqual(out.mergeBase, originMainSha, 'merge base must match origin/main, not the stale local main');
+  assert.strictEqual(out.summary.implFiles, 1, 'unrelated.txt from the stale gap must not be counted');
+  assert.strictEqual(out.summary.implLines, 3);
+});
+
+test('e2e #1592: --integration-branch main and --integration-branch origin/main agree on a stale local main (AC1)', () => {
+  const dir = makeStaleLocalMainFixture();
+  const viaBare = spawnSync('node', [CLI, '--integration-branch', 'main'], { cwd: dir, encoding: 'utf8' });
+  const viaQualified = spawnSync('node', [CLI, '--integration-branch', 'origin/main'], { cwd: dir, encoding: 'utf8' });
+  assert.strictEqual(viaBare.status, 0, viaBare.stderr);
+  assert.strictEqual(viaQualified.status, 0, viaQualified.stderr);
+  assert.deepStrictEqual(JSON.parse(viaBare.stdout), JSON.parse(viaQualified.stdout));
+});
