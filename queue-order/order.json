@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-04T14:27:52.870Z",
+  "computedAt": "2026-09-04T19:00:27.870Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -54,58 +54,18 @@
         "state": "OPEN"
       },
       {
-        "number": 1766,
-        "updatedAt": "2026-09-04T09:59:45Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1765,
         "updatedAt": "2026-09-04T09:59:48Z",
         "state": "OPEN"
       },
       {
-        "number": 1724,
-        "updatedAt": "2026-09-04T11:53:51Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1714,
-        "updatedAt": "2026-09-04T09:59:50Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1713,
-        "updatedAt": "2026-09-04T09:59:52Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1710,
-        "updatedAt": "2026-09-04T10:00:17Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1700,
-        "updatedAt": "2026-09-04T09:59:55Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1688,
-        "updatedAt": "2026-09-04T09:59:57Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1687,
-        "updatedAt": "2026-09-04T14:27:25Z",
+        "updatedAt": "2026-09-04T15:04:26Z",
         "state": "OPEN"
       },
       {
         "number": 1634,
         "updatedAt": "2026-08-29T16:19:58Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1633,
-        "updatedAt": "2026-09-04T11:32:35Z",
         "state": "OPEN"
       },
       {
@@ -121,11 +81,6 @@
       {
         "number": 1594,
         "updatedAt": "2026-08-29T16:19:09Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1592,
-        "updatedAt": "2026-09-04T13:30:19Z",
         "state": "OPEN"
       },
       {
@@ -150,7 +105,7 @@
       },
       {
         "number": 1520,
-        "updatedAt": "2026-08-29T15:39:08Z",
+        "updatedAt": "2026-09-04T14:39:08Z",
         "state": "OPEN"
       },
       {
@@ -160,7 +115,7 @@
       },
       {
         "number": 1484,
-        "updatedAt": "2026-09-04T09:34:03Z",
+        "updatedAt": "2026-09-04T18:46:50Z",
         "state": "OPEN"
       },
       {
@@ -189,28 +144,13 @@
         "state": "OPEN"
       },
       {
-        "number": 1290,
-        "updatedAt": "2026-09-02T11:16:17Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1279,
-        "updatedAt": "2026-09-02T11:16:10Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1224,
-        "updatedAt": "2026-09-04T14:24:09Z",
+        "updatedAt": "2026-09-04T16:22:48Z",
         "state": "OPEN"
       },
       {
         "number": 1135,
         "updatedAt": "2026-09-02T11:15:56Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 873,
-        "updatedAt": "2026-08-30T06:31:11Z",
         "state": "OPEN"
       },
       {
@@ -1046,82 +986,6 @@
     ],
     [
       {
-        "body": "## Current State\n\n`dispatch/two-call-gate.md` §5 and `dispatch/task-prompt.md` document the teardown path for a `/claude-tweaks:dispatch`-orchestrated first-call HARD-GATE failure as `PIPELINE_RUN_DIR=\"{run-dir}\" CLAIM_RUN_ID=\"{RUN_ID}\" /claude-tweaks:flow {target} wrap-up cleanup-only`. But `flow/SKILL.md` Step 1.5 and `flow/steps-and-gates.md`'s \"Record-reference input\" section state that a record reference is resolved and shape-gated via `materialize.md`'s Resolution + Materialization hard gate unconditionally, before Step 2's other checks -- with no `cleanup-only` exception. When the first Task call's own HARD-GATE failure was itself the materialize shape-gate (record not spec-shaped -- Deliverables/Acceptance Criteria missing or a placeholder present), the documented teardown call re-runs Step 1.5 against the same still-unshaped record and reproduces the identical STOP, never reaching wrap-up's cleanup route at all.\n\nObserved live during a `/claude-tweaks:dispatch next` Routine firing: record #1633 failed `materialize.js`'s shape gate for the 3rd consecutive time (retry ceiling reached, `bot:blocked` applied, `auto:build` removed by the first call's own Settle procedure). Invoking the documented `/claude-tweaks:flow #1633 wrap-up cleanup-only` teardown call would have hit the exact same \"Record #1633 is not spec-shaped\" STOP before ever reaching Step 5's wrap-up execution. Worked around by invoking `/claude-tweaks:wrap-up #1633 cleanup-only` directly instead -- `wrap-up/SKILL.md`'s own Flags section documents `cleanup-only` as \"never typed standalone in practice, but parsed the same way regardless of caller,\" which structurally supports this, but the documented dispatch-side procedure itself does not name this workaround.\n\n## Deliverables\n\n- [ ] Either: give `/flow`'s Step 1.5 materialize gate a `cleanup-only`-aware exception (skip re-resolution/re-gating when `cleanup-only` is set and the failure being torn down is the materialize gate itself), or update `dispatch/two-call-gate.md` §5's documented teardown call to invoke `/claude-tweaks:wrap-up {target} cleanup-only` directly rather than routing through `/claude-tweaks:flow`, at least for this failure mode.\n- [ ] Confirm which of dispatch's other first-call HARD-GATE shapes (besides the materialize gate) would hit the same problem, and cover them by the same fix.\n\n## Acceptance Criteria\n\n- A `/claude-tweaks:dispatch`-orchestrated first-call materialize-gate failure's teardown call reaches `wrap-up/cleanup-procedures.md`'s worktree/claim/run-dir cleanup without re-triggering the same materialize gate.\n- `tests/dispatch-firing-exclusion.test.js` or an equivalent test covers this teardown path for a materialize-gate-originated failure specifically, not just a build/test-originated one.",
-        "createdAt": "2026-09-01T20:34:15Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          }
-        ],
-        "number": 1766,
-        "state": "OPEN",
-        "title": "dispatch's cleanup-only teardown call reproduces the materialize hard-gate it exists to escape",
-        "updatedAt": "2026-09-04T09:59:45Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
         "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect light from #1192\nDefer-reason: tangential\n\n## Current State\n\n`/claude-tweaks:review` and `/claude-tweaks:wrap-up` trim per-step *work* under `ceremony-profile: fast-lane` (skipping Steps 1/1.6/4 in review, the tradeoff review in reflect, narrowing domain-overlap caps), but the *procedure-discovery* cost is not trimmed: both skills still route through their full SKILL.md plus several multi-hundred-line sub-files (`code-mode-steps.md`, `review-effort-derivation.md`, `curation-engine.md`, `skill-curation.md`, `docs-health-integration.md`, `journey-curation.md`, `upstream-feedback.md`, `reflect/light-mode.md`, …) to discover which steps apply and which are skipped. Observed directly on record #1192 — a single-file, `size:low`, zero-review-finding backend concurrency fix — where the sub-file reading before any review/wrap-up substance began outweighed the substance itself (reading one diff, running a handful of `node --test` invocations).\n\n## Deliverables\n\n- [ ] Design a condensed \"fast-lane digest\" — a single short file naming exactly which review/wrap-up steps and registry rows apply at `fast-lane` (the trimmed step list plus the closed-gate reasons already known statically for a small diff), read instead of the full SKILL.md + sub-file chain.\n- [ ] Reserve the full chain for `standard`/non-fast-lane ceremony, where the extra procedure detail earns its cost.\n\n## Acceptance Criteria\n\n- A `fast-lane`-profiled run's review/wrap-up procedure-discovery reads measurably fewer sub-file lines than today's chain, with no change in which steps actually execute or skip.\n\n## Original request\n\nReflect light-mode Friction lens finding, record #1192: fast-lane ceremony overhead disproportionate to a zero-finding single-file fix. Evidence: the sequence of `Skill` tool invocations this session made before reaching any review substance — six-plus distinct multi-hundred-line files loaded back-to-back, none of which this record's diff needed more than a fraction of.\n\n_Filed by `reflect` via specShapedBody._\n",
         "createdAt": "2026-09-01T19:09:40Z",
         "labels": [
@@ -1198,598 +1062,8 @@
     ],
     [
       {
-        "body": "Surface: infra\n\n## Current State\n\nReconcile has failed `move-failed` on the same path for 3 consecutive passes (first observed 2026-08-30T15:46:37.834Z):\n\n**Path:** `/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T051317-record-1356`\n**Reason:** `move-failed`\n**Last error:** `ENOTEMPTY: directory not empty, rename '/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T051317-record-1356' -> '/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/archive/2026-08-27T051317-record-1356'`\n\nThis is the same failure class as #1713 (a sibling `reconcile: move-failed stuck` report filed the same day, same root-cause mechanism, a different path) — `plugin/bin/lib/reconcile/archive-merged.js` line 116 does a bare `fs.renameSync(dir, archiveDir)` for the top-level archive move, which throws `ENOTEMPTY` when the destination archive directory already exists and is non-empty. Elsewhere in the same file (around lines 502-511, 552-566, 594-612) there is already an entry-by-entry `fs.renameSync` fallback pattern used specifically because \"a whole-dir rename would fail ENOTEMPTY\" when the destination pre-exists — the top-level archive move at line 116 has no equivalent fallback. `cache.js`'s `trackResidue`/`recordResidueSuccess` machinery (referenced by the escalate-once logic around lines 678-718) is what surfaces a stuck `move-failed` residue after repeated passes and filed this issue automatically (per #644).\n\n## Deliverables\n\n- Diagnose why the archive destination directory `pipelines/archive/2026-08-27T051317-record-1356` already exists and is non-empty at the time the top-level `fs.renameSync` in `archive-merged.js` runs — a leftover from a prior partial/interrupted archive attempt is one hypothesis (unconfirmed, needs to be checked at start), given the entry-by-entry fallback comments elsewhere in the same file specifically call out this exact ENOTEMPTY scenario when the destination pre-exists.\n- Land a fix so this reconcile pass, and any future pass hitting a pre-existing non-empty archive destination, does not get permanently stuck at `move-failed` — either resolve the pre-existing state or move to the same entry-by-entry fallback pattern the file already uses elsewhere for this identical failure mode.\n- Clear the stuck residue for this specific path once the fix lands.\n- Coordinate with #1713 (the sibling record for the same root-cause mechanism, different path) — a single fix likely resolves both; do not duplicate the diagnostic/fix work independently in both records.\n\n## Acceptance Criteria\n\n- The specific stuck path (`pipelines/2026-08-27T051317-record-1356`) archives successfully on the next reconcile pass, or reconcile reports a clear, actionable reason it cannot rather than repeating the same silent `move-failed`.\n- A reconcile pass encountering a pre-existing non-empty archive destination for any run dir no longer gets stuck indefinitely — either it recovers (merges/clears the destination per the existing entry-by-entry pattern) or it escalates with a diagnosable reason distinct from a bare `ENOTEMPTY`.\n- `node --test` reconcile suites relevant to `archive-merged.js` pass unchanged in count, plus new coverage for the pre-existing-non-empty-destination case.\n- The sibling record #1713's stuck path is verified resolved by the same fix (or explicitly re-diagnosed if it isn't).\n\n## Technical Approach\n\nInvestigate why `pipelines/archive/2026-08-27T051317-record-1356` already exists non-empty ahead of the top-level rename at `archive-merged.js` line 116 (a prior partial archive attempt is the leading hypothesis given the file's own existing entry-by-entry fallback comments for this exact scenario, but confirm before assuming) — the same investigation #1713 already scopes for its own path; do this once and apply to both. One option to evaluate: extend the top-level archive move to the same entry-by-entry `fs.renameSync` fallback pattern already used elsewhere in this file (lines ~502-511, ~552-566, ~594-612) for the identical \"destination may already exist\" case — not mandated; root-causing why the destination is non-empty in the first place may point to a different fix (e.g., cleaning up a stale partial archive before retrying the whole-dir rename).\n\n### Key Files\n\n- `plugin/bin/lib/reconcile/archive-merged.js` — line 116's bare top-level `fs.renameSync`; the existing entry-by-entry fallback pattern elsewhere in the same file (lines ~502-511, ~552-566, ~594-612)\n- `plugin/bin/lib/reconcile/cache.js` — `trackResidue`/`recordResidueSuccess`, the escalate-once machinery that surfaced this stuck residue after 3 consecutive passes\n- `plugin/bin/lib/reconcile/escalate-residue.js` — residue escalation/filing logic (referenced by #644)\n- `plugin/bin/lib/reconcile/index.js` — reconcile's top-level driver\n\n## Gotchas\n\n- This issue was filed automatically by `bin/lib/reconcile`'s escalate-once machinery (#644) — the underlying stuck path is specific to one operator's local filesystem state at the time it was first observed (2026-08-30T15:46:37.834Z); confirm whether the exact path still exists in that broken state before assuming a live repro, versus writing a fixture that reproduces the pre-existing-non-empty-destination condition directly.\n- This is a near-duplicate of #1713 by root-cause mechanism — resolve both together rather than independently re-diagnosing the same class of failure twice; the two paths (`2026-08-27T051317-record-1356` here, `2026-08-27T055510-record-1368` in #1713) are otherwise unrelated.\n- The entry-by-entry fallback pattern already present elsewhere in `archive-merged.js` is evidence the maintainers were already aware whole-dir rename can ENOTEMPTY on a pre-existing destination — but it's not yet confirmed whether extending that same pattern to the top-level move is sufficient, or whether the real bug is that the destination should never exist non-empty in the first place (a bug in an earlier step, not in the rename itself).\n\n## Original request\n\nreconcile: move-failed stuck on /Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T051317-record-1356\n\nReconcile has failed `move-failed` on this path for 3 consecutive passes (first observed 2026-08-30T15:46:37.834Z).\n\n**Path:** `/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T051317-record-1356`\n**Reason:** `move-failed`\n**Last error:** ENOTEMPTY: directory not empty, rename '/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T051317-record-1356' -> '/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/archive/2026-08-27T051317-record-1356'\n\nFiled automatically by `bin/lib/reconcile` — see #644.\n\n<!-- fingerprint: reconcile-residue-a300b594 -->\n",
-        "createdAt": "2026-08-30T15:53:43Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
-            "name": "bug",
-            "description": "Something isn't working",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1714,
-        "state": "OPEN",
-        "title": "reconcile: move-failed stuck on /Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T051317-record-1356",
-        "updatedAt": "2026-09-04T09:59:50Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "low",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\nReconcile has failed `move-failed` on the same path for 3 consecutive passes (first observed 2026-08-30T15:46:37.144Z):\n\n**Path:** `/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T055510-record-1368`\n**Reason:** `move-failed`\n**Last error:** `ENOTEMPTY: directory not empty, rename '/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T055510-record-1368' -> '/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/archive/2026-08-27T055510-record-1368'`\n\n`plugin/bin/lib/reconcile/archive-merged.js` line 116 does a bare `fs.renameSync(dir, archiveDir)` for the top-level archive move, which throws `ENOTEMPTY` when the destination archive directory already exists and is non-empty — a whole-directory rename can't merge into an existing non-empty target. Elsewhere in the same file (around lines 502-511, 552-566, 594-612) there is already an entry-by-entry `fs.renameSync` fallback pattern used specifically because \"a whole-dir rename would fail ENOTEMPTY\" when the destination pre-exists — the top-level archive move at line 116 has no equivalent fallback. `cache.js`'s `trackResidue`/`recordResidueSuccess` machinery (referenced by the escalate-once logic around lines 678-718) is what surfaces a stuck `move-failed` residue after repeated passes and filed this issue automatically (per #644).\n\n## Deliverables\n\n- Diagnose why the archive destination directory `pipelines/archive/2026-08-27T055510-record-1368` already exists and is non-empty at the time the top-level `fs.renameSync` in `archive-merged.js` runs — a leftover from a prior partial/interrupted archive attempt is one hypothesis (unconfirmed, needs to be checked at start), given the entry-by-entry fallback comments elsewhere in the same file specifically call out this exact ENOTEMPTY scenario when the destination pre-exists.\n- Land a fix so this reconcile pass, and any future pass hitting a pre-existing non-empty archive destination, does not get permanently stuck at `move-failed` — either resolve the pre-existing state or move to the same entry-by-entry fallback pattern the file already uses elsewhere for this identical failure mode.\n- Clear the stuck residue for this specific path once the fix lands.\n\n## Acceptance Criteria\n\n- The specific stuck path (`pipelines/2026-08-27T055510-record-1368`) archives successfully on the next reconcile pass, or reconcile reports a clear, actionable reason it cannot rather than repeating the same silent `move-failed`.\n- A reconcile pass encountering a pre-existing non-empty archive destination for any run dir no longer gets stuck indefinitely — either it recovers (merges/clears the destination per the existing entry-by-entry pattern) or it escalates with a diagnosable reason distinct from a bare `ENOTEMPTY`.\n- `node --test` reconcile suites relevant to `archive-merged.js` pass unchanged in count, plus new coverage for the pre-existing-non-empty-destination case.\n\n## Technical Approach\n\nInvestigate why `pipelines/archive/2026-08-27T055510-record-1368` already exists non-empty ahead of the top-level rename at `archive-merged.js` line 116 (a prior partial archive attempt is the leading hypothesis given the file's own existing entry-by-entry fallback comments for this exact scenario, but confirm before assuming). One option to evaluate: extend the top-level archive move to the same entry-by-entry `fs.renameSync` fallback pattern already used elsewhere in this file (lines ~502-511, ~552-566, ~594-612) for the identical \"destination may already exist\" case — not mandated; root-causing why the destination is non-empty in the first place may point to a different fix (e.g., cleaning up a stale partial archive before retrying the whole-dir rename).\n\n### Key Files\n\n- `plugin/bin/lib/reconcile/archive-merged.js` — line 116's bare top-level `fs.renameSync`; the existing entry-by-entry fallback pattern elsewhere in the same file (lines ~502-511, ~552-566, ~594-612)\n- `plugin/bin/lib/reconcile/cache.js` — `trackResidue`/`recordResidueSuccess`, the escalate-once machinery that surfaced this stuck residue after 3 consecutive passes\n- `plugin/bin/lib/reconcile/escalate-residue.js` — residue escalation/filing logic (referenced by #644)\n- `plugin/bin/lib/reconcile/index.js` — reconcile's top-level driver\n\n## Gotchas\n\n- This issue was filed automatically by `bin/lib/reconcile`'s escalate-once machinery (#644) — the underlying stuck path is specific to one operator's local filesystem state at the time it was first observed (2026-08-30T15:46:37.144Z); confirm whether the exact path still exists in that broken state before assuming a live repro, versus writing a fixture that reproduces the pre-existing-non-empty-destination condition directly.\n- The entry-by-entry fallback pattern already present elsewhere in `archive-merged.js` is evidence the maintainers were already aware whole-dir rename can ENOTEMPTY on a pre-existing destination — but it's not yet confirmed whether extending that same pattern to the top-level move is sufficient, or whether the real bug is that the destination should never exist non-empty in the first place (a bug in an earlier step, not in the rename itself).\n\n## Original request\n\nreconcile: move-failed stuck on /Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T055510-record-1368\n\nReconcile has failed `move-failed` on this path for 3 consecutive passes (first observed 2026-08-30T15:46:37.144Z).\n\n**Path:** `/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T055510-record-1368`\n**Reason:** `move-failed`\n**Last error:** ENOTEMPTY: directory not empty, rename '/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T055510-record-1368' -> '/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/archive/2026-08-27T055510-record-1368'\n\nFiled automatically by `bin/lib/reconcile` — see #644.\n\n<!-- fingerprint: reconcile-residue-ad1cf03c -->\n",
-        "createdAt": "2026-08-30T15:53:31Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
-            "name": "bug",
-            "description": "Something isn't working",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1713,
-        "state": "OPEN",
-        "title": "reconcile: move-failed stuck on /Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-27T055510-record-1368",
-        "updatedAt": "2026-09-04T09:59:52Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "low",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\nReconcile's `archive-merged.js` convergence check has failed `move-failed` on\n`.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267` for 3 consecutive passes (first\nobserved 2026-08-22T11:19:58.383Z), auto-filed via `escalate-residue.js`'s fingerprint-deduped\nfiling path (`bin/lib/reconcile`, see #644).\n\nInvestigated at shaping time (2026-08-23) directly against this machine's main checkout:\n- The run directory still exists un-archived, with its git-tracked `work/` subdirectories under\n  `spec-267/` and `spec-271/` already `git mv`'d into the archive twin and committed (confirmed:\n  `archive/2026-08-09T122833-spec-271-267/spec-267/work` and `.../spec-271/work` exist; the\n  originals no longer carry `work/`). What remains un-moved: the top-level `events.jsonl`,\n  `run-state.json`, and `staged/` entries, plus each spec dir's own now-orphaned `staged/`\n  subdirectory — i.e. `archive-merged.js`'s top-level plain-move loop (which runs before the\n  per-spec-dir loop) is the step returning `move-failed`, since the per-spec-dir loop's own work\n  (moving `staged/` inside each spec dir) has clearly never been reached.\n- A direct reproduction — `fs.renameSync` on `run-state.json` from the run dir into its archive\n  twin, then immediately back — **succeeded cleanly** with no thrown error: no restrictive\n  permissions (`runDir writable: yes`), no BSD `chflags` (`ls -lO@` shows none set, only a benign\n  `com.apple.provenance` xattr on each entry), and the destination directory already exists with\n  room for these entries (no name collision).\n- This means the failure is not currently reproducible by directly exercising the same syscall —\n  either it was transient (e.g. one of these files briefly held open by a concurrent writer during\n  the specific pass(es) that recorded the streak), or reconcile simply hasn't re-attempted this\n  path since the streak was recorded and escalated, leaving a stale failure count.\n- Separately: `archive-merged.js`'s `move-failed` reason is a bare string — the `catch` blocks\n  around `fs.renameSync` (`archive-merged.js:330-334`, `:376-380`) discard the actual thrown\n  error (`err.code`/`err.message`) entirely, so neither this filed issue nor `bin/residue.js`'s\n  own findings carry the real OS-level cause. That gap is what made this investigation require a\n  manual reproduction instead of reading a logged error.\n\n## Deliverables\n\n1. Capture and surface the actual filesystem error (`err.code` at minimum, e.g. `EACCES`/`EBUSY`/`ENOTEMPTY`) when a `move-failed`/`move-failed-partial-revert` outcome fires in `archive-merged.js`, so a future occurrence is diagnosable from `decisions.md`/the filed issue body without manual reproduction.\n2. Re-run reconcile against this specific path (or trigger the next scheduled reconcile pass) to determine whether it now succeeds — clearing the stale streak via `recordResidueSuccess` — or reproduces the failure with the newly-captured error detail.\n3. If the failure reproduces with a real cause, fix it; if it was transient/stale, close this record noting the streak self-cleared, and consider whether `escalate-residue.js` should have closed or commented on its own auto-filed issue once the streak resets (not confirmed to exist today — a related gap, not necessarily in scope here).\n\n## Acceptance Criteria\n\n- `archive-merged.js`'s move-failed paths log the underlying OS error (code + message), verifiable via a test that forces a `fs.renameSync` failure and asserts the captured detail.\n- This path (`.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267`) is confirmed either fully archived (no entries remain outside `archive/`) or reproducibly still failing with a now-diagnosable cause.\n- If fully archived, this issue is closed with a note on what resolved it (stale streak vs. real fix).\n\n## Technical Approach\n\nWrap the `fs.renameSync` calls in `archive-merged.js`'s top-level loop (`:325-334`) and per-spec-dir\nloop (`:371-380`) so the caught error's `code`/`message` is threaded into the `{ ok: false, reason,\ndetail }` result rather than discarded — `trackArchiveResult` (`:424-436`) already has the\nplumbing to pass extra detail into `escalate()`'s filed-issue body and/or `recordResidueFailure`'s\ncache entry. Then re-run reconcile (`node bin/hooks.js reconcile`, or wait for the next scheduled\npass) against this path specifically and read the outcome: a clean archive confirms the streak was\nstale; a repeat `move-failed` now carries the real error for a targeted fix.\n\n### Key Files\n\n- `plugin/bin/lib/reconcile/archive-merged.js` — the top-level (`:325-338`) and per-spec-dir (`:340-382`) plain-move loops whose `catch` blocks discard the thrown error\n- `plugin/bin/lib/reconcile/cache.js` — `recordResidueFailure`/`recordResidueSuccess`, the streak counter this bug's escalation is keyed on\n- `plugin/bin/lib/reconcile/escalate-residue.js` — the auto-filing path that produced this issue, fingerprint-deduped\n- `.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267` — the specific stuck run dir\n\n## Gotchas\n\n- The failure was not reproducible via a direct, isolated `fs.renameSync` test at shaping time (2026-08-23) — this record may resolve as \"streak was stale, reconcile now succeeds on its own\" rather than requiring a real bug fix; the diagnostic-logging deliverable (#1) has value regardless of that outcome, since the next occurrence (this path or another) will otherwise be equally undiagnosable.\n- No evidence found (in a quick read of `escalate-residue.js`) that reconcile auto-closes a previously-filed residue issue once the streak clears — this record's own resolution may need to close itself manually rather than relying on reconcile to do it.\n- `.claude-tweaks/pipelines/` is gitignored, per-clone local state — this path's current state (partially archived: `work/` committed, `staged/`+top-level entries not) is specific to this machine's checkout and may not reproduce identically elsewhere.\n\n## Original request\n\nreconcile: move-failed stuck on /Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267\n\nReconcile has failed `move-failed` on this path for 3 consecutive passes (first observed 2026-08-22T11:19:58.383Z).\n\n**Path:** `/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267`\n**Reason:** `move-failed`\n\nFiled automatically by `bin/lib/reconcile` — see #644.\n\n<!-- fingerprint: reconcile-residue-b797867b -->\n",
-        "createdAt": "2026-08-22T11:55:40Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
-            "name": "bug",
-            "description": "Something isn't working",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1290,
-        "state": "OPEN",
-        "title": "reconcile: move-failed stuck on /Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267",
-        "updatedAt": "2026-09-02T11:16:17Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: backend\n\n## Current State\n\nPre-release whole-branch code review (2026-08-18) found that `session-start.js`'s own inline `FAST_CHECKS` `reconcile()` pass and the detached `reconcile-background` child process it spawns each run their own separate GitHub-health preflight and `git fetch`, doubling `gh api rate_limit` calls and fetch round-trips per session start — reversing `reconcile/index.js`'s own D2 shared-fetch dedup rationale (one fetch per pass). A prior fix (#820 Task 10 review fix-up) tried sharing freshness state between the two processes via `reconcile-cache.json`'s `lastRunAt` stamp, and was reverted — that stamp fires on ANY completed pr-first pass regardless of which checks subset ran, so it made the background-pass spawn gate see a false-fresh signal from the FAST_CHECKS-only pass and never spawn at all, silently starving the background checks. Deferred rather than fixed at discovery time: the residual cost is background CPU/network after the interactive session-start has already returned (not user-facing latency), and `gh api rate_limit` does not consume GitHub API rate-limit quota, so the real-world cost today is small; the highest-value fix (#872, filed alongside this record by the same review) already removes `gh` from the mirror-only inline fetch path. Related: #872.\n\n## Deliverables\n\n- [ ] Confirm #872's landing status and whether it changes the shape of this record's remaining scope (it removes `gh` from the mirror-only inline fetch path, per the original report).\n- [ ] Design a freshness-sharing mechanism between the inline `FAST_CHECKS` pass and the detached `reconcile-background` process that distinguishes which checks subset ran — avoiding the exact failure mode #820's reverted `lastRunAt` stamp hit (a single timestamp that can't tell FAST_CHECKS-only from a full pass).\n- [ ] Implement the fix so the background pass still spawns when its own checks haven't freshly run, even if a FAST_CHECKS-only pass completed recently.\n\n## Acceptance Criteria\n\n1. The inline `FAST_CHECKS` pass and the detached `reconcile-background` process no longer both perform a redundant GitHub-health preflight + `git fetch` on the same session start when the background pass's own checks genuinely need to run.\n2. The background-pass spawn gate correctly distinguishes \"a FAST_CHECKS-only pass just ran\" from \"a full pass (covering the background checks too) just ran\" — reproducing and passing against #820's exact regression shape (background checks silently starved) as a test case.\n3. `npm test` passes with new coverage, including a test that would have caught #820's reverted fix's starvation bug.\n\n## Technical Approach\n\nThe prior #820 fix failed because `reconcile-cache.json`'s `lastRunAt` stamp was a single timestamp with no record of *which checks* ran. The fix here needs a per-checks-subset freshness record — e.g. `lastRunAt` becomes a map keyed by checks-subset (or a dedicated field per subset) rather than one scalar — so the background-pass spawn gate can ask \"did *my* checks run recently\" instead of \"did *any* pass run recently.\" Given #872 already removes `gh` from the mirror-only inline fetch path (reducing but not eliminating the duplication), re-scope this record's remaining work after confirming #872's actual landed shape.\n\n### Key Files\n\n- `plugin/bin/lib/hooks/session-start.js` — inline FAST_CHECKS reconcile pass + background process spawn\n- `plugin/bin/lib/reconcile/index.js` — `reconcile-cache.json`'s `lastRunAt` freshness stamp, needs to become checks-subset-aware\n- `tests/` — new test reproducing #820's starvation regression shape\n\n## Gotchas\n\n- This record explicitly carries `Defer-reason: needs-human-decision` — the original filer judged the residual cost low today and deferred rather than immediately fixing; re-confirm that judgment still holds (has #872 changed the cost/benefit?) before investing in the freshness-sharing redesign.\n- Must not reintroduce #820's exact regression (a single freshness stamp masking a checks-subset mismatch) — any new freshness mechanism needs an explicit test reproducing that shape.\n\n## Original request\n\nreconcile: inline FAST_CHECKS + detached reconcile-background each run their own gh-health-check + git fetch\n\n**Related:** #872\n\nContext: Pre-release whole-branch code review (2026-08-18) found that session-start.js own inline FAST_CHECKS reconcile() pass and the detached reconcile-background child process it spawns each run their own separate GitHub-health preflight and git fetch, doubling gh api rate_limit calls and fetch round-trips per session start. This reverses reconcile/index.js own D2 shared-fetch dedup rationale (one fetch per pass).\n\nScope: A prior fix (#820 Task 10 review fix-up) already tried sharing freshness state between the two processes via the reconcile-cache.json lastRunAt stamp, and reverted it — that stamp fires on ANY completed pr-first pass regardless of which checks subset ran, so it made the background-pass spawn gate see a false fresh from the FAST_CHECKS-only pass and never spawn at all, silently starving the background checks. Any future fix must avoid that exact failure mode. Deferred rather than fixed: the residual cost is background CPU/network after the interactive session-start has already returned (not user-facing latency), and gh api rate_limit does not consume GitHub API rate-limit quota, so the real-world cost today is small; the highest-value fix (#872, the sibling backlog item this review also filed) already removes gh from the mirror-only inline fetch path.\n\nDefer-reason: needs-human-decision\n",
-        "createdAt": "2026-08-18T05:41:31Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          }
-        ],
-        "number": 873,
-        "state": "OPEN",
-        "title": "reconcile: inline FAST_CHECKS + detached reconcile-background each run their own gh-health-check + git fetch",
-        "updatedAt": "2026-08-30T06:31:11Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`plugin/bin/repair-claim.js` used to evaluate `resolveTarget` (the run-dir anchoring check that warns \"decisions.md will not be written\") only *after* the destructive claim write; a fix wave (spec 1608) hoisted it before the write (commit 387b53f4e), so line 116 of `repair-claim.js` now resolves the target and emits its stderr warning before the repair operation runs. `plugin/bin/release-claim.js` has the identical pre-existing ordering bug: `release.releaseClaim(...)` runs at line 130, and `resolveTarget` runs only afterward at line 139, so an operator with an unanchored or missing `--run` dir sees the no-log warning only *after* the release has already tombstoned the claims-registry blob. This was out of #1608's scope, flagged by that fix wave's implementer, and left untouched.\n\n## Deliverables\n\n- [ ] `plugin/bin/release-claim.js`: compute `resolveTarget` and emit the `not-anchored`/`missing` stderr warnings before the `release.releaseClaim(...)` call, keeping `formatEntry`/`appendEntry` after (they need the outcome) — the same pure hoist commit 387b53f4e applied to `repair-claim.js`.\n- [ ] Extend `tests/bin-lib/release-claim/cli.test.js` only if any existing assertion pins warning ordering; exit-code semantics and the logging-is-bookkeeping posture stay byte-identical.\n\n## Acceptance Criteria\n\n- [ ] With a missing or unanchored `--run` dir, the stderr warning is emitted before any write reaches the claims registry (observable in the deps-injected test by call ordering).\n- [ ] `node --test tests/bin-lib/release-claim/*.test.js` passes unchanged in count.\n\n## Technical Approach\n\nMove the existing `try { target = resolveTarget(...) } catch { target = { ok: false, reason: 'missing' } }` block in `plugin/bin/release-claim.js` (currently after the `release.releaseClaim(...)` call) to run before it — a pure reordering, no new logic, mirroring the exact hoist commit 387b53f4e already applied to the equivalent block in `plugin/bin/repair-claim.js`. `formatEntry`/`appendEntry` stay after the destructive call, since they need its outcome (`r`) to compose the log entry text. No change to `resolveTarget`, `release.releaseClaim`, `formatEntry`, or `appendEntry` themselves — only the call order in the CLI's own flow.\n\n### Key Files\n\n- `plugin/bin/release-claim.js` — the CLI whose `resolveTarget`/`release.releaseClaim(...)` call order needs hoisting (current order: release call at line ~130, `resolveTarget` at line ~139)\n- `plugin/bin/repair-claim.js` — the sibling file already fixed (commit 387b53f4e) with `resolveTarget` at line ~116, before its own destructive call; the reference pattern to mirror\n- `tests/bin-lib/release-claim/cli.test.js` — extend only if an existing assertion pins warning ordering\n\n## Gotchas\n\n- This is a pure call-order hoist, not a logic change — `resolveTarget`, `release.releaseClaim`, `formatEntry`, and `appendEntry` themselves stay untouched; only their sequencing in the CLI's own flow changes, mirroring the already-landed precedent exactly.\n\n## Original request\n\nHoist release-claim.js's run-dir anchoring check before the destructive write (parity with repair-claim.js)\n\n# Wrap-up — staged queue write (spec 1608, ledger row 6)\n\nOrigin: wrap-up spec 1608 (flow run 2026-08-29T155933)\nDefer-reason: tangential\n\n## Current State\n\n#1608's final review found `plugin/bin/repair-claim.js` evaluated `resolveTarget` (the run-dir anchoring check that warns \"decisions.md will not be written\") only *after* the destructive claim write; the fix wave hoisted it before the write (commit 387b53f4e). `plugin/bin/release-claim.js` has the same pre-existing ordering: `resolveTarget` runs after `release.releaseClaim(...)` has already tombstoned the blob, so an operator with an unanchored/missing run dir sees the no-log warning only after the release landed. Out of #1608's scope, flagged by the fix-wave implementer and left untouched.\n\n## Deliverables\n\n- [ ] `plugin/bin/release-claim.js`: compute `resolveTarget` and emit the `not-anchored`/`missing` stderr warnings before the `release.releaseClaim(...)` call, keeping `formatEntry`/`appendEntry` after (they need the outcome) — the same pure hoist 387b53f4e applied to repair-claim.js.\n- [ ] Extend `tests/bin-lib/release-claim/cli.test.js` only if any existing assertion pins warning ordering; exit-code semantics and the logging-is-bookkeeping posture stay byte-identical.\n\n## Acceptance Criteria\n\n- [ ] With a missing or unanchored `--run` dir, the stderr warning is emitted before any write reaches the claims registry (observable in the deps-injected test by call ordering).\n- [ ] `node --test tests/bin-lib/release-claim/*.test.js` passes unchanged in count.\n\n_Filed by `wrap-up` via staged queue write._\n",
-        "createdAt": "2026-08-30T12:50:08Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1710,
-        "state": "OPEN",
-        "title": "Hoist release-claim.js's run-dir anchoring check before the destructive write (parity with repair-claim.js)",
-        "updatedAt": "2026-09-04T10:00:17Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`_shared/health-issue-index.md` and `_shared/github-write-transport.md` document the `gh`-absent fallback for a health sweep's issue-index rebuild: use `mcp__github__list_issues` (or `issue_read get`), project into `{ number, state, labels, fingerprint }`, and `bin/lib/health-core/issue-index.js`'s `loadIssueIndex` keys a lookup map by each entry's `fingerprint` field. That field is only ever populated by extracting the `<!-- work-fingerprint: {id} -->` HTML comment embedded in the issue body (`bin/lib/issues/record.js`'s `extractFingerprint`, regex `FP_RE_WORK`).\n\nVerified live during a real firing (2026-08-30): fetched all 14 `by:docs-health` issues via both `mcp__github__list_issues` (labels filter, no state filter) and `mcp__github__issue_read` (`get` method, issue #1637 specifically) — every returned `body` has its `<!-- work-fingerprint: ... -->` HTML comment stripped. None of the 14 bodies contain any `<!--`-prefixed span at all, despite `gh`-based reads of the same issues (per this project's own filing convention) always appending that marker as the literal last line of the body.\n\nThis is the same root cause `_shared/pr-early-run-lifecycle.md` already documents for PR bodies (`pkg/github/minimal_types.go`'s `convertToMinimalPullRequest` calls `sanitize.Sanitize()`, whose `bluemonday.StrictPolicy()` strips every `<!-- ... -->` span as a prompt-injection defense) — but that file's \"Root cause\" section scopes the finding to PR reads only. The same sanitization evidently also applies to issue reads (`list_issues`/`issue_read`), which that file does not mention and which none of the four health-sweep skills' dedup logic accounts for.\n\n**Consequence:** on any `gh`-absent firing (the default in a cloud Routine sandbox) of `/claude-tweaks:docs-health`, `/claude-tweaks:harness-health`, or `/claude-tweaks:journey-health`, `loadIssueIndex` receives an issue array where every `fingerprint` is null/undefined, so its `if (issue.fingerprint)` guard populates an empty map regardless of how many matching issues already exist open. Every finding's `decide()` call then has nothing to match against by fingerprint, so a finding identical to one already filed and still open will file again as a duplicate rather than being suppressed — silently, with no error, on every headless firing. This is the same failure class as #163 (which fixed the empty-vs-unavailable-index distinction) but via a different mechanism: here the index fetch *succeeds* and *is* non-empty, it just carries no usable fingerprint data.\n\nThe originating run avoided actually filing a duplicate only because manual inspection of all 14 fetched bodies' visible text (title + Doc/Section fields, still present) confirmed none referenced that run's target doc — that manual cross-check is not a substitute for the fingerprint match and does not scale to a large open-issue count.\n\n## Deliverables\n\nAdopt the same fix `_shared/pr-early-run-lifecycle.md` already specifies for PRs: a plain-text companion form of the fingerprint marker that survives HTML-comment stripping, written alongside the existing HTML-comment form on every health-sweep issue body (the write path is unsanitized on both transports, so writing both costs nothing), with the `gh`-absent read path (the MCP `list_issues`/`issue_read` projection step in each of the four health sweeps' GATHER OPEN ISSUES instructions, and `bin/lib/issues/record.js`'s `extractFingerprint`) taught to key on the plain-text form when the HTML-comment form comes back stripped.\n\n## Acceptance Criteria\n\n1. `_shared/pr-early-run-lifecycle.md`'s \"Root cause\" section (or a shared successor) documents that MCP body sanitization strips HTML comments from issue reads (`list_issues`, `issue_read`) as well as PR reads, with the same live verification method used to discover this.\n2. Health-sweep issue bodies carry a plain-text companion fingerprint marker alongside `<!-- work-fingerprint: {id} -->`, written on every transport.\n3. `extractFingerprint` (or the health-sweep GATHER OPEN ISSUES step that calls it) recovers a usable fingerprint from an MCP-fetched, comment-stripped body via the plain-text companion.\n4. A `gh`-absent dedup test (fixture: an MCP-shaped issue list with comments stripped, matching an existing filed finding) demonstrates the finding is now suppressed rather than re-filed.\n\n## Technical Approach\n\nReuse `_shared/pr-early-run-lifecycle.md`'s already-specified plain-text companion marker pattern rather than inventing a new mechanism for issues: extend `bin/lib/issues/record.js`'s fingerprint-write path to also emit a plain-text companion line alongside the existing `<!-- work-fingerprint: {id} -->` HTML comment, and extend `extractFingerprint` to fall back to parsing that plain-text form when the HTML-comment form is absent from a fetched body (the MCP-stripped case). Update each of the four health-sweep skills' GATHER OPEN ISSUES sections so their `gh`-absent MCP projection step reads the plain-text companion when the HTML-comment marker comes back stripped. Document the extended (PR + issue) scope of the sanitization root cause in `_shared/pr-early-run-lifecycle.md` and/or `_shared/health-issue-index.md` / `_shared/github-write-transport.md`.\n\n### Key Files\n\n- `bin/lib/issues/record.js` — fingerprint write (`extractFingerprint`, `FP_RE_WORK`) and the new plain-text companion emit/read logic\n- `plugin/skills/code-health/SKILL.md` — GATHER OPEN ISSUES step, MCP projection fallback\n- `plugin/skills/harness-health/SKILL.md` — GATHER OPEN ISSUES step, MCP projection fallback\n- `plugin/skills/journey-health/SKILL.md` — GATHER OPEN ISSUES step, MCP projection fallback\n- `plugin/skills/docs-health/SKILL.md` — GATHER OPEN ISSUES step, MCP projection fallback\n- `plugin/skills/_shared/health-issue-index.md` — documents the `gh`-absent fallback and `loadIssueIndex` fingerprint keying\n- `plugin/skills/_shared/github-write-transport.md` — CRUD mapping and sanitization notes\n- `plugin/skills/_shared/pr-early-run-lifecycle.md` — \"Root cause\" section to extend from PR-only to PR+issue scope\n\n## Gotchas\n\n- The write path is unsanitized on both transports (confirmed by this record's own evidence), so writing the plain-text companion alongside the HTML comment costs nothing and is safe to do unconditionally, not just as a gh-absent-specific branch.\n- `bin/lib/health-core/issue-index.js`'s `loadIssueIndex` currently trusts a present-but-empty fingerprint silently (`if (issue.fingerprint)`) — the fix should not regress the already-fixed #163 empty-vs-unavailable-index distinction while closing this separate stripped-fingerprint gap.\n\n## Original request\n\nHealth-sweep issue-fingerprint dedup silently breaks on gh-absent (MCP) transport — GitHub MCP server strips HTML comments from issue bodies\n\nOrigin: `/claude-tweaks:docs-health` GATHER OPEN ISSUES step (2026-08-30 firing), discovered while building the `by:docs-health` dedup index — not a finding about a `docs/**` file, so it doesn't fit docs-health's own finding schema; filed here directly per CLAUDE.md's \"no implicit deferrals\" rule.\n\n## Current State\n\n`_shared/health-issue-index.md` and `_shared/github-write-transport.md` document the `gh`-absent fallback for a health sweep's issue-index rebuild: use `mcp__github__list_issues` (or `issue_read get`), project into `{ number, state, labels, fingerprint }`, and `bin/lib/health-core/issue-index.js`'s `loadIssueIndex` keys a lookup map by each entry's `fingerprint` field. That field is only ever populated by extracting the `<!-- work-fingerprint: {id} -->` HTML comment embedded in the issue body (`bin/lib/issues/record.js`'s `extractFingerprint`, regex `FP_RE_WORK`).\n\nVerified live during this firing (2026-08-30): fetched all 14 `by:docs-health` issues via both `mcp__github__list_issues` (labels filter, no state filter) and `mcp__github__issue_read` (`get` method, issue #1637 specifically) — every returned `body` has its `<!-- work-fingerprint: ... -->` HTML comment stripped. None of the 14 bodies contain any `<!--`-prefixed span at all, despite `gh`-based reads of the same issues (per this project's own filing convention) always appending that marker as the literal last line of the body.\n\nThis is the same root cause `_shared/pr-early-run-lifecycle.md` already documents for PR bodies (`pkg/github/minimal_types.go`'s `convertToMinimalPullRequest` calls `sanitize.Sanitize()`, whose `bluemonday.StrictPolicy()` strips every `<!-- ... -->` span as a prompt-injection defense) — but that file's \"Root cause\" section scopes the finding to PR reads only. The same sanitization evidently also applies to issue reads (`list_issues`/`issue_read`), which that file does not mention and which none of the four health-sweep skills' dedup logic accounts for.\n\n**Consequence:** on any `gh`-absent firing (the default in a cloud Routine sandbox, confirmed absent in this session) of `/claude-tweaks:docs-health`, `/claude-tweaks:harness-health`, or `/claude-tweaks:journey-health`, `loadIssueIndex` receives an issue array where every `fingerprint` is null/undefined, so its `if (issue.fingerprint)` guard populates an empty map regardless of how many matching issues already exist open. Every finding's `decide()` call then has nothing to match against by fingerprint, so a finding identical to one already filed and still open will file again as a duplicate rather than being suppressed — silently, with no error, on every headless firing. This is the same failure class as #163 (which fixed the empty-vs-unavailable-index distinction) but via a different mechanism: here the index fetch *succeeds* and *is* non-empty, it just carries no usable fingerprint data.\n\nThis run avoided actually filing a duplicate only because manual inspection of all 14 fetched bodies' visible text (title + Doc/Section fields, still present) confirmed none referenced this run's target doc — that manual cross-check is not a substitute for the fingerprint match and does not scale to a large open-issue count.\n\n## Deliverables\n\nAdopt the same fix `_shared/pr-early-run-lifecycle.md` already specifies for PRs: a plain-text companion form of the fingerprint marker that survives HTML-comment stripping, written alongside the existing HTML-comment form on every health-sweep issue body (the write path is unsanitized on both transports, so writing both costs nothing), with the `gh`-absent read path (the MCP `list_issues`/`issue_read` projection step in each of the four health sweeps' GATHER OPEN ISSUES instructions, and `bin/lib/issues/record.js`'s `extractFingerprint`) taught to key on the plain-text form when the HTML-comment form comes back stripped. Likely touches: `bin/lib/issues/record.js` (fingerprint write + extract), the four health-sweep `SKILL.md` GATHER OPEN ISSUES sections, and `_shared/health-issue-index.md` / `_shared/github-write-transport.md` (documenting the extended scope of the sanitization root cause from PR-only to PR+issue).\n\n## Acceptance Criteria\n\n1. `_shared/pr-early-run-lifecycle.md`'s \"Root cause\" section (or a shared successor) documents that MCP body sanitization strips HTML comments from issue reads (`list_issues`, `issue_read`) as well as PR reads, with the same live verification method used here.\n2. Health-sweep issue bodies carry a plain-text companion fingerprint marker alongside `<!-- work-fingerprint: {id} -->`, written on every transport.\n3. `extractFingerprint` (or the health-sweep GATHER OPEN ISSUES step that calls it) recovers a usable fingerprint from an MCP-fetched, comment-stripped body via the plain-text companion.\n4. A `gh`-absent dedup test (fixture: an MCP-shaped issue list with comments stripped, matching an existing filed finding) demonstrates the finding is now suppressed rather than re-filed.\n\n_Filed by `/claude-tweaks:docs-health` (self-reference collapse per `_shared/learning-routing.md` — this repo is claude-tweaks itself, so this routes as an ordinary local record, not an upstream-candidate)._\n",
-        "createdAt": "2026-08-30T06:18:00Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1700,
-        "state": "OPEN",
-        "title": "Health-sweep issue-fingerprint dedup silently breaks on gh-absent (MCP) transport — GitHub MCP server strips HTML comments from issue bodies",
-        "updatedAt": "2026-09-04T09:59:55Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Origin: review\nDefer-reason: genuinely-larger\n\nThe materiality digest mechanism (`_shared/materiality-floor.md`, shipped by #1261) has three gaps only surfaced once real adopters (#1262) started routing findings to it — none fixable within #1262's own scope since #1262's Non-Goals bar changing the contract itself, and two require actual code (not prose).\n\n## Current State\n\n#1262's final whole-branch review (spec #1262, \"Migrate the ten adopter files to cite `_shared/materiality-floor.md`\") found:\n\n1. **No `Defer-reason:` vocabulary for the four health sweeps' digest entries.** `_shared/materiality-floor.md`'s Entry format makes `Defer-reason: {value}` a mandatory field, and that value's vocabulary is defined by `_shared/deferral-gate.md` — but `code-health`, `docs-health`, `harness-health`, and `journey-health` never run through the deferral gate at all (they file spec-shaped issues directly via `recordPayload`/`specShapedBody`, per #1262's own Current State: \"These do NOT cite the deferral gate\"). There is no defined value these four sweeps can legitimately write into a materiality-digest entry's `Defer-reason:` field. #1262's own citations correctly route below-floor health-sweep findings to the digest, but leave this field unaddressed — an agent executing the sweep has no well-formed value to write.\n\n2. **No dedup on materiality digest entries — spurious promotion after repeated firings.** The pre-existing per-origin cap digest (`_shared/health-filing-digest.md`) solves this explicitly via a fingerprint fold (`expandDigestFingerprints`) that lets a re-encountered finding dedupe against its own existing digest entry instead of re-appending. The materiality digest has no equivalent — `tidy/digest-sweep.md` has no dedup step of its own. A below-floor finding that a scheduled health sweep re-encounters on every firing gets a fresh entry appended each time; `digest-sweep.md`'s own cluster-promotion procedure fires once ≥3 entries share the same `{area}` — so a genuinely low-value, repeatedly-recurring finding becomes a first-class issue after 3 firings, inverting the contract's entire purpose (reducing issue volume for low-materiality findings).\n\n3. **The digest comment URL and `filed/digested/cap` accounting never reach any adopter's own summary.** `_shared/materiality-floor.md`'s Deliverables state \"the run's single digest comment URL... appears once in the caller's own summary output,\" but none of the ten adopter files' report/handoff/summary formats were updated to actually surface it, and the four health sweeps' existing `filed: N, digested: M, cap: {CAP}` throttle line (from the pre-existing cap-digest mechanism) does not count materiality-digest routings at all — so a run's actual digest activity is invisible in every caller's own output.\n\n## Deliverables\n\n- [ ] Decide and document a `Defer-reason:` (or equivalent) vocabulary answer for direct-filing producers (the four health sweeps today; possibly other future non-gate-routed adopters) — either extend `bin/lib/issues/record.js`'s closed `DEFER_REASONS` set with a value describing \"no deferral gate applies, filed directly by a proactive sweep,\" or define an explicit, contract-stated exception in `_shared/materiality-floor.md` for this producer class.\n- [ ] Design and implement a dedup mechanism for materiality digest entries — likely a fingerprint-based fold analogous to `_shared/health-filing-digest.md`'s `expandDigestFingerprints`, reconciled with `tidy/digest-sweep.md`'s existing cluster-promotion threshold so a genuinely-recurring-but-still-low-value finding does not spuriously promote.\n- [ ] Wire the digest comment URL and a digest-specific count into each adopter's own summary/report format — likely ten distinct small edits (one per adopter's own summary shape) plus updating the four health sweeps' `filed/digested/cap` line to also report materiality-digest routings separately from cap-digest routings.\n- [ ] `tests/materiality-floor-conformance.test.js` and/or a new suite covering the dedup mechanism and vocabulary answer once designed.\n\n## Acceptance Criteria\n\n1. A health-sweep-originated materiality digest entry has a well-formed `Defer-reason:` (or documented equivalent) value, with a test pinning it.\n2. Re-running a sweep against an already-digested, unchanged finding does not append a second entry, and does not contribute toward cluster-promotion's ≥3 threshold a second time.\n3. At least one adopter's own summary output surfaces the run's digest comment URL when a digest routing occurred this run; the four health sweeps' throttle line reports a materiality-digest count distinct from the cap-digest count.\n4. `npm test` passes.\n\n## Technical Approach\n\nFiled by #1262's own final whole-branch review — that spec's scope was citation-only (per its Non-Goals, \"No change to the contract itself\"); these three gaps require either a contract amendment or new code, both out of scope there. Item 2 (dedup) is closely related to #1273's existing scope (tidy's digest-sweep wiring/mechanics) — coordinate with or fold into that issue if picked up around the same time, since both touch `tidy/digest-sweep.md`.\n\n### Key Files\n\n- `plugin/skills/_shared/materiality-floor.md` — Entry format, Defer-reason field, Deliverables' summary-surfacing requirement\n- `bin/lib/issues/record.js` — `DEFER_REASONS` closed vocabulary (if extended)\n- `plugin/skills/tidy/digest-sweep.md` — cluster-promotion mechanism, needs dedup\n- `plugin/skills/code-health/filing.md`, `docs-health/SKILL.md`, `harness-health/filing.md`, `journey-health/SKILL.md` — Defer-reason gap + summary-surfacing\n- `plugin/skills/review/step3-routing.md`, `wrap-up/residue-sweep.md`, `wrap-up/leftover-routing.md`, `reflect/full-mode.md`, `reflect/hindsight-mode.md`, `visual-review/browser-review.md` — summary-surfacing (these already have a Defer-reason via the deferral gate, so item 1 doesn't apply to them)\n- `tests/materiality-floor-conformance.test.js`\n",
-        "createdAt": "2026-08-22T10:56:54Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 1279,
-        "state": "OPEN",
-        "title": "Materiality digest: no defer-reason vocabulary for direct-filing sweeps, no dedup, no summary surfacing",
-        "updatedAt": "2026-09-02T11:16:10Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Current State\n\n#1674 bounded `hasMaterializeCommit`'s git log to `{integration}..HEAD` so a materialize commit inherited from an unrelated merged run stops arming the IL-131 gate. `resolveIntegrationBranch` (`worktree-reap.js`) resolves that name from two sources only: an `integration-branch:` policy key, or `origin/HEAD`.\n\nNeither is available in a no-remote `local-merge` project: there is no `origin`, and the policy key is normally unset (`policy-schema.js` documents it as needed only when the active branch is not the default). Such a repo still has a real local integration branch that materialize commits merge into — it is simply not *resolvable*. #1674 falls back to the pre-fix unbounded walk there, so the false positive it exists to fix persists for that whole project class.\n\nThis was reproduced during review: a bare no-remote repo, a materialize-shaped commit on `main`, then `git worktree add` a fresh branch off that HEAD. `resolveIntegrationBranch(wt)` returns `null`; `hasMaterializeCommit(wt, runDir)` returns `true` — the fresh worktree is armed against a commit it never made.\n\nA second, related gap: `resolveIntegrationBranch` returns a **local** branch name, which can lag `origin/{integration}`. When HEAD has already merged `origin/{integration}` in — which `_shared/worktree-setup.md`'s post-creation catch-up does routinely — the lagging local ref leaves those merged-in commits inside the range and reproduces the same inherited-history arm. `review/code-mode-steps.md` states this repo's own house rule: never trust a bare local branch name, because a long-lived worktree's local tracking branch routinely drifts behind its remote.\n\n## Deliverables\n\n- [ ] A third resolution source for the range bound when policy and `origin/HEAD` both come up empty — e.g. a local default-branch probe (`main`/`master`, or the branch the worktree was created from), used only for this bound.\n- [ ] A decision on the stale-local-ref case: either resolve `origin/{integration}` when the remote-tracking ref already exists locally (no fetch needed), or document why the local name is accepted.\n- [ ] Tests covering a no-remote repo with inherited history (currently returns `true`, should return `false`) and a local ref lagging its remote-tracking counterpart.\n\n## Acceptance Criteria\n\n1. In a no-remote repo, a fresh worktree with zero commits of its own is NOT armed by a materialize commit it inherited.\n2. A worktree carrying its own unmerged materialize commit is still armed (the #991 protection, unchanged).\n3. No new failure mode disarms the gate: any resolution failure still falls back to the unbounded walk rather than returning `false` (#1674's own correction).\n4. `npm test` passes, including the existing `hooks-bookkeeping-stamps-gate` suite unmodified.\n\n## Gotchas\n\nAdding a resolution source is new behavior in a helper shared with `run-integrity.js`, not a range bound on an existing call — #1674's whole stated scope.\n\n## Original request\n\nOrigin: `/claude-tweaks:review #1674`, Step 3 — both agents of the lens-3c reproduction pair, one with a direct reproduction that refuted the reviewing agent's own initial justification (\"the false positive cannot arise where no integration branch exists\" — wrong; a no-remote repo has a real local integration branch, it is merely unresolvable). #1674 shipped the correct conservative behavior (fall back, keep the gate armed) and corrected its own overclaiming comment and docs rather than papering over the gap. Filed via the `/claude-tweaks:flow #1463,#1672,#1673,#1674` consolidated Review Console.\n",
-        "createdAt": "2026-08-29T21:03:45Z",
+        "body": "Surface: backend\n\n## Current State\n\n`archive-merged.js`'s `isAbandonedInterrupted` (added by #1673) refuses to auto-close a run owned by the calling session:\n\n```js\nif (owner && sessionId && owner === sessionId) return false; // our own live run\n```\n\n`sessionId` reaches it from two places, and in the one that matters it is always `null`:\n\n- `plugin/bin/lib/hooks/session-start.js` now threads `ctx.input.session_id` into its inline `reconcile({...})` call (#1673). But that call passes `checks: FAST_CHECKS`, and `FAST_CHECKS = ['mirror', 'red-tip', 'console']` — **`archive` is not in it**. The gate is never reached from there.\n- The archive check runs only from the detached `reconcile-background` child (`BACKGROUND_CHECKS = ['release', 'archive', 'archive-branches', 'remote-prune', 'reap']`), spawned from `session-start.js` with `stdio: 'ignore'` and no stdin. It has no hook payload, so no `session_id`.\n- `archiveMerged`'s remaining fallback is `process.env.CLAUDE_CODE_SESSION_ID`, which `plugin/bin/hooks.js`'s own comment documents as \"not reliably present\" for a hook-spawned process.\n\nNet effect: in production the ownership gate is a no-op, and the substantive protection is the other two gates alone — the 24h staleness window over non-fallback events, and `checkRunIntegrity` returning `shipped-unclosed`.\n\n## Deliverables\n\n- [ ] The `reconcile-background` child receives a session id — most likely via its spawn environment, set from `ctx.input.session_id` at the spawn site in `session-start.js`.\n- [ ] `hooks.js`'s `reconcile-background` subcommand reads it and threads it into `reconcile({ ..., sessionId })`.\n- [ ] A test proving the gate actually engages on that path: a run owned by the spawning session is not auto-closed even when the staleness and evidence gates both pass.\n\n## Acceptance Criteria\n\n1. A run whose `run-state.json` records the same session id as the session that spawned the background pass is never auto-closed by `archiveMerged`, on the real `reconcile-background` path (not merely in a unit test that passes `sessionId` directly).\n2. With no session id resolvable, behavior is unchanged from today — the other two gates still govern, and nothing fails closed in a way that disables the sweep.\n3. `npm test` passes.\n\n## Gotchas\n\nThreading a value into a detached child process's environment is a change to the fast/background split's own contract (`#820`), not to the auto-close criterion #1673 added. This is a missing belt-and-braces guard, not an open hole: the auto-close still requires a run to be `interrupted`, to have had no self-attributed event for 24h, and to carry `shipped-unclosed` evidence.\n\n## Original request\n\nOrigin: `/claude-tweaks:review #1673`, Step 3 — both agents of the lens-3c reproduction pair independently found that `archiveMerged`'s ownership gate is inert in the path that actually runs it. #1673 fixed every finding inside its own blast radius and deliberately did not fake this one — `session-start.js` carries an in-code comment stating plainly that the threading it does perform \"has no effect on archive-merged.js's ownership gate today\". Filed via the `/claude-tweaks:flow #1463,#1672,#1673,#1674` consolidated Review Console.\n",
+        "createdAt": "2026-08-29T21:03:40Z",
         "labels": [
           {
             "id": "LA_kwDORUwzVM8AAAACruyqXw",
@@ -1840,10 +1114,10 @@
             "color": "ededed"
           }
         ],
-        "number": 1688,
+        "number": 1687,
         "state": "OPEN",
-        "title": "pre-tool-use: resolve a local default branch so the IL-131 range bound reaches no-remote repos",
-        "updatedAt": "2026-09-04T09:59:57Z",
+        "title": "reconcile-background: the archive sweep's ownership gate has no session id to check against",
+        "updatedAt": "2026-09-04T15:04:26Z",
         "facets": {
           "origin": null,
           "risk": "medium",
@@ -1944,82 +1218,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Criterion:** review-quality | **Risk:** high | **Severity:** high | **Likelihood:** medium | **Effort:** low | **Confidence:** high | **Area:** plugin/bin/lib/compose-record\n\nVerified-as-of: 14952593f8d81f0bb3005a01fed83c75c96e3d4f\n\n## Current State\n\nAnchor: `plugin/bin/lib/compose-record/compose.js#validateShaped`\n\ncompose.js's validateShaped (plugin/bin/lib/compose-record/compose.js lines 38-50) scans the *entire* body text for TBD/TODO/<!-- ambiguity: markers via `text.includes(marker)`, with no exclusion for the '## Original request' section. Its own docstring (lines 4-6, 35-37) claims this check is 'reused verbatim from _shared/work-record.md's Spec-shaped body section' and 'the one check that composer does not make' by hand elsewhere, but it is not verbatim: work-record.md line 258 and specify/shaping-mode.md line 88 both state the preserved '## Original request' section (shaping-mode's byte-exact copy of the record's original title/body) is explicitly EXEMPT from the placeholder check, citing issue #1240 by name ('the preserved copy is exempt from the spec-shaped-body placeholder check (#1240), so preservation stays byte-exact even when the original text carries a literal TBD/TODO/ambiguity marker'). The sibling implementation bin/lib/issues/materialize-format.js already carries this exact fix: it defines ORIGINAL_REQUEST_RE, slices the body at that heading, and only tests the 'authored' (pre-heading) text against PLACEHOLDER_RE before flagging 'unresolved-placeholder' (materialize-format.js lines 12-18, 46-48). compose.js has no equivalent slice — it is the one caller of this canonical check that never received the #1240 fix. This is live: specify/record-creation.md line 204 invokes `bin/compose-record.js ... --require-shaped` for shaping-mode's sub-issue creation, the exact flow that appends '## Original request' per shaping-mode.md lines 78-88. If a user's originally captured idea (via /capture, explicitly meant for 'half-formed features' and 'brain dumps') contains a literal 'TBD', 'TODO', or '<!-- ambiguity:' anywhere in its title/body, /specify's shaping mode will preserve it verbatim in '## Original request' and compose-record.js will wrongly exit 4 ('body is not spec-shaped') even though the actually-authored shaped sections have no placeholders — blocking legitimate, compliant sub-issue creation in the automated pipeline.\n\n## Deliverables\n\nIn compose.js's validateShaped, mirror materialize-format.js's fix: before scanning for PLACEHOLDER_MARKERS, locate the '## Original request' heading (line-anchored, matching splitSections' own heading regex) and only scan the text before it — the same 'authored' vs. verbatim-preserved split materialize-format.js already implements. Keep the REQUIRED_SECTIONS presence/emptiness checks unchanged (they only ever look at the three named sections, which always precede '## Original request', so they are unaffected). Add a test mirroring the CLI-level scenario: a body with a compliant three-section shape followed by a '## Original request' section containing a literal TBD/TODO/ambiguity marker should validate as ok:true.\n\n## Acceptance Criteria\n\nvalidateShaped(body) returns {ok:true, gaps:[]} for a body whose three required sections are complete and placeholder-free, but whose '## Original request' section (or any content at/after that heading) contains a literal TBD, TODO, or <!-- ambiguity: marker. A marker in the same position for a body with no '## Original request' heading (or before it) still correctly fails as today. A new test in tests/bin-lib/compose-record/compose.test.js covers this case explicitly. `npm test` passes.\n\n_Filed by `/claude-tweaks:code-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: codehealth-3153e1ae -->",
-        "createdAt": "2026-08-29T03:09:50Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
-            "name": "priority:high",
-            "description": "Priority: dispatch picks this band first",
-            "color": "FBCA04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMTcg",
-            "name": "risk:high",
-            "description": "Scoring: high blast radius — human review required",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACyuNSOA",
-            "name": "by:code-health",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 1633,
-        "state": "OPEN",
-        "title": "validateShaped lacks the '## Original request' placeholder exemption that #1240 fixed elsewhere",
-        "updatedAt": "2026-09-04T11:32:35Z",
-        "facets": {
-          "origin": "code-health",
-          "risk": "high",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
@@ -2572,76 +1770,6 @@
     ],
     [
       {
-        "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect light from #815\nDefer-reason: tangential\n\n## Current State\nDuring record #815's `/build` phase (a prior, separate `/flow` invocation), `build/worktree-setup.md`'s `record-worktree` call was never made — `run-state.json` was never written for run `2026-08-26T215430-record-815`, even though two commits landed successfully in its worktree (`c963104b2`, `f6837385f`). The commit-tracking PostToolUse hook's event log for those two commits, and a `worktree-staleness` check, were instead appended into an unrelated, unrecorded run's `events.jsonl` (`2026-08-26T212441-record-769`) — the same session's previously-active run, matched by `sessionId` rather than by the worktree path the commits actually happened in. Because `run-state.json` was missing, `build/worktree-setup.md`'s \"non-skippable\" PR-early lifecycle (`[IL-131]`) also never ran: no branch was pushed and no PR was opened until a later `/flow review,polish,wrap-up` catch-up call (this run) diagnosed the gap, re-stamped the worktree assignment via `hooks.js record-worktree`, pushed the branch, and opened/recorded draft PR #1519 by hand.\n\n## Deliverables\n1. Root-cause why the `/build` phase's `record-worktree` call was skipped for this run (a build-side omission, a race, or a resolver bug) -- check whether other recent single-record dispatch runs show the same gap.\n2. Decide whether `bin/lib/hooks/context.js`'s commit-event/worktree-staleness logging should refuse the session-scoped `sessionId` fallback silently, and instead surface a loud warning (or hard-fail) when no run's `run-state.json.worktree` matches the cwd a commit actually happened in -- silent misattribution into an unrelated run's audit trail is worse than a visible gap.\n\n## Acceptance Criteria\nA fresh single-record `/dispatch` -> `/flow` run's `/build` phase reliably calls `record-worktree` before its first commit (verified via a new or existing test), and the commit-event/staleness hooks either match the owning run correctly or emit a diagnosable warning instead of silently attributing to the wrong run.\n\n## Original request\n\nInvestigate why record-worktree was skipped in a /build phase, and harden the commit-event run-attribution fallback\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-08-26T22:14:50Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 1520,
-        "state": "OPEN",
-        "title": "Investigate why record-worktree was skipped in a /build phase, and harden the commit-event run-attribution fallback",
-        "updatedAt": "2026-08-29T15:39:08Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
         "body": "Surface: backend\n\n## Current State\n\nThe `qa-agent`/`browse` skill's agent-browser command reference (`plugin/skills/browse/agent-browser-reference.md`, cited by `plugin/skills/browse/SKILL.md` and `plugin/agents/qa-agent.md`) is pinned to agent-browser v0.27, but the documented command vocabulary doesn't reflect several real behaviors of that pinned version. Every QA story-generation and QA-execution session currently rediscovers these facts independently rather than reading them from the skill.\n\n## Deliverables\n\nUpdate `plugin/skills/browse/agent-browser-reference.md` (and `SKILL.md`/`qa-agent.md` if either restates the affected guidance locally) to document, for the pinned agent-browser v0.27:\n\n- `find`'s action argument only supports `click`/`fill`/`check`/`hover` — no `select`, `press`, or `type`. Document the fallback for a `select` interaction: a full `snapshot -i -c` followed by a separate top-level `select @eN value` call.\n- `find role <role> ... --name X` resolves the `button` role but not `link` or `heading` — locating a link or heading by role silently fails to match; QA prompts must use a different locator (text/testid/label) for those roles.\n- `click` does not auto-scroll the target into view — a below-the-fold click reports success but lands nowhere. Document the mitigation (pinning a tall viewport) so QA prompts guard against this explicitly.\n- `screenshot` can fail with an OS-level error under concurrent sessions, and appears to reject an output path containing a space — document both as known limitations.\n- The distinction between plain `snapshot` (for a static-text assertion) and `snapshot -i -c` (a different purpose — locating interactive refs) isn't called out anywhere the skill's prompts reference; document it explicitly.\n\n## Acceptance Criteria\n\n- [ ] `agent-browser-reference.md` documents the four action verbs `find` actually supports and the `snapshot -i -c` + top-level `select @eN value` fallback for a select interaction.\n- [ ] `agent-browser-reference.md`'s role-locator guidance states that only `button` reliably resolves via `find role`, not `link`/`heading`.\n- [ ] `agent-browser-reference.md` documents that `click` does not auto-scroll, with the tall-viewport mitigation QA prompts should apply.\n- [ ] `agent-browser-reference.md` documents `screenshot`'s concurrent-session OS-level failure mode and its rejection of paths containing spaces.\n- [ ] `agent-browser-reference.md` explicitly distinguishes plain `snapshot` (static-text assertions) from `snapshot -i -c` (interactive-ref lookup), and any prompt guidance elsewhere in the skill that conflates the two is corrected.\n- [ ] No other command-reference table in `SKILL.md`/`qa-agent.md` still restates the pre-fix guidance (single-source-of-truth check, matching the existing \"no local copy\" convention already noted in `agent-browser-reference.md`).\n\n## Technical Approach\n\nPure documentation change, scoped to the pinned agent-browser v0.27 command surface — no code, no new behavior. Edit the reference table(s) and any adjacent prose in `agent-browser-reference.md` to add the five facts above; cross-check `SKILL.md`'s own command-reference/Anti-Patterns tables and `qa-agent.md` for any restated guidance that would now be inconsistent, per the \"single source of truth, no local copy\" principle `agent-browser-reference.md` already states for its Anti-Patterns table.\n\n### Key Files\n\n- `plugin/skills/browse/agent-browser-reference.md` — add the five documented v0.27 command-surface facts (find action verbs + select fallback, role-locator button-only resolution, click no-auto-scroll, screenshot concurrent/space-path limitations, snapshot vs snapshot -i -c distinction)\n- `plugin/skills/browse/SKILL.md` — check for restated command-reference content that needs the same update\n- `plugin/agents/qa-agent.md` — check for restated command-reference content that needs the same update\n\n## Gotchas\n\n- These facts are version-pinned to agent-browser v0.27 specifically — if the plugin's pinned version changes later, this guidance needs re-verification against the new version rather than being assumed to still hold.\n- `find role button ... --name X` resolving but `link`/`heading` silently failing to match is easy to miss in testing — the command exits without an error, it just doesn't find the element, so verification of this fix should include a negative-case check (attempt a `link`/`heading` role find and confirm the doc's guidance to use a different locator is followed).\n\n## Original request\n\nqa-agent/browse skill's agent-browser guidance is stale against the pinned agent-browser v0.27\n\n**Summary:** Several agent-browser v0.27 command-surface facts aren't reflected in the qa-agent/browse skill guidance, so every QA story-writing and execution pass has to rediscover and work around them by hand.\n\n**Kind:** Gap\n\n**Affected component:** the `qa-agent`/`browse` skill's agent-browser command reference (story generation and QA execution prompts)\n\n**Use case:** Writing and running QA stories against a web app with agent-browser v0.27 pinned. The skill's documented command vocabulary doesn't mention several real limitations of that version, so each session has to discover them independently:\n- `find` only supports `click`/`fill`/`check`/`hover` as its action argument -- no `select`, `press`, or `type`. A `select` interaction has to fall back to a full `snapshot -i -c` plus a separate top-level `select @eN value` call.\n- `find role button ... --name X` resolves the `button` role but not `link` or `heading` -- locating a link or heading by role silently fails to match.\n- `click` does not auto-scroll the target into view -- a below-the-fold click reports success but lands nowhere, which QA prompts need to guard against explicitly (e.g. by pinning a tall viewport).\n- `screenshot` can fail with an OS-level error under concurrent sessions, and appears to reject an output path containing a space.\n- The plain `snapshot` command (no `-c`/`-i -c` flags) is what a static-text assertion should use; the `-i -c` variant is for a different purpose. This distinction isn't called out anywhere the skill's prompts reference.\n\n**Definition:** Clear\n\n**Plugin version:** 6.106.0\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-495504d4 -->\n",
         "createdAt": "2026-08-26T17:41:17Z",
         "labels": [
@@ -2780,12 +1908,18 @@
             "name": "ceremony:standard",
             "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
             "color": "FEF2C0"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACzz365Q",
+            "name": "fix-on-worktree-record-1484",
+            "description": "Fixed on worktree-record-1484, not yet on the default branch",
+            "color": "FBCA04"
           }
         ],
         "number": 1484,
         "state": "OPEN",
         "title": "record-worktree silently corrupts an unrelated run's run-state.json when --run is omitted and a flag typo is treated as the worktree positional",
-        "updatedAt": "2026-09-04T09:34:03Z",
+        "updatedAt": "2026-09-04T18:46:50Z",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -3223,94 +2357,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Current State\n\nDispatch's queue-pull (`SKILL.md` Step 2, driven by `queue-pull-script.md`) selects eligible candidates by label/dependency filters only: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + unclaimed**. It never checks whether a candidate already has an open, unmerged PR referencing it.\n\n#257 has an open draft PR #869 (build/test/review/wrap-up complete, awaiting a human merge verdict) yet was re-selected by dispatch hours after a prior firing (`2026-08-21T105702-spec-252-257-899-266-316-644-652`) explicitly released its claim on #257 for this exact reason and posted a comment documenting it. This same record's own dispatch reproduced the bug again (run `2026-08-21T181739-record-257`) — a repeatable failure mode, not a one-off.\n\n## Deliverables\n\n- Step 2's eligibility filter additionally excludes any candidate that already has an open PR referencing it via a closing keyword (`Closes`/`Fixes`/`Resolves #N`) or GitHub's native \"Development\" linkage.\n- The exclusion is surfaced in this firing's own reporting, following the existing Blocked-exclusion report's rendering convention (`SKILL.md` Step 3) — a named line when non-empty, silent when nothing was excluded.\n- All four selection forms (bare, `next`, `#N`, `#N,#M,...`) inherit the exclusion uniformly, since they all read Step 2's `dispatch-groups.json` output.\n\n## Acceptance Criteria\n\n- A record carrying an open PR (draft or ready-for-review) that will close it is excluded from Step 2's eligible pool, even when it still carries `auto:build` and no `bot:*` label.\n- The exclusion is reported the same firing it fires, naming the excluded record and the linked PR number.\n- Direct `#N` dispatch and the explicit `#N,#M,...` list form both re-check this exclusion against Step 2's live queue — consistent with how they already re-verify `auto:build`/`bot:*` there — rather than only the bare/`next` forms picking it up.\n- A record with no linked PR is unaffected — no new false exclusions on the steady-state queue.\n\n## Technical Approach\n\nAdd a linked-PR check to `queue-pull-script.md`'s eligibility pipeline, parallel to the existing `partitionByOpenBodyBlockers`/`partitionByOpenNativeBlockers` pair in `record.js`. Fetch, per eligible candidate, whether it has an open PR that will close it via the GraphQL `Issue.closedByPullRequestsReferences` connection, batched into one query across the eligible set (mirroring `buildNativeDependencyQuery`'s batching shape) rather than a per-candidate `gh pr list --search` loop. Unlike the native-dependency query, this check must run unconditionally — it isn't gated behind `work-links: native`, since PR-linkage exclusion prevents wasted re-dispatch rather than encoding a dependency-tracking policy choice.\n\nPartition eligible candidates into `{eligible, excludedByOpenPR}` (same shape `partitionByOpenNativeBlockers` returns), write the excluded set to a new session-scoped file alongside `dispatch-blocked-excluded.json`, and thread it into `SKILL.md` Step 3's Blocked-exclusion report so both exclusion reasons render under one convention.\n\n### Key Files\n\n- `plugin/skills/dispatch/queue-pull-script.md` — add the batched linked-PR GraphQL query and partition step to the eligibility pipeline\n- `plugin/bin/lib/issues/record.js` — add a `partitionByOpenLinkedPR` function alongside `partitionByOpenBodyBlockers`/`partitionByOpenNativeBlockers`\n- `plugin/skills/dispatch/SKILL.md` — update Step 2's queue definition sentence and Step 3's Blocked-exclusion report to cover the new exclusion reason\n\n## Gotchas\n\n- GraphQL's `closedByPullRequestsReferences` only captures PRs using a closing keyword in their body — a PR that merely mentions the issue without one won't be caught this way; verify #257/#869's actual linkage uses a closing keyword before assuming this field covers it, and treat a non-closing-keyword mention as an open gap if so.\n- The check must run independently of `work-links: native` — see Technical Approach; getting this gated wrong would silently disable the exclusion for any project not using native work-links.\n- Keep the query batched across the whole eligible set in one call — a per-candidate loop repeats the same slow-fallback pattern `queue-pull-script.md` already warns about for the per-dependency open-state check.\n\n## Original request\n\ndispatch: queue-pull does not exclude issues with an already-open PR\n\nDefer-reason: pre-existing-outside-diff\n\n**Related:** #257\n\nContext: dispatch queue-pull selects open+auto:build+unclaimed records but never checks for an already-open, unmerged PR referencing the issue. #257 already has open draft PR #869 (build/test/review/wrap-up complete, needs-human merge verdict) yet was re-selected by dispatch today, hours after a prior run (2026-08-21T105702-spec-252-257-899-266-316-644-652) explicitly released its claim on #257 for this same reason and posted a comment documenting it.\n\nScope: Add an open-PR exclusion to dispatch/SKILL.md Step 2 (or queue-pull-script.md), e.g. checking closed_by_pull_requests / linked PRs per candidate.\n\nOrigin: Discovered while executing headless dispatch build,test for #257 (run 2026-08-21T181739-record-257) — this same record's own dispatch is the reproduction.\n",
-        "createdAt": "2026-08-21T18:28:16Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
-            "name": "priority:high",
-            "description": "Priority: dispatch picks this band first",
-            "color": "FBCA04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          }
-        ],
-        "number": 1224,
-        "state": "OPEN",
-        "title": "dispatch: queue-pull does not exclude issues with an already-open PR",
-        "updatedAt": "2026-09-04T14:24:09Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
         }
       }
     ],
