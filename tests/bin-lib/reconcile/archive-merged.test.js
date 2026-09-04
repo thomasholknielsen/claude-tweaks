@@ -867,6 +867,7 @@ test('archiveOrphanedMint: a forced fs.renameSync throw is captured as a non-emp
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-orphan-mint-'));
   const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-orphan');
   fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'run-state.json'), '{}');
 
   t.mock.method(fs, 'renameSync', () => {
     throw new Error('simulated failure: fs.renameSync (orphaned mint)');
@@ -876,6 +877,33 @@ test('archiveOrphanedMint: a forced fs.renameSync throw is captured as a non-emp
   assert.equal(result.ok, false, JSON.stringify(result));
   assert.equal(result.reason, 'move-failed');
   assert.match(result.lastError, /simulated failure: fs\.renameSync \(orphaned mint\)/);
+});
+
+// #1713/#1714 — a whole-dir fs.renameSync onto a non-empty archive twin
+// throws ENOTEMPTY unconditionally and permanently wedges the run dir at
+// move-failed; archiveOrphanedMint must instead move each entry
+// individually, which merges cleanly into a destination that already holds
+// unrelated entries from a prior partial attempt.
+test('archiveOrphanedMint: archives cleanly onto an archive twin that already exists non-empty', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-orphan-mint-preexist-'));
+  const dir = path.join(root, '.claude-tweaks', 'pipelines', '2026-01-01T000000-orphan');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'run-state.json'), '{}');
+  fs.writeFileSync(path.join(dir, 'events.jsonl'), '');
+
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', '2026-01-01T000000-orphan');
+  // Simulate a prior partial attempt: the archive twin already exists and
+  // already holds an unrelated leftover entry — the exact precondition that
+  // ENOTEMPTYs a whole-directory rename.
+  fs.mkdirSync(archiveDir, { recursive: true });
+  fs.writeFileSync(path.join(archiveDir, 'leftover.txt'), 'from a prior attempt\n');
+
+  const result = archiveOrphanedMint(root, dir);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(fs.existsSync(dir), false, 'source orphaned-mint dir should be removed');
+  assert.equal(fs.existsSync(path.join(archiveDir, 'leftover.txt')), true, 'pre-existing entry must survive untouched');
+  assert.equal(fs.existsSync(path.join(archiveDir, 'run-state.json')), true, 'new entries must land alongside it');
+  assert.equal(fs.existsSync(path.join(archiveDir, 'events.jsonl')), true);
 });
 
 // #644 Deliverable 2 — trackArchiveResult is archiveMerged's one choke

@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const {
-  readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS,
+  readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS, SHARED_HEALTH_TTL_MS,
   RESIDUE_ESCALATE_THRESHOLD, recordResidueFailure, recordResidueSuccess, listResidueFailures,
   trackResidue,
 } = require('../../../plugin/bin/lib/reconcile/cache');
@@ -16,20 +16,28 @@ function tmpRoot() {
 
 test('readCache: absent file reads as empty defaults, not a throw', () => {
   const root = tmpRoot();
-  assert.deepEqual(readCache(root), { lastRunAt: null, claimShas: {}, residueFailures: {} });
+  assert.deepEqual(readCache(root), {
+    lastRunAt: null, claimShas: {}, residueFailures: {}, lastHealthCheckOkAt: null,
+  });
 });
 
 test('readCache: corrupt JSON fails closed to empty defaults, not a throw', () => {
   const root = tmpRoot();
   fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(root, '.claude-tweaks', CACHE_FILENAME), '{not json');
-  assert.deepEqual(readCache(root), { lastRunAt: null, claimShas: {}, residueFailures: {} });
+  assert.deepEqual(readCache(root), {
+    lastRunAt: null, claimShas: {}, residueFailures: {}, lastHealthCheckOkAt: null,
+  });
 });
 
 test('writeCache then readCache round-trips', () => {
   const root = tmpRoot();
-  writeCache(root, { lastRunAt: 12345, claimShas: { 7: 'abc' }, residueFailures: {} });
-  assert.deepEqual(readCache(root), { lastRunAt: 12345, claimShas: { 7: 'abc' }, residueFailures: {} });
+  writeCache(root, {
+    lastRunAt: 12345, claimShas: { 7: 'abc' }, residueFailures: {}, lastHealthCheckOkAt: 999,
+  });
+  assert.deepEqual(readCache(root), {
+    lastRunAt: 12345, claimShas: { 7: 'abc' }, residueFailures: {}, lastHealthCheckOkAt: 999,
+  });
 });
 
 test('writeCache: a failure (unwritable dir) is swallowed, never throws', () => {
@@ -47,6 +55,20 @@ test('isFresh: past TTL is not fresh', () => {
 
 test('isFresh: null lastRunAt (never run) is never fresh', () => {
   assert.equal(isFresh({ lastRunAt: null }, Date.now(), DEFAULT_TTL_MS), false);
+});
+
+// #873 — isFresh's `field` param generalizes beyond `lastRunAt` alone.
+test('isFresh: an explicit field reads that field instead of lastRunAt', () => {
+  const cache = { lastRunAt: 1000, lastHealthCheckOkAt: 5000 };
+  // lastRunAt is stale but lastHealthCheckOkAt is fresh — proves the two
+  // fields are read independently, not conflated.
+  assert.equal(isFresh(cache, 5000 + SHARED_HEALTH_TTL_MS - 1, SHARED_HEALTH_TTL_MS, 'lastHealthCheckOkAt'), true);
+  assert.equal(isFresh(cache, 5000 + SHARED_HEALTH_TTL_MS + 1, SHARED_HEALTH_TTL_MS, 'lastHealthCheckOkAt'), false);
+});
+
+test('isFresh: a field with no stamp of its own is never fresh, even when lastRunAt is', () => {
+  const cache = { lastRunAt: 1000, lastHealthCheckOkAt: null };
+  assert.equal(isFresh(cache, 1000, SHARED_HEALTH_TTL_MS, 'lastHealthCheckOkAt'), false);
 });
 
 // #644 Deliverable 2 — per-path consecutive-failure counter + escalation.
