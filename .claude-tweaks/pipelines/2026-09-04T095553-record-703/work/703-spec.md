@@ -61,3 +61,43 @@ Context: After `git worktree remove` deleted the worktree a session was pinned t
 
 Scope: Have teardown clear the pin as part of the same operation (emit an ExitWorktree/unpin and re-anchor to $RUN_ROOT immediately after a successful git worktree remove); guard against removing the session's own pinned worktree without an unpin in the same step. Separately, make /feedback's Step 3 self-reference check resolve the repo without a live git context (e.g. gh repo view --repo <slug> from an already-known slug) so it degrades cleanly instead of failing twice.
 
+## Investigation Findings (Task 0)
+
+Empirical premise check, per this record's own Deliverables/AC2/AC3:
+
+- **Case (a)** (`ExitWorktree` invoked correctly by the agent) and **case (b)**
+  (a raw Bash `git worktree remove` denied by the gate's own-cwd guard, then
+  retried via `ExitWorktree`): whether the harness-native pin persists after
+  either is **not reproducible from this repo's own hook-visible events** —
+  the pin is native Claude Code CLI state, outside anything this plugin's
+  hooks read or write (confirmed by grep: no "isolation pin" hits anywhere in
+  this repo outside this issue's own text). Stated as inconclusive per AC2,
+  not silently dropped. This is why the shipped fix (below) is instructional
+  (a PostToolUse `additionalContext` nudge) rather than a structural clear of
+  harness state this repo has no lever to reach.
+- **Case (c)** (a same-session `git worktree remove` targeting a
+  pinned-but-not-`ctx.cwd` path via an earlier `cd`/subshell): **structurally
+  unreachable for this hook architecture to detect**, not merely "already
+  covered." Each hook invocation (`pre-tool-use.js`'s `checkTeardownGate`
+  included) is stateless and sees only the CURRENT call's `ctx.cwd` — there is
+  no cross-call session memory of an earlier `cd` in a prior Bash call for any
+  hook to consult. Adding one would require a new persistent "last observed
+  cwd" ledger this record found no existing structural lever for. Per AC3,
+  this satisfies the AC via documented finding — no code change made for
+  case (c).
+- Shipped instead: `plugin/bin/lib/hooks/post-tool-use.js`'s
+  `checkPostTeardownPin` — a warn-tier PostToolUse handler firing on a
+  successful `ExitWorktree`(action:remove) or a sanctioned own-cwd
+  `git worktree remove` Bash call (via `pre-tool-use.js`'s exported
+  `teardownTargets`/`GATE_COVERAGE.teardownTools`, reused rather than
+  re-derived), injecting `additionalContext` instructing the agent to verify
+  git context (`pwd` + `git rev-parse --show-toplevel`) and re-anchor to
+  `$RUN_ROOT` before any further git-dependent command. Registered in
+  `plugin/hooks/hooks.json` via a new `PostToolUse` `ExitWorktree` matcher
+  group and a `Bash(git worktree *)` `if`-predicate — both previously absent,
+  which would have made the handler dead code at the registration seam.
+- `plugin/skills/feedback/SKILL.md` Step 3 now falls back to
+  `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s `repository` field when
+  `git remote get-url origin` fails, rather than throwing — addressing the
+  compounding-failure gap this issue's Gotchas section named.
+
