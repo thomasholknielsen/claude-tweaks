@@ -48,3 +48,25 @@ test('carries the standalone-followability standing constraint', () => {
   assert.ok(skill.includes('reads this file as raw prose'));
   assert.ok(skill.includes('executable as written by a model with no Skill-tool support'));
 });
+
+// The unattended framing lives here, not in the frozen kernel: this file reaches
+// every firing at the next release with no re-provisioning, and the framing must
+// cite the mode system's gates rather than restate a stop list of its own
+// (routine-template-schema.md's Anti-Patterns forbid routine-specific
+// mode-signaling in prose). Each clause below is load-bearing: the "ends the
+// firing undone" motivation, the authorization scope, the gate carve-out, the
+// Next Actions carve-out, and the done/undone report shape.
+test('carries the unattended-firing standing constraint, scoped to what the kickoff already covers', () => {
+  assert.ok(skill.includes('**Unattended firing.**'));
+  assert.ok(skill.includes('ends the firing with that work undone'));
+  assert.ok(skill.includes('Work the kickoff line already covers is authorized'));
+  assert.ok(skill.includes('This authorizes nothing else'));
+  assert.ok(skill.includes("`_shared/auto-mode-contract.md`'s never-silenced list stand at this project's `autonomy` ceiling exactly as written"));
+  assert.ok(skill.includes('a firing with no mode signal still falls back to interactive per that contract'));
+  assert.ok(skill.includes('report it as blocked and stop, not self-resolve'));
+  assert.ok(skill.includes('terminal `## Next Actions` block is a required handoff, not a deferred plan'));
+  assert.ok(skill.includes('Close with what was done and what was left undone.'));
+  // The Interaction style directive is byte-identical across skills and must not
+  // be edited to reference this constraint (house-structure pin).
+  assert.ok(skill.includes('> **Interaction style:** Single decisions → one `AskUserQuestion` call'));
+});

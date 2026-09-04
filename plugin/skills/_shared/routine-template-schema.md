@@ -28,18 +28,11 @@ Ships with the plugin. Plugin-owned, project-agnostic, account-agnostic. NEVER c
 
 Every live routine's prompt is assembled at instantiation from the canonical kernel below: `{{TARGET_BRANCH}}` substituted per the table in the next section, and `{kickoff}` on the closing line replaced with the template's `kickoff` value. Templates carry no prompt text of their own — the firing lifecycle beyond the kernel (stale-docs guard, plugin-list dump, reconcile, target invocation and its exclusions) lives in `skills/routine-kickoff/SKILL.md` and updates with each plugin release instead of being frozen into every live prompt.
 
-kernel_version: 2
+kernel_version: 1
 
 The line above is the kernel's own version, machine-greppable via `grep -m1 '^kernel_version:' "${CLAUDE_PLUGIN_ROOT}/skills/_shared/routine-template-schema.md"` (this file is markdown; `bin/lib/routine-template-parser.js` stays uninvolved). `${CLAUDE_PLUGIN_ROOT}` is a model-resolved placeholder, not a shell contract — see `docs/skill-authoring.md`'s Plugin-root references section. **Any edit to the kernel block text below requires `kernel_version` += 1.** Enforcement is review discipline — the schema test asserts the field is a positive integer, never that it incremented; the structural mitigation is that the kernel is one file, so a bump is one edit, not seven. `template_version` now means only "this template's own fields changed."
 
 ```
-You are running unattended. Nobody is watching this firing in real time and nobody
-can answer a question mid-run, so asking "Shall I…?" or "Want me to…?" ends the
-firing with the work undone. For reversible actions the kickoff below already
-covers, proceed without asking. Stop only for a destructive action, a genuine
-scope change, or a stop this prompt or the kickoff's own skill defines. Report
-what you did and what you left undone, never a plan for what you would do next.
-
 Before anything else, fetch origin and confirm this checkout is on {{TARGET_BRANCH}}
 and at its tip. If the container started on a different branch, check the target
 branch out first (`git checkout <branch>`, creating it from `origin/<branch>` if it
