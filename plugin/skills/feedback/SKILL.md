@@ -170,6 +170,19 @@ If the remote resolves to the claude-tweaks repository itself, **stop**. Report
 that the learning belongs in this project's own records and re-run the
 classifier from rule 4 per `_shared/learning-routing.md`. Do not file.
 
+**Degraded git context fallback:** if `git remote get-url origin` errors or
+resolves to no `origin` remote (broken git context — e.g. record #703's
+worktree-isolation-pin failure mode), do not throw. Fall back to comparing
+the filing target (`thomasholknielsen/claude-tweaks`, used verbatim in Step 8
+below) against this plugin's own known slug: read `repository` from
+`${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and derive the `owner/repo`
+slug from that URL. If the derived slug matches the filing target, treat this
+exactly like a `git remote` self-reference match above — stop, report, do not
+file. If `plugin.json` itself is unreadable or has no `repository` field, skip
+this check with a logged assumption ("self-reference check skipped — no git
+context and no plugin.json repository field to fall back on") rather than
+blocking the whole skill on an unrelated git failure.
+
 ### Step 4: Dedup
 
 Derive the `--search` keywords from the affected component name **only** — never from the
