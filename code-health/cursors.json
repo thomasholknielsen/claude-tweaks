@@ -134,5 +134,9 @@
   "plugin/bin/lib/flow": {
     "lastSweptMs": 1788491272269,
     "lastHash": "00ad34651e9bbe625e879fff32d7fc419b8c2263"
+  },
+  "plugin/bin/lib/harness-health": {
+    "lastSweptMs": 1788491509319,
+    "lastHash": "aebf7342310b149b901173efa9f15c9d841d9d21"
   }
 }
