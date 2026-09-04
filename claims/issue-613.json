@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-09-02T072611-sweep-standalone",
-  "reason": "shaped: #613",
-  "releasedAt": "2026-09-02T08:20:17.067Z"
+  "runId": "2026-08-27T235742-record-613",
+  "sessionId": "9866ea8b-a093-415a-bbb4-cf782eba24fe",
+  "claimedAt": "2026-09-04T12:06:52.050Z",
+  "ttlHours": 72,
+  "host": "Djoef-PC-WE8Swd"
 }
