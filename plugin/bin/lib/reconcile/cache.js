@@ -23,6 +23,21 @@ const { escalateResidue } = require('./escalate-residue');
 const CACHE_FILENAME = 'reconcile-cache.json';
 const DEFAULT_TTL_MS = 7 * 60 * 1000;
 
+// #873: how long a successful GitHub-health preflight probe (`gh api
+// rate_limit`) stays reusable by a SIBLING process's own reconcile() call —
+// deliberately its own, much shorter constant, never DEFAULT_TTL_MS/
+// `lastRunAt`. `lastRunAt`+DEFAULT_TTL_MS answers "did any pass with this
+// exact checks subset already run recently" (session-start.js's own
+// skipIfFresh gate); `lastHealthCheckOkAt` answers a narrower question —
+// "is GitHub reachable right now" — which stays valid across a DIFFERENT
+// checks subset too (unlike `lastRunAt`, whose whole-pass meaning is
+// subset-specific — see reconcile()'s own `skipCacheStamp` comment). Short
+// on purpose: this exists only to cover the near-zero gap between
+// session-start.js's inline FAST_CHECKS call and the detached
+// reconcile-background child it spawns immediately after in the same
+// SessionStart firing, not to let a probe go stale across unrelated calls.
+const SHARED_HEALTH_TTL_MS = 10 * 1000;
+
 // After this many CONSECUTIVE failures on the same (reason, path), the next
 // failure escalates — files/updates a backlog record naming the path and
 // last-seen reason (#644 Deliverable 2). 3 is a reasonable default absent a
@@ -34,11 +49,14 @@ function cachePath(root) {
 }
 
 // -> { lastRunAt: number|null, claimShas: {[issueNumber]: string},
-//      residueFailures: {[reason:path]: {count, firstFailedAt, lastError, escalated}} }
+//      residueFailures: {[reason:path]: {count, firstFailedAt, lastError, escalated}},
+//      lastHealthCheckOkAt: number|null }
 // Absent file or corrupt JSON both fail closed to empty defaults — a cache
 // is pure optimization; never let a bad read block or skew reconcile().
 function readCache(root) {
-  const empty = { lastRunAt: null, claimShas: {}, residueFailures: {} };
+  const empty = {
+    lastRunAt: null, claimShas: {}, residueFailures: {}, lastHealthCheckOkAt: null,
+  };
   let raw;
   try {
     raw = fs.readFileSync(cachePath(root), 'utf8');
@@ -51,6 +69,7 @@ function readCache(root) {
       lastRunAt: typeof parsed.lastRunAt === 'number' ? parsed.lastRunAt : null,
       claimShas: (parsed.claimShas && typeof parsed.claimShas === 'object') ? parsed.claimShas : {},
       residueFailures: (parsed.residueFailures && typeof parsed.residueFailures === 'object') ? parsed.residueFailures : {},
+      lastHealthCheckOkAt: typeof parsed.lastHealthCheckOkAt === 'number' ? parsed.lastHealthCheckOkAt : null,
     };
   } catch {
     return empty;
@@ -70,9 +89,13 @@ function writeCache(root, cache) {
 
 // Pure — no I/O, no Date.now() call of its own (nowMs is always passed in),
 // so it's trivially testable and reusable by both a live caller and a test.
-function isFresh(cache, nowMs, ttlMs = DEFAULT_TTL_MS) {
-  if (typeof cache.lastRunAt !== 'number') return false;
-  return (nowMs - cache.lastRunAt) < ttlMs;
+// `field` (#873) generalizes this beyond `lastRunAt` alone — every existing
+// caller omits it and keeps checking `lastRunAt`, unchanged; the health-
+// check reuse gate in reconcile/index.js is the one caller that passes
+// `'lastHealthCheckOkAt'`.
+function isFresh(cache, nowMs, ttlMs = DEFAULT_TTL_MS, field = 'lastRunAt') {
+  if (typeof cache[field] !== 'number') return false;
+  return (nowMs - cache[field]) < ttlMs;
 }
 
 // One entry per (reason, path) pair — a worktree's `removal-failed` and a run
@@ -163,7 +186,7 @@ function listResidueFailures(root) {
 }
 
 module.exports = {
-  readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS, cachePath,
+  readCache, writeCache, isFresh, CACHE_FILENAME, DEFAULT_TTL_MS, SHARED_HEALTH_TTL_MS, cachePath,
   RESIDUE_ESCALATE_THRESHOLD, residueKey, recordResidueFailure, recordResidueSuccess, listResidueFailures,
   trackResidue,
 };

@@ -21,7 +21,9 @@ const { archiveBranches } = require('./archive-branches');
 const { pruneRemote } = require('./prune-remote');
 const { consoleExecuteDetect } = require('./console-execute');
 const { sharedFetch, sharedFetchAsync } = require('./shared-fetch');
-const { readCache, writeCache, isFresh } = require('./cache');
+const {
+  readCache, writeCache, isFresh, SHARED_HEALTH_TTL_MS,
+} = require('./cache');
 const { formatReconcileSummary, archivedCountFromRunsResult } = require('./residue-summary');
 
 // Execution order (mirror, red-tip, console, release, archive,
@@ -166,11 +168,34 @@ async function reconcile(opts = {}) {
   // ALL_CHECKS/mixed and BACKGROUND_CHECKS are explicitly out of scope for
   // this concurrency and must not gain it incidentally through narrowing.
   const fastChecksShape = checks.includes('mirror') && !checks.includes('remote-prune');
+  // #873: session-start.js's inline FAST_CHECKS call and the detached
+  // reconcile-background child it spawns moments later (same SessionStart
+  // firing) are separate process invocations of this function, each
+  // independently paying for a `gh api rate_limit` reachability probe —
+  // even though GitHub's reachability a few seconds old, as just confirmed
+  // by a sibling process, is still a valid answer. Reuse it instead of
+  // re-probing.
+  //
+  // Deliberately does NOT extend to the shared git fetch below:
+  // shared-fetch.js's own header documents the fetch SHAPE as a strict
+  // partition by caller — mirror-only's single-ref fetch is narrower than
+  // remote-prune's full `--prune` fetch, never the reverse — and
+  // session-start.js's inline pass only ever requests the narrow shape
+  // while the background pass that follows it only ever requests the wide
+  // one. The inline pass's fetch can therefore never safely stand in for
+  // the background pass's: reusing it would silently starve remote-prune
+  // of the ref data and stale-branch pruning only the wide fetch performs.
+  // Scoped to the preflight probe alone — not a general fetch-dedup.
+  const now = Date.now();
+  const healthFresh = ghDependentChecks.length > 0
+    && isFresh(readCache(root), now, SHARED_HEALTH_TTL_MS, 'lastHealthCheckOkAt');
   let health = null;
   // Set only by the concurrent branch below — the sequential fetch dispatch
   // further down reuses it instead of fetching a second time.
   let concurrentFetch = null;
-  if (ghDependentChecks.length) {
+  if (healthFresh) {
+    health = { ok: true };
+  } else if (ghDependentChecks.length) {
     if (fastChecksShape) {
       [health, concurrentFetch] = await Promise.all([
         require('./preflight').ghHealthCheckAsync(),
@@ -180,6 +205,16 @@ async function reconcile(opts = {}) {
       health = require('./preflight').ghHealthCheck();
     }
   }
+  // Deliberately NOT written here — mirror's own dispatch (further below)
+  // determines dirty/clean via a live `git status --porcelain`, and a cache
+  // write landing in `.claude-tweaks/` BEFORE that check runs can flip its
+  // classification in a checkout whose `.gitignore` doesn't yet cover this
+  // file (observed live: a from-scratch fixture repo with no `.gitignore`
+  // read mirror as 'dirty' purely because this write created an untracked
+  // file first). `healthJustSucceeded` carries the fact forward to the one
+  // combined cache write at the end of this function, alongside `lastRunAt`
+  // — after every dispatch, mirror included, has already read the tree.
+  const healthJustSucceeded = !!(health && health.ok && !healthFresh);
   if (health && !health.ok) {
     result.skipped.push({ check: ghDependentChecks.join(','), reason: `preflight-${health.reason}` });
     checks = checks.filter((c) => c === 'mirror');
@@ -382,9 +417,21 @@ async function reconcile(opts = {}) {
   // every existing stamp-dependent behavior (including session-start.js's
   // own FAST_CHECKS call, which both stamps and reads this key by design)
   // is unchanged.
-  if (!opts.skipCacheStamp) {
+  // #873: `lastHealthCheckOkAt` (set above as `healthJustSucceeded`, never
+  // written until now — see that comment for why) rides along in the same
+  // write rather than a separate one, whether or not `skipCacheStamp`
+  // suppresses `lastRunAt` this pass: it answers a different, narrower
+  // question ("is GitHub reachable") that stays valid regardless of which
+  // checks subset just ran, so `bin/hooks.js reconcile-summary`'s own
+  // mirror-only skipCacheStamp caller still benefits a sibling process —
+  // though in practice that caller's checks are mirror-only, so
+  // `healthJustSucceeded` is always false for it anyway.
+  if (!opts.skipCacheStamp || healthJustSucceeded) {
     const cache = readCache(root);
-    writeCache(root, { ...cache, lastRunAt: Date.now() });
+    const update = { ...cache };
+    if (!opts.skipCacheStamp) update.lastRunAt = Date.now();
+    if (healthJustSucceeded) update.lastHealthCheckOkAt = now;
+    writeCache(root, update);
   }
 
   // #644 Deliverable 3 — the one-line residue summary /claude-tweaks:flow's
