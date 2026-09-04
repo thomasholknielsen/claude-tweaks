@@ -1393,3 +1393,18 @@ ownership checks and `resolveRun`'s session-scoped arm through it, and #1012 rep
 mutating verbs' "newest non-terminal run" implicit fallback with an unambiguous-only resolution
 built on the same predicate, refusing outright on any ambiguity rather than guessing
 (`docs/hooks.md`'s Ownership section).
+
+**A second, previously-unnamed consequence (#1520), root-caused after the fact:** the same
+pre-#1099 `resolveRun` gap also silently defeated the bookkeeping-stamps gate's IL-131
+`record-worktree` enforcement, independent of the spec-315 symptom above. Record #815's `/build`
+(2026-08-26/27, one day before #1099 shipped) landed a materialize commit and a second commit in
+its own worktree without ever calling `record-worktree` — `run-state.json` was never written for
+that run. The gate's own `hasDistinctOwnedRun` escape hatch (#1259) reads `ctx.ownedRun` from
+`resolveRun`'s session-scoped arm; because that arm matched on raw `sessionId` equality with no
+worktree check, an *older*, already-stamped run the same session owned in a different worktree
+(record-769) was returned as this call's "own" run, made `ownedRun.dir !== ctx.runDir` true, and
+the gate downgraded its would-be deny to a `wd-foreign-session` warning instead — silently letting
+the second commit through with no `record-worktree` ever called. #1099's fix (above) closes this
+too, since it's the same `resolveRun` arm; `tests/hooks-bookkeeping-stamps-gate.test.js`'s "#1520,
+real resolveRun" test reproduces record-769/#815's exact shape end-to-end (a real cross-worktree
+`resolveRun` call feeding the gate, not a hand-constructed `ownedRun`) and pins that it now denies.
