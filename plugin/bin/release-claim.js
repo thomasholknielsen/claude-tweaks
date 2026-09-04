@@ -127,6 +127,19 @@ function run(argv, deps = realDeps) {
   // Default true (#1631) — --remove-in-progress is accepted as a redundant no-op for
   // existing call sites; --keep-in-progress-label is the only way to suppress it.
   const removeInProgress = !o.keepInProgressLabel;
+  // Anchoring is resolved and any refusal warned BEFORE the destructive
+  // release call runs, so an operator sees "decisions.md will not be written"
+  // before the claim is tombstoned, not after (same hoist as repair-claim.js,
+  // commit 387b53f4e / spec #1608 Finding 3; #1710).
+  let target;
+  try { target = resolveTarget({ runDir, cwd: deps.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
+  if (!target.ok) {
+    if (target.reason === 'not-anchored') {
+      deps.stderr(`release-claim.js: decisions.md not written — run dir is not anchored under the main checkout (a worktree-local shadow): ${runDir} — see _shared/pipeline-run-dir.md\n`);
+    } else {
+      deps.stderr(`release-claim.js: decisions.md not written — run dir does not exist: ${runDir}\n`);
+    }
+  }
   const r = release.releaseClaim({
     owner: repoSpec.owner, repo: repoSpec.repo, issueNumber: issue, runId, reason, link: o.link || undefined,
     removeGrants: o.removeGrants, removeInProgress, runner: deps.runner, gitRunner: deps.gitRunner, now: deps.now(),
@@ -135,16 +148,10 @@ function run(argv, deps = realDeps) {
     deps.stderr(`release-claim.js: warning — could not remove label ${label} on #${issue} (best-effort, continuing)\n`);
   }
   let logged = false;
-  let target;
-  try { target = resolveTarget({ runDir, cwd: deps.cwd(), mainRoot: deps.mainRoot }); } catch { target = { ok: false, reason: 'missing' }; }
   if (target.ok) {
     const reversibility = (r.outcome === 'skipped-not-owner' || r.outcome === 'unreadable' || r.outcome === 'failed') ? 'n/a' : 'high';
     const entry = formatEntry({ status: 'AUTO', now: deps.now(), step: o.step || 'Section E', text: decisionText(issue, r, reason, o.link), reversibility });
     try { appendEntry({ runDir, section: o.section, entry }); logged = true; } catch (err) { deps.stderr(`release-claim.js: decisions.md not written (${err && err.message})\n`); }
-  } else if (target.reason === 'not-anchored') {
-    deps.stderr(`release-claim.js: decisions.md not written — run dir is not anchored under the main checkout (a worktree-local shadow): ${runDir} — see _shared/pipeline-run-dir.md\n`);
-  } else {
-    deps.stderr(`release-claim.js: decisions.md not written — run dir does not exist: ${runDir}\n`);
   }
   deps.stdout(JSON.stringify({ issue, runId, reason, link: o.link || null, outcome: r.outcome, holder: r.holder || null, commentPosted: r.commentPosted, labelsRemoved: r.labelsRemoved, labelsFailed: r.labelsFailed, note: r.note || null, error: r.error || null, logged }, null, 2) + '\n');
   return EXIT[r.outcome] ?? 1;
