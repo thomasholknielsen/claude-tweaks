@@ -74,6 +74,27 @@ function resolveConfig({ git, readFile, runDir }) {
   };
 }
 
+// #1592: a bare integration-branch name (e.g. "main") resolves against the
+// *local* ref, which goes stale in a long-lived shared checkout — merge-base
+// against a stale local main can land many commits behind origin/main and
+// inflate the blast radius with already-landed, unrelated commits. When the
+// name is bare and a same-named remote-tracking origin/{name} ref exists,
+// prefer it; every caller (merge-check.md included) gets the fix without
+// having to fetch-and-prefer-origin at each call site individually. The
+// `refs/remotes/` prefix makes the verify lookup safe even for a name that
+// starts with "-" — the full arg never begins with "-", so it cannot be
+// misread as a flag.
+function preferOriginRef(git, integrationBranch) {
+  if (integrationBranch.startsWith('origin/')) return integrationBranch;
+  const candidate = `origin/${integrationBranch}`;
+  try {
+    git(['rev-parse', '--verify', '--quiet', `refs/remotes/${candidate}`]);
+    return candidate;
+  } catch {
+    return integrationBranch;
+  }
+}
+
 // A caller-supplied --base is verified as a commit rather than trusted; otherwise
 // the base is derived from the integration branch. --end-of-options keeps a ref
 // beginning with "-" from being read as a git flag. Either path throws rather than
@@ -86,12 +107,11 @@ function resolveMergeBase(git, { base, integrationBranch }) {
       throw new BlastRadiusError(`--base "${base}" does not resolve to a commit: ${err.message}`);
     }
   }
+  const ref = preferOriginRef(git, integrationBranch);
   try {
-    return git(['merge-base', '--end-of-options', integrationBranch, 'HEAD']).trim();
+    return git(['merge-base', '--end-of-options', ref, 'HEAD']).trim();
   } catch (err) {
-    throw new BlastRadiusError(
-      `could not resolve merge base of "${integrationBranch}" and HEAD: ${err.message}`
-    );
+    throw new BlastRadiusError(`could not resolve merge base of "${ref}" and HEAD: ${err.message}`);
   }
 }
 

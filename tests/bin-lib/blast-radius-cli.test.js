@@ -201,9 +201,65 @@ test('--integration-branch resolution passes --end-of-options before the branch 
   const git = fakeGit({
     'merge-base': () => `${SHA}\n`,
     diff: () => '',
-    'rev-parse': () => '/repo\n',
+    // No origin/-evil remote-tracking ref in this fixture: --verify must fail
+    // so the bare name is used, isolating this test to the --end-of-options
+    // concern rather than the origin-preference concern covered below.
+    'rev-parse': (args) => {
+      if (args.includes('--verify')) throw new Error('fatal: not a valid ref');
+      return '/repo\n';
+    },
   });
   computeBlastRadius({ integrationBranch: '-evil' }, { git, readFile: () => null });
   const mergeBaseCall = git.calls.find((c) => c[0] === 'merge-base');
   assert.deepStrictEqual(mergeBaseCall, ['merge-base', '--end-of-options', '-evil', 'HEAD']);
+});
+
+// #1592: a stale local integration-branch ref must not silently drive the
+// merge base when a same-named origin/{name} remote-tracking ref exists —
+// the origin ref is preferred.
+test('#1592: prefers origin/{name} over a bare integration branch when the remote-tracking ref exists', () => {
+  const git = fakeGit({
+    'merge-base': () => `${SHA}\n`,
+    diff: () => '',
+    'rev-parse': (args) => {
+      if (args.includes('--verify') && args.includes('refs/remotes/origin/main')) return `${SHA}\n`;
+      if (args.includes('--show-toplevel')) return '/repo\n';
+      throw new Error('fatal: not a valid ref');
+    },
+  });
+  computeBlastRadius({ integrationBranch: 'main' }, { git, readFile: () => null });
+  const mergeBaseCall = git.calls.find((c) => c[0] === 'merge-base');
+  assert.deepStrictEqual(mergeBaseCall, ['merge-base', '--end-of-options', 'origin/main', 'HEAD']);
+});
+
+// #1592: no such remote-tracking ref (e.g. no origin remote, or a branch name
+// unique to this checkout) falls back to the bare local ref exactly as before.
+test('#1592: falls back to the bare integration branch when no origin/{name} ref exists', () => {
+  const git = fakeGit({
+    'merge-base': () => `${SHA}\n`,
+    diff: () => '',
+    'rev-parse': (args) => {
+      if (args.includes('--show-toplevel')) return '/repo\n';
+      throw new Error('fatal: not a valid ref');
+    },
+  });
+  computeBlastRadius({ integrationBranch: 'main' }, { git, readFile: () => null });
+  const mergeBaseCall = git.calls.find((c) => c[0] === 'merge-base');
+  assert.deepStrictEqual(mergeBaseCall, ['merge-base', '--end-of-options', 'main', 'HEAD']);
+});
+
+// #1592: an already-qualified origin/{name} passed straight through must not
+// be re-prefixed into origin/origin/{name}.
+test('#1592: an already-qualified origin/{name} integration branch is used as-is', () => {
+  const git = fakeGit({
+    'merge-base': () => `${SHA}\n`,
+    diff: () => '',
+    'rev-parse': (args) => {
+      if (args.includes('--show-toplevel')) return '/repo\n';
+      throw new Error('unexpected rev-parse --verify call for an already-qualified ref');
+    },
+  });
+  computeBlastRadius({ integrationBranch: 'origin/main' }, { git, readFile: () => null });
+  const mergeBaseCall = git.calls.find((c) => c[0] === 'merge-base');
+  assert.deepStrictEqual(mergeBaseCall, ['merge-base', '--end-of-options', 'origin/main', 'HEAD']);
 });
