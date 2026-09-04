@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.115.1 — Fix wrap-up Auto-merge short-circuit skipping ledger-file deletion (#939); persist merge-check needs-human verdict so reconciler-side consoleAutoResolve can't override it (#1294); auto-decision-log test-gate failure-cause completeness rule (#1058)
+
+Fix wrap-up Auto-merge short-circuit skipping ledger-file deletion (#939); persist merge-check needs-human verdict so reconciler-side consoleAutoResolve can't override it (#1294); auto-decision-log test-gate failure-cause completeness rule (#1058).
+
 ## v6.115.0 — Adopt Fable 5.1 prompting-guide scope, edit, and unattended rules — Working Approach block test-volume and surgical-changes rules, /build implementer injection quoting them verbatim, /routine-kickoff unattended-firing standing constraint (#1809)
 
 Adopt Fable 5.1 prompting-guide scope, edit, and unattended rules — Working Approach block test-volume and surgical-changes rules, /build implementer injection quoting them verbatim, /routine-kickoff unattended-firing standing constraint (#1809).
