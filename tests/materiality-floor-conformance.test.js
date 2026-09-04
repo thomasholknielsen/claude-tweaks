@@ -9,6 +9,8 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
+const { DEFER_REASONS } = require('../plugin/bin/lib/issues/record');
+
 const REPO_ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 
@@ -19,6 +21,8 @@ const TIDY_SKILL = read('plugin/skills/tidy/SKILL.md');
 const TIDY_RECORDS = read('plugin/skills/tidy/step-1-records.md');
 const TIDY_STEP6_AUTO = read('plugin/skills/tidy/step-6-auto.md');
 const TIDY_SCAN_EXECUTION = read('plugin/skills/tidy/scan-execution.md');
+const HEALTH_DIGEST = read('plugin/skills/_shared/health-filing-digest.md');
+const REVIEW_ROUTING = read('plugin/skills/review/step3-routing.md');
 
 const DIGEST_ACTIONS = [
   'Merge-close duplicate digest',
@@ -228,6 +232,66 @@ test('multi-branch adopter files cite materiality-floor.md at each of their fili
     assert.ok(
       count >= 2,
       `${rel} should cite _shared/materiality-floor.md at every one of its filing branches (found ${count})`,
+    );
+  }
+});
+
+// --- #1279: Defer-reason vocabulary for direct-filing producers ---
+
+test('materiality-floor.md documents a Defer-reason value for direct-filing producers (the four health sweeps)', () => {
+  assert.ok(FLOOR.includes('direct-filing-sweep'));
+  assert.match(FLOOR, /### Direct-filing producers' `Defer-reason:` value/);
+});
+
+test('the direct-filing-sweep value is a deliberate contract-stated exception, not a member of the closed deferral-gate vocabulary', () => {
+  assert.ok(
+    !DEFER_REASONS.includes('direct-filing-sweep'),
+    'direct-filing-sweep must NOT be added to record.js\'s DEFER_REASONS — it is not a fix-now-failure reason',
+  );
+  assert.ok(FLOOR.includes("Deliberately **not** added to `bin/lib/issues/record.js`'s\n`DEFER_REASONS`") || FLOOR.includes('Deliberately **not** added'));
+});
+
+// --- #1279: dedup mechanism ---
+
+test('materiality-floor.md documents the dedup mechanism and the fingerprint marker in the Entry format', () => {
+  assert.match(FLOOR, /### Dedup/);
+  assert.ok(FLOOR.includes('materiality-fingerprint'));
+  assert.ok(FLOOR.includes('isMaterialityDuplicate'));
+  assert.ok(FLOOR.includes('bin/lib/health-core/materiality-digest.js'));
+});
+
+test('digest-sweep.md\'s cluster promotion notes the dedup-at-routing-time guarantee', () => {
+  assert.ok(SWEEP.includes('isMaterialityDuplicate'));
+});
+
+test('review/step3-routing.md checks isMaterialityDuplicate before appending a digest entry', () => {
+  assert.ok(REVIEW_ROUTING.includes('isMaterialityDuplicate'));
+});
+
+// --- #1279: digest URL and count surfacing ---
+
+test('materiality-floor.md documents the digest URL and count surfacing convention', () => {
+  assert.match(FLOOR, /### Digest URL and count surfacing/);
+});
+
+test('at least one adopter (review/step3-routing.md) surfaces the digest comment URL in its own summary', () => {
+  assert.ok(REVIEW_ROUTING.includes('Digest URL and count surfacing'));
+  assert.match(REVIEW_ROUTING, /digest comment URL and the count routed/);
+});
+
+test('the four health sweeps report a materiality-digest count distinct from the cap-digest count in the throttle line', () => {
+  assert.match(HEALTH_DIGEST, /filed: N, digested: M, cap: \{CAP\}, materiality: K/);
+  const HEALTH_SKILLS = [
+    'plugin/skills/code-health/SKILL.md',
+    'plugin/skills/docs-health/SKILL.md',
+    'plugin/skills/harness-health/SKILL.md',
+    'plugin/skills/journey-health/SKILL.md',
+  ];
+  for (const rel of HEALTH_SKILLS) {
+    assert.match(
+      read(rel),
+      /filed: N, digested: M, cap: \{CAP\}, materiality: K/,
+      `${rel} should cite the updated throttle line carrying the materiality: K field`,
     );
   }
 });

@@ -35,6 +35,10 @@ exists on `work-backend: local-files` (single-writer backend) — skip this proc
 Read every active entry line (no trailing marker — neither a promotion `→ {id}` nor an expiry
 `→ expired`) across the container's comments (`github-issues`) or body (`local-files`), per
 `_shared/materiality-floor.md`'s entry format. Group by `{area}` (the entry format's first field).
+A re-encountered finding never produces a second active line to read here in the first place —
+`_shared/materiality-floor.md`'s Dedup section has every routing skill check
+`isMaterialityDuplicate` before appending, so this sweep's own count is never inflated by
+repeated firings of one recurring finding.
 When **3 or more** un-promoted entry lines share the same `{area}`, propose one spec-shaped issue
 absorbing them — each entry becomes one Deliverables bullet, the cluster's shared `{area}` becomes
 the proposal's title subject. Present the proposal per this project's standard staged-item flow

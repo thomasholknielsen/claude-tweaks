@@ -128,7 +128,7 @@ eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" JH_ISSUES_RAW=jh
 gh issue list --label by:journey-health --state all --json number,state,labels,body --limit 500 > "$JH_ISSUES_RAW"
 ```
 
-Parse each issue body for its fingerprint marker. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: journeyhealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- journey-health-fingerprint: journeyhealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `$JH_ISSUES`.
+Parse each issue body for its fingerprint marker. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: journeyhealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- journey-health-fingerprint: journeyhealth-XXXXXXXX -->` marker, then to the plain-text `work-fingerprint: journeyhealth-XXXXXXXX` companion line for an MCP-stripped body (`_shared/health-issue-index.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `$JH_ISSUES`.
 
 **Transport and outcomes:** read `_shared/health-issue-index.md` and apply it, with `{SKILL}` = `journey-health` and `{ISSUES_FILE}` = `$JH_ISSUES`. In short: `gh` absent means rebuild this index via the MCP `list_issues` tool, not skip the step; only a genuine "neither transport can reach GitHub" sets `ISSUES_FILE=""`, and that case gets reported rather than passing silently. A repo with no `by:journey-health` issues yet is a legitimately *empty* index (`[]`), not an unavailable one — keep the two distinct.
 
@@ -269,7 +269,7 @@ In `--dry-run` mode, print what would be filed or reopened, and the `gh` command
 
 **Step 7 — SUMMARIZE.**
 
-Report: which journey (if any) was audited, whether the coverage scan ran, how many findings were emitted, how many filed vs skipped by dedup. When Step 3.5 ran, also report: which journey was deep-audited (or that nothing was due, or that it was skipped for missing `files:` entries), and the drift-vs-regression verdict for any live-check failure. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
+Report: which journey (if any) was audited, whether the coverage scan ran, how many findings were emitted, how many filed vs skipped by dedup. When Step 3.5 ran, also report: which journey was deep-audited (or that nothing was due, or that it was skipped for missing `files:` entries), and the drift-vs-regression verdict for any live-check failure. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}, materiality: K` — report it even when `M` and `K` are both `0`, so the throttle is visible rather than inferred.
 
 ## Routine Configuration
 
