@@ -172,16 +172,16 @@ classifier from rule 4 per `_shared/learning-routing.md`. Do not file.
 
 **Degraded git context fallback:** if `git remote get-url origin` errors or
 resolves to no `origin` remote (broken git context — e.g. record #703's
-worktree-isolation-pin failure mode), do not throw. Fall back to comparing
-the filing target (`thomasholknielsen/claude-tweaks`, used verbatim in Step 8
-below) against this plugin's own known slug: read `repository` from
-`${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and derive the `owner/repo`
-slug from that URL. If the derived slug matches the filing target, treat this
-exactly like a `git remote` self-reference match above — stop, report, do not
-file. If `plugin.json` itself is unreadable or has no `repository` field, skip
-this check with a logged assumption ("self-reference check skipped — no git
-context and no plugin.json repository field to fall back on") rather than
-blocking the whole skill on an unrelated git failure.
+worktree-isolation-pin failure mode), do not throw. `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`'s
+`repository` field describes this **plugin's own** source repo, not the
+current project — it always resolves to the same slug as the filing target
+in Step 8 below, so comparing the two is uninformative (always a match) and
+cannot answer "is the current project the claude-tweaks repo itself." There
+is no reliable signal for that question once `git remote` is unavailable, so
+skip the self-reference check entirely with a logged assumption
+("self-reference check skipped — no git context; cannot determine whether
+the current project is claude-tweaks itself") and proceed to Step 4 rather
+than blocking the whole skill on an unrelated git failure.
 
 ### Step 4: Dedup
 

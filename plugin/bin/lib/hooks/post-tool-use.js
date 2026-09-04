@@ -1,4 +1,4 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + ad-hoc-session run-dir stamping (log tier, see stampAdHocRunDir below) + skill-invocation ledger (log tier, see ./skill-invocation.js) + AskUserQuestion ledger (log tier, see logAskUserQuestion below).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + post-teardown pin backstop (warn tier, see checkPostTeardownPin below) + ad-hoc-session run-dir stamping (log tier, see stampAdHocRunDir below) + skill-invocation ledger (log tier, see ./skill-invocation.js) + AskUserQuestion ledger (log tier, see logAskUserQuestion below).
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -569,10 +569,10 @@ function logPostTeardownPinEvent(ctx, data) {
 
 function checkPostTeardownPin(ctx) {
   try {
-    const toolName = ctx.input && ctx.input.tool_name;
-    const toolInput = ctx.input && ctx.input.tool_input;
+    const toolName = ctx.input.tool_name;
+    const toolInput = ctx.input.tool_input || {};
     const isExitWorktreeRemove = PRE_GATE_COVERAGE.teardownTools.includes(toolName) &&
-      !!toolInput && toolInput.action === 'remove';
+      toolInput.action === 'remove';
     const bashTargets = toolName === 'Bash' ? teardownTargets(ctx) : [];
     if (!isExitWorktreeRemove && bashTargets.length === 0) return null;
 
