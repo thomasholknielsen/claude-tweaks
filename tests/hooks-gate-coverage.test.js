@@ -226,6 +226,28 @@ test('PostToolUse carries an EnterWorktree matcher group for the post-tool-use E
     'the EnterWorktree PostToolUse group must invoke hooks.js post-tool-use');
 });
 
+// #703: checkPostTeardownPin hard-gates on tool_name === 'ExitWorktree' (for
+// the action:remove shape) and on a Bash(git worktree remove ...) command —
+// a PostToolUse group without matching matchers/predicates makes it dead at
+// the registration seam, the same #70 dead-branch shape the EnterWorktree
+// test above guards against.
+test('PostToolUse carries an ExitWorktree matcher group for the post-teardown pin backstop', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const group = hooks.hooks.PostToolUse.find((e) => e.matcher === 'ExitWorktree');
+  assert.ok(group, 'PostToolUse has no ExitWorktree matcher group — the post-teardown pin backstop (#703) never runs for ExitWorktree');
+  assert.ok(group.hooks.some((h) => typeof h.command === 'string' && h.command.includes('post-tool-use')),
+    'the ExitWorktree PostToolUse group must invoke hooks.js post-tool-use');
+});
+
+test('PostToolUse\'s Bash group carries a `git worktree *` if-predicate for the post-teardown pin backstop (#703)', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashPost = hooks.hooks.PostToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashPost, 'PostToolUse must carry a Bash matcher group');
+  const ifs = bashPost.hooks.map((h) => h.if).filter(Boolean);
+  assert.ok(ifs.includes('Bash(git worktree *)'),
+    'PostToolUse\'s Bash group is missing an "if": "Bash(git worktree *)" predicate — checkPostTeardownPin would never spawn for a raw `git worktree remove` Bash call');
+});
+
 test('an unlisted Bash write shape is genuinely not detected', () => {
   // Proves the WRITE_SHAPES guard above is doing work rather than sitting
   // upstream of branches that would have matched anyway.
