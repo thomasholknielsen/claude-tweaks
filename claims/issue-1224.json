@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-04T070301-record-1224",
-  "sessionId": "f8cceef7-c9b1-4c27-a2d7-f79cc844ea18",
-  "claimedAt": "2026-09-04T07:05:00.589Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "never-started: open PR #1572 already exists for this record (build/test/review/wrap-up previously completed, parked pending-review) -- not duplicating work",
+  "releasedAt": "2026-09-04T07:08:38.394Z"
 }
