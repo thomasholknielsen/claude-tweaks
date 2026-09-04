@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-04T133743-record-1100",
-  "sessionId": "9866ea8b-a093-415a-bbb4-cf782eba24fe",
-  "claimedAt": "2026-09-04T14:00:12.117Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "merged: reconciled from PR #1834",
+  "releasedAt": "2026-09-04T14:22:54.474Z"
 }
