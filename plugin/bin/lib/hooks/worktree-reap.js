@@ -360,6 +360,20 @@ function resolveIntegrationBranch(repoRoot, cache) {
   return name;
 }
 
+// The inverse of preferRemoteTrackingRef, for a caller that needs a BARE
+// branch name: a `git fetch origin -- {name}` refspec (looked up on the
+// remote side, which has no `origin/`-prefixed branches), or an equality
+// comparison against a value that is always bare (`git branch --show-current`,
+// `readDefaultBranch`'s own origin/HEAD strip in merge-verification.js).
+// resolveIntegrationBranch's policy-configured path can now return either
+// shape (preferRemoteTrackingRef above) -- every caller that builds its own
+// `origin/${name}` ref or compares against a bare name must normalize
+// through this first. A value with no `origin/` prefix, or a nullish value,
+// passes through unchanged -- safe to call unconditionally.
+function bareIntegrationName(name) {
+  return name ? name.replace(/^origin\//, '') : name;
+}
+
 // Is this worktree path held by a live session right now? The one predicate
 // #407's reconciler needs from this module — exported so it consumes the
 // same pid-parsing logic reapWorktrees does above, rather than a second copy.
@@ -391,6 +405,7 @@ module.exports = {
   reapWorktrees,
   resolveIntegrationBranch,
   preferRemoteTrackingRef,
+  bareIntegrationName,
   isWorktreeLocked,
   HARNESS_WORKTREE_DIR,
   ORPHAN_GRACE_MS,

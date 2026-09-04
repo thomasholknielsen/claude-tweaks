@@ -15,7 +15,7 @@ const path = require('path');
 const { closeRunState } = require('./close-run-state');
 const { archiveRunDir } = require('../reconcile/archive-merged');
 const { runGit } = require('./git-exec');
-const { parseWorktreeList, isWorktreeLocked, resolveIntegrationBranch } = require('./worktree-reap');
+const { parseWorktreeList, isWorktreeLocked, resolveIntegrationBranch, bareIntegrationName } = require('./worktree-reap');
 const { mainCheckoutRoot } = require('./worktree-detect');
 
 const GH_TIMEOUT_MS = 15000;
@@ -96,7 +96,12 @@ function teardownRun(runDir, opts = {}) {
   // never reach them; falling back to the recorded state's own `branch` field (no git needed)
   // keeps the foreign-owner refusal check below meaningful even when root can't be resolved.
   const branch = (root ? branchOfWorktree(root, worktreePath) : null) || (prevState && prevState.branch) || null;
-  const integration = root ? resolveIntegrationBranch(root) : null;
+  // #1688: resolveIntegrationBranch's policy-configured path can now return
+  // an `origin/{name}` remote-tracking ref (preferRemoteTrackingRef,
+  // worktree-reap.js). `branch` above is always bare, so the equality check
+  // below needs a bare `integration` too — otherwise this refusal-to-delete
+  // guard silently stops recognizing the integration branch as itself.
+  const integration = root ? bareIntegrationName(resolveIntegrationBranch(root)) : null;
   const isIntegrationBranch = !!(branch && integration && branch === integration);
 
   // `explicit: false` here is deliberate, not a copy-paste of close-run's default: teardown-run
