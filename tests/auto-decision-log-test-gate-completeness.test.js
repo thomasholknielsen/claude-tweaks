@@ -26,11 +26,11 @@ test('auto-decision-log.md requires test-gate failure-cause enumeration complete
 });
 
 test('auto-decision-log.md requires every failure be named or an explicit partial signal', () => {
-  assert.match(AUTO_DECISION_LOG, /see full log at/);
+  assert.match(COMPLETENESS_SECTION, /see full log at/);
 });
 
 test('auto-decision-log.md warns against an unsignaled partial named list', () => {
-  assert.match(AUTO_DECISION_LOG, /Never write a partial named list/);
+  assert.match(COMPLETENESS_SECTION, /Never write a partial named list/);
 });
 
 test('auto-decision-log.md cites the #994 incident that motivated this rule', () => {
