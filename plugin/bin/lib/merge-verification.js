@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { resolveIntegrationModel } = require('./policy-schema');
-const { resolveIntegrationBranch } = require('./hooks/worktree-reap');
+const { resolveIntegrationBranch, bareIntegrationName } = require('./hooks/worktree-reap');
 
 const PR_TRIGGERS = new Set(['pull_request', 'pull_request_target']);
 
@@ -187,7 +187,13 @@ function deriveMergeVerification(repoRoot, deps = {}) {
   let target;
   let fallback;
   try {
-    target = integrationBranch(repoRoot);
+    // #1688: resolveIntegrationBranch's policy-configured path can now
+    // return an `origin/{name}` remote-tracking ref (preferRemoteTrackingRef,
+    // worktree-reap.js). `fallback` below is always bare (readDefaultBranch
+    // strips any `origin/` prefix itself), so `target` needs the same
+    // normalization or a policy-configured integration branch that matches
+    // the default branch silently reads as (4) instead of (3) below.
+    target = bareIntegrationName(integrationBranch(repoRoot));
     fallback = defaultBranch(repoRoot);
   } catch {
     return 'off';

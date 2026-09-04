@@ -1,27 +1,28 @@
 # Common Step 1.5 — Plan Audit
 
-Audit the plan against the actual repo before dispatching execution work. Catches the failure mode where the plan's "Files" sections omit a relevant file and the omission isn't noticed until a late cross-reference audit.
+Audit the plan against the actual repo before dispatching execution work. The four deterministic checks below — Check A (paths exist), Check B (scope-keyword sweep), Check C (verification-command pre-check), and the headroom check — are mechanized in `plugin/bin/plan-audit.js` (#903); this file covers invocation, result interpretation, and policy handling only. Judgment checks (deictic re-resolution, degrade-clause convention, gate-over-producers) stay prose in `plan-authoring.md` — they are not mechanically checkable.
 
 **Skip condition lives in `build/SKILL.md`'s Common Step 1.5 stub, not here** (the re-read cut: a caller deciding skip-vs-run must never need to load this file to make that decision). This file loads only once the step is confirmed to run.
 
-## Check A — Plan files exist (always runs)
-
-For each path mentioned in the plan's "Files:" sections (under "Create:", "Modify:", "Delete:"), verify it exists (for Modify/Delete) or that its parent directory exists (for Create). List any missing paths.
-
-**On Check A failure:** Stop. Present the missing paths. The plan needs revision before execution starts.
-
-## Check B — Scope-keyword sweep (conditional)
-
-Runs when the plan or design doc declares `Scope keywords:`. When the plan or design doc has a `Scope keywords:` line listing patterns (e.g., `Scope keywords: playwright-cli, claude_in_chrome, PLAYWRIGHT_MCP`), grep the repo for each keyword and list any files containing matches that aren't in the plan's file list.
+## Invocation
 
 ```bash
-# Example for a removal/migration plan
-grep -rln -E "playwright-cli|claude_in_chrome|PLAYWRIGHT_MCP" plugin/skills/ plugin/agents/ plugin/hooks/ plugin/.claude-plugin/ README.md CLAUDE.md docs/ 2>/dev/null
+node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" {plan-file} [--repo-root {dir}]
 ```
 
+`--repo-root` defaults to `git rev-parse --show-toplevel` of the cwd (or the cwd itself outside a repo) — pass it explicitly only when the plan's own worktree differs from cwd. Stdout is two lines: a compact JSON envelope (`{checkA, checkB, checkC, headroom}`, each `{ok, ...}`), then a one-line human summary. Exit code is `0` iff every check's `ok` is `true` (`headroom.nearCeiling` entries never fail `ok` — only `headroom.breaches` do). Parse the JSON via `JSON.parse(stdout.split('\n')[0])`.
+
+## Result interpretation
+
+- **`checkA.ok === false`** (`missing: [{path}, ...]`) — Stop. Present the missing paths. The plan needs revision before execution starts.
+- **`checkC.ok === false`** (`findings: [{task, title, command, expected, actualExitCode, actualSummary}, ...]`) — Stop, unconditionally, the same shape as Check A above — never routed through Check B's auto-mode policy table, and with no `AskUserQuestion` branch. Present the flagged task(s), their commands, and `actualSummary` (the output that already looks like a pass). A non-discriminating verification command is a correctness gap the `_shared/auto-mode-contract.md` HARD-GATE exemption already covers (test failures), not a scope decision with a policy lever.
+- **`headroom.breaches`** (non-empty) — treat as a Check A-shaped stop: present the breaching file(s) and their byte counts; the plan needs to shrink its target or split the insertion before execution starts.
+- **`headroom.nearCeiling`** (non-empty, `ok` still `true`) — informational only. Surface it inline (file, current bytes, remaining headroom) so the plan author can judge whether the *planned* insertion (not estimated by this check — see Non-Goals below) will fit; never blocks.
+- **`checkB.ok === false`** (`unplanned: [string, ...]`) — see "On Check B finding files outside the plan" below; this is the one check routed through the `scope-creep` policy, not a bare stop.
+
 Resolve the `scope-keywords-required` setting — `SCOPE_KEYWORDS_REQUIRED=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values scope-keywords-required)`:
-- `scope-keywords-required: false` — Check B is informational; surface missing-from-plan files as a warning, proceed.
-- `scope-keywords-required: true` — Check B is gating; if any matched files aren't in the plan AND the plan/design has no `Scope keywords:` field, refuse to start. Tells the user: "This project requires scope keywords. Add `Scope keywords: <pattern1, pattern2>` to the plan or design doc and re-run."
+- `scope-keywords-required: false` — Check B is informational when the plan has no `Scope keywords:` field at all (the CLI reports `checkB.ok: true` trivially in that case — nothing to sweep).
+- `scope-keywords-required: true` — gating: if the plan/design has no `Scope keywords:` field (the CLI's `checkB` ran zero sweep), refuse to start. Tell the user: "This project requires scope keywords. Add `Scope keywords: <pattern1, pattern2>` to the plan or design doc and re-run." This is a skill-layer policy check the CLI itself doesn't make — the CLI only reports whether a declared sweep found unplanned matches.
 
 ## On Check B finding files outside the plan
 
@@ -37,7 +38,7 @@ Resolve `scope-creep` with ONE resolver call — `node "${CLAUDE_PLUGIN_ROOT}/bi
 
 ### Interactive mode (or `stop-and-ask` policy)
 
-Present the list:
+Present the list (`checkB.unplanned`):
 
 ```
 Scope keywords match {N} file(s) not in the plan:
@@ -52,16 +53,11 @@ Then call `AskUserQuestion` with:
 - Option 2 — `label`: `"Continue without"`, `description`: `"I've checked, these are intentionally excluded"`
 - Option 3 — `label`: `"Stop"`, `description`: `"Let me revise the plan manually"`
 
-## Check C — Verification-command pre-check (always runs)
+## What each check covers
 
-Neither Check A nor Check B executes any command the plan itself declares — both are static content checks. Check C closes that gap: it pre-runs each task's own stated acceptance/verification command once, read-only, against current repo state, before Common Step 2 hands off to any execution strategy — i.e. before any task's own implementation has landed.
+- **Check A** — every path in the plan's `Files:` sections (`Create:`/`Modify:`/`Delete:`/`Test:` bullets) exists, or (for `Create:`/`Test:`, since a `Test:` bullet routinely names a brand-new test file the plan is about to write) its parent directory exists.
+- **Check B** — when the plan declares `Scope keywords:`, an fs-walk (never a gitignore-honoring grep — a gitignored-but-plan-relevant file must not silently vanish from the sweep) flags any repo file containing a match that isn't itself one of the plan's declared paths.
+- **Check C** — for each task's own `- [ ] **Step 2: …**` sub-step declaring `Run: {command}` / `Expected: FAIL …`, runs `{command}` once, read-only, against current repo state. The only finding: the command already exhibits a passing/success signature (exit code 0, or a success marker with no failure marker) despite the `Expected: FAIL` declaration. A command erroring or cleanly failing pre-dispatch is never a finding — a hard error on a later task in a plan whose tasks build on each other sequentially is common and expected.
+- **Headroom** — for each existing file (`Modify:`/`Delete:`/`Test:`, never `Create:`) under the governed skill-corpus set (`plugin/skills/**/*.md` — the same set `context-cost.js` already measures every `SKILL.md` and sub-file against), its current byte count and headroom against the shared `CEILING_BYTES` constant. v1 reports current bytes + headroom only — it never estimates the size of the plan's own planned insertion (Non-Goals); the plan author judges borderline cases from the reported headroom.
 
-**Extraction:** for each `### Task N: ...` block in the plan, find its `- [ ] **Step 2: Run test to verify it fails**` sub-step and read the `Run: {command}` / `Expected: {text}` lines immediately following it — the literal template shape defined by the superpowers `writing-plans` skill's Task Structure section (cite it; do not restate its template here, since it lives in a different plugin and can drift independently). A task with no Step 2 `Run:`/`Expected:` pair — a non-code task (pure config/doc/manual work) — is skipped by Check C; there is nothing to pre-run.
-
-**Execution:** run each extracted `{command}` once via Bash, against the plan's own worktree at its current HEAD, before Common Step 2 hands off to the execution strategy. This reuses the "run a plan-dictated command once, read-only, and record the output" discipline `skills/build/SKILL.md`'s Spec Step 3 "Verbatim-command run-once check" bullet already establishes; cite it rather than duplicating the discipline.
-
-**Finding:** the only thing Check C flags is a command that already exhibits a passing/success signature — exit code 0 for a test runner, or output matching a success pattern (e.g. `PASS`, `0 failing`, `✓`) with no corresponding failure marker — despite the task declaring `Expected: FAIL ...`. A command erroring or cleanly failing pre-dispatch is **not** a Check C finding — only an already-passing result is. A hard error (missing module, import error, file not found) is common and expected for a later task in a plan whose tasks build on each other sequentially — running task 5's Step 2 command before any of tasks 1-4 have landed will often hard-error rather than assert-fail, and that's fine; do not widen this into flagging errors too, which would produce constant false positives on any plan with inter-task dependencies.
-
-**On Check C failure:** Stop, unconditionally. Present the flagged task(s), their commands, and the actual output that already looks like a pass. The plan needs revision before execution starts — the same shape as Check A's stop above, not routed through Check B's auto-mode `scope-creep` policy table and with no `AskUserQuestion` branch: a non-discriminating verification command is a correctness gap the `_shared/auto-mode-contract.md` HARD-GATE exemption already covers (test failures), not a scope decision with a policy lever.
-
-Check C shares Check A/B's existing skip gate (fewer than 3 file references and no `Scope keywords:` field, or `ceremony-profile: fast-lane`) — it introduces no new skip condition of its own.
+Check A/B/C and the headroom check all share Check A/B's existing skip gate (fewer than 3 file references and no `Scope keywords:` field, or `ceremony-profile: fast-lane`) — none of them introduces a new skip condition of its own.

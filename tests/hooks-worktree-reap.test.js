@@ -446,6 +446,22 @@ test('resolveIntegrationBranch: policy.yml\'s integration-branch wins', () => {
   assert.strictEqual(resolveIntegrationBranch(main), 'staging');
 });
 
+test('resolveIntegrationBranch: #1688 — a policy-configured local name upgrades to its remote-tracking ref when one already exists (no fetch)', () => {
+  // A local `integration-branch:` value can lag `origin/{name}` --
+  // worktree-setup.md's post-creation catch-up merges origin/{integration}
+  // into a worktree's HEAD routinely, so a caller comparing a range/merge-base
+  // against the stale local name can find those already-merged commits still
+  // inside it. Built entirely from local refs (no network) -- the exact shape
+  // `git remote set-head` plus a manual fetch would produce.
+  const main = gitRepo();
+  const base = defaultBranch(main);
+  fs.mkdirSync(path.join(main, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(main, '.claude-tweaks', 'policy.yml'), `integration-branch: ${base}\n`);
+  execFileSync('git', ['-C', main, 'update-ref', `refs/remotes/origin/${base}`, 'HEAD']);
+  assert.strictEqual(resolveIntegrationBranch(main), `origin/${base}`,
+    'the resolved name must upgrade to origin/{name} once that remote-tracking ref exists on disk');
+});
+
 test('resolveIntegrationBranch: never falls back to the main checkout\'s current branch', () => {
   // No policy key and no origin/HEAD -> nothing resolves. The current branch is
   // deliberately NOT a source (integration-branch.md's named anti-pattern): a

@@ -288,7 +288,17 @@ function resolveRun(cwd, env, sessionId, opts = {}) {
   let unowned = null;
   for (const { dir, state } of iterRunDirsWithState(resolvedCwd)) {
     const owner = state && typeof state.sessionId === 'string' && state.sessionId ? state.sessionId : null;
-    if (owner === me) return { dir, attribution: 'session' };
+    // #1099: session-id equality alone is not sufficient — a sibling agent of
+    // this same session, bound to a DIFFERENT live worktree, must not be
+    // returned as this caller's own run. classifyOwnership's 'foreign' verdict
+    // is the only one that skips here; 'mine' (the ordinary case: cwd inside
+    // the recorded worktree, or a binding-less run from the main checkout) and
+    // 'indeterminate' (unprovable — a deleted binding, an unresolved cwd) both
+    // preserve today's behavior and still return 'session' attribution, which
+    // is what keeps single-session resolution byte-identical (#1099's Deliverables).
+    if (owner === me && classifyOwnership({ sessionId: me, cwd: resolvedCwd }, state) !== 'foreign') {
+      return { dir, attribution: 'session' };
+    }
     // Newest-first, so the first unowned, worktree-compatible run is the one
     // the old code returned unconditionally.
     if (!owner && !unowned && !isSkippableFallbackCandidate(resolvedCwd, me, dir, state, includeWorktreeForeign)) unowned = dir;
@@ -322,8 +332,10 @@ function resolveRunDir(cwd, env, sessionId, opts) {
 // A caller in any live worktree other than the one recorded in the binding
 // classifies 'foreign' — same repo or different, both trees provably exist and differ.
 //
-// Authoritative semantics table: .claude-tweaks/pipelines/archive/2026-08-20T185022-spec-1098/work/1098-spec.md
-// (committed on this branch).
+// Authoritative semantics table: docs/hooks.md's Ownership section (the
+// spec-1098 run-dir this predicate originated from was archived to
+// .claude-tweaks/pipelines/archive/2026-08-20T185022-spec-1098/work/1098-spec.md
+// on wrap-up — that path dies on archival, so docs/hooks.md is the live pointer).
 function classifyOwnership(caller, runState) {
   const callerId = caller && typeof caller.sessionId === 'string' && caller.sessionId ? caller.sessionId : null;
   const ownerId = runState && typeof runState.sessionId === 'string' && runState.sessionId ? runState.sessionId : null;

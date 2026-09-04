@@ -278,6 +278,67 @@ test('a foreign-owned run is still never resolved for another session, worktree 
   assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: null, attribution: null });
 });
 
+// ─── same-session sibling worktrees (#1099) ────────────────────────────────
+//
+// #965: CLAUDE_CODE_SESSION_ID is shared across every subagent of a session,
+// so `owner === me` alone (the pre-#1099 session-scoped arm) cannot tell this
+// caller apart from a sibling agent of the SAME session bound to a different,
+// still-live worktree. These pin that resolveRun's session-scoped arm now
+// also runs the candidate through classifyOwnership, exactly as the
+// unknown-session fallback arm has since #1410 — a 'foreign' verdict skips
+// the candidate instead of returning it as `attribution: 'session'`.
+
+test('a known-session candidate bound to a DIFFERENT live worktree is skipped, not returned as attribution:session', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const siblingWt = linkedWorktreeOf(main);
+  mkRun(main, '2026-07-01T090000-sibling', { status: 'active', sessionId: 'me', worktree: siblingWt });
+
+  // Pre-#1099, `owner === me` would have returned this run immediately as
+  // `attribution: 'session'` — the exact #965 sibling-stomp shape. It must
+  // now be skipped, falling through to resolveRun's unowned/null result
+  // (no unowned candidate exists here).
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: null, attribution: null });
+});
+
+test('a known-session candidate bound to a different live worktree is skipped in favor of an older UNOWNED, worktree-compatible candidate', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const siblingWt = linkedWorktreeOf(main);
+  const compatible = mkRun(main, '2026-07-01T090000-unbound', { status: 'active' }); // no sessionId, no worktree
+  mkRun(main, '2026-07-02T090000-sibling', { status: 'active', sessionId: 'me', worktree: siblingWt });
+
+  // Newest-first would hit the sibling first; it must be skipped (foreign,
+  // per classifyOwnership's worktree-binding proof) and the scan falls
+  // through to the older, worktree-compatible unowned run instead.
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: compatible, attribution: 'fallback' });
+});
+
+test('a known-session candidate bound to THIS caller\'s own worktree still classifies mine and returns attribution:session (dual case)', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const mine = mkRun(main, '2026-07-01T090000-mine', { status: 'active', sessionId: 'me', worktree: callerWt });
+  const siblingWt = linkedWorktreeOf(main);
+  mkRun(main, '2026-07-02T090000-sibling', { status: 'active', sessionId: 'me', worktree: siblingWt });
+
+  // The caller's own binding (mine, older) must still win via ownership,
+  // even though the newer sibling run shares the same session id — proving
+  // the skip above is scoped to a genuine worktree mismatch, not blanket
+  // distrust of same-session candidates.
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: mine, attribution: 'session' });
+});
+
+test('a known-session candidate with NO worktree binding at all still returns attribution:session (indeterminate, not foreign)', () => {
+  const main = gitRepo();
+  const callerWt = linkedWorktreeOf(main);
+  const unbound = mkRun(main, '2026-07-01T090000-mine', { status: 'active', sessionId: 'me' }); // owned, no binding
+
+  // classifyOwnership degrades an unbound run to 'indeterminate' from inside
+  // a linked worktree (never 'foreign' on unprovable evidence) — this must
+  // still resolve as the caller's own session, byte-identical to pre-#1099.
+  assert.deepStrictEqual(ctxLib.resolveRun(callerWt, {}, 'me'), { dir: unbound, attribution: 'session' });
+});
+
 // close-run's own regression (whole-branch review finding, pre-v6.110.0): its
 // implicit (no --run) fallback shares resolveRun's unknown-session arm with
 // post-tool-use.js's event attribution, but needs the OPPOSITE answer for a

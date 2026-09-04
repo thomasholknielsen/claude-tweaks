@@ -33,7 +33,9 @@ function hasUnarchivedWork(runDir) {
 // Returns one of:
 //   { status: 'refused-foreign' }
 //     — an implicit (`explicit: false`) run resolution landed on a run
-//       recorded by a different, still-active session; nothing was written.
+//       recorded by a different, still-active session (or bound to a
+//       different, still-live worktree — see the classifyOwnership note
+//       below); nothing was written.
 //   { status: 'refused-live-worktree' }
 //     — an implicit close landed on a run whose worktree directory still
 //       physically exists; nothing was written (see #1502 comment below).
@@ -41,9 +43,20 @@ function hasUnarchivedWork(runDir) {
 //     — the run-state write was attempted (and `writeOk` reports whether it
 //       succeeded); `foreignOwner`/`wrapupSeen`/`notYetArchived` let the
 //       caller render the same advisory lines close-run always has.
-function closeRunState(runDir, { explicit = false, sessionId = null, checkLiveWorktree = true } = {}) {
+//
+// #1012: `foreignOwner` is decided via `classifyOwnership` (#1098) —
+// composite session+worktree-binding identity — instead of a raw
+// `prev.sessionId !== sessionId` comparison, which the shared
+// `CLAUDE_CODE_SESSION_ID` (#965: identical across every subagent of one
+// session) defeated for a sibling closing a DIFFERENT sibling's bound run.
+// `callerIdentity = { sessionId, cwd }` replaces the bare `sessionId`
+// option; hooks.js's callers thread `process.cwd()` through as `cwd`.
+function closeRunState(runDir, {
+  explicit = false, callerIdentity = null, checkLiveWorktree = true,
+} = {}) {
   const prev = ctxLib.readRunState(runDir);
-  const foreignOwner = !!(prev && typeof prev.sessionId === 'string' && prev.sessionId && sessionId && prev.sessionId !== sessionId);
+  const verdict = ctxLib.classifyOwnership(callerIdentity || {}, prev);
+  const foreignOwner = verdict === 'foreign';
   if (foreignOwner && !explicit) {
     // The implicit fallback ("newest non-terminal run") landed on a run
     // recorded by a DIFFERENT, still-active session — closing it here
@@ -53,15 +66,16 @@ function closeRunState(runDir, { explicit = false, sessionId = null, checkLiveWo
     // genuinely intended.
     return { status: 'refused-foreign' };
   }
-  // #1502: the foreign-owner check above only catches a PROVABLE session
-  // mismatch — a run whose run-state.json never recorded ANY sessionId
-  // (distinct from one recording a DIFFERENT session, already handled
-  // above) reads as `foreignOwner: false` no matter who calls, so an
-  // implicit close (no --run, landing on "the newest non-terminal run" by
-  // the fallback resolver) could still close a run it does not own, with no
-  // identity signal to catch it. Narrow and deliberate: fires ONLY when
-  // `prev.sessionId` is absent. `explicit: true` (a caller who named `--run`
-  // themselves) always bypasses this, same as the foreign-owner check above.
+  // #1502: the foreign-owner check above only catches a PROVABLE ownership
+  // mismatch — a run whose run-state.json never recorded ANY sessionId AND
+  // carries no worktree binding classifyOwnership can prove foreign from
+  // (an 'indeterminate' verdict) reads as `foreignOwner: false` no matter
+  // who calls, so an implicit close (no --run, landing on "the newest
+  // non-terminal run" by the fallback resolver) could still close a run it
+  // does not own, with no identity signal to catch it. Narrow and
+  // deliberate: fires ONLY when `prev.sessionId` is absent. `explicit: true`
+  // (a caller who named `--run` themselves) always bypasses this, same as
+  // the foreign-owner check above.
   //
   // `checkLiveWorktree` (default true) exists because this heuristic — "the
   // worktree still exists on disk, so it's presumptively still in progress"
