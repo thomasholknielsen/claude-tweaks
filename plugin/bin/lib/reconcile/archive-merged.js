@@ -353,6 +353,16 @@ function revertPlainMoves(movedPairs) {
   return fullyReverted;
 }
 
+// True only when `targetPath` is a tracked file in `root`'s index right now
+// — `git ls-files --error-unmatch` exits non-zero for anything untracked
+// (including a path that simply doesn't exist), which is exactly the
+// question a caller about to `git mv` a source needs answered before it
+// tries, not after the attempt fails.
+function isTracked(root, targetPath) {
+  const check = runGit(['ls-files', '--error-unmatch', targetPath], root);
+  return !check.failure;
+}
+
 function archiveRunDir(root, runDir) {
   const runId = path.basename(runDir);
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
@@ -409,13 +419,47 @@ function archiveRunDir(root, runDir) {
   // batch as `work/` means the guard never even sees them (they're already
   // moved out of `runDir` by the time it runs) — a genuinely stray tracked
   // file elsewhere in the run dir still refuses exactly as before.
+  // #1493/#1494's own comment above documents the assumption this block
+  // relies on ("git-tracked the same way work/ always has been") — but
+  // unlike work/, which materialize.md guarantees is tracked before archival
+  // is ever attempted, a standalone run's decisions.md/report.md/staged only
+  // becomes tracked once its worktree copy (SKILL.md's pr-first Step 7.5)
+  // has merged AND this checkout has pulled that merge. Between "exists on
+  // disk" and "tracked here," there is a real, documented window
+  // ("$RUN_ROOT's copies stay authoritative until merge lands the trail on
+  // the integration branch" — SKILL.md) where these files are genuinely
+  // untracked. `git mv` on an untracked source fails outright (`fatal: not
+  // under version control` — verified directly, not assumed), so treating
+  // "exists" as "safe to git mv" here — as the code did before this guard —
+  // reliably hits that failure, and the failure+revert path two `git mv`
+  // calls above shares with `work/` was never built for a source that was
+  // never staged in the first place: a later, unrelated `git clean` sweeping
+  // the working tree can permanently lose an untracked file sitting wherever
+  // that revert left it. Never git-mv an untracked audit file — check first.
+  const untrackedAuditFiles = [];
   if (/-(tidy|sweep)-standalone/.test(runId)) {
     for (const auditFile of ['decisions.md', 'report.md']) {
       const src = path.join(runDir, auditFile);
-      if (fs.existsSync(src)) workMoves.push([src, path.join(archiveDir, auditFile)]);
+      if (!fs.existsSync(src)) continue;
+      if (isTracked(root, src)) workMoves.push([src, path.join(archiveDir, auditFile)]);
+      else untrackedAuditFiles.push(auditFile);
     }
     const topStaged = path.join(runDir, 'staged');
-    if (fs.existsSync(topStaged)) workMoves.push([topStaged, path.join(archiveDir, 'staged')]);
+    if (fs.existsSync(topStaged)) {
+      if (isTracked(root, topStaged)) workMoves.push([topStaged, path.join(archiveDir, 'staged')]);
+      else untrackedAuditFiles.push('staged');
+    }
+  }
+  // Refuse the whole archival rather than proceeding with a partial batch —
+  // moving `work/`/events.jsonl/run-state.json while leaving decisions.md
+  // behind, still at its original (soon-to-be-archived) directory, is a
+  // confusing half-migrated state with no clean recovery path. The operator
+  // action is unambiguous and self-resolving: sync this checkout with
+  // origin (the merge that tracks these files may already be sitting there
+  // unpulled — exactly what happened in practice, #1494's follow-up), or
+  // recognize the content never made it into any commit and needs re-filing.
+  if (untrackedAuditFiles.length) {
+    return { ok: false, reason: 'audit-untracked', untrackedAuditFiles };
   }
   for (const specName of specDirs) {
     const specWork = path.join(runDir, specName, 'work');
