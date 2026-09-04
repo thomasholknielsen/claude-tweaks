@@ -130,5 +130,9 @@
   "plugin/bin/lib/feedback": {
     "lastSweptMs": 1788405148398,
     "lastHash": "960cd8bbce85a6dc6c4644a14b03dea9531ea702"
+  },
+  "plugin/bin/lib/flow": {
+    "lastSweptMs": 1788491272269,
+    "lastHash": "00ad34651e9bbe625e879fff32d7fc419b8c2263"
   }
 }
