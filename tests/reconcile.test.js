@@ -1134,6 +1134,91 @@ test('reconcile(): checks: ["mirror"] alone never calls the GitHub-health prefli
   }
 });
 
+// #873: session-start.js's inline FAST_CHECKS call and the detached
+// reconcile-background child it spawns moments later each independently ran
+// their own GitHub-health preflight. A recent sibling success should let a
+// second reconcile() call skip re-probing.
+test('reconcile(): reuses a very-recent successful health-check stamp instead of re-probing GitHub (#873)', async () => {
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
+
+  const { writeCache } = require('../plugin/bin/lib/reconcile/cache');
+  const root = require('../plugin/bin/lib/hooks/worktree-detect').mainCheckoutRoot(mainDir);
+  // Simulate a sibling process's health check having just succeeded.
+  writeCache(root, { lastHealthCheckOkAt: Date.now() });
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  const originalHealthAsync = preflight.ghHealthCheckAsync;
+  let called = false;
+  preflight.ghHealthCheck = () => { called = true; return { ok: false, reason: 'github-unreachable' }; };
+  preflight.ghHealthCheckAsync = async () => { called = true; return { ok: false, reason: 'github-unreachable' }; };
+  try {
+    // 'release' alone (no mirror/remote-prune) is gh-dependent but not the
+    // FAST_CHECKS shape — exercises the sequential (non-Promise.all) branch.
+    // releaseMerged() itself still attempts a real `gh` call downstream (this
+    // fixture has no network/gh reachable), so `r.skipped` may legitimately
+    // carry its own unrelated failure — only the preflight-specific skip
+    // reason must never appear.
+    const r = await reconcile({ cwd: mainDir, checks: ['release'] });
+    assert.equal(called, false, 'a fresh health-check stamp must skip both the sync and async preflight calls');
+    assert.ok(
+      !r.skipped.some((s) => typeof s.reason === 'string' && s.reason.startsWith('preflight-')),
+      `the reused-fresh preflight must not itself appear as a skip reason: ${JSON.stringify(r.skipped)}`,
+    );
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+    preflight.ghHealthCheckAsync = originalHealthAsync;
+  }
+});
+
+test('reconcile(): a real successful preflight stamps lastHealthCheckOkAt for a sibling process to reuse', async () => {
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
+
+  const { readCache } = require('../plugin/bin/lib/reconcile/cache');
+  const root = require('../plugin/bin/lib/hooks/worktree-detect').mainCheckoutRoot(mainDir);
+  assert.equal(readCache(root).lastHealthCheckOkAt, null, 'precondition: no prior stamp');
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  preflight.ghHealthCheck = () => ({ ok: true, reason: null });
+  const before = Date.now();
+  try {
+    await reconcile({ cwd: mainDir, checks: ['release'] });
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+  const stamped = readCache(root).lastHealthCheckOkAt;
+  assert.equal(typeof stamped, 'number');
+  assert.ok(stamped >= before, 'stamp must be set at (or after) this pass, not stale');
+});
+
+// #820 Task 10's exact regression shape, re-applied to this new mechanism: a
+// `lastRunAt` stamp from an unrelated pass must never be misread as preflight
+// freshness — the two fields are deliberately independent (cache.js's own
+// `isFresh(cache, now, ttl, field)` generalization), so a stamp that only
+// proves "some pass finished" can never silently starve a real health check.
+test('reconcile(): a lastRunAt stamp alone (no lastHealthCheckOkAt) never substitutes for preflight freshness', async () => {
+  const { seedDir, mainDir } = pairedFixture();
+  writePolicyViaSeedAndPull(seedDir, mainDir, 'integration-model: pr-first\n');
+
+  const { writeCache } = require('../plugin/bin/lib/reconcile/cache');
+  const root = require('../plugin/bin/lib/hooks/worktree-detect').mainCheckoutRoot(mainDir);
+  writeCache(root, { lastRunAt: Date.now() }); // no lastHealthCheckOkAt
+
+  const preflight = require('../plugin/bin/lib/reconcile/preflight');
+  const originalHealth = preflight.ghHealthCheck;
+  let called = false;
+  preflight.ghHealthCheck = () => { called = true; return { ok: true, reason: null }; };
+  try {
+    await reconcile({ cwd: mainDir, checks: ['release'] });
+    assert.equal(called, true, 'a lastRunAt-only stamp must never be read as health-check freshness');
+  } finally {
+    preflight.ghHealthCheck = originalHealth;
+  }
+});
+
 // --- wall-clock budget (#820): an exhausted budget skips the remainder ---
 
 test('reconcile(): an exhausted wall-clock budget skips every remaining check in one entry (D4)', async () => {

@@ -11,6 +11,12 @@ const { recordPayload } = require('../issues/record');
 const REQUIRED_SECTIONS = ['Current State', 'Deliverables', 'Acceptance Criteria'];
 const PLACEHOLDER_MARKERS = ['TBD', 'TODO', '<!-- ambiguity:'];
 
+// Everything from the `## Original request` heading to end of body is a verbatim copy of the
+// record's original title/body (shaping-mode.md's preservation rule). Markers inside it are the
+// original capture's own text, never unresolved authored placeholders, so the placeholder gate
+// tests only the text before it — mirrors materialize-format.js's ORIGINAL_REQUEST_RE (#1240).
+const ORIGINAL_REQUEST_RE = /^## Original request[ \t]*$/m;
+
 // body -> { [headingText]: contentString } — content is every line between one line-anchored
 // "## {Heading}" line and the next (or end of string), trimmed. A "## " appearing mid-line
 // (not at the start of a line) is never treated as a heading.
@@ -43,8 +49,10 @@ function validateShaped(body) {
     if (!(name in sections)) gaps.push(`missing section: ## ${name}`);
     else if (!sections[name]) gaps.push(`empty section: ## ${name}`);
   }
+  const originalRequestAt = text.search(ORIGINAL_REQUEST_RE);
+  const authored = originalRequestAt === -1 ? text : text.slice(0, originalRequestAt);
   for (const marker of PLACEHOLDER_MARKERS) {
-    if (text.includes(marker)) gaps.push(`unresolved placeholder marker: ${marker}`);
+    if (authored.includes(marker)) gaps.push(`unresolved placeholder marker: ${marker}`);
   }
   return { ok: gaps.length === 0, gaps };
 }

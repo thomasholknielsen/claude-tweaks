@@ -16,7 +16,7 @@ test('closeRunState: notYetArchived is true when the run dir still has a top-lev
   try {
     fs.mkdirSync(path.join(dir, 'work'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'work', '42-spec.md'), '# 42\n');
-    const r = closeRunState(dir, { explicit: true, sessionId: 's1' });
+    const r = closeRunState(dir, { explicit: true, callerIdentity: { sessionId: 's1' } });
     assert.strictEqual(r.status, 'closed');
     assert.strictEqual(r.notYetArchived, true);
   } finally {
@@ -29,7 +29,7 @@ test('closeRunState: notYetArchived is true when a multi-spec spec-N/work/ subdi
   try {
     fs.mkdirSync(path.join(dir, 'spec-42', 'work'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'spec-42', 'work', '42-spec.md'), '# 42\n');
-    const r = closeRunState(dir, { explicit: true, sessionId: 's1' });
+    const r = closeRunState(dir, { explicit: true, callerIdentity: { sessionId: 's1' } });
     assert.strictEqual(r.notYetArchived, true);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -40,7 +40,7 @@ test('closeRunState: notYetArchived is false when no work/ subdirectory exists a
   const dir = makeTmpRunDir();
   try {
     fs.writeFileSync(path.join(dir, 'decisions.md'), '# decisions\n');
-    const r = closeRunState(dir, { explicit: true, sessionId: 's1' });
+    const r = closeRunState(dir, { explicit: true, callerIdentity: { sessionId: 's1' } });
     assert.strictEqual(r.notYetArchived, false);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -62,7 +62,7 @@ test('closeRunState: refused-foreign case never reaches the notYetArchived check
   const dir = makeTmpRunDir();
   try {
     fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ sessionId: 'other-session' }));
-    const r = closeRunState(dir, { explicit: false, sessionId: 'this-session' });
+    const r = closeRunState(dir, { explicit: false, callerIdentity: { sessionId: 'this-session' } });
     assert.strictEqual(r.status, 'refused-foreign');
     assert.strictEqual('notYetArchived' in r, false);
   } finally {
@@ -80,7 +80,7 @@ test('closeRunState: refused-live-worktree when no sessionId was ever recorded a
   const worktree = makeTmpRunDir(); // stands in for a real worktree directory
   try {
     fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ worktree }));
-    const r = closeRunState(dir, { explicit: false, sessionId: 'some-session' });
+    const r = closeRunState(dir, { explicit: false, callerIdentity: { sessionId: 'some-session' } });
     assert.strictEqual(r.status, 'refused-live-worktree');
     assert.strictEqual('notYetArchived' in r, false);
   } finally {
@@ -94,7 +94,7 @@ test('closeRunState: an implicit close still closes normally when no sessionId w
   const goneWorktree = path.join(os.tmpdir(), 'close-run-state-test-gone-worktree-' + Date.now());
   try {
     fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ worktree: goneWorktree }));
-    const r = closeRunState(dir, { explicit: false, sessionId: 'some-session' });
+    const r = closeRunState(dir, { explicit: false, callerIdentity: { sessionId: 'some-session' } });
     assert.strictEqual(r.status, 'closed', 'a worktree path that no longer exists on disk is not "live" — nothing to refuse on');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -111,7 +111,7 @@ test('closeRunState: a live worktree with a recorded, matching sessionId still c
   const worktree = makeTmpRunDir();
   try {
     fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ sessionId: 'this-session', worktree }));
-    const r = closeRunState(dir, { explicit: false, sessionId: 'this-session' });
+    const r = closeRunState(dir, { explicit: false, callerIdentity: { sessionId: 'this-session' } });
     assert.strictEqual(r.status, 'closed');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -124,7 +124,7 @@ test('closeRunState: explicit: true bypasses the live-worktree refusal, same as 
   const worktree = makeTmpRunDir();
   try {
     fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ worktree }));
-    const r = closeRunState(dir, { explicit: true, sessionId: 'some-session' });
+    const r = closeRunState(dir, { explicit: true, callerIdentity: { sessionId: 'some-session' } });
     assert.strictEqual(r.status, 'closed');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

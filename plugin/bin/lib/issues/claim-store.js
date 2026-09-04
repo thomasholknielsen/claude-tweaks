@@ -25,6 +25,17 @@
 // delegation comments for why that is exactly the pre-extraction behavior,
 // unchanged. `deps.gitRunner` is optional — omitted, both functions skip
 // straight to the contents-API path (the gh-absent/MCP fallback seam).
+//
+// `writeClaimBlob` also guards content shape (#821): a batch/multi-record
+// caller whose payload computation goes wrong (e.g. an array index or lookup
+// that silently evaluates to `undefined` for one record while the loop keeps
+// going for the others) can otherwise write the literal string "undefined" —
+// `JSON.stringify(undefined)` returns the JS value `undefined`, not a string,
+// and coerces to that literal the moment it's concatenated or templated —
+// into `claims/issue-{n}.json` instead of throwing. Being the one write path
+// every caller shares (tests/claims-single-write-path.test.js) is what makes
+// a single guard here effective against every caller, present and future,
+// rather than chasing the defect at each call site individually.
 'use strict';
 
 const { execFileSync } = require('child_process');
@@ -57,6 +68,28 @@ function defaultSleep(ms) {
 
 function claimPath(issueNumber) {
   return `claims/issue-${issueNumber}.json`;
+}
+
+// (#821) Guards every write against the exact defect class a batch/multi-record
+// claim-acquisition path can produce: a value that evaluates to `undefined`
+// before `JSON.stringify` — which itself returns the actual JS `undefined`,
+// not a string, for an `undefined` argument — and is then coerced to the
+// literal 9-character string "undefined" the instant it's concatenated or
+// templated (`` `${undefined}` `` === `'undefined'`) rather than throwing.
+// Fails closed: content that is not a non-empty string, or does not parse as
+// a plain JSON object (not an array, not `null`), is never well-formed claim
+// content — `writeClaimBlob` below refuses it before either transport is ever
+// attempted, so the malformed value never reaches `claims-registry` as a
+// commit or a contents-API PUT.
+function isWellFormedClaimContent(content) {
+  if (typeof content !== 'string' || content === '') return false;
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return false;
+  }
+  return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
 }
 
 // Pure: classify a caught execFileSync error into {failure, status} — split
@@ -292,6 +325,15 @@ function readClaimBlobContentsApi(ghApi, repoSlug, issueNumber) {
 function writeClaimBlob(deps, repoSlug, issueNumber, {
   content, sha, createOnly = false, expectedContent, message,
 }) {
+  // #821: reject a malformed `content` before either transport is ever
+  // attempted — this is the one code path every claim/release writer shares
+  // (tests/claims-single-write-path.test.js), so a guard here covers every
+  // caller, present and future, regardless of which one computed the bad
+  // value. Never classified as `conflict`/`secondaryRateLimit` — a caller bug
+  // must surface distinctly, not be retried as if it were contention.
+  if (!isWellFormedClaimContent(content)) {
+    return { ok: false, failure: 'invalid-content' };
+  }
   if (deps.gitRunner && sha) {
     let leaseSha = sha;
     for (let attempt = 1; attempt <= MAX_CAS_ATTEMPTS; attempt += 1) {
@@ -411,4 +453,5 @@ module.exports = {
   isSameRepoPrUrl,
   casBackoffMs,
   defaultSleep,
+  isWellFormedClaimContent,
 };

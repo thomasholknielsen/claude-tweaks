@@ -16,7 +16,7 @@ test('recordPayload assembles labels for a born-ready health record', () => {
   });
   assert.deepStrictEqual(result.labels, ['by:code-health', 'risk:low', 'size:low', 'ready']);
   assert.strictEqual(result.type, 'task');
-  assert.strictEqual(result.body, 'b\n\n<!-- work-fingerprint: ch:abc -->');
+  assert.strictEqual(result.body, 'b\n\n<!-- work-fingerprint: ch:abc -->\nwork-fingerprint: ch:abc');
 });
 
 test('recordPayload assembles a plain capture record', () => {
@@ -737,10 +737,34 @@ test('recordPayload: deferReason never becomes a label and leaves label order un
   assert.deepStrictEqual(p.labels, ['by:capture', 'risk:low', 'ready']);
 });
 
-test('recordPayload: deferReason and fingerprint compose — reason first line, fingerprint marker last', () => {
+test('recordPayload: deferReason and fingerprint compose — reason first line, fingerprint markers last', () => {
   const p = recordPayload({ title: 't', body: 'b', type: 'task', deferReason: 'tangential', fingerprint: 'fp-1' });
   assert.ok(p.body.startsWith('Defer-reason: tangential\n\nb'));
-  assert.ok(p.body.endsWith('<!-- work-fingerprint: fp-1 -->'));
+  assert.ok(p.body.includes('<!-- work-fingerprint: fp-1 -->'));
+  assert.ok(p.body.endsWith('\nwork-fingerprint: fp-1'));
+});
+
+// --- extractFingerprint: plain-text companion fallback (#1700) ---
+
+test('extractFingerprint reads the plain-text work-fingerprint companion when no HTML-comment marker is present (MCP-stripped body)', () => {
+  assert.strictEqual(extractFingerprint('x\nwork-fingerprint: plain:1'), 'plain:1');
+});
+
+test('extractFingerprint prefers the HTML-comment work-fingerprint marker over the plain-text companion when both are present', () => {
+  assert.strictEqual(
+    extractFingerprint('<!-- work-fingerprint: html:1 -->\nwork-fingerprint: html:1'),
+    'html:1',
+  );
+});
+
+test('recordPayload writes both the HTML-comment marker and the plain-text companion, and extractFingerprint recovers the fingerprint from either alone', () => {
+  const p = recordPayload({ title: 't', body: 'b', type: 'task', fingerprint: 'dual:1' });
+  assert.ok(p.body.includes('<!-- work-fingerprint: dual:1 -->'));
+  assert.ok(p.body.includes('work-fingerprint: dual:1'));
+  // Simulate an MCP read that strips every HTML-comment span, leaving only the
+  // plain-text companion line — extractFingerprint must still recover it.
+  const strippedBody = p.body.replace(/<!--[\s\S]*?-->\n?/g, '');
+  assert.strictEqual(extractFingerprint(strippedBody), 'dual:1');
 });
 
 // --- specShapedBody provenance / footer / openQuestion (#623) ---

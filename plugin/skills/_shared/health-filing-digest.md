@@ -45,7 +45,7 @@ The retry-queue drain (this skill's FILE step, before this run's own new finding
 
 ## SUMMARIZE step — always report the throttle, never let it be silently inferred
 
-Add to the summary: `filed: N, digested: M, cap: {CAP}`. Report this line even when `M` is `0` — an absent line is indistinguishable from a forgotten one.
+Add to the summary: `filed: N, digested: M, cap: {CAP}, materiality: K`. Report this line even when `M` and `K` are both `0` — an absent line is indistinguishable from a forgotten one. `M` counts findings routed to *this* origin's cap digest (this file's own mechanism, above); `K` counts findings routed to the separate materiality digest (`_shared/materiality-floor.md`) this same run — the two counts are never combined into one number, since they answer different questions (drain-rate throttling vs. below-floor deferral) and a reader diagnosing either mechanism needs its own count. `K` is `0` on a run where nothing cleared the materiality floor, same convention as `M`.
 
 ## Regression bypass
 

@@ -30,7 +30,7 @@ const {
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
-const { resolveIntegrationBranch } = require('./worktree-reap');
+const { resolveIntegrationBranch, preferRemoteTrackingRef } = require('./worktree-reap');
 const { runGit, FAILURE } = require('./git-exec');
 const { detectIntegrationModel, resolvePolicyConfig } = require('../policy-schema');
 
@@ -102,7 +102,12 @@ function toPosix(p) {
 // is the drift this whole binding exists to prevent.
 const GATE_COVERAGE = Object.freeze({
   tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
-  gitActions: Object.freeze(['commit', 'push']),
+  // #976 (IL-141): widened to include git-command.js's PLUMBING_WRITE_SUBCOMMANDS
+  // (mv, rm, update-ref, apply) — see that constant's own header comment for
+  // why these four and not a broader set. A git-plumbing write outside the
+  // isolated worktree now trips the same E1/worktree-always enforcement a
+  // commit/push would, closing the bypass IL-141 documented.
+  gitActions: Object.freeze(['commit', 'push', 'mv', 'rm', 'update-ref', 'apply']),
   bashWriteShapes: WRITE_SHAPES,
   // These have their own prose-binding block — skills/_shared/policy-schema-coverage.md's
   // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins
@@ -505,12 +510,23 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
     if (!hit || !hit.state) continue;
     const status = hit.state.status;
     if (status !== 'active' && status !== 'interrupted') continue;
-    const owner = typeof hit.state.sessionId === 'string' && hit.state.sessionId ? hit.state.sessionId : null;
     const caller = ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id ? ctx.input.session_id : null;
-    if (owner && caller && owner !== caller) {
+    // #1099: classify the TARGET run (hit.state) against this caller via the
+    // composite session+worktree-binding predicate instead of raw session-id
+    // equality — a sibling of this same session, bound to a DIFFERENT live
+    // worktree than hit.state records, must take the foreign branch (warn +
+    // allow) rather than the same-session deny. 'mine' and 'indeterminate'
+    // both preserve today's fall-through-to-deny behavior.
+    const ownershipVerdict = ctxLib.classifyOwnership({ sessionId: caller, cwd: ctx.cwd || process.cwd() }, hit.state);
+    if (ownershipVerdict === 'foreign') {
       // Provably foreign-owned: allow + warn, event to the TARGET run's dir
       // (the wd-foreign-session precedent — enforcement-target, not
       // ownedRun). Collected, not returned — see the function header.
+      // #1431 audit: `hit.runDir` is neither ctx.runDir's session-agnostic
+      // newest-non-terminal GUESS nor ctx.ownedRun — it's the specific run
+      // findRunByWorktreePath just proved is bound to `target`, an
+      // unambiguous match, not an attribution guess. Not the #1431 hazard
+      // (a guessed run absorbing a foreign event); left as-is.
       ctxLib.appendEvent(hit.runDir, 'wd-foreign-teardown', { path: target });
       teardownWarnings.push(
         `claude-tweaks: worktree ${target} is assigned to run ${path.basename(hit.runDir)}, recorded by a different session — ` +
@@ -519,7 +535,7 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
       );
       continue;
     }
-    // Same session, unowned run, or identity missing on either side -> deny.
+    // Same session ('mine'), or identity/binding unprovable ('indeterminate') -> deny.
     return denyResult(
       `claude-tweaks teardown gate: worktree ${target} is still assigned to non-terminal pipeline run ` +
       `${hit.runDir}. Tearing it down now skips the documented cleanup sequence (skills/wrap-up/cleanup-procedures.md ` +
@@ -824,6 +840,35 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
 // branch. Threading `runDir` through is what makes the sentinel answer the
 // only question worth asking: did THIS run's materialize commit land.
 //
+// #1688's third resolution source — scoped to THIS range bound alone, never
+// to the shared `resolveIntegrationBranch` `hasMaterializeCommit` calls
+// below. That function is also the reaper's and run-integrity.js's only
+// source of an integration-branch name, and `_shared/integration-branch.md`'s
+// per-consumer table restricts both of them to policy.yml and
+// origin/HEAD — deliberately excluding any local-branch guess, because a
+// probe there once reaped a worktree holding genuinely unmerged work (the
+// file's own Anti-Patterns entry). Widening the shared resolver would import
+// that exact hazard into two consumers that can delete or misreport state on
+// a wrong answer.
+//
+// This call site carries none of that risk: an unresolved bound here falls
+// back to the pre-#1674 UNBOUNDED walk (see hasMaterializeCommit's own
+// comment below), never to `false` — so a wrong or missing guess only ever
+// widens an already-conservative range, exactly like the "unresolved"
+// case it stands in for. That asymmetry is what makes a local probe safe
+// here and unsafe there.
+//
+// `main`/`master` are the two conventional default-branch names; a repo
+// using neither leaves this returning null, same as before #1688 — no new
+// failure mode, per AC3.
+function resolveLocalDefaultBranchBound(repoRoot) {
+  for (const candidate of ['main', 'master']) {
+    const { failure } = runGit(['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`], repoRoot);
+    if (!failure) return candidate;
+  }
+  return null;
+}
+
 // Read-only, best-effort: any git failure (no commits yet, git unavailable)
 // and an unusable runDir both resolve to false — ambiguity never triggers the
 // gate, same posture as every other check in this file.
@@ -877,23 +922,26 @@ function hasMaterializeCommit(worktreeRoot, runDir) {
   // remote). Unresolvable is not the same as nonexistent, so on this path the
   // pre-#1674 false positive genuinely persists.
   //
-  // Accepted deliberately as the status quo ante for those repos rather than as
-  // a fix for them: the alternative (`false`) trades a recoverable false deny
-  // for silently disabling IL-131 there. Extending #1674's actual improvement to
-  // no-remote repos needs a third resolution source (a local default-branch
-  // probe) — real new scope, filed separately.
+  // #1688 closed the no-remote gap described above: when the shared resolver
+  // comes up empty, resolveLocalDefaultBranchBound (above) probes for a local
+  // `main`/`master` — scoped to this call only, per that function's own
+  // comment on why the shared resolver itself must not widen this way.
   //
-  // Known limitation on the bounded path: resolveIntegrationBranch returns a
-  // LOCAL branch name, which can lag origin/{integration}. Usually that only
-  // widens the range (the conservative false-deny direction) — but when HEAD
-  // has already merged origin/{integration} in, as `_shared/worktree-setup.md`'s
-  // post-creation catch-up does routinely, the lagging local ref can leave those
-  // merged-in commits inside the range and reproduce the very inherited-history
-  // arm this bound exists to stop. Resolving origin/{integration} instead would
-  // need a fetch, which this file must not do: it runs on every covered tool
-  // call and must stay offline and cheap. Filed with the probe above.
+  // Known limitation on the bounded path: a policy-configured or probed LOCAL
+  // branch name can lag origin/{integration}. Usually that only widens the
+  // range (the conservative false-deny direction) — but when HEAD has already
+  // merged origin/{integration} in, as `_shared/worktree-setup.md`'s
+  // post-creation catch-up does routinely, the lagging local ref can leave
+  // those merged-in commits inside the range and reproduce the very
+  // inherited-history arm this bound exists to stop. #1688 also fixed this
+  // for the policy-configured case: `resolveIntegrationBranch` now upgrades a
+  // resolved local name to its already-on-disk `origin/{name}` remote-tracking
+  // ref when one exists (no fetch — see `preferRemoteTrackingRef` in
+  // worktree-reap.js). The probed `main`/`master` fallback just below gets the
+  // same upgrade for the same reason.
   const paths = ['--', `${runRel}/work`, `${runRel}/spec-*/work/*`];
-  const integration = resolveIntegrationBranch(worktreeRoot);
+  const bound = resolveIntegrationBranch(worktreeRoot) || resolveLocalDefaultBranchBound(worktreeRoot);
+  const integration = bound ? preferRemoteTrackingRef(worktreeRoot, bound) : null;
   // Two distinct ways the bound can be unusable, and both must fall back the
   // same way. `null` is the obvious one. The other: `policy.readIntegrationBranch`
   // returns the raw `integration-branch:` string with no ref-existence check (it
@@ -1051,6 +1099,17 @@ function isStampsGateExemptTarget(ctx) {
 // returns the value the caller returns directly. A provably foreign-owned
 // run (isForeignSessionCall above) downgrades the deny to an allow + warning;
 // otherwise it denies. Only the stamp name and the two message bodies vary.
+// #1431 audit: both appendEvent calls below deliberately use ctx.runDir, not
+// ctx.ownedRun — checkBookkeepingStampsGate is entirely about "does the run
+// assigned to THIS checkout carry its required stamps yet," a fact about the
+// checkout/worktree, not about which run this session happens to own; every
+// other signal in this function (ctx.runState, hasMaterializeCommit, the
+// prExempt cache) is already scoped to ctx.runDir the same way. This is the
+// session-agnostic worktree-bookkeeping comparison AC2 carves out, not the
+// #1431 attribution-guess hazard (which is specific to resolveRun's
+// 'fallback' arm guessing at an UNRELATED run with no worktree binding at
+// all — ctx.runDir here is never that: it's the run this checkout's own
+// binding names).
 function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText, isForeign) {
   if (isForeign) {
     ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { stamp, worktree: wtRoot });
@@ -1382,6 +1441,18 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
   // it denied one in the wrong in-project checkout.
   const mainRoot = safeReal(wtDetect.mainCheckoutRoot(assigned));
 
+  // #1431 audit: every appendEvent call in this loop (wd-ambiguous,
+  // wd-push-mismatch, wd-foreign-session, wd-deny below) deliberately uses
+  // ctx.runDir, not ctx.ownedRun. E1 is, by this whole function's own header
+  // comment, about "this checkout['s]" assigned pipeline run — a fact of the
+  // WORKTREE, resolved the same session-agnostic way regardless of who is
+  // calling (bin/hooks.js's own resolveRunDir(cwd, env) call for `runDir`
+  // carries no session id at all, deliberately — see main()'s comment on
+  // `runDir`/`runState`). Every event here documents what E1 decided about
+  // THAT run, not an audit trail belonging to this session's own work — the
+  // session-agnostic worktree-bookkeeping comparison AC2 carves out, not the
+  // #1431 attribution-guess hazard (resolveRun's 'fallback' arm guessing at
+  // an unrelated, unbound run — not what E1 resolves against here).
   for (const target of commandGitTargets || []) {
     const top = toplevel(target.dir);
     if (!top) continue; // cannot prove the target -> allow
@@ -1417,7 +1488,14 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
     }
     const owner = typeof ctx.runState.sessionId === 'string' ? ctx.runState.sessionId : '';
     const caller = typeof ctx.input.session_id === 'string' ? ctx.input.session_id : '';
-    if (owner && caller && owner !== caller) {
+    // #1099: classify the caller's OWN resolved run (ctx.runState) via the
+    // composite session+worktree-binding predicate instead of raw session-id
+    // equality — a sibling of this same session, committing from a DIFFERENT
+    // live worktree than ctx.runState records, must take the foreign branch
+    // (allow + systemMessage) rather than falling through to wd-deny.
+    // 'mine' and 'indeterminate' both preserve today's fall-through-to-deny.
+    const ownershipVerdict = ctxLib.classifyOwnership({ sessionId: caller, cwd: ctx.cwd || process.cwd() }, ctx.runState);
+    if (ownershipVerdict === 'foreign') {
       ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { expected: assigned, actual, owner, caller, command: command.slice(0, 200) });
       return {
         exit: 0,
@@ -1534,6 +1612,11 @@ module.exports = {
   DELETE_ONLY_PUSH_ALLOWLIST,
   shadowPipelineRunDir,
   checkPipelineShadowGuard,
+  // Exported for post-tool-use.js's post-teardown re-anchor backstop (#703)
+  // to reuse rather than reimplement — the same target-resolution logic
+  // this file's own checkTeardownGate already relies on.
+  teardownTargets,
+  toplevel,
   checkBookkeepingStampsGate,
   hasLoggedPrDegrade,
   teardownTargets,

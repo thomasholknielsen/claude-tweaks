@@ -169,10 +169,11 @@ If the user did not specify `worktree`, skip this step.
 
 ### Common Step 1.5: Plan Audit
 
-Audit the plan against the actual repo before dispatching execution. Three checks:
-- **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create).
-- **Check B (conditional):** when the plan declares `Scope keywords:`, grep the repo for each keyword and list any matched files not in the plan.
+Audit the plan against the actual repo before dispatching execution, via `node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" {plan-file} [--repo-root {dir}]` — a mechanized CLI (#903), not hand-run greps. Four checks:
+- **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create/Test).
+- **Check B (conditional):** when the plan declares `Scope keywords:`, an fs-walk sweeps the repo for each keyword and lists any matched files not in the plan.
 - **Check C (always):** pre-run each task's own declared Step 2 `Run:`/`Expected: FAIL` verification command once, read-only, against current repo state before dispatch; stop unconditionally if a command already exhibits a passing signature despite declaring `Expected: FAIL`.
+- **Headroom (always):** for each existing governed-corpus `.md` file (`plugin/skills/**/*.md`) the plan modifies, current bytes + headroom against the shared ceiling constant — a soft `nearCeiling` flag never fails the check; a `breach` (already at/over the ceiling) does.
 
 **Auto mode** (including a standalone `auto` invocation with no pipeline run dir): apply the `scope-creep` policy, resolved per the standard precedence (default `add-to-plan`). **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop".
 
@@ -180,7 +181,7 @@ Audit the plan against the actual repo before dispatching execution. Three check
 
 > **Project setting:** When `.claude-tweaks/policy.yml` declares `scope-keywords-required: true`, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
 
-For the full procedure (Check A failure handling, Check B scope-keyword sweep command, Check C verification-command pre-check, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
+For the full procedure (CLI invocation and JSON envelope, Check A/headroom failure handling, Check B scope-keyword sweep, Check C verification-command pre-check, `scope-keywords-required` setting, auto-mode policy table, interactive prompt), read `plan-audit.md` in this skill's directory.
 
 ### Common Step 1.7: Design Pre-Build (frontend specs + terminal)
 

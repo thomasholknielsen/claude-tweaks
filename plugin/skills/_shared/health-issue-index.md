@@ -27,6 +27,32 @@ detection is a capability probe, not an environment classification: it holds reg
 *why* `gh` is missing, and the unattended cloud Routine firing where `gh` is reliably absent
 is precisely the run that most needs a correct index.
 
+## MCP body sanitization strips the fingerprint marker on read (#1700)
+
+`_shared/pr-early-run-lifecycle.md`'s "Root cause" section documents that the GitHub MCP
+server's read path (`bluemonday.StrictPolicy()`) strips every `<!-- ... -->` HTML-comment span
+from a fetched body — write-side unsanitized, read-side stripped — and that this applies to
+issue reads (`list_issues`, `issue_read`) exactly as it does to PR reads. Consequence for this
+file's own MCP projection step: the `<!-- work-fingerprint: {id} -->` marker `extractFingerprint`
+(`bin/lib/issues/record.js`) is documented to read is invisibly gone from a `gh`-absent fetch,
+even though the marker really exists in the issue's stored body — a `gh`-based read of the same
+issue shows it intact. Left unfixed, every `fingerprint` field in the MCP-built index comes back
+null, so `loadIssueIndex`'s `if (issue.fingerprint)` guard populates an empty lookup map
+regardless of how many matching issues already exist open, and a finding identical to one already
+filed re-files as a duplicate — silently, on every headless firing (the same failure class #163
+fixed for the empty-vs-unavailable-index distinction, via a different mechanism: here the fetch
+succeeds and is non-empty, it just carries no usable fingerprint data).
+
+The fix: `recordPayload` (`bin/lib/issues/record.js`) writes a plain-text companion line
+(`work-fingerprint: {id}`, no comment syntax) immediately after the HTML-comment marker,
+unconditionally on every transport — the write path is unsanitized either way, so writing both
+costs nothing. `extractFingerprint` tries the HTML-comment marker first (both the current and
+legacy forms), then falls back to the plain-text companion — the one form an MCP-stripped body
+still carries. Every consumer that calls `extractFingerprint` on a fetched body (this file's own
+`gh`-absent projection step, `pullReconIssues` in `bin/lib/code-health/pull-issues.js`, and each
+health sweep's own GATHER OPEN ISSUES instructions) gets the fix automatically — there is no
+separate MCP-specific parsing path to maintain.
+
 ## The three outcomes are not interchangeable
 
 | Outcome | `ISSUES_FILE` | Meaning |

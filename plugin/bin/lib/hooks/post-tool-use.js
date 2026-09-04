@@ -1,4 +1,4 @@
-// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + post-teardown pin backstop (warn tier, see checkPostTeardownPin below) + ad-hoc-session run-dir stamping (log tier, see stampAdHocRunDir below) + skill-invocation ledger (log tier, see ./skill-invocation.js) + AskUserQuestion ledger (log tier, see logAskUserQuestion below).
+// bin/lib/hooks/post-tool-use.js — E2: commit breadcrumbs (log tier) + closing-keyword check (warn tier) + design-doc capture nudge (warn tier) + plugin-version-bump release-follow-up nudge (warn tier) + EnterWorktree staleness backstop (warn tier) + post-teardown re-anchor backstop (warn tier, see checkPostTeardownReanchor below) + ad-hoc-session run-dir stamping (log tier, see stampAdHocRunDir below) + skill-invocation ledger (log tier, see ./skill-invocation.js) + AskUserQuestion ledger (log tier, see logAskUserQuestion below).
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -6,6 +6,11 @@ const { gitTargets } = require('./git-command');
 const ctxLib = require('./context');
 const runDirResolve = require('./run-dir-resolve');
 const skillInvocation = require('./skill-invocation');
+const wtDetect = require('./worktree-detect');
+// Reused, not reimplemented (#703): the same teardown-target resolution
+// pre-tool-use.js's own checkTeardownGate relies on. Safe to require here —
+// pre-tool-use.js never requires this file back.
+const preToolUse = require('./pre-tool-use');
 // These three call sites are informational (commit breadcrumbs, plugin-version
 // detection), not policy decisions — every failure kind resolves to "skip this
 // check" identically, so they read `.stdout` and ignore `.failure`. The
@@ -18,15 +23,10 @@ const { ISSUE_REF_SOURCE } = require('../issue-branch-tracking');
 // policy.yml then origin/HEAD) fits this file's EnterWorktree handler as-is.
 // `parseWorktreeList` is reused for the same reason, for the tool-result
 // fallback path below.
-const { resolveIntegrationBranch, parseWorktreeList } = require('./worktree-reap');
+const { resolveIntegrationBranch, parseWorktreeList, bareIntegrationName } = require('./worktree-reap');
 // Session-scoped marker path for the non-EnterWorktree ad-hoc-run-dir rate-limit (#1333) — see
 // stampAdHocRunDir below.
 const { sessionTmpPath } = require('../session-tmp');
-// Reused for the post-teardown pin backstop below (#703) — teardownTargets'
-// Bash-sourced branch parses the command STRING with no filesystem access,
-// so it still resolves correctly even after the worktree directory is
-// already gone by the time this PostToolUse handler runs.
-const { teardownTargets, GATE_COVERAGE: PRE_GATE_COVERAGE } = require('./pre-tool-use');
 
 // Field/record separators for recentCommits' combined --format string below.
 // ASCII 0x1f/0x1e (unit/record separator) — practically never appear in a
@@ -488,7 +488,13 @@ function checkWorktreeStaleness(ctx) {
   try {
     const worktreePath = resolveCreatedWorktreePath(ctx);
     if (!worktreePath) return null; // couldn't resolve where we landed — nothing to check, fail open
-    const branch = resolveIntegrationBranch(worktreePath);
+    // #1688: resolveIntegrationBranch's policy-configured path can now return
+    // an `origin/{name}` remote-tracking ref instead of a bare branch name
+    // (preferRemoteTrackingRef, worktree-reap.js). This check needs a bare
+    // name — `branch` is both the remote-side fetch target below (a remote
+    // has no `origin/`-prefixed branches of its own) and re-prefixed with
+    // `origin/` again for the rev-list comparison — so normalize immediately.
+    const branch = bareIntegrationName(resolveIntegrationBranch(worktreePath));
     if (!branch) return null; // no integration branch resolved — nothing to compare against
 
     // `--` guards against argument injection: `branch` traces back to
@@ -540,56 +546,68 @@ function checkWorktreeStaleness(ctx) {
   }
 }
 
-// Post-teardown pin backstop (#703, warn tier). This repo's hooks cannot
-// clear Claude Code's own harness-native "worktree isolation pin" — grep
-// confirms no plugin code sets or reads it — so, mirroring the
-// EnterWorktree staleness backstop above, the only lever here is
-// instructional: after a teardown tool call completes, warn the agent to
-// verify its git context before trusting it.
+// Post-teardown re-anchor backstop (#703, warn tier). This repo's hooks own
+// no code that sets or clears the harness's native worktree-isolation pin
+// (confirmed by grep — see #703's own body) — PreToolUse can only allow/deny/
+// warn a call before it runs, and PostToolUse can only log or warn after one
+// completes. The realistic remediation is therefore instructional, mirroring
+// the EnterWorktree staleness backstop immediately above (same warn-tier
+// `systemMessage` shape, same "react to a completed harness-native tool call"
+// posture) rather than SessionStart's `additionalContext` inform tier, which
+// is reserved for session bootstrap (docs/hooks.md's tiered-posture line).
 //
-// ExitWorktree detection deliberately does NOT reuse teardownTargets'
-// 'exitworktree' branch: that branch calls toplevel(ctx.cwd) to resolve the
-// removed path via `git rev-parse --show-toplevel`, which requires the
-// directory to still exist — true at PreToolUse time (before removal),
-// false once this PostToolUse handler runs (after a successful remove).
-// Detecting the call SHAPE needs no filesystem access, so it's checked
-// directly against the same GATE_COVERAGE.teardownTools constant
-// teardownTargets itself branches on (kept load-bearing there, not
-// duplicated as a literal).
+// Fires once a teardown this repo's own PreToolUse gate did NOT deny has
+// actually happened: `ExitWorktree` (`action: 'remove'`), or the sanctioned
+// Bash `git worktree remove` shape (`checkTeardownGate`'s own-cwd deny in
+// pre-tool-use.js already blocks the dangerous same-cwd case at PreToolUse —
+// a denied call never reaches PostToolUse, so any target resolved here
+// already ran).
 //
-// The Bash-sourced case is different: teardownTargets' bash branch parses
-// the command STRING, not the filesystem, so it resolves correctly even
-// after the directory is already gone — reused as-is here rather than
-// re-deriving the git-worktree-remove shape a second time.
-function logPostTeardownPinEvent(ctx, data) {
-  const ownedRun = ctx.ownedRun || {};
-  if (!ownedRun.dir) return;
-  ctxLib.appendEvent(ownedRun.dir, 'post-teardown-pin', data, ownedRun.attribution);
-}
-
-function checkPostTeardownPin(ctx) {
+// `teardownTargets`'s Bash-parsing branch is reused as-is for the Bash case
+// (pure command-string parsing — never needs the *removed* directory itself
+// to exist, only the calling shell's still-live cwd). The `ExitWorktree`
+// branch is NOT reused: `teardownTargets` resolves that case via
+// `toplevel(ctx.cwd)`, a `git rev-parse` subprocess spawned FROM the target
+// directory — correct at PreToolUse time (checkTeardownGate's own use),
+// where the removal hasn't happened yet, but by PostToolUse time it already
+// has, so that spawn fails against a now-deleted cwd and `teardownTargets`
+// silently resolves no target. Reusing it verbatim here would make this
+// backstop never fire for the exact tool call it exists to react to, so the
+// `ExitWorktree` case uses `ctx.cwd` directly instead (the removed worktree,
+// or a path under it, at call time) rather than re-resolving its toplevel.
+function checkPostTeardownReanchor(ctx) {
+  const toolName = ctx.input && ctx.input.tool_name;
+  if (toolName !== 'ExitWorktree' && toolName !== 'Bash') return null;
   try {
-    const toolName = ctx.input.tool_name;
-    const toolInput = ctx.input.tool_input || {};
-    const isExitWorktreeRemove = PRE_GATE_COVERAGE.teardownTools.includes(toolName) &&
-      toolInput.action === 'remove';
-    const bashTargets = toolName === 'Bash' ? teardownTargets(ctx) : [];
-    if (!isExitWorktreeRemove && bashTargets.length === 0) return null;
-
-    logPostTeardownPinEvent(ctx, {
-      source: isExitWorktreeRemove ? 'exitworktree' : 'bash',
-      bashTargetCount: bashTargets.length,
-    });
-
+    let targetPath;
+    if (toolName === 'ExitWorktree') {
+      const toolInput = ctx.input && ctx.input.tool_input;
+      if (!toolInput || toolInput.action !== 'remove') return null;
+      targetPath = ctx.cwd || null;
+      if (!targetPath) return null;
+    } else {
+      const targets = preToolUse.teardownTargets(ctx);
+      if (!targets.length) return null;
+      targetPath = targets[0].path;
+    }
+    // mainCheckoutRoot walks up from the nearest still-EXISTING ancestor
+    // directory looking for `.git` — it never re-derives the answer via a
+    // `git` subprocess run FROM the just-removed path, so (unlike
+    // `toplevel()` above) it still resolves correctly even though that exact
+    // directory is now gone. Fails closed to null (skip silently) rather
+    // than guessing when the walk-up can't find a `.git` at all.
+    const runRoot = wtDetect.mainCheckoutRoot(ctx.cwd || process.cwd());
+    const reanchor = runRoot
+      ? `Re-anchor there (\`cd ${runRoot}\`) before issuing any further git-dependent command.`
+      : 'Re-anchor to this project\'s main checkout before issuing any further git-dependent command ' +
+        '— its path could not be auto-resolved from here.';
     return {
       json: {
         systemMessage:
-          'claude-tweaks: a worktree teardown just completed. Claude Code\'s own git-context pin ' +
-          'is harness-native — this plugin cannot observe or clear it (record #703) — and can remain ' +
-          'anchored to the removed worktree for the rest of this session, silently blocking every ' +
-          'further git-dependent command. Verify now: run `pwd` and `git rev-parse --show-toplevel`; ' +
-          'if either errors or still resolves inside the removed worktree, re-anchor to $RUN_ROOT ' +
-          '(or the main checkout) before issuing any further git-dependent command.',
+          `claude-tweaks: the worktree at ${targetPath} was just torn down. This plugin's hooks ` +
+          'cannot clear the harness\'s own worktree-isolation pin, so if this session was standing in ' +
+          'that worktree, further git-dependent commands may still be refused as "isolated in the ' +
+          `worktree ..." even though it no longer exists. ${reanchor}`,
       },
     };
   } catch {
@@ -723,11 +741,10 @@ function run(ctx) {
   const worktreeStalenessNudge = checkWorktreeStaleness(ctx);
   if (worktreeStalenessNudge) return worktreeStalenessNudge;
 
-  // Post-teardown pin backstop (warn tier) — deliberately NOT gated on
-  // ctx.runDir (matches this file's other nudges); its own log-tier
-  // breadcrumb (inside checkPostTeardownPin) IS gated on ctx.ownedRun.dir.
-  const postTeardownPinNudge = checkPostTeardownPin(ctx);
-  if (postTeardownPinNudge) return postTeardownPinNudge;
+  // Post-teardown re-anchor backstop (#703, warn tier) — deliberately NOT
+  // gated on ctx.runDir, matching every other nudge in this file.
+  const postTeardownNudge = checkPostTeardownReanchor(ctx);
+  if (postTeardownNudge) return postTeardownNudge;
 
   return {};
 }

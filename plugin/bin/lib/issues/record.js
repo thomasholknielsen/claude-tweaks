@@ -66,6 +66,18 @@ const TYPE_LABELS = [
 const FP_RE_WORK = /<!--\s*work-fingerprint:\s*([^\s>]+)\s*-->/;
 const FP_RE_LEGACY = /<!--\s*(?:code-health|harness-health|journey-health)-fingerprint:\s*([^\s>]+)\s*-->/;
 
+// Plain-text companion to FP_RE_WORK (#1700): the GitHub MCP server's read path
+// (`mcp__github__list_issues`/`issue_read`) sanitizes issue bodies the same way it
+// sanitizes PR bodies — every `<!-- ... -->` span is stripped before the tool result
+// reaches the caller (see `_shared/pr-early-run-lifecycle.md`'s "Root cause" section,
+// which documents this for PR reads; the same bluemonday StrictPolicy strips issue
+// reads too). recordPayload's finalBody below writes this line immediately after the
+// HTML-comment marker, unconditionally on every transport (the write path is
+// unsanitized either way, so writing both costs nothing) — the same dual-marker
+// scheme pr-early-run-lifecycle.md already uses for PR bodies. Line-anchored (/m),
+// same convention as DEFER_REASON_LINE_RE/VERIFIED_AS_OF_RE above.
+const FP_RE_WORK_PLAIN = /^work-fingerprint: (\S+)[ \t]*$/m;
+
 // Freshness stamp (#117): the commit each health-sweep skill actually read at
 // filing time, threaded through specShapedBody's verifiedAsOf param as a
 // plain body-metadata line — same convention as Origin:/Defer-reason:, never
@@ -224,22 +236,28 @@ function recordPayload({ title, body, type, origin, risk, size, ceremony, soluti
   }
 
   const finalBody = fingerprint
-    ? `${reasonBody}\n\n<!-- work-fingerprint: ${fingerprint} -->`
+    ? `${reasonBody}\n\n<!-- work-fingerprint: ${fingerprint} -->\nwork-fingerprint: ${fingerprint}`
     : reasonBody;
 
   return { title, body: finalBody, labels, type };
 }
 
-// body -> fingerprint string, or null when neither marker is present (also null
-// for null/undefined/empty body). The new work-fingerprint marker wins whenever
-// both the new and legacy markers are present, regardless of which appears first
-// in the body (dual-write/migration period).
+// body -> fingerprint string, or null when no marker is present (also null for
+// null/undefined/empty body). The new work-fingerprint HTML-comment marker wins
+// whenever both it and the legacy HTML-comment marker are present, regardless of
+// which appears first in the body (dual-write/migration period). The plain-text
+// companion (FP_RE_WORK_PLAIN, #1700) is checked last, as a fallback only — it
+// exists specifically for the case where an MCP-fetched body has had every
+// HTML-comment span stripped, so neither HTML-comment regex can match, but the
+// plain-text line survives untouched.
 function extractFingerprint(body) {
   if (typeof body !== 'string' || !body) return null;
   const work = FP_RE_WORK.exec(body);
   if (work) return work[1];
   const legacy = FP_RE_LEGACY.exec(body);
-  return legacy ? legacy[1] : null;
+  if (legacy) return legacy[1];
+  const plain = FP_RE_WORK_PLAIN.exec(body);
+  return plain ? plain[1] : null;
 }
 
 // body -> the git sha the sweep read when it filed this issue, or null when
@@ -594,7 +612,7 @@ function specShapedBody({
 
 module.exports = {
   ORIGINS, TYPES, TIERS, PRIORITIES, DEFER_REASONS, LABELS, TYPE_LABELS, recordPayload, specShapedBody,
-  FP_RE_WORK, FP_RE_LEGACY, extractFingerprint, extractVerifiedAsOf, normalizeLabelNames, parseRecordFacets,
+  FP_RE_WORK, FP_RE_LEGACY, FP_RE_WORK_PLAIN, extractFingerprint, extractVerifiedAsOf, normalizeLabelNames, parseRecordFacets,
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
   buildNativeSubIssuesQuery, buildNativeParentQuery, partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,

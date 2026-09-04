@@ -1,0 +1,134 @@
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert');
+const {
+  MATERIALITY_MARKER_PREFIX,
+  materialityFingerprint,
+  parseMaterialityFingerprints,
+  materialityEntryLine,
+  isMaterialityDuplicate,
+} = require('../../../plugin/bin/lib/health-core/materiality-digest');
+
+const ENTRY = {
+  area: 'tidy',
+  finding: 'digest sweep never dedups entries',
+  fileRefs: 'plugin/skills/tidy/digest-sweep.md',
+  deferReason: 'direct-filing-sweep',
+  provenance: '2026-09-01T120000-tidy-standalone',
+};
+
+// --- materialityFingerprint: stability and normalization ---
+
+test('materialityFingerprint is deterministic for identical input', () => {
+  assert.strictEqual(materialityFingerprint(ENTRY), materialityFingerprint({ ...ENTRY }));
+});
+
+test('materialityFingerprint is stable across incidental whitespace/casing differences in finding', () => {
+  const a = materialityFingerprint(ENTRY);
+  const b = materialityFingerprint({ ...ENTRY, finding: '  Digest   sweep NEVER dedups entries  ' });
+  assert.strictEqual(a, b);
+});
+
+test('materialityFingerprint is stable across file-ref ordering and whitespace', () => {
+  const a = materialityFingerprint({ ...ENTRY, fileRefs: 'a.md, b.md' });
+  const b = materialityFingerprint({ ...ENTRY, fileRefs: 'b.md,   a.md' });
+  assert.strictEqual(a, b);
+});
+
+test('materialityFingerprint differs when area differs', () => {
+  const a = materialityFingerprint(ENTRY);
+  const b = materialityFingerprint({ ...ENTRY, area: 'review' });
+  assert.notStrictEqual(a, b);
+});
+
+test('materialityFingerprint differs when finding text differs', () => {
+  const a = materialityFingerprint(ENTRY);
+  const b = materialityFingerprint({ ...ENTRY, finding: 'a completely different finding' });
+  assert.notStrictEqual(a, b);
+});
+
+test('materialityFingerprint differs when file refs differ', () => {
+  const a = materialityFingerprint(ENTRY);
+  const b = materialityFingerprint({ ...ENTRY, fileRefs: 'some/other/file.md' });
+  assert.notStrictEqual(a, b);
+});
+
+test('materialityFingerprint is prefixed with materiality-', () => {
+  assert.match(materialityFingerprint(ENTRY), /^materiality-[0-9a-f]{8}$/);
+});
+
+// --- materialityEntryLine / parseMaterialityFingerprints ---
+
+test('materialityEntryLine renders the Entry format line with the dedup marker appended', () => {
+  const line = materialityEntryLine(ENTRY);
+  assert.ok(line.startsWith('- [tidy] digest sweep never dedups entries — plugin/skills/tidy/digest-sweep.md — Defer-reason: direct-filing-sweep — 2026-09-01T120000-tidy-standalone'));
+  assert.ok(line.includes(`<!-- ${MATERIALITY_MARKER_PREFIX}: ${materialityFingerprint(ENTRY)} -->`));
+});
+
+test('parseMaterialityFingerprints extracts every embedded marker in order', () => {
+  const text = [
+    materialityEntryLine(ENTRY),
+    materialityEntryLine({ ...ENTRY, area: 'review', finding: 'a second finding' }),
+  ].join('\n');
+  const fps = parseMaterialityFingerprints(text);
+  assert.strictEqual(fps.length, 2);
+  assert.strictEqual(fps[0], materialityFingerprint(ENTRY));
+  assert.strictEqual(fps[1], materialityFingerprint({ ...ENTRY, area: 'review', finding: 'a second finding' }));
+});
+
+test('parseMaterialityFingerprints returns [] for text with no markers', () => {
+  assert.deepStrictEqual(parseMaterialityFingerprints('nothing here'), []);
+});
+
+test('parseMaterialityFingerprints handles undefined/null without throwing', () => {
+  assert.deepStrictEqual(parseMaterialityFingerprints(undefined), []);
+  assert.deepStrictEqual(parseMaterialityFingerprints(null), []);
+});
+
+// --- isMaterialityDuplicate: the dedup gate itself ---
+
+test('isMaterialityDuplicate is false when the digest container has no entries yet', () => {
+  assert.strictEqual(isMaterialityDuplicate([], ENTRY), false);
+  assert.strictEqual(isMaterialityDuplicate('', ENTRY), false);
+});
+
+test('isMaterialityDuplicate is true when an identical entry was already routed in a prior comment', () => {
+  const priorComment = materialityEntryLine(ENTRY);
+  assert.strictEqual(isMaterialityDuplicate([priorComment], ENTRY), true);
+});
+
+test('isMaterialityDuplicate is true across multiple comments (github-issues shape: array of comment bodies)', () => {
+  const comments = [
+    materialityEntryLine({ ...ENTRY, area: 'review', finding: 'unrelated finding' }),
+    materialityEntryLine(ENTRY),
+  ];
+  assert.strictEqual(isMaterialityDuplicate(comments, ENTRY), true);
+});
+
+test('isMaterialityDuplicate is false for a genuinely new finding even when other entries exist', () => {
+  const comments = [materialityEntryLine(ENTRY)];
+  const fresh = { ...ENTRY, finding: 'a brand new, unrelated finding' };
+  assert.strictEqual(isMaterialityDuplicate(comments, fresh), false);
+});
+
+test('isMaterialityDuplicate accepts a single string (local-files shape: one file body)', () => {
+  const body = materialityEntryLine(ENTRY);
+  assert.strictEqual(isMaterialityDuplicate(body, ENTRY), true);
+});
+
+test('a re-encountered finding folds into its existing entry instead of appending a second one (AC2)', () => {
+  // Simulates the routing skill's own decision: on firing 1, the container is empty, so the
+  // finding is appended; on firing 2 (same underlying finding, unchanged), the container
+  // already carries it, so the routing skill must skip appending — this is the exact
+  // spurious-cluster-promotion scenario #1279's Current State #2 describes.
+  let container = '';
+  const shouldAppendFiring1 = !isMaterialityDuplicate(container, ENTRY);
+  assert.strictEqual(shouldAppendFiring1, true);
+  container += `${materialityEntryLine(ENTRY)}\n`;
+
+  const shouldAppendFiring2 = !isMaterialityDuplicate(container, ENTRY);
+  assert.strictEqual(shouldAppendFiring2, false);
+  // Only one entry line exists in the container after both firings — never a second one.
+  assert.strictEqual(parseMaterialityFingerprints(container).length, 1);
+});

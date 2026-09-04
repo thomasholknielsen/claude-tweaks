@@ -132,7 +132,7 @@ eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" HARNESS_HEALTH_I
 gh issue list --label by:harness-health --state all --json number,state,labels,body --limit 500 > "$HARNESS_HEALTH_ISSUES_RAW"
 ```
 
-Parse each issue body for its fingerprint marker. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: harnesshealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- harness-health-fingerprint: harnesshealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `$HARNESS_HEALTH_ISSUES`.
+Parse each issue body for its fingerprint marker. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: harnesshealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- harness-health-fingerprint: harnesshealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`), then to the plain-text `work-fingerprint: harnesshealth-XXXXXXXX` companion line for an MCP-stripped body (`_shared/health-issue-index.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `$HARNESS_HEALTH_ISSUES`.
 
 **Transport and outcomes:** read `_shared/health-issue-index.md` and apply it, with `{SKILL}` = `harness-health` and `{ISSUES_FILE}` = `$HARNESS_HEALTH_ISSUES`. In short: `gh` absent means rebuild this index via the MCP `list_issues` tool, not skip the step; only a genuine "neither transport can reach GitHub" sets `ISSUES_FILE=""`, and that case gets reported rather than passing silently. A repo with no `by:harness-health` issues yet is a legitimately *empty* index (`[]`), not an unavailable one — keep the two distinct.
 
@@ -166,7 +166,7 @@ Read `filing.md` in this skill's directory and apply it. It owns the whole filin
 
 **Step 8 — SUMMARIZE.**
 
-Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
+Report: which target(s) were audited (or that only the gap scan ran), how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}, materiality: K` — report it even when `M` and `K` are both `0`, so the throttle is visible rather than inferred.
 
 ## Routine Configuration
 

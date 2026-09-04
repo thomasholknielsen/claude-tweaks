@@ -106,16 +106,57 @@ function isOrphanedMint(dir, now = Date.now()) {
 
 // An orphaned mint has nothing to git-mv (no work/, since flow never got far
 // enough to materialize into it) and nothing to finalize as terminal (no
-// run-state.json, since record-worktree never ran on it) — a plain
-// directory move to the archive path is the whole operation.
+// run-state.json, since record-worktree never ran on it) — moving each
+// top-level entry into its archive twin is the whole operation.
+//
+// Entry-by-entry, not a single whole-dir fs.renameSync: the archive twin can
+// already exist and be non-empty by the time this runs — a prior attempt
+// (this same orphaned-mint path, or an earlier archiveRunDir attempt that
+// moved some content there before failing on a later step) can leave a
+// partially-populated destination — and POSIX rename() of a whole directory
+// onto an existing NON-empty directory throws ENOTEMPTY unconditionally,
+// permanently wedging this run dir at move-failed (#1713, #1714). Mirrors
+// the same entry-by-entry pattern archiveRunDir already uses for its own
+// top-level and per-spec-dir loops, for the identical reason — see that
+// function's "spec-{N}/ dirs are excluded here" comment above.
 function archiveOrphanedMint(root, dir) {
   const runId = path.basename(dir);
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
   try {
-    fs.mkdirSync(path.dirname(archiveDir), { recursive: true });
-    fs.renameSync(dir, archiveDir);
+    fs.mkdirSync(archiveDir, { recursive: true });
   } catch (err) {
     return { ok: false, reason: 'move-failed', lastError: err && err.message };
+  }
+  let entries;
+  try {
+    entries = fs.readdirSync(dir);
+  } catch (err) {
+    return { ok: false, reason: 'move-failed', lastError: err && err.message };
+  }
+  const movedThisPass = [];
+  for (const name of entries) {
+    const src = path.join(dir, name);
+    if (!fs.existsSync(src)) continue;
+    const dest = path.join(archiveDir, name);
+    try {
+      fs.renameSync(src, dest);
+    } catch (err) {
+      const fullyReverted = revertPlainMoves(movedThisPass);
+      return {
+        ok: false,
+        reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert',
+        lastError: err && err.message,
+      };
+    }
+    movedThisPass.push([src, dest]);
+  }
+  try {
+    fs.rmdirSync(dir);
+  } catch {
+    /* best-effort — non-empty for an unexpected reason (a late write racing
+       this pass, the same class context.js's own late-write guard exists
+       for), or already gone; a genuinely non-empty leftover is picked up
+       again by the next pass's isOrphanedMint check. */
   }
   return { ok: true };
 }
@@ -815,7 +856,11 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
       // here. Weakening either upstream gate would silently weaken this
       // bypass too.
       const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', path.basename(dir));
-      const closeResult = closeRunState(archiveDir, { explicit: true, sessionId });
+      // #1012: closeRunState now takes callerIdentity ({ sessionId, cwd })
+      // instead of a bare sessionId — explicit: true still bypasses the
+      // foreign-owner refusal regardless (see the comment above), so this
+      // is a signature-consistency update, not a behavior change here.
+      const closeResult = closeRunState(archiveDir, { explicit: true, callerIdentity: { sessionId, cwd } });
       if (!closeResult.writeOk) {
         // The move already succeeded — never roll it back over a close-write
         // failure; the run is physically archived either way. Just make the

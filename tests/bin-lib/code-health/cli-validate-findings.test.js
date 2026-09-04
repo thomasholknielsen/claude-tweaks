@@ -6,6 +6,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { extractFingerprint } = require('../../../plugin/bin/lib/issues/record');
+
 const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'code-health.js');
 
 function tmp() {
@@ -483,4 +485,59 @@ test('validate-findings: exits 2 when --min-risk is an Object.prototype property
   );
   assert.strictEqual(result.status, 2, `expected exit 2, got ${result.status}. stderr: ${result.stderr}`);
   assert.ok(result.stderr.includes('--min-risk'), `expected --min-risk mentioned in stderr: ${result.stderr}`);
+});
+
+// #1700: gh-absent (MCP) transport dedup. The GitHub MCP server's read path strips every
+// `<!-- ... -->` span from a fetched issue body (the same sanitization
+// `_shared/pr-early-run-lifecycle.md` documents for PR reads, extended to issue reads) — before
+// the fix, this left `extractFingerprint` with nothing to match on an MCP-fetched body, so
+// `loadIssueIndex` built an index with every fingerprint null and a re-encountered finding
+// re-filed as a duplicate on every gh-absent (cloud Routine) firing. This test builds the
+// `--issues` index the way the real GATHER OPEN ISSUES step's gh-absent MCP projection would —
+// from a body with every HTML-comment span stripped, recovering the fingerprint via the
+// plain-text `work-fingerprint:` companion line only — and proves the second firing suppresses
+// the identical finding instead of re-filing it.
+test('validate-findings: gh-absent MCP transport — an HTML-comment-stripped body still dedups via the plain-text work-fingerprint companion (#1700)', () => {
+  const root = tmp();
+  const f = validFinding({ severity: 'high' });
+  const findingsFile = path.join(root, 'findings.json');
+  fs.writeFileSync(findingsFile, JSON.stringify([f]));
+
+  // First run (gh-present shape, unstripped) to learn the real filed body.
+  const firstResult = runValidateFindings(root, findingsFile, ['--slice', 'src/api', '--run-id', 'r-mcp-1']);
+  const firstPayloads = JSON.parse(firstResult.stdout);
+  assert.strictEqual(firstPayloads.length, 1);
+  const filedBody = firstPayloads[0].body;
+  const fp = extractFingerprint(filedBody);
+  assert.ok(fp, 'the filed body must carry an extractable fingerprint');
+
+  // Simulate the gh-absent MCP projection step: every HTML-comment span is stripped from the
+  // fetched body -- only the plain-text companion line survives.
+  const mcpStrippedBody = filedBody.replace(/<!--[\s\S]*?-->\n?/g, '');
+  assert.ok(!mcpStrippedBody.includes('<!--'), 'test fixture must actually simulate HTML-comment stripping');
+  const projectedFingerprint = extractFingerprint(mcpStrippedBody);
+  assert.strictEqual(
+    projectedFingerprint, fp,
+    'extractFingerprint must recover the same fingerprint from the MCP-stripped body via the plain-text companion',
+  );
+
+  // Build the { number, state, labels, fingerprint } shape the GATHER OPEN ISSUES step writes
+  // for --issues, using the fingerprint recovered from the stripped body -- never the
+  // pre-known one, since that would exercise nothing new.
+  const issuesFile = path.join(root, 'issues.json');
+  fs.writeFileSync(issuesFile, JSON.stringify([
+    { number: 42, state: 'open', labels: ['by:code-health'], fingerprint: projectedFingerprint },
+  ]));
+
+  // A second firing of the identical finding against the gh-absent-shaped index must be
+  // suppressed rather than re-filed.
+  const secondResult = runValidateFindings(
+    root, findingsFile, ['--issues', issuesFile, '--slice', 'src/api', '--run-id', 'r-mcp-2'],
+  );
+  assert.strictEqual(secondResult.status, 0, `stderr: ${secondResult.stderr}`);
+  const secondPayloads = JSON.parse(secondResult.stdout);
+  assert.strictEqual(
+    secondPayloads.length, 0,
+    'identical finding must be suppressed, not re-filed, once dedup uses the MCP-recovered fingerprint',
+  );
 });
