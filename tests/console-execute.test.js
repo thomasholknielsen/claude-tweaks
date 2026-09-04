@@ -201,6 +201,42 @@ test('decideConsoleExecute: Resolve ticked -> ready, with every item\'s approved
   ]);
 });
 
+// --- #1294: mergeCheckVerdict pass-through — console.json is the only source, never the comment body ---
+
+test('decideConsoleExecute: persisted mergeCheckVerdict: needs-human passes through on the ready result', () => {
+  const consoleJson = {
+    resolved: false,
+    commentIds: ['IC_1'],
+    prNumber: 42,
+    mergeCheckVerdict: 'needs-human',
+    items: [{ id: 'staged-1', kind: 'staged', summary: 'branch-finish', isMergeRow: true }],
+  };
+  const comments = [{
+    id: 'IC_1',
+    body: '<!-- console-item: staged-1 -->\n- [x] branch-finish\n\n<!-- console-item: resolve -->\n- [x] **Resolve console**',
+  }];
+  const result = decideConsoleExecute(consoleJson, comments, Date.now());
+  assert.strictEqual(result.action, 'ready');
+  assert.strictEqual(result.mergeCheckVerdict, 'needs-human');
+});
+
+test('decideConsoleExecute: no mergeCheckVerdict on console.json -> null, never assumed cleared', () => {
+  const consoleJson = { resolved: false, commentIds: ['IC_1'], prNumber: 42, items: [] };
+  const comments = [{ id: 'IC_1', body: '<!-- console-item: resolve -->\n- [x] **Resolve console**' }];
+  const result = decideConsoleExecute(consoleJson, comments, Date.now());
+  assert.strictEqual(result.action, 'ready');
+  assert.strictEqual(result.mergeCheckVerdict, null);
+});
+
+test('decideConsoleExecute: an unrecognized mergeCheckVerdict value reads as null, fails safe', () => {
+  const consoleJson = {
+    resolved: false, commentIds: ['IC_1'], prNumber: 42, mergeCheckVerdict: 'auto-merge', items: [],
+  };
+  const comments = [{ id: 'IC_1', body: '<!-- console-item: resolve -->\n- [x] **Resolve console**' }];
+  const result = decideConsoleExecute(consoleJson, comments, Date.now());
+  assert.strictEqual(result.mergeCheckVerdict, null);
+});
+
 test('decideConsoleExecute: overflow comments — an item\'s ticks are read from ITS OWN comment, not the primary\'s', () => {
   const consoleJson = {
     resolved: false,

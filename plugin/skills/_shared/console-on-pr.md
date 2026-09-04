@@ -62,6 +62,13 @@ item — this file changes the row's *shape* (a checkbox line instead of a table
 *content*. Reuse the existing `staged/` classifier (`Title:`/`Type:`/`Labels:` header = queue
 write) for Queue writes — do not re-derive it.
 
+**The Cleanup-actions row for the Git-worktree/branch-finish step** (`cleanup-procedures.md`'s
+canonical item 4 — the row `pr-first` routes to `_shared/pr-first-merge.md`'s procedure on
+"Approve all + merge") additionally carries `"isMergeRow": true` on its `console.json` item
+object (#1294) — the one item `_shared/console-execution.md`'s `consoleAutoResolve` wiring must
+single out when `mergeCheckVerdict` (below) is `needs-human`. Every other item's object omits
+this field entirely; it is never `false`.
+
 ## Legend (verbatim — AC4)
 
 Render this block, unmodified, immediately before the final Resolve checkbox:
@@ -121,7 +128,8 @@ record rather than silently trusting this note.
   "items": [
     { "id": "staged-5", "kind": "staged", "summary": "2 severity:medium findings", "stagedHash": "a1b2c3..." }
   ],
-  "renderedAt": "2026-08-14T15:00:00Z"
+  "renderedAt": "2026-08-14T15:00:00Z",
+  "mergeCheckVerdict": "needs-human"
 }
 ```
 
@@ -132,7 +140,22 @@ primary. `stagedHash` is each item's staged-file content hash at render time —
 own drift check (not this file's concern) compares it against the file's hash at act-time to
 detect a staged proposal that changed underneath an already-rendered tick.
 
-Two optional fields arrive only after execution, never at render time: `executedAt` (ISO
+**`mergeCheckVerdict` (#1294).** Written at first-render time (Post-or-update procedure step 1
+below), never re-derived on a later re-render: when this run's group had an
+`assess-agent-autonomy` `merge-check` verdict already computed this session before the console
+renders (`dispatch/settle-and-merge.md`'s Auto-merge gate, Layer 2 — the same verdict
+`wrap-up/review-console.md`'s Auto-resolution short-circuit reads as "a verdict exists for this
+run"), carry it into `console.json` as `"mergeCheckVerdict": "needs-human"`. Omit the field
+entirely when no merge-check ran this session (the group never carried `auto:merge`/
+`auto:merge-pending`, so nothing was computed) — omission means "unknown," never "cleared for
+auto-merge"; only a literal `"needs-human"` value is ever written, since an `auto-merge` verdict
+carries no carve-out to persist. This is what makes the verdict readable by a **foreign session**:
+`_shared/console-execution.md`'s reconciler-side executor runs with no access to the session that
+rendered the console, so the render-time short-circuit's session-scoped knowledge (line above)
+would otherwise be invisible to it — this field is the durable copy. See
+`_shared/console-execution.md`'s "consoleAutoResolve wiring" section for the read side.
+
+Two further optional fields arrive only after execution, never at render time: `executedAt` (ISO
 timestamp) and `resolved: true`, both written by `console-execution.md`'s Write order — see that
 file for the write order and what reads them.
 
@@ -148,7 +171,9 @@ tick-preservation across the read-modify-write.
 
 1. **No existing `console.json` for this run** (first render): compose the full comment body
    (all sections, all rows unticked, legend, Resolve checkbox unticked), post via
-   `gh pr comment`, write `console.json` with the new comment id and every item's `stagedHash`.
+   `gh pr comment`, write `console.json` with the new comment id, every item's `stagedHash`, and
+   — when this run's group had a merge-check verdict already computed this session (see
+   `mergeCheckVerdict` above) — that field.
 2. **`console.json` exists, resolved marker not yet observed**: fetch the current comment body
    (`gh pr view {pr-number} --json comments`, matched by the recorded comment id — never
    re-search by marker once an id is known, to avoid a race with a concurrently-created comment of
