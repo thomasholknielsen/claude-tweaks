@@ -1,8 +1,18 @@
 {
-  "computedAt": "2026-09-04T06:58:20.192Z",
+  "computedAt": "2026-09-04T08:00:29.600Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
+      {
+        "number": 1818,
+        "updatedAt": "2026-09-04T07:51:19Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1804,
+        "updatedAt": "2026-09-04T07:50:39Z",
+        "state": "OPEN"
+      },
       {
         "number": 1776,
         "updatedAt": "2026-09-02T08:33:58Z",
@@ -115,7 +125,7 @@
       },
       {
         "number": 1294,
-        "updatedAt": "2026-09-02T11:16:24Z",
+        "updatedAt": "2026-09-04T07:16:26Z",
         "state": "OPEN"
       },
       {
@@ -130,7 +140,7 @@
       },
       {
         "number": 1224,
-        "updatedAt": "2026-09-02T11:16:03Z",
+        "updatedAt": "2026-09-04T07:08:44Z",
         "state": "OPEN"
       },
       {
@@ -170,7 +180,7 @@
       },
       {
         "number": 939,
-        "updatedAt": "2026-09-02T11:15:17Z",
+        "updatedAt": "2026-09-04T07:16:20Z",
         "state": "OPEN"
       },
       {
@@ -211,6 +221,182 @@
     ]
   },
   "groups": [
+    [
+      {
+        "body": "**Doc:** plans/2026-08-29-spec-1296-1336-ledger | **Section:** Open Items — flow run #1296, #1336 | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: ca0f3760fa7ebf6b4fb0c6d0202872800c34ea2d\n\n## Current State\n\nRe-ran `grep -rn \"Reversibility: med\" plugin/skills/` from repo root: it currently returns 3 lines (flow/multispec-freshness.md:16, wrap-up/upstream-feedback.md:19, tidy/step-6-auto.md:68), not the 2 the ledger names. `git blame -L 19,19 plugin/skills/wrap-up/upstream-feedback.md` shows that line was added in commit af409e80 at 2026-08-29 18:16:47+02:00 — 5 minutes before the ledger doc's own creation commit 0aa9b881 at 2026-08-29 18:21:33+02:00 — so the third match already existed when this ledger was written and was simply omitted, not a later drift.\n\n## Deliverables\n\n**Current:**\n```\nalso matches two pre-existing, out-of-scope lines: `tidy/step-6-auto.md`'s illustrative \"Log entries\" example (a format demonstration, not a live policy assertion) and `flow/multispec-freshness.md`'s merge-catchup log line (a different subsystem's own reversibility call, not named in #1296's Deliverables/Key Files).\n```\n\n**Proposed:**\n```\nalso matches three pre-existing, out-of-scope lines: `tidy/step-6-auto.md`'s illustrative \"Log entries\" example (a format demonstration, not a live policy assertion), `flow/multispec-freshness.md`'s merge-catchup log line (a different subsystem's own reversibility call, not named in #1296's Deliverables/Key Files), and `wrap-up/upstream-feedback.md`'s staged-upstream-report log line (same rationale — a different subsystem's own reversibility call, not named in #1296's Deliverables/Key Files).\n```\n\n## Acceptance Criteria\n\nThe ledger's item-1 text states the reversibility grep `grep -rn \"Reversibility: med\" plugin/skills/` matches 'two pre-existing, out-of-scope lines' beyond #1296's own target. Live re-run of that exact command also matches `plugin/skills/wrap-up/upstream-feedback.md:19` ('Reversibility: medium (public issue; stage path: staged/wrap-up-upstream-{N}.md).'), a third pre-existing out-of-scope line the ledger does not name. Update the count and list to name all three matches.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-d981f7b5 -->",
+        "createdAt": "2026-09-04T06:17:37Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACy3OKFA",
+            "name": "auto:merge-pending",
+            "description": "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)",
+            "color": "C2E0C6"
+          }
+        ],
+        "number": 1818,
+        "state": "OPEN",
+        "title": "Doc staleness: plans/2026-08-29-spec-1296-1336-ledger — Open Items — flow run #1296, #1336",
+        "updatedAt": "2026-09-04T07:51:19Z",
+        "facets": {
+          "origin": "docs-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "**Doc:** plans/2026-08-27-1368-subagent-contract-violation-investigation-ledger | **Section:** Open Items — Investigate subagent contract-line violation observed during #1259's build dispatch | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b47707ca31cc8eae762005f3a365e5dc15e79852\n\n## Current State\n\nRow 1's Item column cites `plugin/bin/lib/hooks/subagent-stop.js:50` as the emission site. Live grep of that file shows the `contract-violation` event is now appended at line 77 (`ctxLib.appendEvent(ownedRun.dir, 'contract-violation', ...)`); line 50 now falls inside an unrelated `tool_use` guard clause added later. A reader following the citation today lands on the wrong code.\n\n## Deliverables\n\n**Current:**\n```\n`plugin/bin/lib/hooks/subagent-stop.js:50`\n```\n\n**Proposed:**\n```\n`plugin/bin/lib/hooks/subagent-stop.js:77` (line at time of this ledger's writing was 50; the event-emission line has since moved due to unrelated comment additions)\n```\n\n## Acceptance Criteria\n\nThe doc's cited source-line reference for the contract-violation event emission should point at the line where that code currently lives.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-b5131791 -->",
+        "createdAt": "2026-09-03T06:06:19Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
+            "color": "0E8A16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACy3OKFA",
+            "name": "auto:merge-pending",
+            "description": "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)",
+            "color": "C2E0C6"
+          }
+        ],
+        "number": 1804,
+        "state": "OPEN",
+        "title": "Doc staleness: plans/2026-08-27-1368-subagent-contract-violation-investigation-ledger — Open Items — Investigate subagent contract-line violation observed during #1259's build dispatch",
+        "updatedAt": "2026-09-04T07:50:39Z",
+        "facets": {
+          "origin": "docs-health",
+          "risk": "low",
+          "size": "low",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
     [
       {
         "body": "**Doc:** plans/2026-08-26-record-327-ledger | **Section:** Open Items | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 4c18d38c7acd13c08fdc36bff84ae99cc88b954e\n\n## Current State\n\nThe row states PR #1506 was 'still open at residue-sweep time' with the item deferred to backlog #1507 (defer-reason: blocked-external). Live GitHub state contradicts this: PR #1506 is closed/merged (merged_at 2026-08-30T17:44:03Z, confirmed via mcp__github__pull_request_read), and issue #1507 is closed with state_reason 'completed' (closed_at 2026-08-31T05:34:17Z, confirmed via mcp__github__issue_read). git log also shows merge commit e49a8cef 'Merge PR #1506 with user approval, resolving the merge-decision gate (refs #1507)'. Both facts the row asserts are now stale.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | wrap-up | pr — PR #1506 (this work's own draft PR, head worktree-dispatch-record-327) still open at residue-sweep time, pending this run's own Phase 4 merge decision (merge-authorization: ask; no auto:merge grant) | deferred | → backlog #1507 (defer-reason: blocked-external) |\n```\n\n**Proposed:**\n```\n| 1 | wrap-up | pr — PR #1506 (this work's own draft PR, head worktree-dispatch-record-327) still open at residue-sweep time, pending this run's own Phase 4 merge decision (merge-authorization: ask; no auto:merge grant) | resolved | PR #1506 merged 2026-08-30; backlog #1507 closed (completed) 2026-08-31 |\n```\n\n## Acceptance Criteria\n\nRow 1's Status column is updated from 'deferred' to 'resolved', and the Resolution column is updated to state that PR #1506 was merged on 2026-08-30 and backlog issue #1507 was closed (completed) on 2026-08-31, rather than still pointing to an open backlog item.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-42947263 -->",
@@ -2149,168 +2335,6 @@
     ],
     [
       {
-        "body": "Surface: infra\n\n## Current State\n\n#1179 added the Needs-human carve-out to both console files' Auto-resolution short-circuits and cross-referenced it from `dispatch/settle-and-merge.md`'s Auto-merge gate. But `_shared/autonomy-ceiling.md` names a second sanctioned caller of `consoleAutoResolve`: `_shared/console-execution.md`'s reconciler-side executor, which auto-ticks and executes a PR-posted console when the ceiling is raised after render time. That file's \"consoleAutoResolve wiring\" section treats every console item as floor-clearing (\"no narrower per-item test today\") and routes execution through `review-console.md`'s \"On approval\" steps 1-6 — including the branch-finish/merge row — while containing zero occurrences of \"merge-check\" or \"needs-human\". Reachable scenario (traced during #1179's review): `settle-and-merge.md`'s gate fails a layer at an attended tier, so the console renders unticked on the PR without the short-circuit (and hence the carve-out) ever evaluating; nothing persists the `needs-human` verdict (`console.json`, `decisions.md` entry schema, PR label); the ceiling is later raised to `unattended`; the reconciler auto-ticks the merge box, and `_shared/pr-first-merge.md` performs no independent needs-human check. This defeats exactly the precedence rule #1179 pinned (human ruling 2026-08-21: merge-check's needs-human verdict is authoritative), via an adjacent file #1179's spec did not scope. Refs #1179.\n\n## Deliverables\n\n1. Persist the merge-check `needs-human` verdict at console render/post time in a place the reconciler-side executor reads (e.g. a `mergeCheckVerdict` field in `console.json` written by `_shared/console-on-pr.md`'s post procedure — mechanism choice is part of this record's design work; interaction with #347's planned per-item floor predicate must be considered, since `console-execution.md` explicitly forbids pre-implementing that predicate).\n2. In `_shared/console-execution.md`'s \"consoleAutoResolve wiring\": mirror the #1179 carve-out — when a persisted `needs-human` verdict exists for the run, the merge/branch-finish row is not floor-clearing; Resolve stays unticked for a human; every non-merge item still auto-resolves.\n3. Extend the #1179 conformance suite (`tests/console-autoresolve-needs-human-carveout.test.js`) or add a sibling suite to pin the executor-side carve-out with go-red proof, and cover the persistence mechanism with a unit test.\n\n## Acceptance Criteria\n\n- A console posted for a run with a `needs-human` merge-check verdict cannot have its merge/branch-finish row auto-ticked by the reconciler-side executor at any later ceiling.\n- The verdict survives session end (persisted artifact readable by a foreign session — not conversation state).\n- Conformance/unit tests fail when the executor-side carve-out prose or the persistence write is removed.\n\n## Technical Approach\n\nPersist the merge-check `needs-human` verdict at console render/post time in a location the reconciler-side executor can read independent of session state (e.g. a `mergeCheckVerdict` field in `console.json`), then have `_shared/console-execution.md`'s `consoleAutoResolve` wiring check that persisted verdict before treating the merge/branch-finish row as floor-clearing — mirroring the carve-out #1179 already added to the render-time short-circuit. Coordinate with #347's planned per-item floor predicate rather than pre-implementing it. Extend or add a conformance suite with go-red proof for the executor-side carve-out and a unit test for the persistence write.\n\n### Key Files\n\n- `plugin/skills/_shared/console-execution.md` — the `consoleAutoResolve` wiring needing the carve-out\n- `plugin/skills/_shared/console-on-pr.md` — the post procedure that would write the persisted verdict\n- `plugin/skills/wrap-up/review-console.md` — \"On approval\" steps 1-6, including the branch-finish/merge row\n- `tests/console-autoresolve-needs-human-carveout.test.js` — the existing #1179 conformance suite to extend or sibling\n\n## Gotchas\n\n- #347 (autonomy-tiered console resolution) plans a real per-item floor predicate for this same loop; coordinate rather than pre-implement or conflict.\n- `console-execution.md`'s `ctx.ownedRun` exemption means the executor may run with no access to the original session — the verdict must be in the run dir or on the PR, never assumed from context.\n\n## Original request\n\nconsole-execution.md's reconciler-side consoleAutoResolve executor can override a merge-check needs-human verdict\n\nOrigin: spec #1179 review (lens 3e + gap-sweep, independently convergent; direct-verified)\nDefer-reason: genuinely-larger\n\n## Current State\n\n#1179 added the Needs-human carve-out to both console files' Auto-resolution short-circuits and cross-referenced it from `dispatch/settle-and-merge.md`'s Auto-merge gate. But `_shared/autonomy-ceiling.md` names a second sanctioned caller of `consoleAutoResolve`: `_shared/console-execution.md`'s reconciler-side executor, which auto-ticks and executes a PR-posted console when the ceiling is raised after render time. That file's \"consoleAutoResolve wiring\" section treats every console item as floor-clearing (\"no narrower per-item test today\") and routes execution through `review-console.md`'s \"On approval\" steps 1-6 — including the branch-finish/merge row — while containing zero occurrences of \"merge-check\" or \"needs-human\". Reachable scenario (traced during #1179's review): `settle-and-merge.md`'s gate fails a layer at an attended tier, so the console renders unticked on the PR without the short-circuit (and hence the carve-out) ever evaluating; nothing persists the `needs-human` verdict (`console.json`, `decisions.md` entry schema, PR label); the ceiling is later raised to `unattended`; the reconciler auto-ticks the merge box, and `_shared/pr-first-merge.md` performs no independent needs-human check. This defeats exactly the precedence rule #1179 pinned (human ruling 2026-08-21: merge-check's needs-human verdict is authoritative), via an adjacent file #1179's spec did not scope. Refs #1179.\n\n## Deliverables\n\n1. Persist the merge-check `needs-human` verdict at console render/post time in a place the reconciler-side executor reads (e.g. a `mergeCheckVerdict` field in `console.json` written by `_shared/console-on-pr.md`'s post procedure — mechanism choice is part of this record's design work; interaction with #347's planned per-item floor predicate must be considered, since `console-execution.md` explicitly forbids pre-implementing that predicate).\n2. In `_shared/console-execution.md`'s \"consoleAutoResolve wiring\": mirror the #1179 carve-out — when a persisted `needs-human` verdict exists for the run, the merge/branch-finish row is not floor-clearing; Resolve stays unticked for a human; every non-merge item still auto-resolves.\n3. Extend the #1179 conformance suite (`tests/console-autoresolve-needs-human-carveout.test.js`) or add a sibling suite to pin the executor-side carve-out with go-red proof, and cover the persistence mechanism with a unit test.\n\n## Acceptance Criteria\n\n- [ ] A console posted for a run with a `needs-human` merge-check verdict cannot have its merge/branch-finish row auto-ticked by the reconciler-side executor at any later ceiling.\n- [ ] The verdict survives session end (persisted artifact readable by a foreign session — not conversation state).\n- [ ] Conformance/unit tests fail when the executor-side carve-out prose or the persistence write is removed.\n\n## Gotchas\n\n- #347 (autonomy-tiered console resolution) plans a real per-item floor predicate for this same loop; coordinate rather than pre-implement or conflict.\n- `console-execution.md`'s ctx.ownedRun exemption means the executor may run with no access to the original session — the verdict must be in the run dir or on the PR, never assumed from context.\n\n### Key Files\n\n- plugin/skills/_shared/console-execution.md\n- plugin/skills/_shared/console-on-pr.md\n- plugin/skills/wrap-up/review-console.md\n- tests/console-autoresolve-needs-human-carveout.test.js\n\n_Filed by `review` via specShapedBody._\n",
-        "createdAt": "2026-08-22T14:44:07Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
-            "name": "priority:high",
-            "description": "Priority: dispatch picks this band first",
-            "color": "FBCA04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMTcg",
-            "name": "risk:high",
-            "description": "Scoring: high blast radius — human review required",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1294,
-        "state": "OPEN",
-        "title": "console-execution.md's reconciler-side consoleAutoResolve executor can override a merge-check needs-human verdict",
-        "updatedAt": "2026-09-02T11:16:24Z",
-        "facets": {
-          "origin": null,
-          "risk": "high",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: backend\n\nOrigin: discovered during #845's wrap-up (review-console.md's Auto-merge short-circuit fast-lane merge path) while independently verifying cleanup completeness\n\nDefer-reason: genuinely-larger\n\n## Current State\n\n`wrap-up/review-console.md`'s Auto-merge short-circuit (the fast-lane path a dispatched singleton's `merge-check` verdict routes through) explicitly bypasses `/claude-tweaks:wrap-up`'s Phase 4 execution step, re-implementing only acceptance labeling (`verification-brief.md`) and Section E (issue claim release + grant removal) itself — see that file's \"Order is load-bearing\" and \"Release-reason mapping\" notes. It does **not** re-implement `cleanup-procedures.md`'s canonical item 2 (Open items ledger — \"Delete via `/ledger`'s delete operation, only after Phase 3's ledger gate confirms zero open items\"). The result: every record that merges via this short-circuit leaves its fully-resolved `docs/plans/{date}-{spec}-ledger.md` file permanently on `main`, un-deleted, even though the resolve gate already confirmed zero open items before the merge.\n\nVerified directly in this repo's current `docs/plans/`: 21 `*-ledger.md` files present, 20 of which have zero remaining `| open |` rows (fully resolved) — e.g. `2026-08-17-record-711-ledger.md` (merged via \"Wrap-up: open items ledger for record #711 — residue sweep's own-PR finding, accepted, refs #711\", 0 open rows) and, after this run, `2026-08-19-record-845-ledger.md` (0 open rows, merged via PR #935). These are not in-progress — they are stale audit trail that item 2 exists specifically to clean up, sitting on `main` indefinitely because the one merge path that skips Phase 4 entirely never runs it.\n\n## Deliverables\n\n- [ ] In `wrap-up/review-console.md`'s Auto-merge short-circuit section, add a step (alongside the existing Section E re-implementation) that runs cleanup item 2 — delete the resolved ledger file via `/claude-tweaks:ledger`'s delete operation — before or as part of the merge, consistent with item 2's own stated precondition (Phase 3's gate already ran by the time this short-circuit is reached).\n- [ ] Decide and document ordering: item 2's deletion should land in the same commit/push that the merge carries (so the ledger file never survives on `main` past the merge that resolved it), matching how item 2 behaves on the normal (non-short-circuit) Phase 4 execution path.\n- [ ] One-time backlog cleanup: delete the ~20 already-stranded, fully-resolved `docs/plans/*-ledger.md` files currently on `main` (verify each has zero `| open |`/`| deferred |`-without-terminal-status rows before deleting; do not touch the one file with a genuinely open item found during this record's audit).\n\n## Acceptance Criteria\n\n1. A record merged via the Auto-merge short-circuit no longer leaves its resolved ledger file on `main` after the merge.\n2. `tests/` (or a new test) pins that the short-circuit's procedure text includes the ledger-deletion step, the same way other cleanup-completeness contracts in this codebase are pinned.\n3. The pre-existing stranded ledger files are cleaned up (or explicitly triaged and kept with a stated reason, if any turn out to have residual value as audit trail).\n\n## Technical Approach\n\nAdd the missing ledger-deletion step to `wrap-up/review-console.md`'s Auto-merge short-circuit section, immediately alongside its existing Section E re-implementation (issue claim release + grant removal) — the short-circuit already re-implements the specific cleanup-procedures.md items it needs rather than calling back into Phase 4 wholesale, so item 2 (ledger deletion) gets the same one-off re-implementation treatment. Precondition is already satisfied by the time the short-circuit is reached (Phase 3's gate confirmed zero open items), so the new step is purely mechanical: invoke `/claude-tweaks:ledger`'s delete operation on the run's ledger file, landing the deletion in the same commit/push the merge carries — matching item 2's existing behavior on the normal Phase 4 path, so no new ordering semantics are introduced, only a bypassed one is restored. Pin the addition with a test asserting the short-circuit's procedure text includes the ledger-deletion step, following whatever cleanup-completeness pinning convention this codebase already uses for its other short-circuit re-implementations. For the one-time backlog cleanup, re-audit each of the ~20 stranded `docs/plans/*-ledger.md` files at execution time (state may have shifted since this record's own audit) — delete only files confirmed to have zero `| open |` rows and no deferred item lacking a terminal status, and explicitly document any file kept instead of deleted.\n\n### Key Files\n\n- `plugin/skills/wrap-up/review-console.md` — Auto-merge short-circuit section; add the ledger-deletion step\n- `plugin/skills/wrap-up/cleanup-procedures.md` — canonical item 2, the pattern to mirror\n- `plugin/skills/ledger/SKILL.md` — delete operation invoked by the new step\n- `docs/plans/*-ledger.md` — the ~20 stranded files for the one-time cleanup\n- `tests/` — new pinning test for the short-circuit's procedure text\n\n## Gotchas\n\n- `review-console.md` explicitly notes \"Order is load-bearing\" for the Auto-merge short-circuit — the new ledger-deletion step must respect whatever ordering constraint already governs Section E's re-implementation; don't assume the new step is order-independent just because it's mechanically simple.\n- The one-time backlog cleanup (Deliverable 3) must re-verify zero-open-items per file at execution time, not trust this record's own audit snapshot — state may have shifted between filing and execution. This record explicitly found one file with a genuinely open item during its own audit; do not delete that file, and re-check for others like it.\n- Deferred as `genuinely-larger` from #845's wrap-up — this fix touches a load-bearing merge-path ordering contract plus a bulk one-time cleanup, correctly scoped as separate follow-up work rather than fixed inline during #845.\n\n## Original request\n\nwrap-up Auto-merge short-circuit skips ledger-file deletion — ~20 resolved ledgers stranded on main\n\nOrigin: discovered during #845's wrap-up (review-console.md's Auto-merge short-circuit fast-lane merge path) while independently verifying cleanup completeness\n\nDefer-reason: genuinely-larger\n\n## Current State\n\n`wrap-up/review-console.md`'s Auto-merge short-circuit (the fast-lane path a dispatched singleton's `merge-check` verdict routes through) explicitly bypasses `/claude-tweaks:wrap-up`'s Phase 4 execution step, re-implementing only acceptance labeling (`verification-brief.md`) and Section E (issue claim release + grant removal) itself — see that file's \"Order is load-bearing\" and \"Release-reason mapping\" notes. It does **not** re-implement `cleanup-procedures.md`'s canonical item 2 (Open items ledger — \"Delete via `/ledger`'s delete operation, only after Phase 3's ledger gate confirms zero open items\"). The result: every record that merges via this short-circuit leaves its fully-resolved `docs/plans/{date}-{spec}-ledger.md` file permanently on `main`, un-deleted, even though the resolve gate already confirmed zero open items before the merge.\n\nVerified directly in this repo's current `docs/plans/`: 21 `*-ledger.md` files present, 20 of which have zero remaining `| open |` rows (fully resolved) — e.g. `2026-08-17-record-711-ledger.md` (merged via \"Wrap-up: open items ledger for record #711 — residue sweep's own-PR finding, accepted, refs #711\", 0 open rows) and, after this run, `2026-08-19-record-845-ledger.md` (0 open rows, merged via PR #935). These are not in-progress — they are stale audit trail that item 2 exists specifically to clean up, sitting on `main` indefinitely because the one merge path that skips Phase 4 entirely never runs it.\n\n## Deliverables\n\n- [ ] In `wrap-up/review-console.md`'s Auto-merge short-circuit section, add a step (alongside the existing Section E re-implementation) that runs cleanup item 2 — delete the resolved ledger file via `/claude-tweaks:ledger`'s delete operation — before or as part of the merge, consistent with item 2's own stated precondition (Phase 3's gate already ran by the time this short-circuit is reached).\n- [ ] Decide and document ordering: item 2's deletion should land in the same commit/push that the merge carries (so the ledger file never survives on `main` past the merge that resolved it), matching how item 2 behaves on the normal (non-short-circuit) Phase 4 execution path.\n- [ ] One-time backlog cleanup: delete the ~20 already-stranded, fully-resolved `docs/plans/*-ledger.md` files currently on `main` (verify each has zero `| open |`/`| deferred |`-without-terminal-status rows before deleting; do not touch the one file with a genuinely open item found during this record's audit).\n\n## Acceptance Criteria\n\n1. A record merged via the Auto-merge short-circuit no longer leaves its resolved ledger file on `main` after the merge.\n2. `tests/` (or a new test) pins that the short-circuit's procedure text includes the ledger-deletion step, the same way other cleanup-completeness contracts in this codebase are pinned.\n3. The pre-existing stranded ledger files are cleaned up (or explicitly triaged and kept with a stated reason, if any turn out to have residual value as audit trail).\n\n_Filed by `capture` via specShapedBody._\n",
-        "createdAt": "2026-08-19T20:51:24Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          }
-        ],
-        "number": 939,
-        "state": "OPEN",
-        "title": "wrap-up Auto-merge short-circuit skips ledger-file deletion — ~20 resolved ledgers stranded on main",
-        "updatedAt": "2026-09-02T11:15:17Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
         "body": "Surface: infra\n\n## Current State\n\nReconcile's `archive-merged.js` convergence check has failed `move-failed` on\n`.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267` for 3 consecutive passes (first\nobserved 2026-08-22T11:19:58.383Z), auto-filed via `escalate-residue.js`'s fingerprint-deduped\nfiling path (`bin/lib/reconcile`, see #644).\n\nInvestigated at shaping time (2026-08-23) directly against this machine's main checkout:\n- The run directory still exists un-archived, with its git-tracked `work/` subdirectories under\n  `spec-267/` and `spec-271/` already `git mv`'d into the archive twin and committed (confirmed:\n  `archive/2026-08-09T122833-spec-271-267/spec-267/work` and `.../spec-271/work` exist; the\n  originals no longer carry `work/`). What remains un-moved: the top-level `events.jsonl`,\n  `run-state.json`, and `staged/` entries, plus each spec dir's own now-orphaned `staged/`\n  subdirectory — i.e. `archive-merged.js`'s top-level plain-move loop (which runs before the\n  per-spec-dir loop) is the step returning `move-failed`, since the per-spec-dir loop's own work\n  (moving `staged/` inside each spec dir) has clearly never been reached.\n- A direct reproduction — `fs.renameSync` on `run-state.json` from the run dir into its archive\n  twin, then immediately back — **succeeded cleanly** with no thrown error: no restrictive\n  permissions (`runDir writable: yes`), no BSD `chflags` (`ls -lO@` shows none set, only a benign\n  `com.apple.provenance` xattr on each entry), and the destination directory already exists with\n  room for these entries (no name collision).\n- This means the failure is not currently reproducible by directly exercising the same syscall —\n  either it was transient (e.g. one of these files briefly held open by a concurrent writer during\n  the specific pass(es) that recorded the streak), or reconcile simply hasn't re-attempted this\n  path since the streak was recorded and escalated, leaving a stale failure count.\n- Separately: `archive-merged.js`'s `move-failed` reason is a bare string — the `catch` blocks\n  around `fs.renameSync` (`archive-merged.js:330-334`, `:376-380`) discard the actual thrown\n  error (`err.code`/`err.message`) entirely, so neither this filed issue nor `bin/residue.js`'s\n  own findings carry the real OS-level cause. That gap is what made this investigation require a\n  manual reproduction instead of reading a logged error.\n\n## Deliverables\n\n1. Capture and surface the actual filesystem error (`err.code` at minimum, e.g. `EACCES`/`EBUSY`/`ENOTEMPTY`) when a `move-failed`/`move-failed-partial-revert` outcome fires in `archive-merged.js`, so a future occurrence is diagnosable from `decisions.md`/the filed issue body without manual reproduction.\n2. Re-run reconcile against this specific path (or trigger the next scheduled reconcile pass) to determine whether it now succeeds — clearing the stale streak via `recordResidueSuccess` — or reproduces the failure with the newly-captured error detail.\n3. If the failure reproduces with a real cause, fix it; if it was transient/stale, close this record noting the streak self-cleared, and consider whether `escalate-residue.js` should have closed or commented on its own auto-filed issue once the streak resets (not confirmed to exist today — a related gap, not necessarily in scope here).\n\n## Acceptance Criteria\n\n- `archive-merged.js`'s move-failed paths log the underlying OS error (code + message), verifiable via a test that forces a `fs.renameSync` failure and asserts the captured detail.\n- This path (`.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267`) is confirmed either fully archived (no entries remain outside `archive/`) or reproducibly still failing with a now-diagnosable cause.\n- If fully archived, this issue is closed with a note on what resolved it (stale streak vs. real fix).\n\n## Technical Approach\n\nWrap the `fs.renameSync` calls in `archive-merged.js`'s top-level loop (`:325-334`) and per-spec-dir\nloop (`:371-380`) so the caught error's `code`/`message` is threaded into the `{ ok: false, reason,\ndetail }` result rather than discarded — `trackArchiveResult` (`:424-436`) already has the\nplumbing to pass extra detail into `escalate()`'s filed-issue body and/or `recordResidueFailure`'s\ncache entry. Then re-run reconcile (`node bin/hooks.js reconcile`, or wait for the next scheduled\npass) against this path specifically and read the outcome: a clean archive confirms the streak was\nstale; a repeat `move-failed` now carries the real error for a targeted fix.\n\n### Key Files\n\n- `plugin/bin/lib/reconcile/archive-merged.js` — the top-level (`:325-338`) and per-spec-dir (`:340-382`) plain-move loops whose `catch` blocks discard the thrown error\n- `plugin/bin/lib/reconcile/cache.js` — `recordResidueFailure`/`recordResidueSuccess`, the streak counter this bug's escalation is keyed on\n- `plugin/bin/lib/reconcile/escalate-residue.js` — the auto-filing path that produced this issue, fingerprint-deduped\n- `.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267` — the specific stuck run dir\n\n## Gotchas\n\n- The failure was not reproducible via a direct, isolated `fs.renameSync` test at shaping time (2026-08-23) — this record may resolve as \"streak was stale, reconcile now succeeds on its own\" rather than requiring a real bug fix; the diagnostic-logging deliverable (#1) has value regardless of that outcome, since the next occurrence (this path or another) will otherwise be equally undiagnosable.\n- No evidence found (in a quick read of `escalate-residue.js`) that reconcile auto-closes a previously-filed residue issue once the streak clears — this record's own resolution may need to close itself manually rather than relying on reconcile to do it.\n- `.claude-tweaks/pipelines/` is gitignored, per-clone local state — this path's current state (partially archived: `work/` committed, `staged/`+top-level entries not) is specific to this machine's checkout and may not reproduce identically elsewhere.\n\n## Original request\n\nreconcile: move-failed stuck on /Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267\n\nReconcile has failed `move-failed` on this path for 3 consecutive passes (first observed 2026-08-22T11:19:58.383Z).\n\n**Path:** `/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude-tweaks/pipelines/2026-08-09T122833-spec-271-267`\n**Reason:** `move-failed`\n\nFiled automatically by `bin/lib/reconcile` — see #644.\n\n<!-- fingerprint: reconcile-residue-b797867b -->\n",
         "createdAt": "2026-08-22T11:55:40Z",
         "labels": [
@@ -2542,7 +2566,7 @@
         "number": 1224,
         "state": "OPEN",
         "title": "dispatch: queue-pull does not exclude issues with an already-open PR",
-        "updatedAt": "2026-09-02T11:16:03Z",
+        "updatedAt": "2026-09-04T07:08:44Z",
         "facets": {
           "origin": "capture",
           "risk": "medium",
