@@ -149,11 +149,16 @@ function run(argv, deps = realDeps) {
   }
   let logged = false;
   if (target.ok) {
-    const reversibility = (r.outcome === 'skipped-not-owner' || r.outcome === 'unreadable' || r.outcome === 'failed') ? 'n/a' : 'high';
-    const entry = formatEntry({ status: 'AUTO', now: deps.now(), step: o.step || 'Section E', text: decisionText(issue, r, reason, o.link), reversibility });
+    const nothingReleased = r.outcome === 'skipped-not-owner' || r.outcome === 'unreadable' || r.outcome === 'failed';
+    const entry = formatEntry({
+      status: 'AUTO', now: deps.now(), step: o.step || 'Section E', text: decisionText(issue, r, reason, o.link), reversibility: nothingReleased ? 'n/a' : 'high',
+    });
     try { appendEntry({ runDir, section: o.section, entry }); logged = true; } catch (err) { deps.stderr(`release-claim.js: decisions.md not written (${err && err.message})\n`); }
   }
-  deps.stdout(JSON.stringify({ issue, runId, reason, link: o.link || null, outcome: r.outcome, holder: r.holder || null, commentPosted: r.commentPosted, labelsRemoved: r.labelsRemoved, labelsFailed: r.labelsFailed, note: r.note || null, error: r.error || null, logged }, null, 2) + '\n');
+  deps.stdout(JSON.stringify({
+    issue, runId, reason, link: o.link || null, outcome: r.outcome, holder: r.holder || null, commentPosted: r.commentPosted,
+    labelsRemoved: r.labelsRemoved, labelsFailed: r.labelsFailed, note: r.note || null, error: r.error || null, logged,
+  }, null, 2) + '\n');
   return EXIT[r.outcome] ?? 1;
 }
 
