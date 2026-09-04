@@ -36,9 +36,9 @@ function runHook(args, { input = '', cwd = HOOK_SANDBOX, env = {} } = {}) {
       // denial behavior overrides it via `env`.
       input, cwd, encoding: 'utf8', env: { ...process.env, PIPELINE_RUN_DIR: '', CT_HOOKS_TEST_MODE: '1', ...env },
     });
-    return { code: 0, stdout };
+    return { code: 0, stdout, stderr: '' };
   } catch (e) {
-    return { code: e.status, stdout: e.stdout || '' };
+    return { code: e.status, stdout: e.stdout || '', stderr: e.stderr || '' };
   }
 }
 
@@ -77,9 +77,45 @@ test('invariant: every event exits 0 on garbage stdin, no stdout noise', () => {
   }
 });
 
-test('invariant: unknown event and missing event exit 0', () => {
-  assert.strictEqual(runHook(['no-such-event'], { input: '{}' }).code, 0);
-  assert.strictEqual(runHook([], { input: '{}' }).code, 0);
+// #1586: an unrecognized subcommand used to silently exit 0 with no output —
+// caught only by re-reading decisions.md afterward and noticing a
+// `hooks.js log-decision ...` call had no-op'd instead of writing the
+// expected entry. Every unrecognized verb (including a bare/missing one)
+// must now exit non-zero with a clear stderr message; only the six real
+// EVENTS names (invoked by the harness via stdin JSON, never probed as a
+// bare CLI arg in practice) keep the "never break a session" exit-0
+// invariant pinned in the next test below.
+test('#1586: an unrecognized hooks.js subcommand exits non-zero with a clear stderr message', () => {
+  const r = runHook(['no-such-event'], { input: '{}' });
+  assert.notStrictEqual(r.code, 0, 'unrecognized subcommand must exit non-zero, not silently no-op');
+  assert.match(r.stderr, /unrecognized hooks\.js subcommand 'no-such-event'/);
+});
+
+test('#1586: a missing subcommand exits non-zero and lists known subcommands', () => {
+  const r = runHook([], { input: '{}' });
+  assert.notStrictEqual(r.code, 0);
+  assert.match(r.stderr, /no hooks\.js subcommand given/);
+  assert.match(r.stderr, /record-worktree/, 'expected the known-subcommands list in the error');
+});
+
+// #1586's own reported incident: `log-decision` is not a hooks.js
+// subcommand at all — the correct tool is the separate bin/log-decision.js
+// CLI, a different script that only name-collides with the intended verb.
+// This gets its own, more specific message pointing at that CLI directly,
+// rather than the generic "did you mean" suggestion.
+test("#1586: 'log-decision' — the specific name-collision case — points at the separate bin/log-decision.js CLI", () => {
+  const r = runHook(['log-decision', '--run', 'x', '--text', 'y'], { input: '{}' });
+  assert.notStrictEqual(r.code, 0);
+  assert.match(r.stderr, /no 'log-decision' subcommand/);
+  assert.match(r.stderr, /bin\/log-decision\.js/);
+});
+
+// #1586: a near-miss typo of a real verb gets a "did you mean" suggestion
+// naming the actual verb, not just a bare "unrecognized" message.
+test('#1586: an unrecognized subcommand close to a known verb suggests it', () => {
+  const r = runHook(['close-ru'], { input: '{}' });
+  assert.notStrictEqual(r.code, 0);
+  assert.match(r.stderr, /did you mean 'close-run'\?/);
 });
 
 test('record-worktree writes run-state, prints a confirmation line, and close-run marks clean', () => {

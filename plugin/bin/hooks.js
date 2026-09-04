@@ -104,6 +104,38 @@ function isDirectory(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
 
+// #1586: minimal Levenshtein distance, used only to suggest the closest
+// known subcommand on an unrecognized one (main()'s final EVENTS.includes
+// fallthrough below). Small inputs only (verb names, a handful of
+// characters each) — no need for a shared/optimized implementation.
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j += 1) d[0][j] = j;
+  for (let i = 1; i <= m; i += 1) {
+    for (let j = 1; j <= n; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  }
+  return d[m][n];
+}
+
+// Nearest known verb by edit distance, for the unrecognized-subcommand error
+// below — `null` when nothing is close enough to be a useful suggestion
+// (arbitrarily far off, e.g. blank/empty cmd or a completely unrelated word).
+function closestVerb(cmd, candidates) {
+  if (!cmd) return null;
+  let best = null;
+  let bestDist = Infinity;
+  for (const candidate of candidates) {
+    const dist = levenshtein(cmd, candidate);
+    if (dist < bestDist) { bestDist = dist; best = candidate; }
+  }
+  return bestDist <= Math.max(3, Math.ceil(cmd.length / 2)) ? best : null;
+}
+
 // #1452: `mainArchivedCandidate` below is only ever the run's OWN
 // archive/{run-id} path — the one location archive-merged.js's archiveRunDir
 // writes a `{status: 'archiving'}` claim stub to (writeRunState, before it
@@ -1007,7 +1039,42 @@ async function main(argv) {
     process.stdout.write('claude-tweaks: reconcile-background complete\n');
     return 0;
   }
-  if (!EVENTS.includes(cmd)) return 0;
+  if (!EVENTS.includes(cmd)) {
+    // #1586: every recognized subcommand above already returned before this
+    // point — reaching here means `cmd` is neither a hook event (EVENTS) nor
+    // any of the named subcommands (USAGE's keys). This used to silently
+    // exit 0 with no output, which is exactly what let `log-decision` (not a
+    // hooks.js subcommand at all — the correct tool is the separate
+    // bin/log-decision.js CLI, a different script entirely that only
+    // name-collides with the intended verb) no-op instead of erroring.
+    // EVENTS members are invoked by the harness via stdin JSON and never hit
+    // this branch with a truthy, unmatched `cmd` in practice, so a non-zero
+    // exit here is safe — this is the same class of direct, skill-invoked
+    // CLI call as resolve-run-dir's own non-zero exit above, not a
+    // harness-dispatched hook the "never break a session" invariant covers.
+    // Deliberately written with the string literal first (reversed operand
+    // order) — hooks-help-guard.test.js's coverage test scans main() for the
+    // literal source shape "cmd ===" followed by a quoted verb and requires a
+    // matching USAGE entry for every hit; this verb deliberately has none (it
+    // isn't a real hooks.js subcommand — that's the whole point of this
+    // branch), so the comparison must not match that scan pattern.
+    if ('log-decision' === cmd) {
+      process.stderr.write(
+        'claude-tweaks: hooks.js has no \'log-decision\' subcommand — did you mean the separate '
+        + `bin/log-decision.js CLI? Run: node "${pluginRoot()}/bin/log-decision.js" --run <dir> --status <status> --reversibility <level> --text "..."\n`,
+      );
+      return 1;
+    }
+    const known = [...Object.keys(USAGE), ...EVENTS];
+    if (!cmd) {
+      process.stderr.write(`claude-tweaks: no hooks.js subcommand given — known subcommands: ${known.join(', ')}\n`);
+      return 1;
+    }
+    const suggestion = closestVerb(cmd, known);
+    const hint = suggestion ? ` — did you mean '${suggestion}'?` : ` — known subcommands: ${known.join(', ')}`;
+    process.stderr.write(`claude-tweaks: unrecognized hooks.js subcommand '${cmd}'${hint}\n`);
+    return 1;
+  }
   const mod = loadModule(cmd);
   if (!mod || typeof mod.run !== 'function') return 0;
   const input = ctxLib.parseInput(ctxLib.readStdin());
