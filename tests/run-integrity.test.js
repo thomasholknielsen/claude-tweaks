@@ -160,6 +160,46 @@ test('#1672 validation: a resolved name that is not a real local ref never becom
   assert.strictEqual(r.evidence.branch, null);
 });
 
+// #1861: a policy-configured integration-branch whose refs/remotes/origin/{name}
+// actually exists resolves through preferRemoteTrackingRef to `origin/{name}`
+// (#1688) -- unlike fixtureRepo's plain `trunk`, never fetched from anywhere.
+function fixtureRemoteTrackingIntegrationRepo() {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ri-rt-')));
+  const remote = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ri-rt-remote-')));
+  fixtureGit(['init', '-q', '--bare', '-b', 'trunk', remote]);
+  fixtureGit(['init', '-q', '-b', 'trunk', root]);
+  sh(root, 'config', 'user.email', 't@example.com');
+  sh(root, 'config', 'user.name', 'T');
+  fs.writeFileSync(path.join(root, 'a.txt'), 'base\n');
+  sh(root, 'add', 'a.txt');
+  datedSh(root, AFTER_RUN_START, 'commit', '-q', '-m', 'base');
+  sh(root, 'remote', 'add', 'origin', remote);
+  sh(root, 'push', '-q', 'origin', 'trunk');
+  sh(root, 'fetch', '-q', 'origin');
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), 'integration-branch: trunk\n');
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', '2026-08-01T090000-spec-9');
+  fs.mkdirSync(runDir, { recursive: true });
+  return { runDir };
+}
+
+test('#1861: policy-configured integration-branch resolving to origin/{name} -- self-ancestor guard still fires when the recorded branch IS the integration branch', () => {
+  // Without bareIntegrationName, resolveIntegrationBranch returns "origin/trunk"
+  // while evidence.branch is the bare "trunk" -- mergedEvidence's `branch ===
+  // integration` guard never matches, and `merge-base --is-ancestor trunk
+  // origin/trunk` spuriously reports 'ancestor' for a branch that never shipped
+  // anything of its own.
+  const { runDir } = fixtureRemoteTrackingIntegrationRepo();
+  writeRunState(runDir, {
+    status: 'active',
+    pr: { number: 7, url: 'https://example.test/pr/7', branch: 'trunk' },
+  });
+  const r = checkRunIntegrity(runDir);
+  assert.strictEqual(r.state, 'in-progress');
+  assert.strictEqual(r.evidence.branch, 'trunk');
+  assert.strictEqual(r.evidence.merged, null);
+});
+
 // Real landed event-line shapes from #371 (field order matters not; extra fields tolerated).
 const EV_BUILD = '{"skill":"claude-tweaks:build","ts":"2026-08-01T09:05:00.000Z","type":"skill_invoked"}';
 const EV_BUILD_FALLBACK = '{"skill":"claude-tweaks:build","attribution":"fallback","ts":"2026-08-01T09:05:00.000Z","type":"skill_invoked"}';

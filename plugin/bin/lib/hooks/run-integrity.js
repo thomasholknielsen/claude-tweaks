@@ -19,7 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { runGit } = require('./git-exec');
-const { parseWorktreeList, resolveIntegrationBranch } = require('./worktree-reap');
+const { parseWorktreeList, resolveIntegrationBranch, bareIntegrationName } = require('./worktree-reap');
 const ctxLib = require('./context');
 
 const NON_TERMINAL = new Set(['active', 'interrupted']);
@@ -161,7 +161,12 @@ function mergedEvidence(root, branch, integration) {
   // branch itself for a real worktree, but a worktree standing ON the
   // integration branch trivially satisfies `merge-base --is-ancestor X X`
   // without ever having shipped anything — never treat that as evidence.
-  if (branch === integration) return null;
+  // #1861: `integration` can be `origin/{name}` (preferRemoteTrackingRef,
+  // #1688) while `branch` is always bare, so this equality guard needs the
+  // bare form -- but `integration` itself stays as resolved (possibly
+  // origin/-prefixed) below, since the actual merge-base/cherry calls
+  // benefit from that freshness the same way they did before #1861.
+  if (branch === bareIntegrationName(integration)) return null;
   const anc = runGit(['merge-base', '--is-ancestor', branch, integration], root);
   if (!anc.failure) return 'ancestor';
   if (anc.failure !== 'git-error') return null;
@@ -228,6 +233,10 @@ function checkRunIntegrity(runDir, opts = {}) {
     // Live worktree wins; the fallback runs only when it can't answer (#1672).
     if (!evidence.branch) evidence.branch = fallbackBranch(root, runDir, state);
     if (!evidence.branch) return inProgress;
+    // #1861: mergedEvidence normalizes for its own self-ancestor guard --
+    // kept un-bare-ified here so a genuine cross-branch check still benefits
+    // from resolveIntegrationBranch's origin/-prefixed freshness upgrade
+    // (#1688), same as before #1861.
     const integration = resolveIntegrationBranch(root, cache);
     if (!integration) return inProgress;
     evidence.merged = mergedEvidence(root, evidence.branch, integration);
