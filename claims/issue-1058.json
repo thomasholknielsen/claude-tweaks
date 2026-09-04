@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-04T080101-record-1058",
-  "sessionId": "f8cceef7-c9b1-4c27-a2d7-f79cc844ea18",
-  "claimedAt": "2026-09-04T08:03:50.141Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "blocked: duplicate pending-review PR #1602 collision on the same branch name from an earlier, unmerged run -- needs human adjudication, see issue comment",
+  "releasedAt": "2026-09-04T08:43:33.829Z"
 }
