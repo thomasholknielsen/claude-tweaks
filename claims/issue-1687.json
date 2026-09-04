@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-04T142427-record-1687",
-  "sessionId": "ac1aeb06-cf16-40da-bd8e-923f8374d457",
-  "claimedAt": "2026-09-04T14:27:16.941Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "failed: interrupted-mid-test",
+  "releasedAt": "2026-09-04T15:02:30.499Z"
 }
