@@ -39,6 +39,10 @@ Three conventions follow from how this repo works, and all are visible below:
   contained, not contemporaneous release notes, and they are thinner than the
   entries written since.
 
+## v6.115.0 — Adopt Fable 5.1 prompting-guide scope, edit, and unattended rules — Working Approach block test-volume and surgical-changes rules, /build implementer injection quoting them verbatim, /routine-kickoff unattended-firing standing constraint (#1809)
+
+Adopt Fable 5.1 prompting-guide scope, edit, and unattended rules — Working Approach block test-volume and surgical-changes rules, /build implementer injection quoting them verbatim, /routine-kickoff unattended-firing standing constraint (#1809).
+
 ## v6.114.1 — Hotfix: subagent Working Directory Discipline forbids the `cd` form that trips the harness's permission checker (IL-151)
 
 Hotfix: subagent Working Directory Discipline forbids the `cd` form that trips the harness's permission checker (IL-151).
