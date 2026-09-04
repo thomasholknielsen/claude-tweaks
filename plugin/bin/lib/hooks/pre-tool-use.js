@@ -102,7 +102,12 @@ function toPosix(p) {
 // is the drift this whole binding exists to prevent.
 const GATE_COVERAGE = Object.freeze({
   tools: Object.freeze(['Edit', 'Write', 'NotebookEdit']),
-  gitActions: Object.freeze(['commit', 'push']),
+  // #976 (IL-141): widened to include git-command.js's PLUMBING_WRITE_SUBCOMMANDS
+  // (mv, rm, update-ref, apply) — see that constant's own header comment for
+  // why these four and not a broader set. A git-plumbing write outside the
+  // isolated worktree now trips the same E1/worktree-always enforcement a
+  // commit/push would, closing the bypass IL-141 documented.
+  gitActions: Object.freeze(['commit', 'push', 'mv', 'rm', 'update-ref', 'apply']),
   bashWriteShapes: WRITE_SHAPES,
   // These have their own prose-binding block — skills/_shared/policy-schema-coverage.md's
   // "Teardown gate coverage" section (tests/hooks-gate-coverage.test.js pins
@@ -505,12 +510,23 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
     if (!hit || !hit.state) continue;
     const status = hit.state.status;
     if (status !== 'active' && status !== 'interrupted') continue;
-    const owner = typeof hit.state.sessionId === 'string' && hit.state.sessionId ? hit.state.sessionId : null;
     const caller = ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id ? ctx.input.session_id : null;
-    if (owner && caller && owner !== caller) {
+    // #1099: classify the TARGET run (hit.state) against this caller via the
+    // composite session+worktree-binding predicate instead of raw session-id
+    // equality — a sibling of this same session, bound to a DIFFERENT live
+    // worktree than hit.state records, must take the foreign branch (warn +
+    // allow) rather than the same-session deny. 'mine' and 'indeterminate'
+    // both preserve today's fall-through-to-deny behavior.
+    const ownershipVerdict = ctxLib.classifyOwnership({ sessionId: caller, cwd: ctx.cwd || process.cwd() }, hit.state);
+    if (ownershipVerdict === 'foreign') {
       // Provably foreign-owned: allow + warn, event to the TARGET run's dir
       // (the wd-foreign-session precedent — enforcement-target, not
       // ownedRun). Collected, not returned — see the function header.
+      // #1431 audit: `hit.runDir` is neither ctx.runDir's session-agnostic
+      // newest-non-terminal GUESS nor ctx.ownedRun — it's the specific run
+      // findRunByWorktreePath just proved is bound to `target`, an
+      // unambiguous match, not an attribution guess. Not the #1431 hazard
+      // (a guessed run absorbing a foreign event); left as-is.
       ctxLib.appendEvent(hit.runDir, 'wd-foreign-teardown', { path: target });
       teardownWarnings.push(
         `claude-tweaks: worktree ${target} is assigned to run ${path.basename(hit.runDir)}, recorded by a different session — ` +
@@ -519,7 +535,7 @@ function checkTeardownGate(ctx, teardownWarnings = []) {
       );
       continue;
     }
-    // Same session, unowned run, or identity missing on either side -> deny.
+    // Same session ('mine'), or identity/binding unprovable ('indeterminate') -> deny.
     return denyResult(
       `claude-tweaks teardown gate: worktree ${target} is still assigned to non-terminal pipeline run ` +
       `${hit.runDir}. Tearing it down now skips the documented cleanup sequence (skills/wrap-up/cleanup-procedures.md ` +
@@ -1051,6 +1067,17 @@ function isStampsGateExemptTarget(ctx) {
 // returns the value the caller returns directly. A provably foreign-owned
 // run (isForeignSessionCall above) downgrades the deny to an allow + warning;
 // otherwise it denies. Only the stamp name and the two message bodies vary.
+// #1431 audit: both appendEvent calls below deliberately use ctx.runDir, not
+// ctx.ownedRun — checkBookkeepingStampsGate is entirely about "does the run
+// assigned to THIS checkout carry its required stamps yet," a fact about the
+// checkout/worktree, not about which run this session happens to own; every
+// other signal in this function (ctx.runState, hasMaterializeCommit, the
+// prExempt cache) is already scoped to ctx.runDir the same way. This is the
+// session-agnostic worktree-bookkeeping comparison AC2 carves out, not the
+// #1431 attribution-guess hazard (which is specific to resolveRun's
+// 'fallback' arm guessing at an UNRELATED run with no worktree binding at
+// all — ctx.runDir here is never that: it's the run this checkout's own
+// binding names).
 function stampCheckOutcome(ctx, stamp, wtRoot, warnings, warnText, denyText, isForeign) {
   if (isForeign) {
     ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { stamp, worktree: wtRoot });
@@ -1382,6 +1409,18 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
   // it denied one in the wrong in-project checkout.
   const mainRoot = safeReal(wtDetect.mainCheckoutRoot(assigned));
 
+  // #1431 audit: every appendEvent call in this loop (wd-ambiguous,
+  // wd-push-mismatch, wd-foreign-session, wd-deny below) deliberately uses
+  // ctx.runDir, not ctx.ownedRun. E1 is, by this whole function's own header
+  // comment, about "this checkout['s]" assigned pipeline run — a fact of the
+  // WORKTREE, resolved the same session-agnostic way regardless of who is
+  // calling (bin/hooks.js's own resolveRunDir(cwd, env) call for `runDir`
+  // carries no session id at all, deliberately — see main()'s comment on
+  // `runDir`/`runState`). Every event here documents what E1 decided about
+  // THAT run, not an audit trail belonging to this session's own work — the
+  // session-agnostic worktree-bookkeeping comparison AC2 carves out, not the
+  // #1431 attribution-guess hazard (resolveRun's 'fallback' arm guessing at
+  // an unrelated, unbound run — not what E1 resolves against here).
   for (const target of commandGitTargets || []) {
     const top = toplevel(target.dir);
     if (!top) continue; // cannot prove the target -> allow
@@ -1417,7 +1456,14 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
     }
     const owner = typeof ctx.runState.sessionId === 'string' ? ctx.runState.sessionId : '';
     const caller = typeof ctx.input.session_id === 'string' ? ctx.input.session_id : '';
-    if (owner && caller && owner !== caller) {
+    // #1099: classify the caller's OWN resolved run (ctx.runState) via the
+    // composite session+worktree-binding predicate instead of raw session-id
+    // equality — a sibling of this same session, committing from a DIFFERENT
+    // live worktree than ctx.runState records, must take the foreign branch
+    // (allow + systemMessage) rather than falling through to wd-deny.
+    // 'mine' and 'indeterminate' both preserve today's fall-through-to-deny.
+    const ownershipVerdict = ctxLib.classifyOwnership({ sessionId: caller, cwd: ctx.cwd || process.cwd() }, ctx.runState);
+    if (ownershipVerdict === 'foreign') {
       ctxLib.appendEvent(ctx.runDir, 'wd-foreign-session', { expected: assigned, actual, owner, caller, command: command.slice(0, 200) });
       return {
         exit: 0,

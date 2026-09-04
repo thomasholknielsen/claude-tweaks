@@ -69,6 +69,12 @@ function branchOfWorktree(root, worktreePath) {
 function teardownRun(runDir, opts = {}) {
   const mode = opts.mode || null;
   const sessionId = opts.sessionId || null;
+  // #1012: closeRunState's foreignOwner guard now runs through
+  // classifyOwnership, which needs a cwd alongside the session id — hooks.js
+  // threads process.cwd() through as opts.cwd; a caller that omits it (e.g.
+  // an existing test fixture) degrades to classifyOwnership's own
+  // 'indeterminate' fail-open behavior for a missing cwd, never 'foreign'.
+  const cwd = opts.cwd || null;
   const ghApiDelete = (opts.deps && opts.deps.ghApiDelete) || defaultGhApiDelete;
   // Git-based anchoring (same mechanism `_shared/pipeline-run-dir.md`'s Anchoring section
   // documents as canonical for every other `--run`-accepting subcommand): walks up from `runDir`
@@ -118,7 +124,9 @@ function teardownRun(runDir, opts = {}) {
   // (never a real signal) for any run whose sessionId was never recorded, permanently refusing
   // a legitimate self-teardown. The foreignOwner check just above is teardown-run's actual
   // protection and stays active.
-  const state = closeRunState(runDir, { explicit: false, sessionId, checkLiveWorktree: false });
+  const state = closeRunState(runDir, {
+    explicit: false, callerIdentity: { sessionId, cwd }, checkLiveWorktree: false,
+  });
 
   if (state.status === 'refused-foreign') {
     return { lines: ['state: refused — run recorded by another session; teardown-run does not override this'] };

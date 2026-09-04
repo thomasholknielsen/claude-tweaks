@@ -219,6 +219,30 @@ test('subagent-stop with no owned run writes no event even though ctx.runDir nam
   assert.ok(!fs.existsSync(path.join(runB, 'events.jsonl')));
 });
 
+// #1431 AC3: a fallback-attributed ownedRun (resolveRun's "nobody claims it
+// and nobody else owns it, so the newest non-terminal run is the best guess"
+// arm, context.js's own doc comment) is not the same as no owned run at all
+// (the case above, which writes nothing) — it's a genuine best-effort guess
+// that DOES still receive the event, but tagged `attribution: 'fallback'` so
+// a reader auditing events.jsonl can filter it out as unproven, per this
+// file's own header pattern (mirrors post-tool-use.js's identical commit-event
+// hardening, which #1425's fix already modeled subagent-stop.js's ctx.ownedRun
+// scoping on).
+test('#1431: a fallback-attributed owned run still receives the event, tagged attribution: fallback', () => {
+  const runGuess = mkRun(); // the best-guess run ownedRun.attribution: 'fallback' points at
+  const out = substop.run({
+    input: { agent_transcript_path: transcript('I did some things.') },
+    runDir: runGuess,
+    runState: null,
+    ownedRun: { dir: runGuess, attribution: 'fallback' },
+    cwd: '/x',
+  });
+  assert.match(out.json.systemMessage, /status line/i);
+  const ev = readEvents(runGuess);
+  assert.strictEqual(ev[0].type, 'contract-violation');
+  assert.strictEqual(ev[0].attribution, 'fallback', 'a guessed run\'s event must be tagged, not silently trusted');
+});
+
 // #750: superpowers:subagent-driven-development's implementer-prompt.md
 // template asks for "- **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED |
 // NEEDS_CONTEXT" — a bold, colon-prefixed bullet line, not claude-tweaks'

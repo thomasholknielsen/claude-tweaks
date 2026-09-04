@@ -235,19 +235,41 @@ test('record-worktree accepts --run before or after the worktree positional', ()
 });
 
 // #1124 review finding: the fix's OTHER guard — rejecting a flag-shaped
-// worktree positional (e.g. `--run <dir> --bogus-flag`) — had no regression
-// test, even though it's the exact shape every observed pre-fix incident hit
-// (originally reproduced with a stray `--help`) and the code's own comment
-// calls out. Discrimination check: reverting just the
-// `worktreeArg.startsWith('-')` branch (hooks.js's "unrecognized argument"
-// guard) would let this test's run-state.json end up with a literal
-// `worktree: "--bogus-flag"` value and exit 0 — this assertion set fails in
-// that case, not just on the guard's total absence. Uses a non-help flag
-// (rather than the original `--help`) because #1143 added a dedicated,
-// earlier `--help`/`-h` intercept that now short-circuits before this
-// branch is ever reached — see the `--help` case covered separately above
-// and in tests/hooks-help-guard.test.js.
-test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. --bogus-flag)', () => {
+// worktree positional — had no regression test, even though it's the exact
+// shape every observed pre-fix incident hit (originally reproduced with a
+// stray `--help`) and the code's own comment calls out. Discrimination
+// check: reverting just the `worktreeArg.startsWith('-')` branch (hooks.js's
+// "unrecognized argument" guard) would let this test's run-state.json end up
+// with a literal `worktree: "-x"` value and exit 0 — this assertion set
+// fails in that case, not just on the guard's total absence.
+//
+// #1012 note: a `--`-prefixed positional (the original `--bogus-flag`) is
+// now intercepted even earlier, by the KNOWN_FLAGS unknown-flag guard shared
+// by all five mutating verbs (any undeclared `--*` argument prints usage and
+// exits 0, before this branch — or resolveRunArg itself — ever runs; see
+// tests/hooks-help-guard.test.js and the KNOWN_FLAGS-specific cases below).
+// This test now uses a single-dash shape (`-x`), which that scan does not
+// classify (it only recognizes `--`-prefixed tokens), so it still reaches
+// and exercises this deeper, single-dash-specific safety net.
+test('record-worktree with an explicit --run still rejects a flag-shaped worktree positional (e.g. -x)', () => {
+  const project = tmpProject();
+  const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const before = readRunState(run);
+
+  const result = runHook(['record-worktree', '--run', run, '-x'], { cwd: project });
+  assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
+  assert.match(result.stdout, /unrecognized argument -x/);
+  assert.doesNotMatch(result.stdout, /worktree recorded/);
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"-x\\"" write');
+});
+
+// #1012: the new, broader guard's own coverage of the `--`-prefixed shape —
+// any undeclared `--*` argument anywhere in a KNOWN_FLAGS verb's arguments
+// (including one that LOOKS like it could be a worktree-path positional)
+// prints usage and exits 0 before resolveRunArg or any write ever runs.
+test('#1012: record-worktree rejects an undeclared --* argument (e.g. --bogus-flag) via the KNOWN_FLAGS guard, before any write', () => {
   const project = tmpProject();
   const run = path.join(project, '.claude-tweaks', 'pipelines', '2026-07-01T090000-spec-1');
   fs.mkdirSync(run, { recursive: true });
@@ -255,10 +277,9 @@ test('record-worktree with an explicit --run still rejects a flag-shaped worktre
   const before = readRunState(run);
 
   const result = runHook(['record-worktree', '--run', run, '--bogus-flag'], { cwd: project });
-  assert.notStrictEqual(result.code, 0, 'a flag-shaped worktree positional must exit non-zero, not be treated as a literal path');
-  assert.match(result.stdout, /unrecognized argument --bogus-flag/);
-  assert.doesNotMatch(result.stdout, /worktree recorded/);
-  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged — no "worktree: \\"--bogus-flag\\"" write');
+  assert.strictEqual(result.code, 0);
+  assert.strictEqual(result.stdout, 'claude-tweaks: usage: record-worktree --run <dir> <worktree-path>\n');
+  assert.deepStrictEqual(readRunState(run), before, 'run-state.json must be byte-unchanged');
 });
 
 // #1124: --run is now required unconditionally — a call that omits it exits
@@ -463,7 +484,12 @@ test('close-run without --run REFUSES to close a run recorded by another (still-
   const foreign = runHook(['close-run'], { cwd: foreignProject, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(foreign.code, 0);
   assert.match(foreign.stdout, /recorded by another session/);
-  assert.match(foreign.stdout, /refusing to close/);
+  // #1012: the implicit-resolution refusal is now the shared candidate-list
+  // card (renderCandidateRefusal) rather than close-run's own bespoke
+  // "refusing to close" sentence — the outcome (nothing written, run stays
+  // active) is unchanged; only the message shape is.
+  assert.match(foreign.stdout, /pass --run explicitly/);
+  assert.match(foreign.stdout, /Run not closed/);
   const foreignState = readRunState(foreignRun);
   assert.strictEqual(foreignState.status, 'active', 'the foreign session\'s run must remain active, not be silently closed');
   assert.strictEqual(foreignState.worktree, path.resolve('/tmp/wt'), 'the foreign session\'s worktree assignment must survive');
@@ -505,7 +531,11 @@ test("close-run without --run still detects and refuses a run bound to a differe
   const result = runHook(['close-run'], { cwd: callerWt, env: { CLAUDE_CODE_SESSION_ID: 'bystander' } });
   assert.strictEqual(result.code, 0);
   assert.match(result.stdout, /recorded by another session/);
-  assert.match(result.stdout, /refusing to close/);
+  // #1012: see the identical message-shape note on the session-mismatch test
+  // above — classifyOwnership now proves this candidate foreign via the
+  // worktree-binding axis (caller in callerWt, run bound to otherWt) rather
+  // than session id, and the refusal renders through the same shared card.
+  assert.match(result.stdout, /pass --run explicitly/);
   assert.strictEqual(readRunState(run).status, 'active', "the foreign worktree's run must remain active — found and refused, not silently invisible");
 });
 
@@ -1120,4 +1150,82 @@ test('record-pr does not resolve against an ambient PIPELINE_RUN_DIR the call si
     'a call site that never passed PIPELINE_RUN_DIR must not resolve one from the test runner\'s ambient env');
   const state = JSON.parse(fs.readFileSync(path.join(decoyRun, 'run-state.json'), 'utf8'));
   assert.strictEqual(state.pr, undefined, 'decoy run-state.json must gain no pr field from the ambient env leak');
+});
+
+// ─── #1012: unambiguous-only implicit resolution, named regression fixture ─
+//
+// Pinned exactly per the record's Deliverables: four non-terminal run dirs
+// under one main checkout, callers A/B/C each cwd'd in their own worktree
+// with their own run bound to it, run D bound to a fourth worktree whose
+// agent is absent — all four runs record the SAME sessionId (the #965
+// shared-id shape). Each of A/B/C invokes `close-run --help` (must hit the
+// unknown-flag usage path — zero state reads/writes) and bare `close-run`
+// (must hit resolution step 2 — its own cwd-bound run, never step 3's
+// multi-candidate scan). All spawns clear PIPELINE_RUN_DIR explicitly via
+// runHook's own baked-in default (#1038's hermeticity fix, applied here from
+// the start).
+function mkBoundRun(project, name, state) {
+  const run = path.join(project, '.claude-tweaks', 'pipelines', name);
+  fs.mkdirSync(run, { recursive: true });
+  fs.writeFileSync(path.join(run, 'run-state.json'), JSON.stringify(state));
+  return run;
+}
+
+test('#1012 named regression: A/B/C each act only on their own cwd-bound run via --help and bare close-run; run D (agent absent) stays byte-identical throughout', () => {
+  const main = gitRepo();
+  execFileSync('git', ['-C', main, 'commit', '--allow-empty', '-q', '-m', 'init']);
+  const wtA = linkedWorktreeOf(main);
+  const wtB = linkedWorktreeOf(main);
+  const wtC = linkedWorktreeOf(main);
+  const wtD = linkedWorktreeOf(main); // run D's binding — its own agent is absent (nobody cwd's here)
+  const SESSION = 'shared-session'; // #965: identical across every caller below, by design
+  const runA = mkBoundRun(main, '2026-07-01T090000-a', { status: 'active', sessionId: SESSION, worktree: wtA });
+  const runB = mkBoundRun(main, '2026-07-01T090001-b', { status: 'active', sessionId: SESSION, worktree: wtB });
+  const runC = mkBoundRun(main, '2026-07-01T090002-c', { status: 'active', sessionId: SESSION, worktree: wtC });
+  const runD = mkBoundRun(main, '2026-07-01T090003-d', { status: 'active', sessionId: SESSION, worktree: wtD });
+  const runDBefore = readRunState(runD);
+
+  for (const [label, wt, run] of [['A', wtA, runA], ['B', wtB, runB], ['C', wtC, runC]]) {
+    const help = runHook(['close-run', '--help'], { cwd: wt, env: { CLAUDE_CODE_SESSION_ID: SESSION } });
+    assert.strictEqual(help.code, 0, `caller ${label}: close-run --help must exit 0`);
+    assert.strictEqual(help.stdout, 'claude-tweaks: usage: close-run [--run <dir>]\n', `caller ${label}: --help must print exactly the usage line, no lib call`);
+    assert.strictEqual(readRunState(run).status, 'active', `caller ${label}: --help must leave its own run untouched`);
+    assert.deepStrictEqual(readRunState(runD), runDBefore, `caller ${label}: --help must never touch run D`);
+
+    const bare = runHook(['close-run'], { cwd: wt, env: { CLAUDE_CODE_SESSION_ID: SESSION } });
+    assert.strictEqual(bare.code, 0, `caller ${label}: bare close-run must exit 0`);
+    assert.strictEqual(readRunState(run).status, 'clean', `caller ${label}: bare close-run must close its own cwd-bound run (resolution step 2)`);
+    assert.deepStrictEqual(readRunState(runD), runDBefore, `caller ${label}: bare close-run must never touch run D — it has no cwd-binding hit here and step 2 alone resolves the caller's own run`);
+  }
+});
+
+// Unbound-caller variant (the #860/#758 incident shape): a fourth caller of
+// the SAME session, cwd'd in a worktree with NO run bound to it, invokes
+// bare close-run. Resolution step 2 misses (no run recorded this worktree);
+// step 3 excludes every one of A/B/C/D as 'foreign' (classifyOwnership's
+// worktree-binding proof: same or missing session id, but each run's
+// recorded binding is a different live worktree than this caller's own) ->
+// zero candidates survive -> refusal (step 4), and no run-state file changes.
+test('#1012 unbound-caller variant: a same-session caller with no bound run of its own is refused (step 4) rather than resolving into any of A/B/C/D', () => {
+  const main = gitRepo();
+  execFileSync('git', ['-C', main, 'commit', '--allow-empty', '-q', '-m', 'init']);
+  const wtA = linkedWorktreeOf(main);
+  const wtB = linkedWorktreeOf(main);
+  const wtC = linkedWorktreeOf(main);
+  const wtD = linkedWorktreeOf(main);
+  const wtStray = linkedWorktreeOf(main); // the unbound caller's own worktree — no run recorded here
+  const SESSION = 'shared-session';
+  const runA = mkBoundRun(main, '2026-07-01T090000-a', { status: 'active', sessionId: SESSION, worktree: wtA });
+  const runB = mkBoundRun(main, '2026-07-01T090001-b', { status: 'active', sessionId: SESSION, worktree: wtB });
+  const runC = mkBoundRun(main, '2026-07-01T090002-c', { status: 'active', sessionId: SESSION, worktree: wtC });
+  const runD = mkBoundRun(main, '2026-07-01T090003-d', { status: 'active', sessionId: SESSION, worktree: wtD });
+  const before = [runA, runB, runC, runD].map(readRunState);
+
+  const result = runHook(['close-run'], { cwd: wtStray, env: { CLAUDE_CODE_SESSION_ID: SESSION } });
+  assert.strictEqual(result.code, 0);
+  assert.match(result.stdout, /pass --run explicitly/, 'zero survivors among four candidates must refuse, not silently pick one');
+  assert.match(result.stdout, /Run not closed/);
+
+  const after = [runA, runB, runC, runD].map(readRunState);
+  assert.deepStrictEqual(after, before, 'no run-state.json file changes when every candidate is excluded as foreign');
 });

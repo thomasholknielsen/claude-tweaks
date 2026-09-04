@@ -380,13 +380,41 @@ function resolveGitCommand(t, effCwd) {
   return { index, dir };
 }
 
+// #976 (IL-141): git-plumbing subcommands that mutate tracked state or refs
+// OUTSIDE the commit/push pair gitTargets already classified — every one of
+// these previously bypassed E1/worktree-always/pipeline-shadow enforcement
+// entirely, since an unrecognized `sub` never became a target at all.
+// Evidence-driven, deliberately narrow (see the Gotchas this closes): each
+// entry is a subcommand that is UNAMBIGUOUSLY a write in every ordinary
+// invocation, not merely capable of one under some flag combination.
+//   - `mv`         — renames/moves a tracked file (index + working tree).
+//   - `rm`          — removes a tracked file from the index (working tree
+//                     too, unless `--cached`) — always a mutation, with or
+//                     without `--cached`.
+//   - `update-ref`  — directly rewrites a ref (a branch pointer) — pure
+//                     plumbing, no read-only form.
+//   - `apply`       — applies a patch to the working tree/index.
+// Deliberately NOT included in this pass: `stash`, `reset`, `checkout`,
+// `switch`, `restore`, `merge`, `rebase`, `cherry-pick`. Each has a common,
+// genuinely read-only or non-mutating invocation shape (`stash list`/`show`,
+// `reset` with no path args just moves HEAD's *reflog* pointer inside the
+// SAME worktree it's run in and is routinely run from a script for its exit
+// code alone, `checkout <branch>` with no path args, etc.) that a one-level
+// subcommand check cannot distinguish from the mutating form without
+// resolving a second token — the exact "pattern-matching every git
+// subcommand indiscriminately" this record's own Gotchas warns against.
+// Extend evidence-driven, on a real incident, not speculatively.
+const PLUMBING_WRITE_SUBCOMMANDS = new Set(['mv', 'rm', 'update-ref', 'apply']);
+
 function gitTargets(command, cwd) {
   const targets = [];
   forEachCommandSegment(command, cwd, (t, effCwd) => {
     const resolved = resolveGitCommand(t, effCwd);
     if (!resolved) return;
     const sub = t[resolved.index];
-    if (sub === 'commit' || sub === 'push') targets.push({ action: sub, dir: resolved.dir });
+    if (sub === 'commit' || sub === 'push' || PLUMBING_WRITE_SUBCOMMANDS.has(sub)) {
+      targets.push({ action: sub, dir: resolved.dir });
+    }
   });
   return targets;
 }

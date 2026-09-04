@@ -429,34 +429,38 @@ test('AC5: an unowned run with a payload carrying no session_id is denied', () =
   assert.strictEqual(out.hookSpecificOutput.permissionDecision, 'deny');
 });
 
-// #1563: this gate's own ownership check (owner && caller && owner !== caller
-// -> foreign, else deny) is deliberately NOT classifyOwnership (#1098) —
-// unlike context.js's resolveRun fallback (#1410), which does use it, this
-// gate has no worktree-binding "foreign" bypass. Pinned here so #1099 (still
-// open at the time this test was added), if it ever swaps this gate onto
-// classifyOwnership, cannot silently regress an owner-absent + different-
-// live-worktree caller from "denied" to "allowed with a warning" without this
-// test forcing that decision to be made explicitly.
-test('#1563: an unowned run targeted via Bash from a DIFFERENT live worktree is still denied, not foreign-allowed', () => {
+// #1563 / #1099: this gate's own ownership check now runs through
+// classifyOwnership (#1098) instead of the old raw `owner && caller &&
+// owner !== caller` comparison — the explicit decision this test was
+// originally pinned to force (see its prior revision's comment, preserved in
+// git history). classifyOwnership's worktree-binding branch proves 'foreign'
+// from binding evidence ALONE whenever a caller stands in a different live
+// worktree than the run's own recorded binding — session identity being
+// present, absent, or equal on either side does not change that verdict, per
+// #1098's own semantics table ("equal or either missing | recorded, exists |
+// inside a different live worktree | foreign"). An unowned run (no sessionId
+// recorded) bound to `targetWt`, torn down by a caller standing in a
+// genuinely different, live `callerWt`, therefore now classifies 'foreign'
+// and takes the allow-with-warning branch — not a silent regression, but the
+// intended broadening #1099 exists to ship: the same worktree-binding proof
+// `resolveRun`'s fallback arm has used since #1410 now applies uniformly at
+// this gate too, rather than this gate alone being blind to it.
+test('#1563/#1099: an unowned run targeted via Bash from a DIFFERENT live worktree is foreign-allowed (with a warning), via classifyOwnership\'s worktree-binding proof', () => {
   const root = fixtureRoot();
   const targetWt = addWorktree(root); // the run's own recorded binding — the removal target
   const callerWt = addWorktree(root); // a genuinely different, live worktree — where the caller stands
   makeRun(root, JSON.stringify({ status: 'active', worktree: targetWt })); // no sessionId recorded
-  // The Bash form (unlike ExitWorktree, which always targets ctx.cwd's own
-  // toplevel) lets the caller's cwd and the removal target genuinely differ
-  // — callerWt/targetWt are both live, distinct worktrees of the same repo,
-  // exactly the shape classifyOwnership's worktree-binding branch would
-  // compare (and, from that mismatch alone, classify 'foreign' regardless of
-  // session id). This gate's own check never reaches that comparison.
-  // Exercise both with and without a caller session_id, per the record's own
-  // AC — neither should change the outcome, since this gate's check requires
-  // BOTH sides present to ever classify anything other than deny.
+  // Exercise both with and without a caller session_id — classifyOwnership's
+  // worktree-binding branch proves 'foreign' from the binding mismatch alone
+  // in both cases, so neither should change the outcome.
   const command = `git worktree remove ${targetWt}`;
   const withoutSessionId = runHook(['pre-tool-use'], {
     input: JSON.stringify({ tool_name: 'Bash', tool_input: { command }, cwd: callerWt }),
     cwd: callerWt,
   });
-  assert.strictEqual(JSON.parse(withoutSessionId.stdout).hookSpecificOutput.permissionDecision, 'deny');
+  const outWithout = JSON.parse(withoutSessionId.stdout);
+  assert.strictEqual(outWithout.hookSpecificOutput, undefined, 'a foreign teardown must not deny');
+  assert.ok(outWithout.systemMessage && outWithout.systemMessage.includes('recorded by a different session'));
 
   const withSessionId = runHook(['pre-tool-use'], {
     input: JSON.stringify({
@@ -464,7 +468,25 @@ test('#1563: an unowned run targeted via Bash from a DIFFERENT live worktree is 
     }),
     cwd: callerWt,
   });
-  assert.strictEqual(JSON.parse(withSessionId.stdout).hookSpecificOutput.permissionDecision, 'deny');
+  const outWith = JSON.parse(withSessionId.stdout);
+  assert.strictEqual(outWith.hookSpecificOutput, undefined, 'a foreign teardown must not deny');
+  assert.ok(outWith.systemMessage && outWith.systemMessage.includes('recorded by a different session'));
+});
+
+// The dual case AC1 also requires: the run's OWN session, with cwd inside the
+// recorded worktree, still classifies 'mine' and takes the same-session deny
+// branch — proving the broadening above is scoped to a genuine cross-worktree
+// mismatch, not a general loosening of the gate.
+test('#1099 AC1 dual case: caller cwd inside the recorded worktree still denies (classifies mine), even with no sessionId', () => {
+  const root = fixtureRoot();
+  const targetWt = addWorktree(root);
+  makeRun(root, JSON.stringify({ status: 'active', worktree: targetWt })); // no sessionId recorded
+  const command = `git worktree remove ${targetWt}`;
+  const r = runHook(['pre-tool-use'], {
+    input: JSON.stringify({ tool_name: 'Bash', tool_input: { command }, cwd: targetWt }),
+    cwd: targetWt,
+  });
+  assert.strictEqual(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision, 'deny');
 });
 
 // IMPORTANT 3 (whole-branch review): the foreign-owner WARN path must not
