@@ -60,6 +60,19 @@ test('validateShaped: multiple gaps are all reported at once, not just the first
   assert.ok(result.gaps.length >= 3, `expected >=3 gaps, got ${JSON.stringify(result.gaps)}`);
 });
 
+test('validateShaped: ok when a TBD/TODO/<!-- ambiguity: marker sits only inside a verbatim ## Original request section (refs #1240)', () => {
+  const body = SHAPED + '\n\n## Original request\n\nOld title with a TBD in it\n\nTODO: revisit\n\n<!-- ambiguity: which flag -->';
+  const result = validateShaped(body);
+  assert.deepEqual(result, { ok: true, gaps: [] });
+});
+
+test('validateShaped: a marker before the ## Original request heading still fails even when that section is present', () => {
+  const body = SHAPED.replace('- [ ] Do the thing.', '- [ ] Do the thing TBD.') + '\n\n## Original request\n\nOld title\n\nclean original text';
+  const result = validateShaped(body);
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((g) => /unresolved placeholder marker: TBD/.test(g)));
+});
+
 test('splitSections: line-anchored ## headings only — a mid-line "## " is not a heading', () => {
   const sections = splitSections('## Current State\n\ntext with ## not a heading inline\n\n## Deliverables\n\nmore');
   assert.equal(Object.keys(sections).length, 2);
