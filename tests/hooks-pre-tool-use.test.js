@@ -1075,14 +1075,18 @@ test('hasMaterializeCommit: a resolvable-but-nonexistent integration-branch poli
 // pre-#1688 unbounded fallback armed the gate against history the worktree
 // never made.
 //
-// Renamed explicitly to 'main' rather than trusting the host's
+// The branch is renamed explicitly to 'main' rather than trusting the host's
 // `init.defaultBranch` (this machine's own default is 'master') -- the probe
 // itself tries both 'main' and 'master', but the test must be deterministic
 // regardless of which default a given machine or CI runner ships.
+function repoOnLocalMain() {
+  const dir = gitRepoWithCommit();
+  execFileSync('git', ['-C', dir, 'branch', '-M', 'main']);
+  return dir;
+}
 
 test('hasMaterializeCommit: #1688 AC1 — a no-remote repo\'s inherited materialize commit is NOT armed once a local main/master probe can bound the range', () => {
-  const main = gitRepoWithCommit();
-  execFileSync('git', ['-C', main, 'branch', '-M', 'main']);
+  const main = repoOnLocalMain();
   commitMaterializeFile(main, MATERIALIZE_RUN_ID); // lands on `main` itself -- inherited, not the worktree's own
   const wt = linkedWorktreeOf(main); // branches off main's HEAD, which already includes the materialize commit
   const runDir = runDirForId(MATERIALIZE_RUN_ID);
@@ -1091,8 +1095,7 @@ test('hasMaterializeCommit: #1688 AC1 — a no-remote repo\'s inherited material
 });
 
 test('hasMaterializeCommit: #1688 AC2 regression guard — the local default-branch probe still arms the gate for the worktree\'s own unmerged commit', () => {
-  const main = gitRepoWithCommit();
-  execFileSync('git', ['-C', main, 'branch', '-M', 'main']);
+  const main = repoOnLocalMain();
   const wt = linkedWorktreeOf(main);
   commitMaterializeFile(wt, MATERIALIZE_RUN_ID); // on the worktree's own branch, never merged into main
   const runDir = runDirForId(MATERIALIZE_RUN_ID);

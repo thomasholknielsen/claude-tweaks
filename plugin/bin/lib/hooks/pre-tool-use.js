@@ -924,9 +924,8 @@ function hasMaterializeCommit(worktreeRoot, runDir) {
   // worktree-reap.js). The probed `main`/`master` fallback just below gets the
   // same upgrade for the same reason.
   const paths = ['--', `${runRel}/work`, `${runRel}/spec-*/work/*`];
-  let integration = resolveIntegrationBranch(worktreeRoot);
-  if (!integration) integration = resolveLocalDefaultBranchBound(worktreeRoot);
-  if (integration) integration = preferRemoteTrackingRef(worktreeRoot, integration);
+  const bound = resolveIntegrationBranch(worktreeRoot) || resolveLocalDefaultBranchBound(worktreeRoot);
+  const integration = bound ? preferRemoteTrackingRef(worktreeRoot, bound) : null;
   // Two distinct ways the bound can be unusable, and both must fall back the
   // same way. `null` is the obvious one. The other: `policy.readIntegrationBranch`
   // returns the raw `integration-branch:` string with no ref-existence check (it

@@ -329,17 +329,6 @@ function reapWorktrees({
 // per-invocation shape `run-integrity.js`'s deriveBranch takes. The policy short-circuit runs
 // BEFORE any cache lookup regardless: a project with an `integration-branch` policy value never
 // spawns `git rev-parse` at all, cache or no cache. Omitted, this spawns fresh every call. See #381.
-function resolveIntegrationBranch(repoRoot, cache) {
-  if (!repoRoot) return null;
-  const fromPolicy = policy.readIntegrationBranch(repoRoot);
-  if (fromPolicy) return preferRemoteTrackingRef(repoRoot, fromPolicy);
-  if (cache && cache.integrationBranch.has(repoRoot)) return cache.integrationBranch.get(repoRoot);
-  const { stdout, failure } = runGit(['rev-parse', '--abbrev-ref', 'origin/HEAD'], repoRoot);
-  const name = failure || !stdout ? null : stdout.trim().replace(/^origin\//, '') || null;
-  if (cache) cache.integrationBranch.set(repoRoot, name);
-  return name;
-}
-
 // #1688's second gap: `integration-branch:` in policy.yml names a LOCAL
 // branch, which can lag `origin/{name}` -- `_shared/worktree-setup.md`'s
 // post-creation catch-up merges the remote-tracking branch into a worktree's
@@ -358,6 +347,17 @@ function resolveIntegrationBranch(repoRoot, cache) {
 function preferRemoteTrackingRef(repoRoot, name) {
   const { failure } = runGit(['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${name}`], repoRoot);
   return failure ? name : `origin/${name}`;
+}
+
+function resolveIntegrationBranch(repoRoot, cache) {
+  if (!repoRoot) return null;
+  const fromPolicy = policy.readIntegrationBranch(repoRoot);
+  if (fromPolicy) return preferRemoteTrackingRef(repoRoot, fromPolicy);
+  if (cache && cache.integrationBranch.has(repoRoot)) return cache.integrationBranch.get(repoRoot);
+  const { stdout, failure } = runGit(['rev-parse', '--abbrev-ref', 'origin/HEAD'], repoRoot);
+  const name = failure || !stdout ? null : stdout.trim().replace(/^origin\//, '') || null;
+  if (cache) cache.integrationBranch.set(repoRoot, name);
+  return name;
 }
 
 // Is this worktree path held by a live session right now? The one predicate
