@@ -19,7 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { runGit } = require('./git-exec');
-const { parseWorktreeList, resolveIntegrationBranch } = require('./worktree-reap');
+const { parseWorktreeList, resolveIntegrationBranch, bareIntegrationName } = require('./worktree-reap');
 const ctxLib = require('./context');
 
 const NON_TERMINAL = new Set(['active', 'interrupted']);
@@ -228,7 +228,12 @@ function checkRunIntegrity(runDir, opts = {}) {
     // Live worktree wins; the fallback runs only when it can't answer (#1672).
     if (!evidence.branch) evidence.branch = fallbackBranch(root, runDir, state);
     if (!evidence.branch) return inProgress;
-    const integration = resolveIntegrationBranch(root, cache);
+    // #1861: resolveIntegrationBranch's policy-configured path can return
+    // either `name` or `origin/name` (preferRemoteTrackingRef, #1688) --
+    // evidence.branch is always bare (deriveBranch/fallbackBranch), so
+    // mergedEvidence's self-ancestor guard needs the bare form too, same as
+    // this repo's other four call sites.
+    const integration = bareIntegrationName(resolveIntegrationBranch(root, cache));
     if (!integration) return inProgress;
     evidence.merged = mergedEvidence(root, evidence.branch, integration);
     if (evidence.merged !== 'ancestor' && evidence.merged !== 'cherry') return inProgress;
