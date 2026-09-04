@@ -92,7 +92,7 @@ eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" CH_ISSUES_RAW=ch
 gh issue list --label by:code-health --state all --json number,state,labels,body --limit 500 > "$CH_ISSUES_RAW"
 ```
 
-Parse each issue body for its fingerprint marker and build an array of `{ number, state, labels, fingerprint }` objects. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: codehealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`). Write to `$CH_OPEN`.
+Parse each issue body for its fingerprint marker and build an array of `{ number, state, labels, fingerprint }` objects. Fingerprint extraction reads the dual-marker form via `extractFingerprint` (`bin/lib/issues/record.js`): the current `<!-- work-fingerprint: codehealth-XXXXXXXX -->` marker, falling back to the legacy `<!-- code-health-fingerprint: codehealth-XXXXXXXX -->` marker still present on issues filed before this skill moved onto the unified work record (`skills/_shared/work-record.md`), then to the plain-text `work-fingerprint: codehealth-XXXXXXXX` companion line for an MCP-stripped body (`_shared/health-issue-index.md`). Write to `$CH_OPEN`.
 
 **Transport and outcomes:** apply `_shared/health-issue-index.md` with `{SKILL}` = `code-health`, `{ISSUES_FILE}` = `$CH_OPEN`. `gh` absent means rebuild the index via MCP `list_issues`, never skip; `ISSUES_FILE=""` is only for "no transport reaches GitHub", and is reported.
 
@@ -291,7 +291,7 @@ run is truly a no-op for all persistence.
 
 **Step 10 — SUMMARIZE.**
 
-Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
+Report: how many findings were emitted, how many survived dedup, how many issues were filed / skipped / remembered. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}, materiality: K` — report it even when `M` and `K` are both `0`, so the throttle is visible rather than inferred.
 
 Also report the slice's read coverage, so the summary can never imply more coverage than the sweep had: the slice id, whether it was read recursively or own-files-only (Step 1's `recursive`), bytes read, and — if Step 3's read budget was reached — every **deferred** file with its size, under a `Deferred (read budget)` heading. When nothing was deferred, say so in one line rather than omitting the section; an absent section is indistinguishable from a forgotten one. Under focus mode, there is no slice id or `recursive` flag — report `focus-mode.md`'s scanned-file and skipped-file counts instead (Step F2).
 

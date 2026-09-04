@@ -42,6 +42,17 @@ deliberate, reasonable defense) — it's to also carry a plain-text companion fo
 looks like an HTML tag to the sanitizer in the first place, so it survives the MCP read path
 unchanged. See "Dual-marker scheme" in Step 3 below.
 
+**Scope extends to issue reads, not just PR reads (#1700).** The same `bluemonday.StrictPolicy()`
+strips `<!-- ... -->` spans from `mcp__github__list_issues` and `mcp__github__issue_read` results
+too — confirmed live (2026-08-30): fetching a batch of `by:docs-health` issues via both
+`list_issues` (labels filter, no state filter) and `issue_read` (`get` method, one issue
+specifically) returned every `body` with its `<!-- work-fingerprint: ... -->` marker stripped,
+while a `gh`-based read of the identical issues (this project's own filing convention always
+appends that marker as the body's literal last line) showed it intact — the same live-verification
+method used above for PR bodies. `_shared/health-issue-index.md` documents the consequence for
+health-sweep dedup and the fix (`bin/lib/issues/record.js`'s plain-text `work-fingerprint:`
+companion line, mirroring this file's own dual-marker scheme) rather than restating it here.
+
 ## Callers
 
 | Caller | Invokes from |

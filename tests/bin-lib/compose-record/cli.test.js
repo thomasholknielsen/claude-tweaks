@@ -33,7 +33,7 @@ test('composes and writes the body; prints the envelope', () => {
   assert.equal(code, 0);
   const written = fs.readFileSync(outFile, 'utf8');
   assert.match(written, /## Current State/);
-  assert.match(written, /<!-- work-fingerprint: design-x:unit-y -->$/);
+  assert.match(written, /<!-- work-fingerprint: design-x:unit-y -->\nwork-fingerprint: design-x:unit-y$/);
   const envelope = JSON.parse(streamOf(out, 'out'));
   assert.equal(envelope.title, 'A title');
   assert.equal(envelope.type, 'feature');

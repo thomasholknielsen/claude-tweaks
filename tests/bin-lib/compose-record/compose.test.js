@@ -21,7 +21,7 @@ test('composeBody wraps recordPayload — fingerprint marker appended', () => {
   const result = composeBody({ title: 'x', body: 'body text', type: 'feature', fingerprint: 'design:unit' });
   assert.equal(result.title, 'x');
   assert.equal(result.type, 'feature');
-  assert.match(result.body, /body text\n\n<!-- work-fingerprint: design:unit -->$/);
+  assert.match(result.body, /body text\n\n<!-- work-fingerprint: design:unit -->\nwork-fingerprint: design:unit$/);
 });
 
 test('composeBody propagates recordPayload validation errors', () => {

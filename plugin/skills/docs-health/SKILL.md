@@ -113,7 +113,7 @@ eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/session-tmp-resolve.js" DOCS_HEALTH_ISSU
 gh issue list --label by:docs-health --state all --json number,state,labels,body --limit 500 > "$DOCS_HEALTH_ISSUES_RAW"
 ```
 
-Parse each issue body for its fingerprint marker via `extractFingerprint` (`bin/lib/issues/record.js`): the `<!-- work-fingerprint: docshealth-XXXXXXXX -->` marker. Build an array of `{ number, state, labels, fingerprint }` objects and write to `$DOCS_HEALTH_ISSUES`.
+Parse each issue body for its fingerprint marker via `extractFingerprint` (`bin/lib/issues/record.js`): the `<!-- work-fingerprint: docshealth-XXXXXXXX -->` marker, falling back to the plain-text `work-fingerprint: docshealth-XXXXXXXX` companion line for an MCP-stripped body (`_shared/health-issue-index.md`). Build an array of `{ number, state, labels, fingerprint }` objects and write to `$DOCS_HEALTH_ISSUES`.
 
 **Transport and outcomes:** read `_shared/health-issue-index.md` and apply it, with `{SKILL}` = `docs-health` and `{ISSUES_FILE}` = `$DOCS_HEALTH_ISSUES`. In short: `gh` absent means rebuild this index via the MCP `list_issues` tool, not skip the step; only a genuine "neither transport can reach GitHub" sets `ISSUES_FILE=""`, and that case gets reported rather than passing silently. A repo with no `by:docs-health` issues yet is a legitimately *empty* index (`[]`), not an unavailable one — keep the two distinct.
 
@@ -224,7 +224,7 @@ In `--dry-run` mode, print what would be filed or reopened, and the `gh` command
 
 **Step 7 — SUMMARIZE.**
 
-Report: which target(s) were audited, how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}` — report it even when `M` is `0`, so the throttle is visible rather than inferred.
+Report: which target(s) were audited, how many findings were emitted, how many filed vs skipped by dedup. List any new issue URLs. Always include the throttle line per `_shared/health-filing-digest.md`'s SUMMARIZE step: `filed: N, digested: M, cap: {CAP}, materiality: K` — report it even when `M` and `K` are both `0`, so the throttle is visible rather than inferred.
 
 ## Routine Configuration
 
