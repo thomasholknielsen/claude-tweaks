@@ -30,7 +30,7 @@ const {
 const ctxLib = require('./context');
 const policy = require('../policy');
 const wtDetect = require('./worktree-detect');
-const { resolveIntegrationBranch } = require('./worktree-reap');
+const { resolveIntegrationBranch, preferRemoteTrackingRef } = require('./worktree-reap');
 const { runGit, FAILURE } = require('./git-exec');
 const { detectIntegrationModel, resolvePolicyConfig } = require('../policy-schema');
 
@@ -840,6 +840,35 @@ function checkWorktreeRequired(ctx, precomputedGitTargets, indeterminateTargets 
 // branch. Threading `runDir` through is what makes the sentinel answer the
 // only question worth asking: did THIS run's materialize commit land.
 //
+// #1688's third resolution source — scoped to THIS range bound alone, never
+// to the shared `resolveIntegrationBranch` `hasMaterializeCommit` calls
+// below. That function is also the reaper's and run-integrity.js's only
+// source of an integration-branch name, and `_shared/integration-branch.md`'s
+// per-consumer table restricts both of them to policy.yml and
+// origin/HEAD — deliberately excluding any local-branch guess, because a
+// probe there once reaped a worktree holding genuinely unmerged work (the
+// file's own Anti-Patterns entry). Widening the shared resolver would import
+// that exact hazard into two consumers that can delete or misreport state on
+// a wrong answer.
+//
+// This call site carries none of that risk: an unresolved bound here falls
+// back to the pre-#1674 UNBOUNDED walk (see hasMaterializeCommit's own
+// comment below), never to `false` — so a wrong or missing guess only ever
+// widens an already-conservative range, exactly like the "unresolved"
+// case it stands in for. That asymmetry is what makes a local probe safe
+// here and unsafe there.
+//
+// `main`/`master` are the two conventional default-branch names; a repo
+// using neither leaves this returning null, same as before #1688 — no new
+// failure mode, per AC3.
+function resolveLocalDefaultBranchBound(repoRoot) {
+  for (const candidate of ['main', 'master']) {
+    const { failure } = runGit(['show-ref', '--verify', '--quiet', `refs/heads/${candidate}`], repoRoot);
+    if (!failure) return candidate;
+  }
+  return null;
+}
+
 // Read-only, best-effort: any git failure (no commits yet, git unavailable)
 // and an unusable runDir both resolve to false — ambiguity never triggers the
 // gate, same posture as every other check in this file.
@@ -893,23 +922,26 @@ function hasMaterializeCommit(worktreeRoot, runDir) {
   // remote). Unresolvable is not the same as nonexistent, so on this path the
   // pre-#1674 false positive genuinely persists.
   //
-  // Accepted deliberately as the status quo ante for those repos rather than as
-  // a fix for them: the alternative (`false`) trades a recoverable false deny
-  // for silently disabling IL-131 there. Extending #1674's actual improvement to
-  // no-remote repos needs a third resolution source (a local default-branch
-  // probe) — real new scope, filed separately.
+  // #1688 closed the no-remote gap described above: when the shared resolver
+  // comes up empty, resolveLocalDefaultBranchBound (above) probes for a local
+  // `main`/`master` — scoped to this call only, per that function's own
+  // comment on why the shared resolver itself must not widen this way.
   //
-  // Known limitation on the bounded path: resolveIntegrationBranch returns a
-  // LOCAL branch name, which can lag origin/{integration}. Usually that only
-  // widens the range (the conservative false-deny direction) — but when HEAD
-  // has already merged origin/{integration} in, as `_shared/worktree-setup.md`'s
-  // post-creation catch-up does routinely, the lagging local ref can leave those
-  // merged-in commits inside the range and reproduce the very inherited-history
-  // arm this bound exists to stop. Resolving origin/{integration} instead would
-  // need a fetch, which this file must not do: it runs on every covered tool
-  // call and must stay offline and cheap. Filed with the probe above.
+  // Known limitation on the bounded path: a policy-configured or probed LOCAL
+  // branch name can lag origin/{integration}. Usually that only widens the
+  // range (the conservative false-deny direction) — but when HEAD has already
+  // merged origin/{integration} in, as `_shared/worktree-setup.md`'s
+  // post-creation catch-up does routinely, the lagging local ref can leave
+  // those merged-in commits inside the range and reproduce the very
+  // inherited-history arm this bound exists to stop. #1688 also fixed this
+  // for the policy-configured case: `resolveIntegrationBranch` now upgrades a
+  // resolved local name to its already-on-disk `origin/{name}` remote-tracking
+  // ref when one exists (no fetch — see `preferRemoteTrackingRef` in
+  // worktree-reap.js). The probed `main`/`master` fallback just below gets the
+  // same upgrade for the same reason.
   const paths = ['--', `${runRel}/work`, `${runRel}/spec-*/work/*`];
-  const integration = resolveIntegrationBranch(worktreeRoot);
+  const bound = resolveIntegrationBranch(worktreeRoot) || resolveLocalDefaultBranchBound(worktreeRoot);
+  const integration = bound ? preferRemoteTrackingRef(worktreeRoot, bound) : null;
   // Two distinct ways the bound can be unusable, and both must fall back the
   // same way. `null` is the obvious one. The other: `policy.readIntegrationBranch`
   // returns the raw `integration-branch:` string with no ref-existence check (it

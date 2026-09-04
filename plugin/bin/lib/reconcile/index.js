@@ -10,7 +10,7 @@
 'use strict';
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { findNonCanonicalRunDirs } = require('../hooks/context');
-const { resolveIntegrationBranch, reapWorktrees: legacyReapWorktrees } = require('../hooks/worktree-reap');
+const { resolveIntegrationBranch, bareIntegrationName, reapWorktrees: legacyReapWorktrees } = require('../hooks/worktree-reap');
 const { resolveIntegrationModel } = require('../policy-schema');
 const { mirrorFastForward } = require('./mirror-ff');
 const { redTipCheck } = require('./red-tip');
@@ -97,7 +97,14 @@ async function reconcile(opts = {}) {
     }
   }
 
-  const integration = resolveIntegrationBranch(root, opts.cache);
+  // #1688: resolveIntegrationBranch's policy-configured path can now return
+  // an `origin/{name}` remote-tracking ref (preferRemoteTrackingRef,
+  // worktree-reap.js). Every downstream consumer of `integration` in this
+  // module (classify.js, mirror-ff.js, red-tip.js, shared-fetch.js) builds
+  // its own `origin/${integration}` ref or issues `git fetch origin
+  // {integration}` on the assumption that `integration` is bare — normalize
+  // once here so the whole module keeps that contract.
+  const integration = bareIntegrationName(resolveIntegrationBranch(root, opts.cache));
   if (!integration) {
     result.skipped.push({ check: 'all', reason: 'no-remote' });
     return result;

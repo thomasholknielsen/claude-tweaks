@@ -1086,6 +1086,44 @@ test('hasMaterializeCommit: a resolvable-but-nonexistent integration-branch poli
     'a bad integration-branch value must fall back to the unbounded walk, not silently disarm the gate');
 });
 
+// --- hasMaterializeCommit's third resolution source (#1688) ---
+//
+// #1674's own AC3 fixture (no policy.yml, no origin remote) is reused below,
+// but with the materialize commit placed on `main` BEFORE the worktree
+// branches off it -- AC1's inherited-history shape, not AC3's own-commit
+// shape -- to reproduce #1688's exact reported bug: a no-remote repo still
+// has a real local integration branch, merely an unresolvable one, so the
+// pre-#1688 unbounded fallback armed the gate against history the worktree
+// never made.
+//
+// The branch is renamed explicitly to 'main' rather than trusting the host's
+// `init.defaultBranch` (this machine's own default is 'master') -- the probe
+// itself tries both 'main' and 'master', but the test must be deterministic
+// regardless of which default a given machine or CI runner ships.
+function repoOnLocalMain() {
+  const dir = gitRepoWithCommit();
+  execFileSync('git', ['-C', dir, 'branch', '-M', 'main']);
+  return dir;
+}
+
+test('hasMaterializeCommit: #1688 AC1 — a no-remote repo\'s inherited materialize commit is NOT armed once a local main/master probe can bound the range', () => {
+  const main = repoOnLocalMain();
+  commitMaterializeFile(main, MATERIALIZE_RUN_ID); // lands on `main` itself -- inherited, not the worktree's own
+  const wt = linkedWorktreeOf(main); // branches off main's HEAD, which already includes the materialize commit
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), false,
+    'a no-remote repo\'s inherited materialize commit must not arm the gate once the local main/master probe resolves a bound — #1688');
+});
+
+test('hasMaterializeCommit: #1688 AC2 regression guard — the local default-branch probe still arms the gate for the worktree\'s own unmerged commit', () => {
+  const main = repoOnLocalMain();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializeFile(wt, MATERIALIZE_RUN_ID); // on the worktree's own branch, never merged into main
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
+    'the local default-branch probe must not disarm the gate for a worktree\'s own genuinely-unmerged materialize commit');
+});
+
 // #1501: the #989 exemption's repro-resistant failure needs a byte-for-byte
 // diff between a real hook invocation and a synthetic replay to pin down —
 // this is the debug-capture instrumentation added for that, not a fix for

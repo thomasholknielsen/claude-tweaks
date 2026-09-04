@@ -23,7 +23,7 @@ const { ISSUE_REF_SOURCE } = require('../issue-branch-tracking');
 // policy.yml then origin/HEAD) fits this file's EnterWorktree handler as-is.
 // `parseWorktreeList` is reused for the same reason, for the tool-result
 // fallback path below.
-const { resolveIntegrationBranch, parseWorktreeList } = require('./worktree-reap');
+const { resolveIntegrationBranch, parseWorktreeList, bareIntegrationName } = require('./worktree-reap');
 // Session-scoped marker path for the non-EnterWorktree ad-hoc-run-dir rate-limit (#1333) — see
 // stampAdHocRunDir below.
 const { sessionTmpPath } = require('../session-tmp');
@@ -488,7 +488,13 @@ function checkWorktreeStaleness(ctx) {
   try {
     const worktreePath = resolveCreatedWorktreePath(ctx);
     if (!worktreePath) return null; // couldn't resolve where we landed — nothing to check, fail open
-    const branch = resolveIntegrationBranch(worktreePath);
+    // #1688: resolveIntegrationBranch's policy-configured path can now return
+    // an `origin/{name}` remote-tracking ref instead of a bare branch name
+    // (preferRemoteTrackingRef, worktree-reap.js). This check needs a bare
+    // name — `branch` is both the remote-side fetch target below (a remote
+    // has no `origin/`-prefixed branches of its own) and re-prefixed with
+    // `origin/` again for the rev-list comparison — so normalize immediately.
+    const branch = bareIntegrationName(resolveIntegrationBranch(worktreePath));
     if (!branch) return null; // no integration branch resolved — nothing to compare against
 
     // `--` guards against argument injection: `branch` traces back to
