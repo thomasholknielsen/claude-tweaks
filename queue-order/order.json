@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T17:45:10.356Z",
+  "computedAt": "2026-09-05T18:43:28.274Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -54,13 +54,8 @@
         "state": "OPEN"
       },
       {
-        "number": 1765,
-        "updatedAt": "2026-09-05T17:44:48Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1596,
-        "updatedAt": "2026-08-29T16:19:16Z",
+        "updatedAt": "2026-09-05T17:46:35Z",
         "state": "OPEN"
       },
       {
@@ -849,82 +844,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Title: Harden or mechanically enforce the subagent-output-contract's status-line-first rule\nType: task\nLabels: risk:low, size:small\nDefer-reason: tangential\n\n# Ledger item 20 (from #903 review, reflect full-mode near-miss, CAUSAL: systemic)\n\n**Origin:** ledger resolve gate, spec #903 wrap-up reflect (full mode)\n**Defer-reason:** tangential\n\n## Current State\n\nDuring #903's review, 2 of 8 dispatched Step-3 lens agents violated\n`plugin/skills/_shared/subagent-output-contract.md`'s status-line-first rule — each led with a\nconfirmatory sentence before its `DONE_WITH_CONCERNS` status word, the exact \"WRONG\" example the\ncontract itself calls out. This was caught only via `friction-events.js`'s `contract-violation`\nlog (`bin/lib/hooks/`'s detection), not by the dispatching agent at the time — no re-prompt was\nissued, though the contract requires one on format violation. No actual harm resulted this run\n(findings were still extracted correctly downstream), but the rule currently has no mechanical\nenforcement at the point a dispatching agent consumes a subagent's reply — it relies entirely on\nthat agent's own per-notification vigilance, which failed twice in a single 8-agent dispatch here.\n\n## Deliverables\n\n- Either: strengthen the contract's own prompt language (a stronger negative example, or moving\n  the status-line instruction to be even more prominent), or add a mechanical check the dispatcher\n  is instructed to run against every subagent reply before treating its content as valid (does the\n  literal first line match the required vocabulary exactly).\n- Consider whether `friction-events.js`'s existing `contract-violation` detection could be\n  surfaced back to the dispatching agent in-run (rather than only visible via a later\n  Friction-lens reflect pass), closing the loop faster.\n\n## Acceptance Criteria\n\n1. A future dispatch of 8 similarly-prompted lens agents produces zero unremediated\n   `contract-violation` events, OR every violation triggers an actual re-prompt per the contract's\n   existing (but unenforced) rule.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
-        "createdAt": "2026-08-28T05:24:13Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          }
-        ],
-        "number": 1596,
-        "state": "OPEN",
-        "title": "Harden or mechanically enforce the subagent-output-contract's status-line-first rule",
-        "updatedAt": "2026-08-29T16:19:16Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
