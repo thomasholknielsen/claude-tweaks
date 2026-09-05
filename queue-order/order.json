@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T22:54:26.169Z",
+  "computedAt": "2026-09-05T23:46:57.777Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -10,7 +10,7 @@
       },
       {
         "number": 1864,
-        "updatedAt": "2026-09-04T19:51:28Z",
+        "updatedAt": "2026-09-05T22:56:47Z",
         "state": "OPEN"
       },
       {
@@ -112,46 +112,6 @@
         "state": "OPEN",
         "title": "Committed #703 spec + implementation plan name the shipped handler checkPostTeardownPin; it shipped as checkPostTeardownReanchor",
         "updatedAt": "2026-09-04T19:51:42Z",
-        "facets": {
-          "origin": null,
-          "risk": null,
-          "size": null,
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "backlog",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "## Current State\n\nWiring `checkPostTeardownReanchor` into `plugin/hooks/hooks.json` for `ExitWorktree`/`git worktree remove` (landed via #703's continuation, commit range `42a8bbb05..afd33e3e9`) means `post-tool-use.js` now receives `ExitWorktree` events for the first time. This activates `stampAdHocRunDir`'s non-EnterWorktree branch (`plugin/bin/lib/hooks/post-tool-use.js:445`) against an input shape it was never exercised against: it calls `resolveWorktreePathViaPorcelain(ctx)`, which shells out `git -C <cwd> worktree list --porcelain` against the just-deleted worktree directory — guaranteed to fail — but unconditionally writes `ADHOC_WORKTREE_CHECKED_MARKER` regardless of that outcome.\n\nFound by the whole-branch review gating the v6.116.0 release (CLAUDE.md's Releasing section) — confirmed, not yet fixed. Narrow/edge-case severity: requires an ad-hoc (non-pipeline) session that later creates a different worktree via a raw `git worktree add` (bypassing `EnterWorktree`) within the same session.\n\n## Deliverables\n\n- Guard the marker write in `stampAdHocRunDir`'s non-EnterWorktree branch so it is only written on a successful resolution (or otherwise distinguishes \"checked and found nothing\" from \"the lookup itself couldn't run because the target no longer exists\").\n- Add a regression test: an `ExitWorktree(action:'remove')` event must not permanently defeat the #1333 ad-hoc-stamping mechanism for a later raw `git worktree add` in the same session.\n\n## Acceptance Criteria\n\n- An `ExitWorktree(action:'remove')` PostToolUse event does not write `ADHOC_WORKTREE_CHECKED_MARKER` when the porcelain lookup fails because the target directory is already gone.\n- A session that runs `ExitWorktree(remove)` and later creates a worktree via raw `git worktree add` still gets that worktree stamped by `stampAdHocRunDir`.\n\n## Failure scenario this fixes\n\nAn ad-hoc (non-pipeline) session runs `ExitWorktree(action:'remove')`. `stampAdHocRunDir` calls `resolveWorktreePathViaPorcelain(ctx)` against the now-deleted directory; it fails, but the marker file is still written. If that same session later creates a different worktree via a raw `git worktree add` (bypassing `EnterWorktree`), `stampAdHocRunDir`'s non-EnterWorktree path is now permanently skipped for the rest of the session (marker already exists) — no run-dir is ever stamped for that later worktree, silently defeating the #1333 mechanism this branch exists for.",
-        "createdAt": "2026-09-04T19:51:28Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          }
-        ],
-        "number": 1864,
-        "state": "OPEN",
-        "title": "stampAdHocRunDir always writes its one-shot marker on ExitWorktree(remove), even when the git lookup is guaranteed to fail",
-        "updatedAt": "2026-09-04T19:51:28Z",
         "facets": {
           "origin": null,
           "risk": null,
