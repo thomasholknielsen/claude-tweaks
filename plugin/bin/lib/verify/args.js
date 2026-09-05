@@ -6,24 +6,34 @@ class UsageError extends Error {}
 
 const USAGE =
   'usage: verify.js --cmd <name>=<command> [--cmd <name>=<command> ...] [--json <path>] '
-  + '[--log-dir <dir>] [--count-stamp <path>]';
+  + '[--log-dir <dir>] [--count-stamp <path>] [--no-stamp] [--git-dir <dir>] '
+  + '| verify.js --stamp-status [--git-dir <dir>]';
+
+const VALUE_FLAGS = new Set(['--cmd', '--json', '--log-dir', '--count-stamp', '--git-dir']);
 
 // argv = process.argv.slice(2). Throws UsageError on any malformed input —
 // the CLI prints message + USAGE to stderr and exits non-zero (AC6).
+// --stamp-status (#1921) is a read-only mode: it needs no --cmd at all.
 function parseArgs(argv) {
   const cmds = [];
   let json = null;
   let logDir = null;
   let countStamp = null;
+  let gitDir = null;
+  let stampStatus = false;
+  let noStamp = false;
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
-    if (flag === '--cmd' || flag === '--json' || flag === '--log-dir' || flag === '--count-stamp') {
+    if (flag === '--stamp-status') { stampStatus = true; continue; }
+    if (flag === '--no-stamp') { noStamp = true; continue; }
+    if (VALUE_FLAGS.has(flag)) {
       const value = argv[i + 1];
       i++;
       if (value === undefined) throw new UsageError(`${flag} requires a value`);
       if (flag === '--json') { json = value; continue; }
       if (flag === '--log-dir') { logDir = value; continue; }
       if (flag === '--count-stamp') { countStamp = value; continue; }
+      if (flag === '--git-dir') { gitDir = value; continue; }
       const eq = value.indexOf('=');
       if (eq === -1) throw new UsageError(`--cmd value must be <name>=<command>, got: ${value}`);
       if (eq === 0) throw new UsageError(`--cmd value has an empty name: ${value}`);
@@ -39,8 +49,8 @@ function parseArgs(argv) {
     }
     throw new UsageError(`unknown flag: ${flag}`);
   }
-  if (cmds.length === 0) throw new UsageError('at least one --cmd <name>=<command> is required');
-  return { cmds, json, logDir, countStamp };
+  if (cmds.length === 0 && !stampStatus) throw new UsageError('at least one --cmd <name>=<command> is required');
+  return { cmds, json, logDir, countStamp, gitDir, stampStatus, noStamp };
 }
 
 module.exports = { parseArgs, UsageError, USAGE };

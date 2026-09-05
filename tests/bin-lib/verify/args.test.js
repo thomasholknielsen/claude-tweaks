@@ -24,6 +24,9 @@ test('parses repeatable --cmd plus --json, --log-dir, and --count-stamp', () => 
     json: '/tmp/r.json',
     logDir: '/tmp/logs',
     countStamp: '/tmp/count.json',
+    gitDir: null,
+    stampStatus: false,
+    noStamp: false,
   });
 });
 
@@ -78,4 +81,31 @@ test('USAGE names every flag', () => {
   for (const flag of ['--cmd', '--json', '--log-dir', '--count-stamp']) {
     assert.ok(USAGE.includes(flag), `USAGE missing ${flag}`);
   }
+});
+
+test('--stamp-status parses with no --cmd and sets stampStatus (#1921)', () => {
+  const parsed = parseArgs(['--stamp-status']);
+  assert.strictEqual(parsed.stampStatus, true);
+  assert.deepStrictEqual(parsed.cmds, []);
+  assert.strictEqual(parsed.gitDir, null);
+});
+
+test('--git-dir is accepted with --stamp-status and with a run (#1921)', () => {
+  assert.strictEqual(parseArgs(['--stamp-status', '--git-dir', '/g']).gitDir, '/g');
+  assert.strictEqual(parseArgs(['--cmd', 'tests=node -e 0', '--git-dir', '/g']).gitDir, '/g');
+  assert.throws(() => parseArgs(['--git-dir']), UsageError);
+});
+
+test('--no-stamp is a boolean flag defaulting to false (#1921)', () => {
+  assert.strictEqual(parseArgs(['--cmd', 'tests=node -e 0']).noStamp, false);
+  assert.strictEqual(parseArgs(['--cmd', 'tests=node -e 0', '--no-stamp']).noStamp, true);
+  assert.strictEqual(parseArgs(['--cmd', 'tests=node -e 0']).stampStatus, false);
+});
+
+test('a run without --cmd is still a usage error when --stamp-status is absent (#1921)', () => {
+  assert.throws(() => parseArgs(['--no-stamp']), UsageError);
+});
+
+test('USAGE names the new flags (#1921)', () => {
+  for (const flag of ['--stamp-status', '--no-stamp', '--git-dir']) assert.ok(USAGE.includes(flag), flag);
 });
