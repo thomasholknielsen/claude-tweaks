@@ -21,7 +21,7 @@ test('composeBody wraps recordPayload — fingerprint marker appended', () => {
   const result = composeBody({ title: 'x', body: 'body text', type: 'feature', fingerprint: 'design:unit' });
   assert.equal(result.title, 'x');
   assert.equal(result.type, 'feature');
-  assert.match(result.body, /body text\n\n<!-- work-fingerprint: design:unit -->$/);
+  assert.match(result.body, /body text\n\n<!-- work-fingerprint: design:unit -->\nwork-fingerprint: design:unit$/);
 });
 
 test('composeBody propagates recordPayload validation errors', () => {
@@ -58,6 +58,19 @@ test('validateShaped: multiple gaps are all reported at once, not just the first
   const result = validateShaped('## Deliverables\n\nTBD');
   assert.equal(result.ok, false);
   assert.ok(result.gaps.length >= 3, `expected >=3 gaps, got ${JSON.stringify(result.gaps)}`);
+});
+
+test('validateShaped: ok when a TBD/TODO/<!-- ambiguity: marker sits only inside a verbatim ## Original request section (refs #1240)', () => {
+  const body = SHAPED + '\n\n## Original request\n\nOld title with a TBD in it\n\nTODO: revisit\n\n<!-- ambiguity: which flag -->';
+  const result = validateShaped(body);
+  assert.deepEqual(result, { ok: true, gaps: [] });
+});
+
+test('validateShaped: a marker before the ## Original request heading still fails even when that section is present', () => {
+  const body = SHAPED.replace('- [ ] Do the thing.', '- [ ] Do the thing TBD.') + '\n\n## Original request\n\nOld title\n\nclean original text';
+  const result = validateShaped(body);
+  assert.equal(result.ok, false);
+  assert.ok(result.gaps.some((g) => /unresolved placeholder marker: TBD/.test(g)));
 });
 
 test('splitSections: line-anchored ## headings only — a mid-line "## " is not a heading', () => {

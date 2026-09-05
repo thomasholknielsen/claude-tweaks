@@ -134,18 +134,39 @@ later — it exists solely to close the specific correctness gap #1294 found; do
 into a broader test or pre-implement #347's predicate here (Related, not merged scope, same as
 `_shared/console-on-pr.md`'s own note on #347).
 
+**Second narrower exception (#1802):** the same `isMergeRow: true` item is also **not**
+floor-clearing when a live re-fetch shows any group member currently lacking both `auto:merge`
+and a matured `auto:merge-pending` — unlike `mergeCheckVerdict` above, this fact needs no
+persisted snapshot, since it is directly observable current label state rather than an LLM
+judgment computed once at render time. **Deriving group membership in a foreign session:** the
+executing session did not necessarily render this console, so it cannot rely on the original
+session's own `dispatch-groups.json` (session-scoped, per `_shared/session-tmp-root.md`, and gone
+once that session ends) — instead, parse every `Fixes #{n}` line from the PR's own body (`gh pr
+view --json body`), the same durable, one-line-per-record marker `dispatch/settle-and-merge.md`'s
+merge step writes onto every group member; that is the group. Fetch each named record's live
+labels (`gh issue view --json labels`) and apply the exception if any lacks the grant. This closes
+the gap the `mergeCheckVerdict` exception alone leaves open: `dispatch/settle-and-merge.md`'s
+Auto-merge gate Layer 1 falls through before Layer 2's `merge-check` ever runs on a mixed-grant
+bundle, so `mergeCheckVerdict` is omitted from `console.json` entirely — a withheld grant is
+itself a human decision and must never silently resolve to merge for want of a verdict that was
+never computed.
+
 **Auto-resolution performs real comment edits.** It ticks the floor-clearing boxes on the PR
 comment (via `_shared/console-on-pr.md`'s post-or-update procedure) *before* executing — the same
 comment-edit history a human's own ticks would leave, flagged in the reply comment and in
 `decisions.md` as `AUTO`, never presented as if a human ticked it. The Resolve box is ticked only
 when every item in the console is floor-clearing; a console with a genuinely non-floor item —
-today, exactly the `isMergeRow: true` item under a persisted `needs-human` verdict, above — gets
-its floor items ticked and executed, but that one item and Resolve both stay unticked and the
-console stays pending for a human. Log one `AUTO {time} — Console execution: auto-resolved {item}
+today, exactly the `isMergeRow: true` item under either exception above (a persisted `needs-human`
+verdict, or a live-refetched member lacking `auto:merge`) — gets its floor items ticked and
+executed, but that one item and Resolve both stay unticked and the console stays pending for a
+human. Log one `AUTO {time} — Console execution: auto-resolved {item}
 on PR #{n}. Reversibility: {…}.` line per item actually resolved, per
 `_shared/autonomy-ceiling.md`'s Logging convention — and, when the merge row was withheld, one
-further line: `AUTO {time} — Console execution: withheld branch-finish/merge on PR #{n} — persisted
-mergeCheckVerdict: needs-human. Reversibility: n/a (declined to act).`
+further line naming which exception fired: `AUTO {time} — Console execution: withheld branch-finish/merge on PR #{n} — persisted
+mergeCheckVerdict: needs-human. Reversibility: n/a (declined to act).` for the first exception, or
+`AUTO {time} — Console execution: withheld branch-finish/merge on PR #{n} — member #{m} lacks
+auto:merge. Reversibility: n/a (declined to act).` for the second (#1802) — naming the specific
+member `{m}` whose live labels lacked the grant.
 
 ## Comment-tick trust boundary
 

@@ -1366,3 +1366,45 @@ doesn't reintroduce `cd` as a third "equally valid" option (`plugin/skills/_shar
 Working Directory Discipline). Doc-only change to a `_shared` contract every Form B/C dispatch site
 already cites by reference, so no per-consumer migration was needed. Cost: low — user-reported
 friction, not a shipped defect; the fix is a prose change with no code path to regress.
+
+## IL-152 — Sibling `isolation:"worktree"` agents stomped an unrelated run's `run-state.json` via session-id-only ownership checks
+
+Bit the 2026-08-19/20 batch of 10 records dispatched in parallel via `Agent(isolation:"worktree")`
+(each running `/claude-tweaks:flow #N` in its own isolated git worktree, outside `/dispatch`'s own
+sequential Step 5 mechanism). A mistyped `hooks.js close-run --help` — not a real flag, so it fell
+through to `close-run`'s then-default "act on the newest non-terminal run" fallback — overwrote
+spec-315's run-state (`.claude-tweaks/pipelines/2026-08-19T210228-spec-315/run-state.json`, PR #944)
+to `worktree: null, status: clean` at least three separate times, from three different sibling
+worktrees (`agent-a195d82021a1eb581`, `agent-a0ab5a5ea7873c2c5`, `agent-afe27a670a165d454`), none of
+which owned that run. Root cause, confirmed by #965's investigation: `CLAUDE_CODE_SESSION_ID` is
+shared across every sibling `Agent(isolation:"worktree")` subagent of the same parent session, so
+`close-run`'s implicit fallback and `record-worktree`'s foreign-owner guard — both keyed on raw
+session-id equality alone — read each sibling as "mine."
+
+Caught each time by the offending agent's own `events.jsonl`/PR-state vigilance and self-corrected
+before real damage — a property of the individual agents in that batch, not a structural guarantee.
+Cost: manual restoration of spec-315's run-state, three separate times, plus the worktree-isolation
+enforcement that stamp exists to provide was disarmed for as long as the corrupted `worktree: null`
+state stood on each occasion; no shipped-code fix existed at the time of the incident.
+
+Fixed by #1098's `classifyOwnership` composite-identity predicate (session id AND worktree binding,
+never session id alone) and its two consumers: #1099 routed `pre-tool-use.js`'s teardown/commit
+ownership checks and `resolveRun`'s session-scoped arm through it, and #1012 replaced the five
+mutating verbs' "newest non-terminal run" implicit fallback with an unambiguous-only resolution
+built on the same predicate, refusing outright on any ambiguity rather than guessing
+(`docs/hooks.md`'s Ownership section).
+
+**A second, previously-unnamed consequence (#1520), root-caused after the fact:** the same
+pre-#1099 `resolveRun` gap also silently defeated the bookkeeping-stamps gate's IL-131
+`record-worktree` enforcement, independent of the spec-315 symptom above. Record #815's `/build`
+(2026-08-26/27, one day before #1099 shipped) landed a materialize commit and a second commit in
+its own worktree without ever calling `record-worktree` — `run-state.json` was never written for
+that run. The gate's own `hasDistinctOwnedRun` escape hatch (#1259) reads `ctx.ownedRun` from
+`resolveRun`'s session-scoped arm; because that arm matched on raw `sessionId` equality with no
+worktree check, an *older*, already-stamped run the same session owned in a different worktree
+(record-769) was returned as this call's "own" run, made `ownedRun.dir !== ctx.runDir` true, and
+the gate downgraded its would-be deny to a `wd-foreign-session` warning instead — silently letting
+the second commit through with no `record-worktree` ever called. #1099's fix (above) closes this
+too, since it's the same `resolveRun` arm; `tests/hooks-bookkeeping-stamps-gate.test.js`'s "#1520,
+real resolveRun" test reproduces record-769/#815's exact shape end-to-end (a real cross-worktree
+`resolveRun` call feeding the gate, not a hand-constructed `ownedRun`) and pins that it now denies.

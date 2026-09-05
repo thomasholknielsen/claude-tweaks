@@ -39,6 +39,12 @@ It prints one JSON object: `mergeBase` (the resolved base commit), `config`
 policy by the CLI itself), and `summary` (`implLines`/`implFiles`/`testLines`/`testFiles`/
 `sensitiveFilesTouched`) — everything Step 2 weighs.
 
+`{integration-branch}` above may be a bare name (e.g. `main`) even in a shared checkout whose
+local ref has gone stale relative to `origin/{name}`: the CLI itself prefers the same-named
+`origin/{name}` remote-tracking ref when one exists, falling back to the bare local ref only when
+it doesn't (`bin/lib/blast-radius-cli.js`'s `preferOriginRef`, #1592) — this step does not need to
+fetch-and-prefer-origin itself before calling it.
+
 **A non-zero exit is a resolution failure, not a zero-radius diff.** The CLI hard-fails —
 stderr, no JSON — when the merge base cannot be resolved, so a resolution failure can never be
 read as a 0-file blast radius that clears every threshold (the silent-approval hazard the

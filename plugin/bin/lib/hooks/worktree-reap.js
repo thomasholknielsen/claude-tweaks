@@ -329,15 +329,49 @@ function reapWorktrees({
 // per-invocation shape `run-integrity.js`'s deriveBranch takes. The policy short-circuit runs
 // BEFORE any cache lookup regardless: a project with an `integration-branch` policy value never
 // spawns `git rev-parse` at all, cache or no cache. Omitted, this spawns fresh every call. See #381.
+// #1688's second gap: `integration-branch:` in policy.yml names a LOCAL
+// branch, which can lag `origin/{name}` -- `_shared/worktree-setup.md`'s
+// post-creation catch-up merges the remote-tracking branch into a worktree's
+// HEAD routinely, so a caller comparing against the stale local name can find
+// those already-merged commits still inside its own range/merge-base
+// computation. Upgrade to the remote-tracking ref when one already exists on
+// disk -- read-only, no fetch (this resolver must stay offline and cheap; see
+// hasMaterializeCommit's own comment on the same constraint). Never invents a
+// branch and never changes whether resolution succeeds: it only refines an
+// already-resolved name to its freshest known equivalent.
+//
+// Scoped to the policy-configured path only. The origin/HEAD-derived path a
+// few lines below is deliberately left as the bare name it has always
+// returned -- it is already the freshest signal available (origin/HEAD's own
+// target), and existing callers/tests depend on that exact bare-name shape.
+function preferRemoteTrackingRef(repoRoot, name) {
+  const { failure } = runGit(['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${name}`], repoRoot);
+  return failure ? name : `origin/${name}`;
+}
+
 function resolveIntegrationBranch(repoRoot, cache) {
   if (!repoRoot) return null;
   const fromPolicy = policy.readIntegrationBranch(repoRoot);
-  if (fromPolicy) return fromPolicy;
+  if (fromPolicy) return preferRemoteTrackingRef(repoRoot, fromPolicy);
   if (cache && cache.integrationBranch.has(repoRoot)) return cache.integrationBranch.get(repoRoot);
   const { stdout, failure } = runGit(['rev-parse', '--abbrev-ref', 'origin/HEAD'], repoRoot);
   const name = failure || !stdout ? null : stdout.trim().replace(/^origin\//, '') || null;
   if (cache) cache.integrationBranch.set(repoRoot, name);
   return name;
+}
+
+// The inverse of preferRemoteTrackingRef, for a caller that needs a BARE
+// branch name: a `git fetch origin -- {name}` refspec (looked up on the
+// remote side, which has no `origin/`-prefixed branches), or an equality
+// comparison against a value that is always bare (`git branch --show-current`,
+// `readDefaultBranch`'s own origin/HEAD strip in merge-verification.js).
+// resolveIntegrationBranch's policy-configured path can now return either
+// shape (preferRemoteTrackingRef above) -- every caller that builds its own
+// `origin/${name}` ref or compares against a bare name must normalize
+// through this first. A value with no `origin/` prefix, or a nullish value,
+// passes through unchanged -- safe to call unconditionally.
+function bareIntegrationName(name) {
+  return name ? name.replace(/^origin\//, '') : name;
 }
 
 // Is this worktree path held by a live session right now? The one predicate
@@ -370,6 +404,8 @@ module.exports = {
   isContentIdentical,
   reapWorktrees,
   resolveIntegrationBranch,
+  preferRemoteTrackingRef,
+  bareIntegrationName,
   isWorktreeLocked,
   HARNESS_WORKTREE_DIR,
   ORPHAN_GRACE_MS,

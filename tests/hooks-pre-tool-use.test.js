@@ -137,23 +137,23 @@ test('missing or malformed session identity on either side falls back to deny (s
   assert.strictEqual(corruptOut.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
-// #1563: this gate's own ownership check (owner && caller && owner !== caller
-// -> foreign-allow-warn, else deny) is deliberately NOT classifyOwnership
-// (#1098) — unlike context.js's resolveRun fallback (#1410), which does use
-// it, this gate has no worktree-binding "foreign" bypass. The scenario above
-// ("missing or malformed session identity... falls back to deny") uses the
-// MAIN checkout as the caller's cwd, which classifyOwnership would ALSO
-// classify 'indeterminate' (not 'foreign') via its own !isLinkedWorktree
-// check — so it doesn't actually distinguish the two behaviors. THIS test
-// puts the caller in a genuinely different LINKED worktree (not main, not
-// the run's own assigned worktree) — the one case where classifyOwnership's
-// binding comparison alone would return 'foreign' regardless of session id.
-// Pinned here so #1099 (still open at the time this test was added), if it
-// ever swaps this gate onto classifyOwnership, cannot silently regress an
-// owner-absent + different-live-worktree caller from "denied" to "allowed
-// with a warning" without this test forcing that decision to be made
-// explicitly.
-test('#1563: commit from a genuinely different LIVE worktree, run has no recorded owner, is still denied — with and without a caller session_id', () => {
+// #1563 / #1099: this gate's own ownership check now runs through
+// classifyOwnership (#1098) instead of the old raw `owner && caller &&
+// owner !== caller` comparison — the explicit decision this test was
+// originally pinned to force (see its prior revision's comment, preserved in
+// git history). The scenario in "missing or malformed session identity...
+// falls back to deny" above uses the MAIN checkout as the caller's cwd, which
+// classifyOwnership classifies 'indeterminate' there (its own
+// !isLinkedWorktree check) — that scenario is unaffected by this change.
+// THIS test puts the caller in a genuinely different LINKED worktree (not
+// main, not the run's own assigned worktree) — the case where
+// classifyOwnership's binding comparison alone proves 'foreign' regardless of
+// session id (#1098's semantics table: "equal or either missing | recorded,
+// exists | inside a different live worktree | foreign"). This is the intended
+// broadening #1099 exists to ship, not a silent regression: the same
+// worktree-binding proof `resolveRun`'s fallback arm has used since #1410 now
+// applies uniformly at this gate too.
+test('#1563/#1099: commit from a genuinely different LIVE worktree, run has no recorded owner, is foreign-allowed (with systemMessage) — with and without a caller session_id', () => {
   const { main, wt: assignedWt } = mainAndWorktree();
   const callerWt = linkedWorktreeOf(main); // a second, genuinely different live worktree of the same repo
   const { run, state } = mkRun(assignedWt); // no sessionId recorded
@@ -161,13 +161,34 @@ test('#1563: commit from a genuinely different LIVE worktree, run has no recorde
   const withoutSessionId = pre.run({
     input: bashInput('git commit -m "x"', callerWt), runDir: run, runState: state, cwd: callerWt,
   });
-  assert.strictEqual(withoutSessionId.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.strictEqual(withoutSessionId.json.hookSpecificOutput, undefined);
+  assert.ok(withoutSessionId.json.systemMessage && withoutSessionId.json.systemMessage.includes('different session'));
 
   const withSessionId = pre.run({
     input: { ...bashInput('git commit -m "x"', callerWt), session_id: 'caller-session' },
     runDir: run, runState: state, cwd: callerWt,
   });
-  assert.strictEqual(withSessionId.json.hookSpecificOutput.permissionDecision, 'deny');
+  assert.strictEqual(withSessionId.json.hookSpecificOutput, undefined);
+  assert.ok(withSessionId.json.systemMessage && withSessionId.json.systemMessage.includes('different session'));
+});
+
+// AC1 dual case: the caller's OWN cwd (ctx.cwd — where the session stands,
+// not the git command's -C target) inside the recorded (assigned) worktree
+// still classifies 'mine' and denies, even with no sessionId recorded —
+// proving the broadening above is scoped to a genuine cross-worktree
+// mismatch, not a general loosening. Uses `git -C {elsewhereWt}` so the
+// command's own TARGET differs from `assigned` (reaching the ownership
+// check at all requires that mismatch), while the session's own cwd
+// (classifyOwnership's second input) stays inside `assignedWt`.
+test('#1099 AC1 dual case: session cwd inside the assigned worktree still denies (classifies mine) even when the git target differs, with no sessionId', () => {
+  const { main, wt: assignedWt } = mainAndWorktree();
+  const elsewhereWt = linkedWorktreeOf(main); // a second, genuinely different live worktree of the same repo
+  const { run, state } = mkRun(assignedWt); // no sessionId recorded
+  const out = pre.run({
+    input: bashInput(`git -C ${elsewhereWt} commit -m "x"`, assignedWt),
+    runDir: run, runState: state, cwd: assignedWt,
+  });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny');
 });
 
 test('git -C into the assigned worktree from elsewhere is allowed', () => {
@@ -1063,6 +1084,44 @@ test('hasMaterializeCommit: a resolvable-but-nonexistent integration-branch poli
   const runDir = runDirForId(MATERIALIZE_RUN_ID);
   assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
     'a bad integration-branch value must fall back to the unbounded walk, not silently disarm the gate');
+});
+
+// --- hasMaterializeCommit's third resolution source (#1688) ---
+//
+// #1674's own AC3 fixture (no policy.yml, no origin remote) is reused below,
+// but with the materialize commit placed on `main` BEFORE the worktree
+// branches off it -- AC1's inherited-history shape, not AC3's own-commit
+// shape -- to reproduce #1688's exact reported bug: a no-remote repo still
+// has a real local integration branch, merely an unresolvable one, so the
+// pre-#1688 unbounded fallback armed the gate against history the worktree
+// never made.
+//
+// The branch is renamed explicitly to 'main' rather than trusting the host's
+// `init.defaultBranch` (this machine's own default is 'master') -- the probe
+// itself tries both 'main' and 'master', but the test must be deterministic
+// regardless of which default a given machine or CI runner ships.
+function repoOnLocalMain() {
+  const dir = gitRepoWithCommit();
+  execFileSync('git', ['-C', dir, 'branch', '-M', 'main']);
+  return dir;
+}
+
+test('hasMaterializeCommit: #1688 AC1 — a no-remote repo\'s inherited materialize commit is NOT armed once a local main/master probe can bound the range', () => {
+  const main = repoOnLocalMain();
+  commitMaterializeFile(main, MATERIALIZE_RUN_ID); // lands on `main` itself -- inherited, not the worktree's own
+  const wt = linkedWorktreeOf(main); // branches off main's HEAD, which already includes the materialize commit
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), false,
+    'a no-remote repo\'s inherited materialize commit must not arm the gate once the local main/master probe resolves a bound — #1688');
+});
+
+test('hasMaterializeCommit: #1688 AC2 regression guard — the local default-branch probe still arms the gate for the worktree\'s own unmerged commit', () => {
+  const main = repoOnLocalMain();
+  const wt = linkedWorktreeOf(main);
+  commitMaterializeFile(wt, MATERIALIZE_RUN_ID); // on the worktree's own branch, never merged into main
+  const runDir = runDirForId(MATERIALIZE_RUN_ID);
+  assert.strictEqual(pre.hasMaterializeCommit(wt, runDir), true,
+    'the local default-branch probe must not disarm the gate for a worktree\'s own genuinely-unmerged materialize commit');
 });
 
 // #1501: the #989 exemption's repro-resistant failure needs a byte-for-byte

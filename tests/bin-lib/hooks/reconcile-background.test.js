@@ -114,6 +114,89 @@ test('reconcile-background: a stale (dead-pid) lock is reclaimed; a completed pa
   assert.equal(fs.existsSync(lockFile), false, 'the lock must be released once the pass completes');
 });
 
+// #1687: mirrors tests/bin-lib/reconcile/archive-merged.test.js's own
+// fixtureAbandonedShippedRun (an abandoned, stale, shipped 'interrupted' run
+// whose worktree was torn down) — but this test drives the real
+// `reconcile-background` CLI subcommand, not archiveMerged() in-process. The
+// acceptance bar for #1687 is proof on the path that actually runs in
+// production (session-start.js's spawn -> CLAUDE_TWEAKS_SESSION_ID env ->
+// this subcommand -> reconcile({sessionId}) -> archiveMerged's ownership
+// gate), not merely a unit test that passes sessionId as a function argument.
+function fixtureAbandonedShippedRun({ runId, ownerSessionId } = {}) {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-bg-owner-')));
+  git(['init', '-q', '-b', 'main'], root);
+  git(['config', 'user.email', 't@e.com'], root);
+  git(['config', 'user.name', 'T'], root);
+  fs.writeFileSync(path.join(root, 'a.txt'), 'a\n');
+  git(['add', 'a.txt'], root);
+  git(['commit', '-q', '-m', 'init'], root);
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  // `integration-model: pr-first` is load-bearing here beyond what
+  // archive-merged.test.js's own fixture needs: that file calls
+  // archiveMerged() directly, bypassing reconcile()'s own
+  // resolveIntegrationModel gate entirely, but this test drives the real
+  // reconcile-background CLI, which skips every check (including 'archive')
+  // under the default local-merge model.
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), 'integration-branch: main\nintegration-model: pr-first\n');
+
+  const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-recon-bg-owner-wt-'));
+  git(['worktree', 'add', '-q', wt, '-b', 'feat-branch'], root);
+  fs.writeFileSync(path.join(wt, 'feature.txt'), 'feature\n');
+  execFileSync('git', ['add', 'feature.txt'], { cwd: wt, encoding: 'utf8' });
+  execFileSync('git', ['commit', '-q', '-m', 'feature work'], {
+    cwd: wt,
+    encoding: 'utf8',
+    env: { ...process.env, GIT_AUTHOR_DATE: '2026-08-01T10:00:00Z', GIT_COMMITTER_DATE: '2026-08-01T10:00:00Z' },
+  });
+  git(['merge', '-q', '--no-edit', 'feat-branch'], root);
+  git(['worktree', 'remove', '--force', wt], root); // branch ref stays, worktree gone
+
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  const runState = { status: 'interrupted', worktree: wt, pr: { branch: 'feat-branch' } };
+  if (ownerSessionId) runState.sessionId = ownerSessionId;
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify(runState));
+  // Far outside the 24h staleness window — satisfies both checkRunIntegrity's
+  // shipped-unclosed evidence bar and lastOwnEventMs' recency check.
+  const seedEvent = '{"skill":"claude-tweaks:build","ts":"2020-01-01T09:05:00.000Z","type":"skill_invoked"}';
+  fs.writeFileSync(path.join(runDir, 'events.jsonl'), `${seedEvent}\n`);
+
+  return { root, runDir };
+}
+
+test('reconcile-background: an abandoned interrupted run owned by CLAUDE_TWEAKS_SESSION_ID is never archived, on the real CLI path (#1687)', () => {
+  const runId = '2026-08-01T090000-record-1687-live';
+  const { root, runDir } = fixtureAbandonedShippedRun({ runId, ownerSessionId: 'sess-1687-live' });
+
+  execFileSync('node', [HOOKS, 'reconcile-background'], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, CLAUDE_TWEAKS_SESSION_ID: 'sess-1687-live' },
+  });
+
+  assert.equal(fs.existsSync(runDir), true, 'the owned run dir must still exist — never archived');
+  const state = JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8'));
+  assert.equal(state.status, 'interrupted');
+});
+
+// AC2's control case: with no session id resolvable at all (the env var
+// absent, as it was before this fix), behavior is unchanged — the other two
+// gates (24h staleness + shipped-unclosed evidence) still govern alone and
+// this same shape of run is still archived.
+test('reconcile-background: the same abandoned interrupted run IS archived when CLAUDE_TWEAKS_SESSION_ID is unset (control — unchanged fallback behavior, #1687 AC2)', () => {
+  const runId = '2026-08-01T090000-record-1687-noown';
+  const { root, runDir } = fixtureAbandonedShippedRun({ runId, ownerSessionId: 'sess-1687-someone-else' });
+
+  const env = { ...process.env };
+  delete env.CLAUDE_TWEAKS_SESSION_ID;
+  execFileSync('node', [HOOKS, 'reconcile-background'], { cwd: root, encoding: 'utf8', env });
+
+  assert.equal(fs.existsSync(runDir), false, 'expected the original run dir to have been archived away');
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  const state = JSON.parse(fs.readFileSync(path.join(archiveDir, 'run-state.json'), 'utf8'));
+  assert.equal(state.status, 'clean');
+});
+
 // Task 10 review Important #3: pin the FAST_CHECKS/BACKGROUND_CHECKS
 // partition invariant — a future check added to reconcile/index.js's
 // ALL_CHECKS that isn't also added to exactly one of these two lists must

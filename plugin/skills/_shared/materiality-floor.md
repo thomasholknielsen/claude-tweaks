@@ -30,7 +30,7 @@ fails toward filing an ordinary issue, never toward the digest.
 ## Entry format
 
 ```
-- [{area}] {one-line finding} — {file refs} — Defer-reason: {value} — {provenance}
+- [{area}] {one-line finding} — {file refs} — Defer-reason: {value} — {provenance} <!-- materiality-fingerprint: {fp} -->
 ```
 
 `{area}` is the subsystem the finding belongs to, written as a stable, low-cardinality, lowercase
@@ -43,6 +43,59 @@ skill`) silently keep a real cluster below the ≥3 threshold forever.
 `{provenance}` is the pipeline run-id when a run directory resolves (`$PIPELINE_RUN_DIR`'s
 basename), else the invoking skill's name. The entry itself is the durable audit trail — a
 no-run-dir routing is never unlogged.
+
+`{fp}` is the entry's dedup fingerprint (`materialityFingerprint` in
+`bin/lib/health-core/materiality-digest.js`), a stable hash of `{area}` + the finding text
+(whitespace/case-normalized) + the file refs (order-independent) — see "Dedup" below.
+
+### Dedup
+
+A finding a scheduled sweep re-encounters on every firing must fold into its existing entry, not
+append a fresh one on each run — the un-deduped entry count would otherwise cross
+`tidy/digest-sweep.md`'s cluster-promotion threshold (≥3 entries sharing one `{area}`) purely
+from repetition, promoting a genuinely low-value, repeatedly-recurring finding into a first-class
+issue and inverting this floor's entire purpose. Before routing a candidate entry, the routing
+skill calls `isMaterialityDuplicate(existingCommentBodies, candidate)`
+(`bin/lib/health-core/materiality-digest.js`) against every comment on the open digest issue
+(`github-issues`) or the current file body (`local-files`): a match means the finding is already
+present and un-promoted — skip the append entirely, write no new entry, and do not count it a
+second time toward the cluster-promotion threshold. No match means route it via
+`materialityEntryLine(candidate)`, which composes the Entry-format line above with its fingerprint
+marker embedded. This is the materiality-digest analog of the pre-existing drain-rate cap
+digest's own dedup mechanism (`_shared/health-filing-digest.md`'s `expandDigestFingerprints`) —
+a parallel mechanism, not a shared one, since the two digests dedup against different containers
+(cap digest: embedded checklist items folded into the issue-index; materiality digest: entries
+scattered across a rolling issue's comment history) and answer different questions (drain-rate
+throttling vs. below-floor deferral).
+
+### Direct-filing producers' `Defer-reason:` value
+
+The four health sweeps (`code-health`, `docs-health`, `harness-health`, `journey-health`) never
+route through `_shared/deferral-gate.md` — they file spec-shaped issues directly (`recordPayload`/
+`specShapedBody`), so a below-floor finding of theirs reaches this file with no
+`Defer-reason:` value from that gate's closed vocabulary to write. `Defer-reason: direct-filing-sweep`
+is this Entry format's own documented value for exactly that producer class — a below-floor
+finding a proactive, non-gate-routed sweep discovered on its own, not a deferral of fix-now work
+this pipeline was already doing. Deliberately **not** added to `bin/lib/issues/record.js`'s
+`DEFER_REASONS` (the closed vocabulary `_shared/deferral-gate.md` owns and
+`tests/deferral-gate-conformance.test.js` pins): it is not a fix-now-failure reason at all, it is
+a producer-class marker specific to this Entry format field, so widening the gate's own closed
+vocabulary for it would blur a distinction the gate exists to keep — every other value in that
+vocabulary answers "why did fix-now fail for an item this pipeline was already working on,"
+which is not the question a proactive sweep's own fresh finding is answering. A future
+non-gate-routed adopter of this floor uses the same value.
+
+### Digest URL and count surfacing
+
+When a run's routing sends one or more findings to the digest, the routing skill's own summary
+output states the run's digest comment URL and the number of findings routed this run — the
+digest activity must be visible in the caller's own output, not only in the digest issue itself.
+Adopters cite this paragraph rather than restating it; `review/step3-routing.md` is the reference
+implementation. The four health sweeps additionally fold their own count into the existing
+drain-rate-cap throttle line (`_shared/health-filing-digest.md`'s SUMMARIZE step) as a distinct
+`materiality: K` field, never combined with that line's own `digested: M` (cap-digest) count —
+the two mechanisms answer different questions and a reader diagnosing either needs its own
+number.
 
 ## Container
 

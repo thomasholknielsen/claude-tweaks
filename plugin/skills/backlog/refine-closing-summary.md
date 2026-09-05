@@ -87,12 +87,12 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run <absolute-run-dir>
 Always pass an explicit `--run <absolute-run-dir>` — the run directory itself: the closing summary's
 audit-trail line above names the `decisions.md` *file* inside it, so strip the trailing
 `/decisions.md` to get the directory `close-run` requires (it rejects a file path outright).
-Omitting `--run` falls back to the newest non-terminal run dir under the
-project's `.claude-tweaks/pipelines/` — `close-run` already refuses to close it when that run's
-`run-state.json` carries a `sessionId` stamp differing from the caller's own
-`CLAUDE_CODE_SESSION_ID`, but a fallback run never stamped with one (or a caller with none set)
-still closes silently even when it belongs to a different, active session — passing an explicit
-`--run` avoids the ambiguity entirely. `close-run`
+Omitting `--run` now resolves via `close-run`'s unambiguous-only implicit resolution
+(`docs/hooks.md`'s Ownership section, `#1012`) — it acts only when the caller's own composite
+identity (`classifyOwnership`, session id AND worktree binding) resolves to exactly one non-foreign
+candidate among this project's non-terminal runs, and refuses outright — listing every candidate as
+a paste-ready `--run` line — on any ambiguity or foreign-only match, rather than guessing. Passing
+an explicit `--run` still avoids that refusal path entirely and is the more direct route. `close-run`
 creates `run-state.json` when the run dir never had one — every refine standalone run — and stamps
 it `status: clean`, so no separate direct write is needed. A "no recorded wrap-up invocation"
 warning line is expected here and not an error; refine runs standalone and never invokes

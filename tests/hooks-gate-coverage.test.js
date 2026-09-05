@@ -226,6 +226,99 @@ test('PostToolUse carries an EnterWorktree matcher group for the post-tool-use E
     'the EnterWorktree PostToolUse group must invoke hooks.js post-tool-use');
 });
 
+// #703: checkPostTeardownReanchor hard-gates on tool_name === 'ExitWorktree'
+// (for the action:remove shape) and on a Bash(git worktree remove ...)
+// command — a PostToolUse group without matching matchers/predicates makes
+// it dead at the registration seam, the same #70 dead-branch shape the
+// EnterWorktree test above guards against.
+test('PostToolUse carries an ExitWorktree matcher group for the post-teardown re-anchor backstop', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const group = hooks.hooks.PostToolUse.find((e) => e.matcher === 'ExitWorktree');
+  assert.ok(group, 'PostToolUse has no ExitWorktree matcher group — the post-teardown re-anchor backstop (#703) never runs for ExitWorktree');
+  assert.ok(group.hooks.some((h) => typeof h.command === 'string' && h.command.includes('post-tool-use')),
+    'the ExitWorktree PostToolUse group must invoke hooks.js post-tool-use');
+});
+
+test('PostToolUse\'s Bash group carries a `git worktree *` if-predicate for the post-teardown re-anchor backstop (#703)', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  const bashPost = hooks.hooks.PostToolUse.find((e) => e.matcher === 'Bash');
+  assert.ok(bashPost, 'PostToolUse must carry a Bash matcher group');
+  const ifs = bashPost.hooks.map((h) => h.if).filter(Boolean);
+  assert.ok(ifs.includes('Bash(git worktree *)'),
+    'PostToolUse\'s Bash group is missing an "if": "Bash(git worktree *)" predicate — checkPostTeardownReanchor would never spawn for a raw `git worktree remove` Bash call');
+});
+
+// #976 (IL-141): the general-purpose sibling of the WRITE_SHAPES #70 test
+// above, for GATE_COVERAGE.gitActions instead — a git action gitTargets()
+// classifies but hooks.json names no `Bash(git {action} *)` predicate for is
+// the identical dead-code hazard: the hook never spawns, so the classifier
+// branch never runs for real traffic. Checked for BOTH PreToolUse and
+// PostToolUse (commit/push already carry entries in both; a new action must
+// too, or post-tool-use.js's commit-breadcrumb loop silently never logs it).
+test('every GATE_COVERAGE.gitActions entry has a matching hooks.json if-matcher, in both PreToolUse and PostToolUse (#976)', () => {
+  const hooks = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin', 'hooks', 'hooks.json'), 'utf8'));
+  for (const group of ['PreToolUse', 'PostToolUse']) {
+    const bashGroup = hooks.hooks[group].find((e) => e.matcher === 'Bash');
+    assert.ok(bashGroup, `${group} must carry a Bash matcher group`);
+    const ifs = bashGroup.hooks.map((h) => h.if).filter(Boolean);
+    for (const action of GATE_COVERAGE.gitActions) {
+      const predicate = `Bash(git ${action} *)`;
+      assert.ok(ifs.includes(predicate),
+        `${group}'s Bash group is missing an "if": "${predicate}" predicate — GATE_COVERAGE.gitActions includes '${action}' but the hook would never spawn for it`);
+    }
+  }
+});
+
+// Parser side of the same binding: each new action really does resolve a
+// target, for the same shapes the AC names (git mv, git update-ref) plus the
+// other two the Technical Approach lists (git rm, git apply).
+test('#976: gitTargets resolves a target for each new plumbing write subcommand', () => {
+  assert.deepStrictEqual(gitTargets('git mv a.txt b.txt', '/repo'), [{ action: 'mv', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('git rm --cached a.txt', '/repo'), [{ action: 'rm', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('git update-ref refs/heads/main HEAD', '/repo'), [{ action: 'update-ref', dir: '/repo' }]);
+  assert.deepStrictEqual(gitTargets('git apply patch.diff', '/repo'), [{ action: 'apply', dir: '/repo' }]);
+});
+
+// Deliberately-excluded verbs (see PLUMBING_WRITE_SUBCOMMANDS' own header
+// comment) must still resolve NO target — proving the exclusion is real,
+// not accidental dead code that happens to be untested either way.
+test('#976: deliberately-excluded git subcommands (stash, reset, checkout, merge) resolve no target', () => {
+  for (const cmd of ['git stash list', 'git reset', 'git checkout main', 'git merge origin/main']) {
+    assert.deepStrictEqual(gitTargets(cmd, '/repo'), [], `${cmd} must resolve no target — not in scope for #976`);
+  }
+});
+
+// #976 AC1, end-to-end: a git-plumbing write (git mv) inside a
+// worktree-always project, issued from the main checkout instead of the
+// isolated worktree, must trigger the identical E1 deny a commit/push would
+// — proving the classification change actually reaches the enforcement gate,
+// not just gitTargets()'s own parser output.
+test('#976 AC1: `git mv` inside a worktree-always project triggers the same E1 deny a commit would', () => {
+  const preToolUse = require('../plugin/bin/lib/hooks/pre-tool-use');
+  const fsMod = require('fs');
+  const osMod = require('os');
+  const { execFileSync } = require('child_process');
+  const main = fsMod.mkdtempSync(path.join(osMod.tmpdir(), 'ct-976-main-'));
+  execFileSync('git', ['-C', main, 'init', '-q']);
+  execFileSync('git', ['-C', main, 'config', 'user.email', 't@example.com']);
+  execFileSync('git', ['-C', main, 'config', 'user.name', 'T']);
+  fsMod.writeFileSync(path.join(main, 'a.txt'), 'x\n');
+  execFileSync('git', ['-C', main, 'add', 'a.txt']);
+  execFileSync('git', ['-C', main, 'commit', '-q', '-m', 'init']);
+  fsMod.mkdirSync(path.join(main, '.claude-tweaks'), { recursive: true });
+  fsMod.writeFileSync(path.join(main, '.claude-tweaks', 'policy.yml'), 'worktree-always: true\n');
+
+  const out = preToolUse.run({
+    input: { tool_name: 'Bash', tool_input: { command: 'git mv a.txt b.txt' }, cwd: main },
+    runDir: null,
+    runState: null,
+    ownedRun: {},
+    cwd: main,
+  });
+  assert.strictEqual(out.json.hookSpecificOutput.permissionDecision, 'deny',
+    'a git mv issued from the main checkout of a worktree-always project must be denied, same as a commit would be');
+});
+
 test('an unlisted Bash write shape is genuinely not detected', () => {
   // Proves the WRITE_SHAPES guard above is doing work rather than sitting
   // upstream of branches that would have matched anyway.

@@ -64,7 +64,7 @@ state unresolved. Do NOT tear the worktree down yourself, and do not run ExitWor
 `git worktree remove` -- a Task call that inherited this worktree without entering it can
 never tear it down, on any outcome (the outcome-independent constraint at the top of
 settle-and-merge.md). Who does tear it down depends on the path, never on this call: on a
-build/test failure, the dispatching session's own `/claude-tweaks:flow {target} wrap-up
+build/test failure, the dispatching session's own `/claude-tweaks:wrap-up {target}
 cleanup-only` call (two-call-gate.md section 5); on a successful run, the second call's own
 integration path -- under pr-first the reconciler, on merged-PR evidence; under local-merge
 the dispatching session, after it merges.
@@ -100,7 +100,7 @@ steps select their own models as usual. Resolve via `node "{plugin-root}/bin/res
 
 ## Second call — review,polish,wrap-up (gated on the first call)
 
-**Only dispatch this call if the first call's status line was DONE or DONE_WITH_CONCERNS AND its OUTCOME was `build-test-ok`.** A `NEEDS_CONTEXT`/`BLOCKED` status, an `OUTCOME` of `build-test-failed`/`build-test-blocked`, or no parseable report at all means this second call is never dispatched — the first call's own agent settles its own failure (its template above instructs it to), and the dispatching session takes the terminal path in `two-call-gate.md` section 5 (fail-loud reporting plus the `/claude-tweaks:flow {target} wrap-up` teardown call).
+**Only dispatch this call if the first call's status line was DONE or DONE_WITH_CONCERNS AND its OUTCOME was `build-test-ok`.** A `NEEDS_CONTEXT`/`BLOCKED` status, an `OUTCOME` of `build-test-failed`/`build-test-blocked`, or no parseable report at all means this second call is never dispatched — the first call's own agent settles its own failure (its template above instructs it to), and the dispatching session takes the terminal path in `two-call-gate.md` section 5 (fail-loud reporting plus the `/claude-tweaks:wrap-up {target} cleanup-only` teardown call).
 
 **Substitute `{minted-run-dir}` into this call's command line**, exactly as `{issue list}` is substituted — not exported as a shell variable in the dispatching session, which would never reach the agent: a dispatched Task agent is a clean room that inherits no environment (`_shared/subagent-output-contract.md`'s Input Discipline). It is the same value substituted into the first call — dispatch Step 4 minted it once, before either call, so there is nothing to derive from the first call's report this time. `/flow` creates a fresh run directory of its own whenever it is not handed an existing one (`flow/SKILL.md` Step 3's adopt-if-set branch), so passing it remains non-negotiable — this call must still resume the exact directory the first call's `/flow` adopted, not start a new one.
 

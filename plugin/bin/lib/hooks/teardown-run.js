@@ -15,7 +15,7 @@ const path = require('path');
 const { closeRunState } = require('./close-run-state');
 const { archiveRunDir } = require('../reconcile/archive-merged');
 const { runGit } = require('./git-exec');
-const { parseWorktreeList, isWorktreeLocked, resolveIntegrationBranch } = require('./worktree-reap');
+const { parseWorktreeList, isWorktreeLocked, resolveIntegrationBranch, bareIntegrationName } = require('./worktree-reap');
 const { mainCheckoutRoot } = require('./worktree-detect');
 
 const GH_TIMEOUT_MS = 15000;
@@ -69,6 +69,12 @@ function branchOfWorktree(root, worktreePath) {
 function teardownRun(runDir, opts = {}) {
   const mode = opts.mode || null;
   const sessionId = opts.sessionId || null;
+  // #1012: closeRunState's foreignOwner guard now runs through
+  // classifyOwnership, which needs a cwd alongside the session id — hooks.js
+  // threads process.cwd() through as opts.cwd; a caller that omits it (e.g.
+  // an existing test fixture) degrades to classifyOwnership's own
+  // 'indeterminate' fail-open behavior for a missing cwd, never 'foreign'.
+  const cwd = opts.cwd || null;
   const ghApiDelete = (opts.deps && opts.deps.ghApiDelete) || defaultGhApiDelete;
   // Git-based anchoring (same mechanism `_shared/pipeline-run-dir.md`'s Anchoring section
   // documents as canonical for every other `--run`-accepting subcommand): walks up from `runDir`
@@ -96,7 +102,12 @@ function teardownRun(runDir, opts = {}) {
   // never reach them; falling back to the recorded state's own `branch` field (no git needed)
   // keeps the foreign-owner refusal check below meaningful even when root can't be resolved.
   const branch = (root ? branchOfWorktree(root, worktreePath) : null) || (prevState && prevState.branch) || null;
-  const integration = root ? resolveIntegrationBranch(root) : null;
+  // #1688: resolveIntegrationBranch's policy-configured path can now return
+  // an `origin/{name}` remote-tracking ref (preferRemoteTrackingRef,
+  // worktree-reap.js). `branch` above is always bare, so the equality check
+  // below needs a bare `integration` too — otherwise this refusal-to-delete
+  // guard silently stops recognizing the integration branch as itself.
+  const integration = root ? bareIntegrationName(resolveIntegrationBranch(root)) : null;
   const isIntegrationBranch = !!(branch && integration && branch === integration);
 
   // `explicit: false` here is deliberate, not a copy-paste of close-run's default: teardown-run
@@ -118,7 +129,9 @@ function teardownRun(runDir, opts = {}) {
   // (never a real signal) for any run whose sessionId was never recorded, permanently refusing
   // a legitimate self-teardown. The foreignOwner check just above is teardown-run's actual
   // protection and stays active.
-  const state = closeRunState(runDir, { explicit: false, sessionId, checkLiveWorktree: false });
+  const state = closeRunState(runDir, {
+    explicit: false, callerIdentity: { sessionId, cwd }, checkLiveWorktree: false,
+  });
 
   if (state.status === 'refused-foreign') {
     return { lines: ['state: refused — run recorded by another session; teardown-run does not override this'] };

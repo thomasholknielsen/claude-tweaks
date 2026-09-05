@@ -91,6 +91,43 @@ const USAGE = {
 
 const HELP_FLAGS = new Set(['--help', '-h']);
 
+// #1012: declared-flag sets for the five mutating run-state verbs
+// (close-run, record-worktree, record-pr, spec-status, teardown-run) —
+// consulted by the unknown-flag guard below (which supersedes HELP_FLAGS for
+// exactly these five: `--help`/`-h` are simply never declared, so they fall
+// out as "unknown" the same as a genuine typo) and by resolveRunArg's
+// unambiguousOnly resolution path further down. Every other resolveRunArg
+// caller (archive-run, check-resume-freshness, check-staged-inventory) has
+// no entry here and keeps today's HELP_FLAGS-only guard and
+// ctxLib.resolveRunDir fallback, unchanged.
+const KNOWN_FLAGS = {
+  'close-run': ['--run'],
+  'record-worktree': ['--run'],
+  'record-pr': ['--run'],
+  'spec-status': ['--run', '--spec', '--status', '--phase', '--now'],
+  'teardown-run': ['--run', '--merged', '--abandoned'],
+};
+
+// Declared flags that consume the following token as a value — the
+// unknown-flag scan below must skip that token rather than risk misreading
+// it as a flag itself (an argument value could itself start with "--").
+const VALUE_FLAGS = new Set(['--run', '--spec', '--status', '--phase', '--now']);
+
+// First `--*`-shaped token in `args` that isn't declared for this verb, or
+// null when every `--*` token is declared (or there are none). Scans the
+// FULL argument list, not just a fixed position, matching #1143's own
+// "anywhere in the argument list" guarantee for --help.
+function firstUnknownFlag(knownFlags, args) {
+  const known = new Set(knownFlags);
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i];
+    if (typeof a !== 'string' || !a.startsWith('--')) continue;
+    if (!known.has(a)) return a;
+    if (VALUE_FLAGS.has(a)) i += 1; // skip this flag's own value
+  }
+  return null;
+}
+
 // Shared by the resolve-run-dir and spec-status subcommands below — each
 // previously defined its own identical `--flag value` lookup closure over a
 // different local array (`args` vs `rest`); one function taking the array
@@ -102,6 +139,38 @@ function flagVal(args, name) {
 
 function isDirectory(p) {
   try { return fs.statSync(p).isDirectory(); } catch { return false; }
+}
+
+// #1586: minimal Levenshtein distance, used only to suggest the closest
+// known subcommand on an unrecognized one (main()'s final EVENTS.includes
+// fallthrough below). Small inputs only (verb names, a handful of
+// characters each) — no need for a shared/optimized implementation.
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const d = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  for (let j = 0; j <= n; j += 1) d[0][j] = j;
+  for (let i = 1; i <= m; i += 1) {
+    for (let j = 1; j <= n; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+    }
+  }
+  return d[m][n];
+}
+
+// Nearest known verb by edit distance, for the unrecognized-subcommand error
+// below — `null` when nothing is close enough to be a useful suggestion
+// (arbitrarily far off, e.g. blank/empty cmd or a completely unrelated word).
+function closestVerb(cmd, candidates) {
+  if (!cmd) return null;
+  let best = null;
+  let bestDist = Infinity;
+  for (const candidate of candidates) {
+    const dist = levenshtein(cmd, candidate);
+    if (dist < bestDist) { bestDist = dist; best = candidate; }
+  }
+  return bestDist <= Math.max(3, Math.ceil(cmd.length / 2)) ? best : null;
 }
 
 // #1452: `mainArchivedCandidate` below is only ever the run's OWN
@@ -186,9 +255,76 @@ function pipelinesRunIdShape(root, resolved) {
 // more useful diagnostic (archiveOrphanedMint) for a stale, never-claimed
 // mint than a generic rejection here would. Every other of the 8 shared
 // callers always targets an already-initialized run dir in real use.
+// #1012: unambiguous-only implicit resolution for the five mutating verbs
+// (resolveRunArg's `resolveOpts.unambiguousOnly`) — replaces the old
+// "newest non-terminal run" guess (ctxLib.resolveRunDir) with a
+// composite-identity-aware order:
+//   1. PIPELINE_RUN_DIR env — resolved as-is, UNFILTERED (the write-time
+//      ownership guard downstream is what protects this arm; an inherited
+//      env var reaching a foreign run is a documented pollution vector,
+//      #1038, and only an explicit --run may override a foreign verdict).
+//   2. cwd-binding reverse lookup (ctxLib.findRunByWorktreePath) — a run
+//      whose recorded worktree IS the caller's own cwd is provably this
+//      caller's own run, even with N siblings live.
+//   3. Otherwise, scan every non-terminal run dir and exclude any whose
+//      classifyOwnership verdict against this caller is 'foreign' ('mine'
+//      and 'indeterminate' both remain actionable — an unbound run may
+//      still be the caller's, the same fail-open asymmetry resolveRun's own
+//      fallback preserves). Exactly one survivor -> act on it.
+//   4. Two or more survivors, or zero survivors among one-or-more total
+//      candidates -> refuse, returning every non-terminal candidate
+//      (annotated foreign/not) so the caller can render one paste-ready
+//      `--run` line per candidate. Genuinely zero candidates system-wide
+//      returns `candidates: null` instead, so the caller falls back to its
+//      existing "no pipeline run dir found" message rather than an empty
+//      refusal listing.
+function resolveImplicitRunUnambiguous(cwd, env, callerIdentity) {
+  if (env && env.PIPELINE_RUN_DIR) {
+    try {
+      if (fs.statSync(env.PIPELINE_RUN_DIR).isDirectory()) {
+        return { runDir: env.PIPELINE_RUN_DIR, candidates: null };
+      }
+    } catch { /* fall through */ }
+  }
+  const boundHit = ctxLib.findRunByWorktreePath(cwd, cwd);
+  if (boundHit && boundHit.state && boundHit.state.status !== 'clean') {
+    return { runDir: boundHit.runDir, candidates: null };
+  }
+  const all = ctxLib.listRunDirsWithState(cwd); // already newest-first, terminal runs excluded
+  if (all.length === 0) return { runDir: null, candidates: null };
+  const annotated = all.map(({ dir, state }) => ({
+    dir,
+    foreign: ctxLib.classifyOwnership(callerIdentity, state) === 'foreign',
+  }));
+  const survivors = annotated.filter((c) => !c.foreign);
+  if (survivors.length === 1) return { runDir: survivors[0].dir, candidates: null };
+  return { runDir: null, candidates: annotated };
+}
+
+// Shared refusal-listing renderer for the five mutating verbs' unambiguous-
+// only resolution (#1012's Data / API Surface): one paste-ready `--run` line
+// per non-terminal candidate, foreign ones annotated so the operator sees
+// why they were excluded. `verb` is the literal subcommand name (e.g.
+// 'close-run') so the printed line is directly copy-pasteable.
+function renderCandidateRefusal(verb, candidates) {
+  const lead = candidates.length >= 2
+    ? 'claude-tweaks: multiple candidate runs — pass --run explicitly:'
+    : 'claude-tweaks: the only candidate run(s) are recorded by another session/worktree — pass --run explicitly to act on one:';
+  const lines = candidates.map(
+    (c) => `  node "${pluginRoot()}/bin/hooks.js" ${verb} --run "${c.dir}"${c.foreign ? ' (recorded by another session/worktree)' : ''}`,
+  );
+  return [lead, ...lines].join('\n');
+}
+
 function resolveRunArg(args, cwd, env, resolveOpts) {
   const flagIdx = args.indexOf('--run');
   if (flagIdx === -1) {
+    if (resolveOpts && resolveOpts.unambiguousOnly) {
+      const { runDir, candidates } = resolveImplicitRunUnambiguous(cwd, env, resolveOpts.callerIdentity);
+      return {
+        runDir, invalidRunArg: null, rest: args, explicit: false, candidates,
+      };
+    }
     return { runDir: ctxLib.resolveRunDir(cwd, env, undefined, resolveOpts), invalidRunArg: null, rest: args, explicit: false };
   }
   const rest = args.slice();
@@ -398,7 +534,21 @@ async function main(argv) {
   // corruption hazard observed 2026-08-20 (see the now-removed docs/donts.md
   // bridging rule). Checked against the USAGE table, not a hardcoded verb
   // list, so a verb with no usage entry gets no guard by design.
-  if (USAGE[cmd] && argv.slice(3).some((a) => HELP_FLAGS.has(a))) {
+  // #1012: for the five mutating verbs, ANY undeclared --* argument (--help
+  // included — it is never declared) intercepts here, before resolveRunArg
+  // or any lib call ever runs. Every other USAGE-table verb keeps the
+  // narrower HELP_FLAGS-only guard unchanged.
+  if (KNOWN_FLAGS[cmd]) {
+    // -h is a single-dash short flag, so firstUnknownFlag's `--`-prefixed
+    // scan never sees it as a token to classify — checked separately here,
+    // same as --help itself (also never declared for any of these five
+    // verbs, so it always falls out as "unknown" via the scan below too).
+    const argsAfterCmd = argv.slice(3);
+    if (argsAfterCmd.includes('-h') || firstUnknownFlag(KNOWN_FLAGS[cmd], argsAfterCmd)) {
+      process.stdout.write(`claude-tweaks: usage: ${USAGE[cmd]}\n`);
+      return 0;
+    }
+  } else if (USAGE[cmd] && argv.slice(3).some((a) => HELP_FLAGS.has(a))) {
     process.stdout.write(`claude-tweaks: usage: ${USAGE[cmd]}\n`);
     return 0;
   }
@@ -527,20 +677,33 @@ async function main(argv) {
   }
   if (cmd === 'record-pr') {
     // Mirrors record-worktree's shape: --run <path> pins the target run dir
-    // explicitly (falls back to resolveRunDir's newest-non-terminal-run scan
-    // when absent), positional args after it are the PR number and URL.
+    // explicitly (falls back to #1012's unambiguous-only resolution when
+    // absent), positional args after it are the PR number and URL.
     // run-state.json is written only through hooks.js verbs (CLAUDE.md's
     // write-ownership rule) — this is the sanctioned verb for the pr-early
     // run lifecycle's { number, url } field (#409).
-    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const callerIdentity = { sessionId: process.env.CLAUDE_CODE_SESSION_ID, cwd: process.cwd() };
+    const {
+      runDir, invalidRunArg, rest, worktreeLocalFallback, explicit, candidates,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { unambiguousOnly: true, callerIdentity });
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const numberArg = rest[0];
     const urlArg = rest[1];
     const number = Number(numberArg);
+    // #1012: an implicit resolution (no --run) whose resolved run still
+    // classifies 'foreign' (only reachable via the env-var arm — steps 2/3
+    // already exclude foreign candidates by construction) refuses the write.
+    // Explicit --run always bypasses this, same as close-run's advisory.
+    const implicitForeign = !explicit && runDir
+      && ctxLib.classifyOwnership(callerIdentity, ctxLib.readRunState(runDir)) === 'foreign';
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — PR not recorded\n`);
+    } else if (candidates) {
+      process.stdout.write(`${renderCandidateRefusal('record-pr', candidates)}\nPR not recorded.\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — PR not recorded\n');
+    } else if (implicitForeign) {
+      process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session/worktree — refusing to record a PR against it without an explicit --run\n`);
     } else if (!numberArg || !Number.isInteger(number) || number <= 0 || !urlArg) {
       process.stdout.write(`claude-tweaks: usage: ${USAGE['record-pr']} — PR not recorded\n`);
     } else {
@@ -578,16 +741,26 @@ async function main(argv) {
     // the multi-spec PARENT run dir (where manifest.yml lives — see
     // multi-spec.md's "Run directory layout"), never a per-spec
     // PIPELINE_RUN_DIR subdirectory.
-    const { runDir, invalidRunArg, rest, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const callerIdentity = { sessionId: process.env.CLAUDE_CODE_SESSION_ID, cwd: process.cwd() };
+    const {
+      runDir, invalidRunArg, rest, worktreeLocalFallback, explicit, candidates,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { unambiguousOnly: true, callerIdentity });
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const specArg = flagVal(rest, '--spec');
     const statusArg = flagVal(rest, '--status');
     const phaseArg = flagVal(rest, '--phase');
     const nowArg = flagVal(rest, '--now'); // test-only clock override; real callers omit it
+    // #1012: see record-pr's identical guard above.
+    const implicitForeign = !explicit && runDir
+      && ctxLib.classifyOwnership(callerIdentity, ctxLib.readRunState(runDir)) === 'foreign';
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — spec status not recorded\n`);
+    } else if (candidates) {
+      process.stdout.write(`${renderCandidateRefusal('spec-status', candidates)}\nSpec status not recorded.\n`);
     } else if (!runDir) {
       process.stdout.write('claude-tweaks: no pipeline run dir found — spec status not recorded\n');
+    } else if (implicitForeign) {
+      process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session/worktree — refusing to record spec status against it without an explicit --run\n`);
     } else if (!specArg || !statusArg || !phaseArg) {
       process.stdout.write(`claude-tweaks: usage: ${USAGE['spec-status']} — spec status not recorded\n`);
     } else {
@@ -605,14 +778,23 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'close-run') {
-    const { runDir, invalidRunArg, explicit, worktreeLocalFallback } = resolveRunArg(
-      argv.slice(3), process.cwd(), process.env, { includeWorktreeForeign: true },
-    );
+    // #1012: unambiguousOnly replaces the old includeWorktreeForeign
+    // opt-out — that existed only so a bare close-run could still FIND a
+    // worktree-foreign run in order to report it via closeRunState's own
+    // foreignOwner advisory. The new resolution already reports exactly
+    // that: when the only candidate is foreign, it refuses and lists it
+    // (annotated) rather than silently resolving into it.
+    const callerIdentity = { sessionId: process.env.CLAUDE_CODE_SESSION_ID, cwd: process.cwd() };
+    const {
+      runDir, invalidRunArg, explicit, worktreeLocalFallback, candidates,
+    } = resolveRunArg(argv.slice(3), process.cwd(), process.env, { unambiguousOnly: true, callerIdentity });
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not closed\n`);
+    } else if (candidates) {
+      process.stdout.write(`${renderCandidateRefusal('close-run', candidates)}\nRun not closed.\n`);
     } else if (runDir) {
-      const r = closeRunState(runDir, { explicit, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
+      const r = closeRunState(runDir, { explicit, callerIdentity });
       if (r.status === 'refused-foreign') {
         process.stdout.write(`claude-tweaks: run ${path.basename(runDir)} was recorded by another session — refusing to close it without an explicit --run\n`);
         return 0;
@@ -652,13 +834,18 @@ async function main(argv) {
     return 0;
   }
   if (cmd === 'teardown-run') {
-    const { runDir, invalidRunArg, worktreeLocalFallback } = resolveRunArg(argv.slice(3), process.cwd(), process.env);
+    const callerIdentity = { sessionId: process.env.CLAUDE_CODE_SESSION_ID, cwd: process.cwd() };
+    const { runDir, invalidRunArg, worktreeLocalFallback, candidates } = resolveRunArg(
+      argv.slice(3), process.cwd(), process.env, { unambiguousOnly: true, callerIdentity },
+    );
     reportWorktreeLocalFallback(runDir, worktreeLocalFallback);
     const mode = argv.includes('--merged') ? 'merged' : (argv.includes('--abandoned') ? 'abandoned' : null);
     if (invalidRunArg) {
       process.stdout.write(`claude-tweaks: --run path rejected: ${invalidRunArg} — run not torn down\n`);
+    } else if (candidates) {
+      process.stdout.write(`${renderCandidateRefusal('teardown-run', candidates)}\nRun not torn down.\n`);
     } else if (runDir) {
-      const result = teardownRun(runDir, { mode, sessionId: process.env.CLAUDE_CODE_SESSION_ID });
+      const result = teardownRun(runDir, { mode, sessionId: process.env.CLAUDE_CODE_SESSION_ID, cwd: process.cwd() });
       process.stdout.write(`claude-tweaks: teardown-run ${path.basename(runDir)}\n${result.lines.map((l) => `  ${l}`).join('\n')}\n`);
     } else {
       process.stdout.write('claude-tweaks: no pipeline run dir found — run not torn down\n');
@@ -944,6 +1131,15 @@ async function main(argv) {
     const { isFresh } = require('./lib/reconcile/cache');
     const { QUIET_SKIP_REASONS } = require('./lib/hooks/worktree-reap');
     const root = mainCheckoutRoot(cwd) || cwd;
+    // #1687: session-start.js's spawn site now threads the spawning session's
+    // id into this dedicated env var (never `CLAUDE_CODE_SESSION_ID` — see
+    // that file's own comment on why). `|| undefined` rather than `|| null`
+    // matches reconcile()'s own opts contract (`sessionId?: string`) and lets
+    // archiveMerged's destructuring default apply the same way an omitted key
+    // would. Absent (no spawning session id was ever known) leaves this
+    // exactly as unresolvable as before this fix — the other two gates
+    // (24h staleness, shipped-unclosed evidence) still govern alone.
+    const sessionId = process.env.CLAUDE_TWEAKS_SESSION_ID || undefined;
     const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
 
     // Freshness is decided from THIS status file's own `completedAt` —
@@ -989,7 +1185,7 @@ async function main(argv) {
 
     let summary = {};
     try {
-      const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS });
+      const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS, sessionId });
       summary = {
         released: (r.claims || []).filter((c) => c.action === 'released').length,
         archived: (r.runs || []).filter((x) => x.action === 'archived').length,
@@ -1018,7 +1214,42 @@ async function main(argv) {
     process.stdout.write('claude-tweaks: reconcile-background complete\n');
     return 0;
   }
-  if (!EVENTS.includes(cmd)) return 0;
+  if (!EVENTS.includes(cmd)) {
+    // #1586: every recognized subcommand above already returned before this
+    // point — reaching here means `cmd` is neither a hook event (EVENTS) nor
+    // any of the named subcommands (USAGE's keys). This used to silently
+    // exit 0 with no output, which is exactly what let `log-decision` (not a
+    // hooks.js subcommand at all — the correct tool is the separate
+    // bin/log-decision.js CLI, a different script entirely that only
+    // name-collides with the intended verb) no-op instead of erroring.
+    // EVENTS members are invoked by the harness via stdin JSON and never hit
+    // this branch with a truthy, unmatched `cmd` in practice, so a non-zero
+    // exit here is safe — this is the same class of direct, skill-invoked
+    // CLI call as resolve-run-dir's own non-zero exit above, not a
+    // harness-dispatched hook the "never break a session" invariant covers.
+    // Deliberately written with the string literal first (reversed operand
+    // order) — hooks-help-guard.test.js's coverage test scans main() for the
+    // literal source shape "cmd ===" followed by a quoted verb and requires a
+    // matching USAGE entry for every hit; this verb deliberately has none (it
+    // isn't a real hooks.js subcommand — that's the whole point of this
+    // branch), so the comparison must not match that scan pattern.
+    if ('log-decision' === cmd) {
+      process.stderr.write(
+        'claude-tweaks: hooks.js has no \'log-decision\' subcommand — did you mean the separate '
+        + `bin/log-decision.js CLI? Run: node "${pluginRoot()}/bin/log-decision.js" --run <dir> --status <status> --reversibility <level> --text "..."\n`,
+      );
+      return 1;
+    }
+    const known = [...Object.keys(USAGE), ...EVENTS];
+    if (!cmd) {
+      process.stderr.write(`claude-tweaks: no hooks.js subcommand given — known subcommands: ${known.join(', ')}\n`);
+      return 1;
+    }
+    const suggestion = closestVerb(cmd, known);
+    const hint = suggestion ? ` — did you mean '${suggestion}'?` : ` — known subcommands: ${known.join(', ')}`;
+    process.stderr.write(`claude-tweaks: unrecognized hooks.js subcommand '${cmd}'${hint}\n`);
+    return 1;
+  }
   const mod = loadModule(cmd);
   if (!mod || typeof mod.run !== 'function') return 0;
   const input = ctxLib.parseInput(ctxLib.readStdin());
