@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T07:20:33.339Z",
+  "computedAt": "2026-09-05T07:22:22.230Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -36,11 +36,6 @@
       {
         "number": 1804,
         "updatedAt": "2026-09-04T07:50:39Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1791,
-        "updatedAt": "2026-09-04T10:00:07Z",
         "state": "OPEN"
       },
       {
@@ -626,88 +621,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Overview\n\nThe allocation half of port isolation. A registry module leases one block of 10 consecutive ports per checkout from a fixed pool (20000-29999, 1000 blocks), keyed by the checkout's real path (`fs.realpathSync`), verified free by binding every port in the block; an env-file module writes the block as a managed region; a CLI exposes allocate/status/release/env. Pure Node, cross-platform — no `lsof`, no shell. This unit ships no consumer: nothing calls it until Unit 2.\n\n**Complexity:** Medium\n**Estimated tasks:** 7\n\n## Non-Goals\n\n- The `port-services` policy key (Unit 2 — this unit takes `--services` on the CLI only)\n- SessionStart integration, statusline, release-on-reap (Units 2-3)\n- `/init` rewrite (Unit 4)\n- Any dev-url-detection change (Unit 5)\n- A configurable pool range\n- Relocating ports outside the pool\n\n## Current State\n\n- `plugin/bin/lib/file-lock.js` exports `acquireLock/releaseLock/withLock` (mkdir mutex, 500 ms wait, 5 s stale reclaim) — reuse, never add a lock.\n- `plugin/bin/lib/json-store.js` exports `readJsonFile(path,{fallback})` (degrade-open) and `writeJsonFile(path,data)` (mkdir parent + `atomic-write.js` tmp-and-rename) — reuse for the registry.\n- `plugin/bin/lib/{name}/` is the flat multi-file module convention (CLAUDE.md Structure); `plugin/bin/*.js` CLIs follow the `run(argv, deps)` seam, exit-code vocabulary and injectable runner in the repo's `gh-api-module-pattern` skill (`.claude/skills/gh-api-module-pattern/` — read its CLI wrapper contract section; `plugin/bin/stage-item.js` + `plugin/bin/lib/stage-item/` is the closest sibling to copy).\n- `~/.claude-tweaks/` already exists as claude-tweaks' home-dir location (`/init` Step 8 installs `~/.claude-tweaks/bin/statusline.js`).\n- Tests: `tests/bin-lib/atomic-write.test.js` and `tests/bin-lib/stage-item/` show the `node --test` style (tmp dirs via `fs.mkdtempSync`, injectable deps, no mocking library). `npm test` picks up `tests/bin-lib/{x}/` recursively.\n\n## Deliverables\n\n- [ ] `plugin/bin/lib/ports/registry.js` — `registryPath({home = os.homedir()})` → `{home}/.claude-tweaks/ports.json`; `readRegistry`, `allocate(checkoutPath, {services, home, probe})`, `release(checkoutPath, {home})`, `status({home})`, `gc(registry)`; constants `POOL_BASE = 20000`, `POOL_END = 29999`, `BLOCK_SIZE = 10`; every read-modify-write inside `withLock(registryPath + '.lock')`.\n- [ ] `plugin/bin/lib/ports/probe.js` — `isFree(port, {host = '127.0.0.1'})` via `net.createServer().listen(port, host)` then close (resolves `true` on listen, `false` on `EADDRINUSE`/`EACCES`); `blockFree(base, {size})` = all ports free.\n- [ ] `plugin/bin/lib/ports/env-file.js` — `serviceVars(services, base)` → ordered `[[name, value]]` with the first service → `PORT`, later → `{UPPER_SNAKE}_PORT` (sanitize the service name by replacing every non-alphanumeric run with `_`, then uppercasing — e.g. `my-db` → `MY_DB_PORT`), offsets 0..n-1; `mergeManagedRegion(existingText, lines)` replaces the region between `# claude-tweaks:ports begin` and `# claude-tweaks:ports end` (marker lines exact, first line reads `# claude-tweaks:ports begin — managed; edit port-services in .claude-tweaks/policy.yml instead`), appends the region when absent, preserves every other line byte-for-byte including CRLF; `writeEnvFiles(checkoutPath, vars)` writes `.env.local`, and also `.env` when `docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, or `compose.yaml` exists in the checkout root.\n- [ ] `plugin/bin/lib/ports/cli.js` + `plugin/bin/ports.js` — subcommands `allocate [--path P] [--services a,b,c]`, `status [--path P]`, `release [--path P]`, `env [--path P]`; `--path` defaults to `git rev-parse --show-toplevel` of cwd via the injectable runner; `env` prints `KEY=value` lines only; exit 0 success, 2 malformed invocation, 3 pool exhausted, 4 registry unwritable.\n- [ ] `tests/bin-lib/ports/{registry,probe,env-file,cli}.test.js` covering every AC below.\n- [ ] `docs/plugin-structure.md` — one `plugin/bin/lib/ports/` row in the lib table and one `node plugin/bin/ports.js ...` line in the CLI list, same shape as the `log-decision.js` entries.\n\n## Acceptance Criteria\n\n1. Fresh registry → `allocate` returns base 20000 and writes `{version:1, leases:{\"20000\":{path, project, services, leased}}}` where `path` is the realpath, `services` is the requested service-name array (so `status`/`env` can reconstruct `KEY=value` lines without a repeated `--services` flag), and `leased` is ISO-8601 UTC.\n2. With a test listener bound on 20003, `allocate` from a fresh registry skips block 20000 and returns 20010.\n3. Two `allocate` calls for the same path return the same block and leave one lease (idempotent).\n4. A lease whose `path` no longer exists on disk is dropped by the next `allocate`/`status` (gc), and its block becomes allocatable.\n5. Two concurrent allocators (child processes, distinct paths, same `home`) receive distinct blocks — no duplicate base in the registry afterwards.\n6. `release(path)` removes the lease from the registry only (it does not touch `.env`/`.env.local` — those are Unit 3's reap-time job; a manually-released checkout keeps stale values in its env file until the next `allocate`/`ensure` overwrites them); `release` on an unknown path exits 0 and reports nothing.\n7. A corrupt `ports.json` (invalid JSON) is renamed to a filesystem-safe filename embedding the timestamp — `ports.json.corrupt-{ISO timestamp with every ':' replaced by '-'}` (ISO-8601 colons are illegal in Windows filenames, and AC13 requires this to pass on Windows) — and a fresh registry is written; the rename is reported on stderr.\n8. Pool exhausted (test by injecting a probe that reports every block bound) → error `PORTS_EXHAUSTED`, exit 3, registry unchanged.\n9. `serviceVars(['web','api','db'], 20010)` → `[['PORT','20010'],['API_PORT','20011'],['DB_PORT','20012']]`.\n10. `mergeManagedRegion` on a file with foreign lines above and below the region replaces only the region; running it twice yields identical bytes; a CRLF input stays CRLF; an input without the region gets it appended after a trailing newline.\n11. `.env` is written only when a Compose file exists in the checkout root; `.env.local` always.\n12. The CLI's `env` output for a leased path is exactly the managed lines without markers; for a path with no lease, `env` prints nothing and exits 0 (there is nothing to report, not an error); unknown subcommand or unparseable `--services` exits 2 with a usage line on stderr.\n13. All of the above pass on Windows (the author's machine) and POSIX — no `lsof`, no shell pipes in the module.\n\n## Technical Approach\n\nRegistry shape `{ \"version\": 1, \"leases\": { \"<base>\": { \"path\": \"<realpath>\", \"project\": \"<basename of main checkout>\", \"services\": [\"<name>\", ...], \"leased\": \"<ISO>\" } } }`. `allocate`: `withLock` → `readJsonFile(fallback=null)`; if null and the file exists, do the corrupt-rename; `gc` → if lease for path exists return it → walk bases `POOL_BASE + k*BLOCK_SIZE` skipping leased bases, `await blockFree(base)`; first free → write lease → `writeJsonFile` → return `{base, ports:[base..base+9], vars}` → then write env files. The bind-probe is async (net) while `withLock` is sync; run the probe loop inside the lock using a sync-compatible approach: either make `withLock` usage an explicit `acquireLock`/`try{await}/finally{releaseLock}` pair, or probe candidate blocks before acquiring the lock and re-verify the chosen block's registry status after acquiring it — pick the acquire/await/release pair and document it in the module header. Whichever pair is chosen, when the *post-lock* re-verification finds the candidate block now taken (a concurrent allocator won the race), loop to the next candidate block rather than aborting — the loop only ends at pool exhaustion (AC8). `acquireLock`/`withLock` failing to acquire the lock at all (timeout) must never let `allocate` fall through and write unlocked — `file-lock.js`'s own default is fail-open (the caller proceeds unlocked on a missed lock), but that default would let two racing allocators both write, violating AC5's \"no duplicate base\" guarantee; `allocate` overrides it for its own read-modify-write by retrying the acquire up to the lock's existing 500 ms/5 s bounds and, if still unacquired, failing with a distinct `PORTS_LOCK_TIMEOUT` error (mapped to CLI exit 4, \"registry unwritable\") rather than proceeding. `project` = `path.basename(mainCheckoutRoot)`, resolved via `plugin/bin/lib/hooks/worktree-detect.js`'s `mainCheckoutRoot(cwd)` when the path is a linked worktree, else the path's own basename.\n\n### Key Files\n\n- `plugin/bin/ports.js` — new CLI entry\n- `plugin/bin/lib/ports/registry.js` — new\n- `plugin/bin/lib/ports/probe.js` — new\n- `plugin/bin/lib/ports/env-file.js` — new\n- `plugin/bin/lib/ports/cli.js` — new\n- `plugin/bin/lib/file-lock.js` — consumed, unchanged\n- `plugin/bin/lib/json-store.js` — consumed, unchanged\n- `plugin/bin/lib/hooks/worktree-detect.js` — consumed for `mainCheckoutRoot`\n- `tests/bin-lib/ports/registry.test.js` — new\n- `tests/bin-lib/ports/probe.test.js` — new\n- `tests/bin-lib/ports/env-file.test.js` — new\n- `tests/bin-lib/ports/cli.test.js` — new\n- `docs/plugin-structure.md` — two rows\n\n### Package Dependencies\n\n- none — Node built-ins (`net`, `fs`, `os`, `path`) only.\n\n## Gotchas\n\n- Key the registry on `os.homedir()`, never on `CLAUDE_CONFIG_DIR`/`~/.claude-accounts/<slug>` — ports are a machine resource shared across accounts.\n- Realpath the checkout before keying (Windows drive-letter case and symlinked worktrees).\n- Bind on `127.0.0.1`; on Windows a port bound on `0.0.0.0` by another process still fails the loopback bind, which is the desired signal.\n- The lock helper is synchronous and the probe is async — see Technical Approach; never hold the lock across an unbounded await without the 500 ms/5 s bounds already in `file-lock.js`.\n- Don't write `.env`/`.env.local` when the lease was found but env content is unchanged (avoid mtime churn that Vite watches).\n- Never `console.log` from the module — only the CLI prints.\n- When the env file is not writable, the lease is still recorded in the registry and the write failure is reported on stderr (never a hard error — `allocate`'s own exit code stays 0 when called from the CLI's `allocate` subcommand) — a caller reading via `ports.js env` still gets the correct values, since `env` reads the registry directly (including the persisted `services` array) rather than the file it failed to write.\n- `status({home})` is not purely read-only: it runs the same dead-path gc as `allocate` (AC4) and persists the pruned registry as a side effect. Treat that persist as best-effort — a write failure during `status`'s own gc is reported (stderr) but never thrown; `status` still returns the in-memory (already-pruned) view to its caller.\n- CLI exit 4 (\"registry unwritable\") covers both a registry write that fails after the lock is held (permissions, disk full) and a `PORTS_LOCK_TIMEOUT` (the lock itself could not be acquired within its existing 500 ms/5 s bounds) — see Technical Approach.\n\n## Decision Rationale\n\nAn env override alone answers only *how* an app receives a port, not *who chooses the value* — allocation is what avoids collisions, and three strategies were weighed:\n\n| Strategy | Verdict |\n|----------|---------|\n| Deterministic hash of the checkout path → port block | No coordination needed, but hash collisions among a few dozen projects in a few thousand slots are likely, and it is blind to foreign processes already bound on the derived ports. Rejected on its own. |\n| **Machine-wide lease registry with bind-probe verification** | One file per machine; allocation takes the lowest block that is unleased *and* verified free by binding every port. Keyed by checkout path, so worktrees of one repo and unrelated repos draw from the same pool. **Chosen.** |\n| OS-assigned port 0 plus discovery file | Collision-free by construction, but most frameworks and Compose handle it badly and it is the most invasive project change of the three — every consuming project would need a discovery step, not just an env read. Rejected. |\n\n**Blocks, not single ports.** The unit is a 10-port block per checkout rather than one port per service, because Vite's (and Next's) silent auto-bump-on-collision behavior is what causes the worst failure mode named in the design: a frontend bumps from 3000 to 3001, but its proxy target is still a fixed backend port that belongs to a *different* worktree — silent cross-wiring, not a crash. Leasing a block per checkout and deriving every sibling service's port as a fixed offset from that block's base keeps a checkout's own frontend and backend wired to each other even when the checkout's block itself had to move (see Unit 2's reallocation behavior). A single-port-at-a-time scheme cannot make that guarantee, since nothing ties a second service's allocation to the first's.\n\n\n<!-- work-fingerprint: port-isolation:ports-machine-wide-lease-registry-bind-probe-env-file-merge -->",
-        "createdAt": "2026-09-02T15:24:35Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2oaA",
-            "name": "type:feature",
-            "description": "Type: new capability or enhancement",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          }
-        ],
-        "number": 1791,
-        "state": "OPEN",
-        "title": "ports: machine-wide lease registry, bind-probe, env-file merge, and bin/ports.js CLI",
-        "updatedAt": "2026-09-04T10:00:07Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
