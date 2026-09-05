@@ -6,6 +6,7 @@
 'use strict';
 
 const { execFileSync } = require('child_process');
+const path = require('path');
 const { writeFileAtomic } = require('../atomic-write');
 
 function gitInfo(execImpl = execFileSync) {
@@ -22,6 +23,21 @@ function gitInfo(execImpl = execFileSync) {
     dirty = null;
   }
   return { sha, dirty };
+}
+
+// The checkout's own git dir (per-worktree under .git/worktrees/<name>/,
+// never the common dir — a sibling worktree's pass must not satisfy this one).
+// bin/verify.js resolves its default --log-dir/--count-stamp and the #1921
+// stamp location from this; null means "not inside a checkout" and the CLI
+// falls back to its tmpdir behavior.
+function gitDir(execImpl = execFileSync, cwd = process.cwd()) {
+  try {
+    const out = String(execImpl('git', ['rev-parse', '--git-dir'], { encoding: 'utf8', cwd })).trim();
+    if (out === '') return null;
+    return path.resolve(cwd, out);
+  } catch {
+    return null;
+  }
 }
 
 function entryFor(check) {
@@ -60,4 +76,4 @@ function writeReportAtomic(report, jsonPath, deps = {}) {
   writeFileAtomic(jsonPath, `${JSON.stringify(report, null, 2)}\n`, deps);
 }
 
-module.exports = { gitInfo, composeReport, writeReportAtomic };
+module.exports = { gitInfo, gitDir, composeReport, writeReportAtomic };
