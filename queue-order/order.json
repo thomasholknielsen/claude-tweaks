@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T19:38:21.076Z",
+  "computedAt": "2026-09-05T20:14:56.836Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -45,7 +45,7 @@
       },
       {
         "number": 1775,
-        "updatedAt": "2026-09-02T08:33:56Z",
+        "updatedAt": "2026-09-05T19:43:07Z",
         "state": "OPEN"
       },
       {
@@ -70,7 +70,7 @@
       },
       {
         "number": 1503,
-        "updatedAt": "2026-09-05T14:12:01Z",
+        "updatedAt": "2026-09-05T19:38:18Z",
         "state": "OPEN"
       },
       {
@@ -642,94 +642,6 @@
         "state": "OPEN",
         "title": "Doc staleness: plans/2026-08-26-record-327-ledger — Open Items",
         "updatedAt": "2026-09-02T08:33:58Z",
-        "facets": {
-          "origin": "docs-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Doc:** plans/2026-08-25-record-1424-ledger | **Section:** Freshness | **Category:** staleness | **Misleads:** coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 4c18d38c7acd13c08fdc36bff84ae99cc88b954e\n\n## Current State\n\nAlso affects: `Freshness`\n\nLive check: GitHub API shows PR #1448 state=closed merged=true (merged_at 2026-08-25T19:33:21Z) and issue #1424 state=closed state_reason=completed, closed by PR #1448. `ls .claude-tweaks/pipelines/` shows neither `.claude-tweaks/pipelines/2026-08-24T183144-record-1094` nor `.claude-tweaks/pipelines/2026-08-25T150921-record-1420` at the path the ledger cites; both exist only under `.claude-tweaks/pipelines/archive/`, confirming the archived state each row was waiting on. All three rows still read Status: open, contradicting all three checks.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | wrap-up | pr — PR #1448 — `gh pr list`: open, head `worktree-dispatch-record-1424` (this run's own PR) — expected: parked pending-review by the merge-verification gate's Red path (`test` check FAILURE, ceiling overflow — see item 2); `bot:blocked` applied to #1424 with an explanatory comment; stays open by design until a human fixes the check or it re-runs green | open | — |\n| 2 | wrap-up | pipeline-run — `.claude-tweaks/pipelines/2026-08-24T183144-record-1094` — `run-state.json` status: clean, not archived (remedy: auto per the residue CLI — unrelated to #1424's own diff, incidentally caught by this run's repo-wide un-archived-run probe; a pre-existing condition outside this build's diff) | open | — |\n| 3 | wrap-up | pipeline-run — `.claude-tweaks/pipelines/2026-08-25T150921-record-1420` — `run-state.json` status: clean, not archived (remedy: auto per the residue CLI — unrelated to #1424's own diff, incidentally caught by this run's repo-wide un-archived-run probe; a pre-existing condition outside this build's diff) | open | — |\n```\n\n**Proposed:**\n```\n| 1 | wrap-up | pr — PR #1448 — `worktree-dispatch-record-1424` | resolved | Merged 2026-08-25T19:33:21Z; closed issue #1424 |\n| 2 | wrap-up | pipeline-run — `.claude-tweaks/pipelines/2026-08-24T183144-record-1094` | resolved | Archived — now under `.claude-tweaks/pipelines/archive/2026-08-24T183144-record-1094` |\n| 3 | wrap-up | pipeline-run — `.claude-tweaks/pipelines/2026-08-25T150921-record-1420` | resolved | Archived — now under `.claude-tweaks/pipelines/archive/2026-08-25T150921-record-1420` |\n\nAll items terminal — per `plugin/skills/ledger/SKILL.md`'s Delete operation, delete this file.\n```\n\n## Acceptance Criteria\n\nAll three rows in `docs/plans/2026-08-25-record-1424-ledger.md`'s Open Items table are stale: each reached a terminal state outside this ledger's own tracking. Update the Status/Resolution columns to reflect that, then delete the file per `plugin/skills/ledger/SKILL.md`'s Delete operation (a ledger is deleted once every item reaches a terminal status; this repo's own history follows that convention for other resolved `*-ledger.md` files).\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-5370965b -->",
-        "createdAt": "2026-09-02T06:06:55Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRqw",
-            "name": "by:docs-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRrA",
-            "name": "docs-health:additive",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACy3OKFA",
-            "name": "auto:merge-pending",
-            "description": "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)",
-            "color": "C2E0C6"
-          }
-        ],
-        "number": 1775,
-        "state": "OPEN",
-        "title": "Doc staleness: plans/2026-08-25-record-1424-ledger — Freshness",
-        "updatedAt": "2026-09-02T08:33:56Z",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
