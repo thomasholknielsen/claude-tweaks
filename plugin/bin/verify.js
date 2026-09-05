@@ -147,7 +147,7 @@ async function main() {
   const fullSet = results.every((c) => !c.skipped);
   // An explicit --git-dir redirects logs and the count stamp only; the pass
   // stamp keys on the invoking cwd's HEAD, which may not be that repo's.
-  if (report.pass === true && fullSet && !parsed.noStamp && gitDir && git.sha && !parsed.gitDir) {
+  if (report.pass && fullSet && !parsed.noStamp && gitDir && git.sha && !parsed.gitDir) {
     const suitesRun = results.filter((c) => c.name !== 'types' && c.name !== 'lint').map((c) => c.name);
     const stamp = composeStamp({
       report, scope: 'full', fullSha: git.sha, base: null, changedFiles: [],
