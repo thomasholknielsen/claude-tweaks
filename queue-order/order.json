@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T03:55:55.302Z",
+  "computedAt": "2026-09-05T04:16:33.922Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -140,7 +140,7 @@
       },
       {
         "number": 1302,
-        "updatedAt": "2026-09-02T10:44:24Z",
+        "updatedAt": "2026-09-05T04:13:35Z",
         "state": "OPEN"
       },
       {
@@ -2322,7 +2322,7 @@
         "number": 1302,
         "state": "OPEN",
         "title": "Implement create_webhook_trigger integration for /claude-tweaks:routine (#211 core deliverable)",
-        "updatedAt": "2026-09-02T10:44:24Z",
+        "updatedAt": "2026-09-05T04:13:35Z",
         "facets": {
           "origin": null,
           "risk": "medium",
