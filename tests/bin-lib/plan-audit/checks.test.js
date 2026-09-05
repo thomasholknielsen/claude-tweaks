@@ -174,6 +174,37 @@ test('checkC with no verification checks passes trivially', () => {
   assert.strictEqual(result.ok, true);
 });
 
+test('checkC returns an empty warnings array when no unparseable Step 2s are passed', () => {
+  const result = checkC([], '/repo', { run: () => { throw new Error('must not be called'); } });
+  assert.deepStrictEqual(result.warnings, []);
+});
+
+test('checkC surfaces unparseable Step 2s as warnings without affecting ok or findings', () => {
+  const unparseableStep2s = [
+    { taskNumber: '3', title: 'Add the row', raw: '- [ ] **Step 2: Run it to confirm FAIL**\n\n```bash\nnode --test x.test.js\n```' },
+  ];
+  const result = checkC([], '/repo', {}, unparseableStep2s);
+  assert.strictEqual(result.ok, true);
+  assert.deepStrictEqual(result.findings, []);
+  assert.strictEqual(result.warnings.length, 1);
+  assert.strictEqual(result.warnings[0].task, '3');
+  assert.strictEqual(result.warnings[0].title, 'Add the row');
+  assert.match(result.warnings[0].raw, /Step 2: Run it to confirm FAIL/);
+});
+
+test('checkC: a real finding and an unparseable warning coexist independently', () => {
+  const deps = { run: () => ({ exitCode: 0, output: 'PASS\n' }) };
+  const result = checkC(
+    [{ taskNumber: '1', title: 'A', command: 'node -e "process.exit(0)"', expected: 'FAIL' }],
+    '/repo', deps,
+    [{ taskNumber: '2', title: 'B', raw: 'raw text' }],
+  );
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.findings.length, 1);
+  assert.strictEqual(result.warnings.length, 1);
+  assert.strictEqual(result.warnings[0].task, '2');
+});
+
 // ── Headroom ─────────────────────────────────────────────────────────────
 
 test('isGovernedMdPath matches plugin/skills/**/*.md only', () => {
