@@ -46,7 +46,10 @@ test('specify Input cites the shared batch grammar and keeps its own stop-all/re
 });
 
 test('specify Next Actions has a multiple-records-shaped row recommending a comma-joined flow', () => {
-  const src = readFlat('plugin/skills/specify/SKILL.md');
+  // Next Actions moved to its own lazy-loaded sub-file (context-cost trim, #1806)
+  // — the SKILL.md pointer cites it rather than restating the table, so this
+  // pin reads both files concatenated, same as the SKILL.md-only read before.
+  const src = readFlat('plugin/skills/specify/SKILL.md') + readFlat('plugin/skills/specify/next-actions.md');
   assert.ok(src.includes('| Shaping mode — multiple records shaped in place'), 'multiple-records Next Actions row missing');
   assert.ok(src.includes('`/claude-tweaks:flow #{N1},#{N2},...` — sequential pipeline for every record shaped this run **(Recommended)**'), 'multiple-records row must recommend the comma-joined flow command');
 });
