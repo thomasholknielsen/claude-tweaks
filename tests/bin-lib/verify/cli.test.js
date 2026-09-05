@@ -197,7 +197,7 @@ test('a --count-stamp write failure never crashes the run or discards report.jso
   assert.ok(stdout.includes('report:'), 'stdout must still print the normal report line, not just an uncaught-error message');
 });
 
-test('omitting --count-stamp disables persistence and comparison entirely', async () => {
+test('outside a checkout, omitting --count-stamp disables persistence and comparison entirely', async () => {
   const { code, stdout } = await runCli([
     '--log-dir', tmpDir(), '--cmd', 'tests=node -e "console.log(String(1))"']);
   assert.strictEqual(code, 0);
@@ -355,22 +355,23 @@ test('a passing full-set run on a DIRTY tree still writes both stamp files, and 
   assert.strictEqual(s.match, false);
 });
 
-// Review fix round 1, finding 2: --git-dir routing for a normal --cmd run
-// (as opposed to --stamp-status --git-dir, already covered above) had no
-// dedicated test. Run from a non-git cwd with --git-dir pointing at a
-// separate repo: default paths (--log-dir, report.json) resolve against
-// that --git-dir, but gitInfo() itself still reads HEAD/dirty from the
-// process's own cwd (report.js's gitInfo has no --git-dir-aware overload) —
-// from a non-git cwd that's sha:null, so the write gate's `&& git.sha` term
-// blocks the stamp write even though the report path routing worked.
-// --git-dir on a run therefore redirects paths only; the stamp still keys
-// on the invoking cwd's own HEAD. This is existing, unchanged verify.js
-// behavior (confirmed empirically before writing this test), not a defect
-// this test is asserting should be fixed.
-test('--git-dir on a normal run routes default paths to that git dir, but the stamp still keys on the invoking cwd (#1921)', async () => {
+// Review fix round 1, finding 2 (superseded by the #1921 final review, finding
+// 4): --git-dir routing for a normal --cmd run (as opposed to --stamp-status
+// --git-dir, already covered above) had no dedicated test. The original
+// version of this test ran from a non-git cwd, so gitInfo()'s sha:null
+// already blocked the stamp write for an unrelated reason and never proved
+// the actual invariant. gitInfo() still reads HEAD/dirty from the process's
+// own cwd (report.js's gitInfo has no --git-dir-aware overload), so an
+// explicit --git-dir must never let a run stamp a repo with a HEAD that
+// isn't the invoking cwd's own — the write gate now short-circuits on
+// `parsed.gitDir` explicitly, rather than relying on cwd happening to be
+// non-git. This test runs from a cwd that IS a git checkout (a second
+// tmpGitRepo()) so the old "sha:null blocks it" path can't mask a
+// regression.
+test('--git-dir on a normal run redirects report/count paths to that git dir and never writes the pass stamp (#1921)', async () => {
   const { gitDir: otherGitDir } = tmpGitRepo();
-  const nonGitCwd = tmpDir();
-  const { code, stdout } = await runCli(['--cmd', 'tests=node -e 0', '--git-dir', otherGitDir], { cwd: nonGitCwd });
+  const { repo: cwdRepo, gitDir: cwdGitDir } = tmpGitRepo();
+  const { code, stdout } = await runCli(['--cmd', 'tests=node -e 0', '--git-dir', otherGitDir], { cwd: cwdRepo });
   assert.strictEqual(code, 0);
   assert.ok(
     stdout.includes(`report: ${path.join(otherGitDir, 'claude-tweaks-verify', 'report.json')}`),
@@ -379,6 +380,12 @@ test('--git-dir on a normal run routes default paths to that git dir, but the st
   assert.ok(fs.existsSync(path.join(otherGitDir, 'claude-tweaks-verify', 'report.json')));
   assert.ok(
     !fs.existsSync(path.join(otherGitDir, 'claude-tweaks-verify-pass.json')),
-    'no stamp is written: the run cwd is non-git, so gitInfo() sees sha:null and the write gate blocks',
+    'an explicit --git-dir must never write the pass stamp into the redirected repo',
   );
+  assert.ok(!fs.existsSync(path.join(otherGitDir, 'claude-tweaks-verify-pass')));
+  assert.ok(
+    !fs.existsSync(path.join(cwdGitDir, 'claude-tweaks-verify-pass.json')),
+    'nor into the invoking cwd\'s own repo — a --git-dir run never stamps at all',
+  );
+  assert.ok(!fs.existsSync(path.join(cwdGitDir, 'claude-tweaks-verify-pass')));
 });

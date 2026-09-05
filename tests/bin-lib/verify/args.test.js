@@ -109,3 +109,7 @@ test('a run without --cmd is still a usage error when --stamp-status is absent (
 test('USAGE names the new flags (#1921)', () => {
   for (const flag of ['--stamp-status', '--no-stamp', '--git-dir']) assert.ok(USAGE.includes(flag), flag);
 });
+
+test('--stamp-status and --cmd are mutually exclusive (#1921 final review)', () => {
+  assert.throws(() => parseArgs(['--stamp-status', '--cmd', 'tests=node -e 0']), UsageError);
+});

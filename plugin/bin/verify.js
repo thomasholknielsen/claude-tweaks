@@ -145,7 +145,9 @@ async function main() {
   // declaration that this --cmd set is deliberately partial. The write is
   // best-effort like the count stamp: a stamp failure never fails the run.
   const fullSet = results.every((c) => !c.skipped);
-  if (report.pass === true && fullSet && !parsed.noStamp && gitDir && git.sha) {
+  // An explicit --git-dir redirects logs and the count stamp only; the pass
+  // stamp keys on the invoking cwd's HEAD, which may not be that repo's.
+  if (report.pass === true && fullSet && !parsed.noStamp && gitDir && git.sha && !parsed.gitDir) {
     const suitesRun = results.filter((c) => c.name !== 'types' && c.name !== 'lint').map((c) => c.name);
     const stamp = composeStamp({
       report, scope: 'full', fullSha: git.sha, base: null, changedFiles: [],

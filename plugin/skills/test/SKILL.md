@@ -72,7 +72,7 @@ When running inside a `/claude-tweaks:flow` pipeline, `/test` reads context from
 - `VERIFICATION_PASSED=true` + stories exist → skip verification, auto-run QA, set `TEST_PASSED=true` on pass
 - `VERIFICATION_PASSED=true` + `skip-qa` argument → skip verification AND skip QA, set `TEST_PASSED=true` (used by `/flow`'s polish-phase re-verify gate)
 - No `VERIFICATION_PASSED` + `skip-qa` → run types/lint/tests but skip QA story validation
-- No `VERIFICATION_PASSED` + runner stamp matching `HEAD` (`verify.js --stamp-status` → `match: true`, per `verification.md`'s Skip-if-recent artifact branch) → skip verification, report "runner stamp {sha} (full) matches HEAD", run QA if stories exist, set `TEST_PASSED=true`
+- No `VERIFICATION_PASSED` (and no `skip-qa`) + runner stamp matching `HEAD` (`verify.js --stamp-status` → `match: true`, per `verification.md`'s Skip-if-recent artifact branch) → skip verification, report "runner stamp {sha} (full) matches HEAD", run QA if stories exist, set `TEST_PASSED=true`
 - No `VERIFICATION_PASSED` (default) → run full suite (and QA if stories exist when mode is `all`)
 
 ## Step 1: Resolve Scope and Execute
@@ -83,7 +83,7 @@ Run the shared verification procedure from `verification.md` in this skill's dir
 
 ### Targeted scope (with arguments)
 
-When `$ARGUMENTS` specifies a targeted scope, resolve commands from CLAUDE.md (see `verification.md` Step 1), then run only the requested checks:
+When `$ARGUMENTS` specifies a targeted scope, resolve commands from CLAUDE.md (see `verification.md` Step 1), then run only the requested checks, passing `--no-stamp` (a partial set must never stamp — `verification.md` Step 2):
 
 - **By check type** (`types`, `lint`, `unit`, etc.) — run only the specified checks
 - **By path** — scope test commands to the given file or directory

@@ -50,6 +50,7 @@ function parseArgs(argv) {
     throw new UsageError(`unknown flag: ${flag}`);
   }
   if (cmds.length === 0 && !stampStatus) throw new UsageError('at least one --cmd <name>=<command> is required');
+  if (stampStatus && cmds.length) throw new UsageError('--stamp-status takes no --cmd');
   return { cmds, json, logDir, countStamp, gitDir, stampStatus, noStamp };
 }
 
