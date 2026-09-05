@@ -56,11 +56,7 @@ function parseArgs(argv) {
     }
     throw new UsageError(`unknown flag: ${flag}`);
   }
-  // --scope (#1922) can legitimately resolve to zero --cmd entries: a
-  // tool-scoped declaration synthesizes its own `tests` command from
-  // checks.tests, and mode `none`/an unscoped full run may have nothing to
-  // check at all. Without --scope the no-op-invocation guard still applies.
-  if (cmds.length === 0 && !stampStatus && !scope) throw new UsageError('at least one --cmd <name>=<command> is required');
+  if (cmds.length === 0 && !stampStatus) throw new UsageError('at least one --cmd <name>=<command> is required');
   if (stampStatus && cmds.length) throw new UsageError('--stamp-status takes no --cmd');
   return { cmds, json, logDir, countStamp, gitDir, stampStatus, noStamp, scope, base, integrationBranch };
 }

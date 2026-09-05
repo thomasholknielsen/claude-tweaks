@@ -545,7 +545,7 @@ test('--scope tool-scoped: {base} is substituted into the single tests command a
   fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
   r.git('add', '.claude-tweaks/verify-scope.json');
   r.git('commit', '-q', '-m', 'declare');
-  const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', r.git('symbolic-ref', '--short', 'HEAD').trim()];
+  const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', r.git('symbolic-ref', '--short', 'HEAD').trim(), '--cmd', 'tests=node -e 0'];
   const run1 = await runCli(args, { cwd: r.repo });
   assert.strictEqual(run1.code, 0, run1.stderr);
   const s1 = stampOf(r.gitDir);
@@ -560,6 +560,14 @@ test('--scope tool-scoped: {base} is substituted into the single tests command a
   assert.strictEqual(s2.fullSha, s1.fullSha);
   assert.strictEqual(s2.base, s1.fullSha);
   assert.deepStrictEqual(s2.suitesRun, ['tests']);
+});
+
+test('--scope with no --cmd is a usage error even when a declaration exists — an empty check set must never stamp (#1922)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['unit'], static: true }]);
+  const run = await runCli(['--scope', r.declPath, '--integration-branch', r.branch], { cwd: r.repo });
+  assert.strictEqual(run.code, 2);
+  assert.match(run.stderr, /at least one --cmd/);
+  assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json')));
 });
 
 test('--scope: an unresolvable base exits 2 with a ChangedFilesError message, never an empty diff (#1922 AC3 posture)', async () => {
