@@ -9,6 +9,7 @@ const {
 
 const FULL = '0123456789abcdef0123456789abcdef01234567';
 const MB = 'fedcba9876543210fedcba9876543210fedcba98';
+const CANON = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 // A fake exec seam keyed by the joined git argv; a missing key throws like
 // execFileSync does on a non-zero exit.
@@ -26,24 +27,42 @@ function fakeExec(table) {
   return exec;
 }
 
-test('changedFiles unions the committed diff and the working tree, mapping renames to the new path and deletions to the old (#1922)', () => {
+test('changedFiles unions the committed diff (-z) and the working tree (-z), mapping renames to the new path, deletions to the old, and surviving a C-quotable path (#1922)', () => {
+  const diffZ = ['M', 'src/a.js', 'R100', 'old/b.js', 'new/b.js', 'D', 'gone.js', 'A', 'src/café.js', ''].join('\0');
+  const statusZ = [' M src/a.js', '?? scratch.txt', 'R  y.js', 'x.js', ' D removed.js', ''].join('\0');
   const exec = fakeExec({
-    [`diff --name-status --end-of-options ${FULL}..HEAD`]: 'M\tsrc/a.js\nR100\told/b.js\tnew/b.js\nD\tgone.js\nA\tdocs\\win.md\n',
-    'status --porcelain': ' M src/a.js\n?? scratch.txt\nR  x.js -> y.js\n D removed.js\n',
+    [`diff --name-status -z --end-of-options ${FULL}..HEAD`]: diffZ,
+    'status --porcelain -z --untracked-files=all': statusZ,
   });
   const r = changedFiles({ base: FULL, execImpl: exec });
   assert.strictEqual(r.base, FULL);
-  assert.deepStrictEqual(r.files, ['docs/win.md', 'gone.js', 'new/b.js', 'removed.js', 'scratch.txt', 'src/a.js', 'y.js']);
+  assert.deepStrictEqual(r.files, ['gone.js', 'new/b.js', 'removed.js', 'scratch.txt', 'src/a.js', 'src/café.js', 'y.js']);
 });
 
 test('changedFiles with a clean tree and no commits since base is an empty set, not an error', () => {
-  const exec = fakeExec({ [`diff --name-status --end-of-options ${FULL}..HEAD`]: '', 'status --porcelain': '' });
+  const exec = fakeExec({
+    [`diff --name-status -z --end-of-options ${FULL}..HEAD`]: '',
+    'status --porcelain -z --untracked-files=all': '',
+  });
   assert.deepStrictEqual(changedFiles({ base: FULL, execImpl: exec }), { base: FULL, files: [] });
 });
 
-test('resolveBase returns the stamp fullSha when it is an ancestor of HEAD (AC3 case 1)', () => {
-  const exec = fakeExec({ [`merge-base --is-ancestor ${FULL} HEAD`]: '' });
-  assert.strictEqual(resolveBase({ stamp: { sha: 'x', fullSha: FULL }, integrationBranch: 'main', execImpl: exec }), FULL);
+test('changedFiles reports each file in a new untracked directory individually, not the directory (finding 8)', () => {
+  const statusZ = ['?? new/x.js', '?? new/y.js', ''].join('\0');
+  const exec = fakeExec({
+    [`diff --name-status -z --end-of-options ${FULL}..HEAD`]: '',
+    'status --porcelain -z --untracked-files=all': statusZ,
+  });
+  const r = changedFiles({ base: FULL, execImpl: exec });
+  assert.deepStrictEqual(r.files, ['new/x.js', 'new/y.js']);
+});
+
+test('resolveBase returns the canonical rev-parse of the stamp fullSha when it is an ancestor of HEAD (AC3 case 1, finding 11)', () => {
+  const exec = fakeExec({
+    [`merge-base --is-ancestor ${FULL} HEAD`]: '',
+    [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
+  });
+  assert.strictEqual(resolveBase({ stamp: { sha: 'x', fullSha: FULL }, integrationBranch: 'main', execImpl: exec }), CANON);
 });
 
 test('resolveBase falls back to the integration-branch merge-base when the stamp anchor is not an ancestor (rewritten history) or no stamp exists (AC3 case 2)', () => {
@@ -65,23 +84,19 @@ test('resolveBase falls back to the integration-branch merge-base when the stamp
   assert.strictEqual(resolveBase({ stamp: null, integrationBranch: 'main', execImpl: bareLocal }), MB);
 });
 
-test('resolveBase derives the integration branch from origin/HEAD when none is given', () => {
-  const exec = fakeExec({
-    'symbolic-ref --quiet --short refs/remotes/origin/HEAD': 'origin/main\n',
-    'merge-base --end-of-options origin/main HEAD': `${MB}\n`,
-  });
-  assert.strictEqual(resolveBase({ stamp: null, execImpl: exec }), MB);
+test('resolveBase throws when no explicit base, no usable stamp anchor, and no --integration-branch is given — no inline default-branch resolver (finding 9)', () => {
+  const exec = fakeExec({});
+  assert.throws(() => resolveBase({ stamp: null, execImpl: exec }), ChangedFilesError);
+  assert.ok(!exec.calls.some((c) => c.includes('symbolic-ref')));
 });
 
-test('resolveBase throws ChangedFilesError when neither the stamp nor the integration branch resolves — never an empty set (AC3 case 3)', () => {
+test('resolveBase throws ChangedFilesError when the integration branch is given but resolves to nothing — never an empty set (AC3 case 3)', () => {
   const exec = fakeExec({
     [`merge-base --is-ancestor ${FULL} HEAD`]: new Error('exit 1'),
     'rev-parse --verify --quiet refs/remotes/origin/main': new Error('no'),
     'merge-base --end-of-options main HEAD': new Error('fatal: not a valid object name'),
   });
   assert.throws(() => resolveBase({ stamp: { sha: 'x', fullSha: FULL }, integrationBranch: 'main', execImpl: exec }), ChangedFilesError);
-  const noInfo = fakeExec({ 'symbolic-ref --quiet --short refs/remotes/origin/HEAD': new Error('no origin') });
-  assert.throws(() => resolveBase({ stamp: null, execImpl: noInfo }), ChangedFilesError);
 });
 
 test('resolveBase verifies an explicit base as a commit and never consults the stamp', () => {
@@ -92,7 +107,10 @@ test('resolveBase verifies an explicit base as a commit and never consults the s
   assert.throws(() => resolveBase({ stamp: null, base: 'nope', execImpl: bad }), ChangedFilesError);
 });
 
-test('resolveBase uses stamp.sha as the anchor for a legacy stamp that carries no fullSha', () => {
-  const exec = fakeExec({ [`merge-base --is-ancestor ${FULL} HEAD`]: '' });
-  assert.strictEqual(resolveBase({ stamp: { sha: FULL, scope: 'full', legacy: true }, integrationBranch: 'main', execImpl: exec }), FULL);
+test('resolveBase uses stamp.sha as the anchor for a legacy stamp that carries no fullSha, canonicalized via rev-parse (finding 11)', () => {
+  const exec = fakeExec({
+    [`merge-base --is-ancestor ${FULL} HEAD`]: '',
+    [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
+  });
+  assert.strictEqual(resolveBase({ stamp: { sha: FULL, scope: 'full', legacy: true }, integrationBranch: 'main', execImpl: exec }), CANON);
 });
