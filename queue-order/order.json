@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T10:09:46.198Z",
+  "computedAt": "2026-09-05T10:17:21.244Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -141,11 +141,6 @@
       {
         "number": 733,
         "updatedAt": "2026-09-05T09:51:19Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 666,
-        "updatedAt": "2026-08-30T12:58:21Z",
         "state": "OPEN"
       },
       {
@@ -2068,82 +2063,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Current State\n\n#647's expand phase shipped per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` in `bin/lib/issues/autonomy.js` (`permittedGrants`), fixing a bug where the flat top-level `reason` string could pair a granted `bornReady` with the other grant's denial text. The flat `bornReady`/`bornAuthorized`/`reason` keys were kept as a transitional twin, with the module header (`bin/lib/issues/autonomy.js`, lines ~10-15) recording a removal condition: delete the flat keys at the first release on or after 2026-11-16 (ship date + 3 months, per `policy-deprecations.md`'s dated-backstop shape).\n\nTwo skill-text consumers carry a matching read-side fallback, tagged with the same removal condition: `skills/capture/SKILL.md` (line ~144) and `skills/backlog/refine-mode.md` (line ~223), both doing `(permitted.grants || {}).bornReady || { granted: permitted.bornReady, reason: permitted.reason }`.\n\nConfirmed at shaping time (2026-08-17): the module header text, both fallback call sites, and `skills/backlog/refine-lanes.md`'s rendered trust-consequence line (`↳ trust: {provenance} / {band} — {verdict}{, {coverage}% coverage}`) all reproduce exactly as described — the trust-table snippet's `bornReady`/`reason` output fields (written to `/tmp/backlog-refine-trust.json`) are genuinely dead: nothing downstream reads or renders them.\n\nThe removal date (2026-11-16) has **not** yet passed as of this record's shaping (2026-08-17) — it is roughly three months out. This record documents and prepares the contract phase; it does not authorize building the removal before that date.\n\n## Deliverables\n\n- [ ] Verify, at build time, that the current date is on or after 2026-11-16 (the first release on/after that date) before making any of the changes below. If built before that date, stop without editing anything and report the record as not yet actionable — see Acceptance Criteria #1, a hard gate.\n- [ ] Re-run `grep -rn \"permittedGrants\" skills/ bin/` to confirm every consumer still reads only `grants.*` shapes (no new flat-key consumer introduced since shaping).\n- [ ] Remove the flat `bornReady`/`bornAuthorized`/`reason` keys from `permittedGrants`'s return value in `bin/lib/issues/autonomy.js`, and delete the module-header comment block documenting the now-resolved removal condition.\n- [ ] Remove the matching read-side fallback in `skills/capture/SKILL.md` (the `(permitted.grants || {}).bornReady || { granted: permitted.bornReady, reason: permitted.reason }` pattern and its explanatory comment), reading `permitted.grants.bornReady` directly.\n- [ ] Remove the matching read-side fallback in `skills/backlog/refine-mode.md` (same pattern, same treatment).\n- [ ] Drop the dead `bornReady`/`reason` output fields from `skills/backlog/refine-mode.md`'s trust-table snippet (the `node -e` block that writes `/tmp/backlog-refine-trust.json`) — confirmed nothing downstream (`skills/backlog/refine-lanes.md`'s rendered trust-consequence line) reads them.\n- [ ] Decide, and record the decision inline as a code/skill-text comment, how to handle the two disclosed conflation residues before deleting the flat keys:\n  1. Withheld grants share one reason string today — `grants.bornAuthorized.reason` can carry born-ready's rationale on the human-filed path. Decide whether this stays as-is (the per-grant shape already fixes the *granted*-path pairing bug; the withheld-grant sharing is a separate, lower-severity residue) or gets its own follow-up record.\n  2. The granted path's flat `reason` today carries positive rationale text (\"class is clean, ceiling is unattended, grant origination opted in\") that no per-grant key reproduces. Decide whether to populate that positive rationale into the granted per-grant `reason` field, or record explicitly (in a code comment) that it is intentionally dropped as noise once the grant itself is visible via `granted: true`.\n- [ ] Update or remove the flat-key compat tests in the `bin-lib/issues` test suite to match the per-grant-only shape.\n\n## Acceptance Criteria\n\n1. **Hard precondition, checked first:** the build only proceeds once the current date is on or after 2026-11-16. A build attempted before that date stops without modifying any file and reports the record as not yet actionable — this is not a normal \"build failed\" outcome, it is the record's own documented gate.\n2. `permittedGrants` (`bin/lib/issues/autonomy.js`) returns only the per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` shape — no flat `bornReady`/`bornAuthorized`/`reason` keys at the top level.\n3. No consumer (code or skill text, across `skills/` and `bin/`) reads the flat keys or carries a fallback for them — confirmed via `grep -rn \"permittedGrants\" skills/ bin/` read against every hit.\n4. `skills/backlog/refine-mode.md`'s trust-table snippet no longer computes or emits `bornReady`/`reason` fields.\n5. The two conflation-residue decisions are recorded (as a comment near the code they affect, or in this record's own close-out note) — not silently dropped.\n6. `npm test` passes with the flat-key compat tests updated or removed.\n\n## Technical Approach\n\nStart with the grep re-verification (Deliverables item 2) — the module header itself calls this out as the first step, since a consumer could have appeared between #647 shipping and this record's execution.\n\n`bin/lib/issues/autonomy.js`: delete the flat keys from `permittedGrants`'s two return objects (denied-path and granted-path, around current lines 128-155) and the header comment block (lines 10-15) documenting the removal condition — the condition is satisfied, not evergreen.\n\n`skills/capture/SKILL.md` (~line 144) and `skills/backlog/refine-mode.md` (~line 223): drop the `|| { granted: permitted.bornReady, reason: permitted.reason }` fallback half of each destructure, reading `permitted.grants.bornReady` directly; delete the accompanying \"older installed build\" comment.\n\n`skills/backlog/refine-mode.md`'s trust-table `node -e` block (~lines 219-234): remove `bornReady`/`reason` from the `out[issue.number]` object literal.\n\nFold the two conflation-residue decisions into the same edit pass — they're small text/comment changes, not separate work.\n\nGrep the `bin-lib/issues` test directory for `bornReady`/`bornAuthorized` flat-key assertions on `permittedGrants`'s return value and update/remove them alongside the source change, in the same commit.\n\n## Gotchas\n\n- **Date gate is load-bearing, not advisory.** This record was shaped on 2026-08-17, roughly three months before the 2026-11-16 backstop. Confirmed by reading `bin/lib/issues/autonomy.js`'s own module header, which states the removal condition explicitly and cites `policy-deprecations.md`'s dated-backstop shape as precedent for this pattern (see also #628/#629, which apply the same shape to `policy.yml` key retirements). Marking this record `ready` reflects that it is *shaped* and *queued*, not that it is *buildable today* — `/specify` has no mechanism to hold a record out of `ready` pending a future calendar date (only `parked` + `Trigger:` does that, and only `/tidy`/`/wrap-up`/`/reflect`/`/review`'s Defer paths can add it), so this Gotcha and Acceptance Criterion 1 are the only gate. Whoever dispatches this record (`/flow`, `/build`, or a human) must re-check the date before touching code.\n- **Information loss is real if the conflation residues are skipped.** Deleting the flat keys without deciding the two residues (the Deliverables item above them) silently drops the granted-path's positive rationale text — no per-grant key reproduces it today. This isn't a formatting nit; a human reading a future trust/grant explanation loses the \"why\" for a clean grant unless this is deliberately decided and recorded.\n- **Verified against live code at shaping time**, not taken on faith from the issue text: read `bin/lib/issues/autonomy.js` lines 1-40 (module header and `permittedGrants`), `skills/capture/SKILL.md` line ~144, `skills/backlog/refine-mode.md` lines ~203-235, and `skills/backlog/refine-lanes.md` lines ~75-100 (the rendered trust-consequence template, confirming it never references `bornReady`/`reason`). All three deliverables reproduce exactly as the original request states — no false premise to correct here.\n\n## Original request\n\npermittedGrants contract phase — remove flat bornReady/bornAuthorized/reason at the 2026-11-16 backstop\n\nTitle: permittedGrants contract phase — remove flat bornReady/bornAuthorized/reason at the 2026-11-16 backstop\nType: task\nLabels: none\n\n# Staged work-record proposal — #647 contract phase (remove permittedGrants flat keys)\n\n**Related:** #647\n\n## Current State\n\n#647's expand phase shipped per-grant `grants.{bornReady,bornAuthorized}.{granted,reason}` in `bin/lib/issues/autonomy.js` with the flat keys kept as a transitional twin; the removal condition is dated 2026-11-16 in the module header. The skill-text consumers (`skills/capture/SKILL.md`, `skills/backlog/refine-mode.md`) carry read-side fallbacks for installed-build skew, tagged with the same removal condition.\n\n## Deliverables\n\n- [ ] Remove the flat `bornReady`/`bornAuthorized`/`reason` keys and the skill-text fallback reads at the first release on or after 2026-11-16; re-run `grep -rn \"permittedGrants\" skills/ bin/` first to confirm every consumer reads `grants.*`.\n- [ ] Drop the dead `bornReady`/`reason` fields from `skills/backlog/refine-mode.md`'s trust-table snippet output (nothing renders them — the table spec forbids rendering `reason`), retiring the compatibility fallback with them (folded from the batch curation pass's staged dead-field cleanup, wrap-up-skill-refine-trust-dead-fields.md).\n- [ ] Decide the two disclosed conflation residues at contract time: (1) withheld grants share one reason string — `grants.bornAuthorized.reason` can carry born-ready's rationale on the human-filed path; (2) the granted path's flat `reason` carries positive text (\"class is clean, ceiling is unattended, grant origination opted in\") that no per-grant key reproduces — deleting the flat keys is information-lossy unless the positive rationale is populated into granted per-grant reasons or recorded as intentionally dropped.\n\n## Acceptance Criteria\n\n1. `permittedGrants` returns only the per-grant shape; `npm test` passes with the flat-key compat tests updated or removed.\n2. No consumer (code or skill text) reads the flat keys or carries a fallback.\n\nOrigin: whole-branch review of run 2026-08-16T164927-spec-647-648 (Important finding #1 + Minor #2 + Recommendation).\n",
-        "createdAt": "2026-08-16T18:22:45Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          }
-        ],
-        "number": 666,
-        "state": "OPEN",
-        "title": "permittedGrants contract phase — remove flat bornReady/bornAuthorized/reason at the 2026-11-16 backstop",
-        "updatedAt": "2026-08-30T12:58:21Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
