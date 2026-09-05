@@ -72,6 +72,7 @@ When running inside a `/claude-tweaks:flow` pipeline, `/test` reads context from
 - `VERIFICATION_PASSED=true` + stories exist → skip verification, auto-run QA, set `TEST_PASSED=true` on pass
 - `VERIFICATION_PASSED=true` + `skip-qa` argument → skip verification AND skip QA, set `TEST_PASSED=true` (used by `/flow`'s polish-phase re-verify gate)
 - No `VERIFICATION_PASSED` + `skip-qa` → run types/lint/tests but skip QA story validation
+- No `VERIFICATION_PASSED` + runner stamp matching `HEAD` (`verify.js --stamp-status` → `match: true`, per `verification.md`'s Skip-if-recent artifact branch) → skip verification, report "runner stamp {sha} (full) matches HEAD", run QA if stories exist, set `TEST_PASSED=true`
 - No `VERIFICATION_PASSED` (default) → run full suite (and QA if stories exist when mode is `all`)
 
 ## Step 1: Resolve Scope and Execute

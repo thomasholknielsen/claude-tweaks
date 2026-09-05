@@ -18,10 +18,14 @@ If CLAUDE.md doesn't document verification commands, scan `package.json` scripts
 Run every resolved check through the deterministic runner — one plain command at the invocation level (no `;`, `&&`, or pipe chains):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --log-dir "$(git rev-parse --git-dir)/claude-tweaks-verify" --count-stamp "$(git rev-parse --git-dir)/claude-tweaks-test-count.json" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
+node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
 ```
 
-Substitute the project's own commands from Step 1, one `--cmd <name>=<command>` per resolved check, and omit any stage the project doesn't have (`--cmd tests="npm test"` alone is valid — in this repo it is the whole set). The reserved names `types`, `lint`, and `tests` get the ordering policy: `types` and `lint` run concurrently, `tests` starts only after every supplied one of them exits 0, and a stage-1 failure reports `tests` as `skipped: fail-fast`. Any other name runs serially after the known stages under the same fail-fast. The `--log-dir` shape above anchors logs in the checkout's own git dir — per-worktree unique, so a concurrent session's run can never clobber it; leave `--log-dir` off to get a fresh directory under the OS tmpdir instead. The `--count-stamp` shape anchors the same way, for the same reason — see "Suite-count regression caveat" below; leave it off to disable count persistence and comparison entirely.
+Substitute the project's own commands from Step 1, one `--cmd <name>=<command>` per resolved check, and omit any stage the project doesn't have (`--cmd tests="npm test"` alone is valid — in this repo it is the whole set). The reserved names `types`, `lint`, and `tests` get the ordering policy: `types` and `lint` run concurrently, `tests` starts only after every supplied one of them exits 0, and a stage-1 failure reports `tests` as `skipped: fail-fast`. Any other name runs serially after the known stages under the same fail-fast. The runner resolves its own paths (#1921): inside a git checkout, logs land under `{git-dir}/claude-tweaks-verify/` and the suite-count stamp at `{git-dir}/claude-tweaks-test-count.json` — the checkout's own git dir (`git rev-parse --git-dir`), per-worktree unique, so a concurrent session's run can never clobber it; outside a checkout it falls back to a fresh directory under the OS tmpdir with no count stamp. `--log-dir` and `--count-stamp` still override when passed explicitly. This is why the invocation above is one plain command with no `$(...)` substitutions — the worktree Bash-shape guard (`_shared/scratch-worktree.md` §7) refuses two of them in one command.
+
+**Foreground rule.** Run the runner in the foreground of the calling agent — never with `run_in_background`, and never start a second attempt while one is running (`[IL-108]`'s family: #1904's first call stalled waiting on a background verify child's notification that never arrived). A run that needs to outlive the agent's turn is a sign the check set is wrong, not a reason to background it.
+
+**A targeted run never stamps.** A deliberately partial `--cmd` set (types only, a scoped test path) must pass `--no-stamp` — the runner cannot tell a partial set from the full one (it trusts that the caller's `--cmd` flags ARE the complete set), so a partial run without `--no-stamp` would leave an incorrectly-labelled `scope: "full"` stamp.
 
 `--cmd` values are opaque strings executed by the child shell. If a compound value (e.g. `--cmd tests="a && b"`) trips a worktree session's command text-shape guard (see `_shared/scratch-worktree.md`'s "## 7. Shell constraint"), split it into two `--cmd` checks instead.
 
@@ -38,9 +42,16 @@ When `--count-stamp` is passed, the runner compares the `tests` check's own pars
 When running inside a `/claude-tweaks:flow` pipeline and the previous step already ran verification successfully (indicated by `VERIFICATION_PASSED=true` in the pipeline context), check the accompanying `VERIFICATION_SHA` (set by `build/SKILL.md` Common Step 5) against the current `git rev-parse HEAD`:
 
 - **Match** — `skip this procedure entirely` and note: "Verification skipped — passed in previous pipeline step." This prevents redundant type check + lint + test runs when `/flow` chains build → test.
-- **Mismatch, or `VERIFICATION_SHA` absent** — the tree changed since build's verification (or the signal predates this stamp) — **do not skip**; run the full procedure below and note why: "Verification re-run — tree changed since build's pass ({old-sha} → {current-sha})." Fail-open: a missing or stale stamp is never a reason to trust a skip, only a matching one is.
+- **Mismatch** (`VERIFICATION_SHA` present but different from `HEAD`) — the tree changed since build's verification — **do not skip**; run the full procedure below and note why: "Verification re-run — tree changed since build's pass ({old-sha} → {current-sha})."
+- **Signal absent** (`VERIFICATION_PASSED` unset, or `VERIFICATION_SHA` missing — the second call of a dispatched group, whose conversation never saw the first call's signal) — read the runner's own artifact instead (#1921), one plain command:
 
-**Note:** Skipping verification does not skip QA. When `/claude-tweaks:test` receives `VERIFICATION_PASSED=true` and QA stories exist, it skips this procedure but still runs QA story validation separately.
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --stamp-status
+```
+
+  It prints one JSON object — `{present, sha, head, dirty, scope, fullSha, match, reportPath, legacy}` — and exits 0 in every case (status is data, not failure). `match: true` (the stamp's `sha` equals `HEAD`, the live tree is clean, `scope` is `full`) → skip with the note `Verification skipped — runner stamp {sha} (full) matches HEAD; report: {reportPath}` and log an `AUTO` decision per `_shared/auto-decision-log.md` (`--step "Skip-if-recent (runner stamp)"`). Any other state — absent, mismatched, dirty, non-`full` scope — → run the full procedure below and note why (`Verification re-run — runner stamp {absent | {sha} ≠ HEAD {head} | dirty tree | scope {scope}}`). The conversation signal keeps precedence when present; the stamp is the path for a caller that has none. Fail-open: a missing or stale stamp is never a reason to trust a skip, only a matching one is.
+
+**Note:** Skipping verification does not skip QA. When `/claude-tweaks:test` skips this procedure — by conversation signal or by a matching runner stamp — and QA stories exist, it still runs QA story validation separately.
 
 ### Pre-existing failures (multi-spec batches)
 
@@ -66,19 +77,14 @@ over free-text failure messages is not a substitute.
 
 ## Step 2.5: Verification pass stamp
 
-When the runner exits 0 for the full resolved check set (the full procedure, regardless of which skill called it — a targeted or partial run must not stamp), record the pass before reporting:
-
-```bash
-git rev-parse HEAD > "$(git rev-parse --git-dir)/claude-tweaks-verify-pass"
-```
-
-One plain command, worktree-guard-safe; the stamp lives in the checkout's own git dir (per-worktree, never tracked, never shared across sessions). `/claude-tweaks:review` Step 1.5's standalone test gate compares it to the current `HEAD` — a matching sha means no commits landed since the last full verification pass, replacing the commit-archaeology that check previously required.
+The runner stamps; agents never do (#1921). When `verify.js` exits 0 for the full resolved check set — every `--cmd` check ran, none was fail-fast skipped — it writes `{git-dir}/claude-tweaks-verify-pass.json` itself: `{sha, dirty, scope: "full", fullSha, base: null, changedFiles: [], suitesRun, flakyRetried: [], reportPath, at}`, bound to the `report.json` it summarizes, plus (for this release only — removal condition in `_shared/policy-deprecations.md`) the legacy bare-SHA twin `{git-dir}/claude-tweaks-verify-pass`. The stamp lives in the checkout's own git dir (per-worktree, never tracked, never shared across sessions).
 
 Rules:
 
-- Write it **only** when the runner exits 0 for the full resolved check set. A targeted or partial run (types-only, lint-only, a scoped test path) must not stamp, and a failing run must never stamp.
+- No agent-side write exists — do not run `git rev-parse HEAD` into either stamp file. A failing run, a fail-fast skip, or a `--no-stamp` run leaves both files untouched (#1784: an agent-written stamp once recorded a `pass: false` run as a pass).
+- A targeted or partial run passes `--no-stamp` (Step 2 above) and therefore never stamps.
 - The stamp asserts verification only — QA story outcomes are tracked separately (the QA ledger), and consumers that care about QA consult that as they already do.
-- Consumers treat a missing, unreadable, or mismatched stamp as "no recent pass" and re-run — fail-open, mirroring the `VERIFICATION_SHA` mismatch rule in Skip-if-recent above. A stale stamp is never a reason to trust a skip.
+- Consumers read it only through `verify.js --stamp-status` (Skip-if-recent above; `/claude-tweaks:review` Step 1.5) and treat `present: false`, `match: false`, or a dirty tree as "no recent pass" and re-run — fail-open. A stale stamp is never a reason to trust a skip.
 
 ## Step 3: Report
 
