@@ -23,10 +23,10 @@
 // batch or single, nothing is written on this exit code); 3 when the run dir
 // is missing or not anchored under the main checkout (a worktree-local
 // shadow — _shared/pipeline-run-dir.md's Anchoring section, [IL-127]), or
-// config.yml is unwritable. The config.yml
-// third of the sanctioned-write family: bin/log-decision.js (decisions.md),
-// bin/stage-item.js (staged/), this (config.yml levers — the ceremony
-// escape hatch's downgrade path, and the Manifesto's own batch write).
+// config.yml is unwritable. config.yml is the third of the sanctioned-write
+// family: bin/log-decision.js (decisions.md), bin/stage-item.js (staged/),
+// this (config.yml levers — the ceremony escape hatch's downgrade path, and
+// the Manifesto's own batch write).
 'use strict';
 
 const { resolveTarget } = require('./lib/stage-item/write');
@@ -86,8 +86,8 @@ function parseSetEntries(raw) {
 
 function run(argv, deps = realDeps) {
   const o = parseArgs(argv);
-  const usageError = (message) => { deps.stderr(`set-config.js: ${message}\n` + USAGE); return 2; };
   const usageErrors = (messages) => { deps.stderr(messages.map((m) => `set-config.js: ${m}\n`).join('') + USAGE); return 2; };
+  const usageError = (message) => usageErrors([message]);
   if (o.error) { deps.stderr(o.error + '\n' + USAGE); return 2; }
   if (o.help) { deps.stdout(USAGE); return 0; }
   if (!o.run) return usageError('--run <run-dir> is required');
