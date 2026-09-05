@@ -107,6 +107,58 @@ function extractStep2Verification(taskBody) {
   return { command, expected: expectedMatch[1].trim() };
 }
 
+// Broader than the strict heading matched by extractStep2Verification above
+// (which requires bold "**Step 2:...**" text) — detects any checkbox-style
+// Step 2 line regardless of wording or bold formatting, so a task can be
+// classified as "Step 2 present" even when the strict extractor below can't
+// parse it. Used to distinguish "no Step 2 at all" (nothing to report; a
+// non-code task, per plan-audit.md's Check C) from "Step 2 present but
+// unparseable" (#1594's signal).
+const STEP2_CHECKBOX_RE = /^[-*]\s*\[[ xX]?\]\s*.*\bStep\s+2\b.*$/m;
+
+// Within one task body whose STEP2_CHECKBOX_RE already matched, returns a
+// short raw excerpt (up to 5 non-blank lines, from the checkbox line to the
+// next step heading or end of body) for diagnostic display when the strict
+// Run:/Expected: extraction can't parse a verification pair from it. Returns
+// null if no checkbox line is found (caller only invokes this after
+// confirming one exists, but stays defensive rather than assuming).
+function extractStep2RawExcerpt(taskBody) {
+  const headingMatch = STEP2_CHECKBOX_RE.exec(taskBody);
+  if (!headingMatch) return null;
+  const afterHeading = taskBody.slice(headingMatch.index + headingMatch[0].length);
+  const nextStep = afterHeading.match(/\n[-*]\s*\[[ xX]?\]\s*.*\bStep\s+\d+\b/);
+  const window = nextStep
+    ? taskBody.slice(headingMatch.index, headingMatch.index + headingMatch[0].length + nextStep.index)
+    : taskBody.slice(headingMatch.index);
+  return window.trim().split('\n').filter((l) => l.trim() !== '').slice(0, 5).join('\n');
+}
+
+// Per-task Step 2 diagnostic status: 'absent' (no Step 2 checkbox line at
+// all), 'unparseable' (a Step 2 checkbox line exists but
+// extractStep2Verification couldn't parse a verification pair from it), or
+// 'parsed' (extractStep2Verification already succeeded — nothing to report).
+function extractStep2Status(taskBody) {
+  if (!STEP2_CHECKBOX_RE.test(taskBody)) return { status: 'absent' };
+  if (extractStep2Verification(taskBody) !== null) return { status: 'parsed' };
+  return { status: 'unparseable', raw: extractStep2RawExcerpt(taskBody) };
+}
+
+// Convenience: every task in the plan whose Step 2 is present but
+// unparseable — plan-audit.js's Check C reports these as warnings (never a
+// hard finding) so a human can judge whether the plan needs updating to the
+// canonical template or the parser needs to learn a legitimately new shape
+// (#1594).
+function extractUnparseableStep2s(text) {
+  return extractTaskBlocks(text)
+    .map((task) => ({ task, diagnostic: extractStep2Status(task.body) }))
+    .filter(({ diagnostic }) => diagnostic.status === 'unparseable')
+    .map(({ task, diagnostic }) => ({
+      taskNumber: task.taskNumber,
+      title: task.title,
+      raw: diagnostic.raw,
+    }));
+}
+
 // Convenience: every task's Step 2 verification pair, only for tasks that
 // have one and whose Expected text starts with FAIL (Check C's own scope —
 // see plan-audit.md's "Finding" section).
@@ -128,4 +180,5 @@ module.exports = {
   extractTaskBlocks,
   extractStep2Verification,
   extractVerificationChecks,
+  extractUnparseableStep2s,
 };
