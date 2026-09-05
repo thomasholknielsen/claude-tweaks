@@ -30,9 +30,9 @@ gave up silently."
 
 ## Worked example: `extractStep2Verification`
 
-`plugin/bin/lib/plan-audit/parser.js`'s `extractStep2Verification` (line 93, from #903's
+`plugin/bin/lib/plan-audit/parser.js`'s `extractStep2Verification` (from #903's
 `plan-audit.js` Check C) is the concrete case this rule generalizes from — surfaced during #903's
-own review/hindsight pass as ledger item 19 (`docs/superpowers/plans/` review history), building on
+own review/hindsight pass as ledger item 19, building on
 ledger item 18's finding about the same function. Its own code comment states the collapse
 explicitly:
 
