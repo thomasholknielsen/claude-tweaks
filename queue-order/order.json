@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T18:43:28.274Z",
+  "computedAt": "2026-09-05T19:38:21.076Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -50,22 +50,12 @@
       },
       {
         "number": 1774,
-        "updatedAt": "2026-09-04T09:59:42Z",
+        "updatedAt": "2026-09-05T18:46:05Z",
         "state": "OPEN"
       },
       {
         "number": 1596,
         "updatedAt": "2026-09-05T17:46:35Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1595,
-        "updatedAt": "2026-09-05T16:49:01Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1580,
-        "updatedAt": "2026-09-05T14:55:52Z",
         "state": "OPEN"
       },
       {
@@ -81,11 +71,6 @@
       {
         "number": 1503,
         "updatedAt": "2026-09-05T14:12:01Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1480,
-        "updatedAt": "2026-09-05T11:16:28Z",
         "state": "OPEN"
       },
       {
@@ -111,11 +96,6 @@
       {
         "number": 1135,
         "updatedAt": "2026-09-05T10:19:10Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 733,
-        "updatedAt": "2026-09-05T09:51:19Z",
         "state": "OPEN"
       },
       {
@@ -752,88 +732,6 @@
         "updatedAt": "2026-09-02T08:33:56Z",
         "facets": {
           "origin": "docs-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Skill:** skill-prose-conformance-tests | **Section:** Anti-Patterns | **Category:** best-practice | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 4c18d38c7acd13c08fdc36bff84ae99cc88b954e\n\n## Current State\n\nStep 1 check 9 (context-cost bloat scan) flagged this row at 901 bytes against a corpus median of 197B and a 394B flag threshold — the largest outlier in the file by nearly 2x over the next-largest flagged row. Per the bloat-signal guard, a row is legitimately long only when it carries an irreducible constraint; this one instead narrates the specific incident history that produced the rule (naming the exact fixture constants involved, quoting a commit message verbatim, and recounting how #1276 fixed a third instance) rather than stating the anti-pattern once. The trimmed version keeps the generalizable rule and one grounding example, cutting the row from 901B to roughly 610B.\n\n## Deliverables\n\n**Current:**\n```\n| Reusing a fixture already frozen in the file as a new pin's go-red control, because it is sitting right there | A control proves the pin can go red only when it is the pre-change text of the **same** region the pin targets. An excerpt frozen from another file or section can never contain the new needle, so `!control.includes(needle)` was already true before the pin was written and stays true if the pinned prose is later deleted — vacuous in both directions. `tests/untrusted-record-content-conformance.test.js` accumulated two of these against `FROZEN_NEXT_MODE_BOUNDARY` (a frozen `next-mode.md` excerpt used to \"prove\" pins that target `untrusted-record-content.md`), one of whose messages concedes the point — *\"lacks the row either way\"* — and #1276 shipped a third by inheriting the idiom before replacing it with `FROZEN_PRE_1276_SCOPE`, the exact Scope sentence its edit replaced |\n```\n\n**Proposed:**\n```\n| Reusing a fixture already frozen in the file as a new pin's go-red control, because it is sitting right there | A control proves the pin can go red only when it is the pre-change text of the **same** region the pin targets — an excerpt from another file or section can never contain the new needle, so `!control.includes(needle)` was already true before the pin existed and stays true after the pinned prose is deleted, vacuous either way. `tests/untrusted-record-content-conformance.test.js` shipped this pattern three times before correcting to `FROZEN_PRE_1276_SCOPE`, the pin's own pre-change text. |\n```\n\n## Acceptance Criteria\n\nThe Anti-Patterns table row on reusing an already-frozen fixture as a go-red control has absorbed incident narrative (specific test-file history, a quoted commit message, and a blow-by-blow of #1276's fix) rather than stating the reusable anti-pattern, making it a context-cost outlier re-read on every invocation of this skill\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-6bd36d8a -->",
-        "createdAt": "2026-09-02T05:23:52Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
-            "name": "by:harness-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
-            "name": "harness-health:additive",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 1774,
-        "state": "OPEN",
-        "title": "Skill best-practice: skill-prose-conformance-tests — Anti-Patterns",
-        "updatedAt": "2026-09-04T09:59:42Z",
-        "facets": {
-          "origin": "harness-health",
           "risk": "low",
           "size": "low",
           "ceremony": null,
