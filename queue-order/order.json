@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T12:32:16.748Z",
+  "computedAt": "2026-09-05T13:22:38.583Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -100,7 +100,7 @@
       },
       {
         "number": 1503,
-        "updatedAt": "2026-08-29T15:39:11Z",
+        "updatedAt": "2026-09-05T12:35:11Z",
         "state": "OPEN"
       },
       {
@@ -1559,94 +1559,6 @@
           "risk": "low",
           "size": "low",
           "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Current State\n\nThe `qa-agent`/`browse` skill's agent-browser command reference (`plugin/skills/browse/agent-browser-reference.md`, cited by `plugin/skills/browse/SKILL.md` and `plugin/agents/qa-agent.md`) is pinned to agent-browser v0.27, but the documented command vocabulary doesn't reflect several real behaviors of that pinned version. Every QA story-generation and QA-execution session currently rediscovers these facts independently rather than reading them from the skill.\n\n## Deliverables\n\nUpdate `plugin/skills/browse/agent-browser-reference.md` (and `SKILL.md`/`qa-agent.md` if either restates the affected guidance locally) to document, for the pinned agent-browser v0.27:\n\n- `find`'s action argument only supports `click`/`fill`/`check`/`hover` — no `select`, `press`, or `type`. Document the fallback for a `select` interaction: a full `snapshot -i -c` followed by a separate top-level `select @eN value` call.\n- `find role <role> ... --name X` resolves the `button` role but not `link` or `heading` — locating a link or heading by role silently fails to match; QA prompts must use a different locator (text/testid/label) for those roles.\n- `click` does not auto-scroll the target into view — a below-the-fold click reports success but lands nowhere. Document the mitigation (pinning a tall viewport) so QA prompts guard against this explicitly.\n- `screenshot` can fail with an OS-level error under concurrent sessions, and appears to reject an output path containing a space — document both as known limitations.\n- The distinction between plain `snapshot` (for a static-text assertion) and `snapshot -i -c` (a different purpose — locating interactive refs) isn't called out anywhere the skill's prompts reference; document it explicitly.\n\n## Acceptance Criteria\n\n- [ ] `agent-browser-reference.md` documents the four action verbs `find` actually supports and the `snapshot -i -c` + top-level `select @eN value` fallback for a select interaction.\n- [ ] `agent-browser-reference.md`'s role-locator guidance states that only `button` reliably resolves via `find role`, not `link`/`heading`.\n- [ ] `agent-browser-reference.md` documents that `click` does not auto-scroll, with the tall-viewport mitigation QA prompts should apply.\n- [ ] `agent-browser-reference.md` documents `screenshot`'s concurrent-session OS-level failure mode and its rejection of paths containing spaces.\n- [ ] `agent-browser-reference.md` explicitly distinguishes plain `snapshot` (static-text assertions) from `snapshot -i -c` (interactive-ref lookup), and any prompt guidance elsewhere in the skill that conflates the two is corrected.\n- [ ] No other command-reference table in `SKILL.md`/`qa-agent.md` still restates the pre-fix guidance (single-source-of-truth check, matching the existing \"no local copy\" convention already noted in `agent-browser-reference.md`).\n\n## Technical Approach\n\nPure documentation change, scoped to the pinned agent-browser v0.27 command surface — no code, no new behavior. Edit the reference table(s) and any adjacent prose in `agent-browser-reference.md` to add the five facts above; cross-check `SKILL.md`'s own command-reference/Anti-Patterns tables and `qa-agent.md` for any restated guidance that would now be inconsistent, per the \"single source of truth, no local copy\" principle `agent-browser-reference.md` already states for its Anti-Patterns table.\n\n### Key Files\n\n- `plugin/skills/browse/agent-browser-reference.md` — add the five documented v0.27 command-surface facts (find action verbs + select fallback, role-locator button-only resolution, click no-auto-scroll, screenshot concurrent/space-path limitations, snapshot vs snapshot -i -c distinction)\n- `plugin/skills/browse/SKILL.md` — check for restated command-reference content that needs the same update\n- `plugin/agents/qa-agent.md` — check for restated command-reference content that needs the same update\n\n## Gotchas\n\n- These facts are version-pinned to agent-browser v0.27 specifically — if the plugin's pinned version changes later, this guidance needs re-verification against the new version rather than being assumed to still hold.\n- `find role button ... --name X` resolving but `link`/`heading` silently failing to match is easy to miss in testing — the command exits without an error, it just doesn't find the element, so verification of this fix should include a negative-case check (attempt a `link`/`heading` role find and confirm the doc's guidance to use a different locator is followed).\n\n## Original request\n\nqa-agent/browse skill's agent-browser guidance is stale against the pinned agent-browser v0.27\n\n**Summary:** Several agent-browser v0.27 command-surface facts aren't reflected in the qa-agent/browse skill guidance, so every QA story-writing and execution pass has to rediscover and work around them by hand.\n\n**Kind:** Gap\n\n**Affected component:** the `qa-agent`/`browse` skill's agent-browser command reference (story generation and QA execution prompts)\n\n**Use case:** Writing and running QA stories against a web app with agent-browser v0.27 pinned. The skill's documented command vocabulary doesn't mention several real limitations of that version, so each session has to discover them independently:\n- `find` only supports `click`/`fill`/`check`/`hover` as its action argument -- no `select`, `press`, or `type`. A `select` interaction has to fall back to a full `snapshot -i -c` plus a separate top-level `select @eN value` call.\n- `find role button ... --name X` resolves the `button` role but not `link` or `heading` -- locating a link or heading by role silently fails to match.\n- `click` does not auto-scroll the target into view -- a below-the-fold click reports success but lands nowhere, which QA prompts need to guard against explicitly (e.g. by pinning a tall viewport).\n- `screenshot` can fail with an OS-level error under concurrent sessions, and appears to reject an output path containing a space.\n- The plain `snapshot` command (no `-c`/`-i -c` flags) is what a static-text assertion should use; the `-i -c` variant is for a different purpose. This distinction isn't called out anywhere the skill's prompts reference.\n\n**Definition:** Clear\n\n**Plugin version:** 6.106.0\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-495504d4 -->\n",
-        "createdAt": "2026-08-26T17:41:17Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-KA",
-            "name": "enhancement",
-            "description": "New feature or request",
-            "color": "a2eeef"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 1503,
-        "state": "OPEN",
-        "title": "qa-agent/browse skill's agent-browser guidance is stale against the pinned agent-browser v0.27",
-        "updatedAt": "2026-08-29T15:39:11Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
