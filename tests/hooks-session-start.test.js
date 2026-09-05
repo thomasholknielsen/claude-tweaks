@@ -587,6 +587,51 @@ test('SessionStart: a throw while rendering the background summary still leaves 
   }
 });
 
+// #1687: the reconcile-background child had no way to learn the spawning
+// session's id at all — neither argv nor env — so archive-merged.js's
+// ownership gate (isAbandonedInterrupted) was permanently inert on the one
+// path that actually runs the 'archive' check in production. session-start.js
+// now threads ctx.input.session_id into the spawned child's own environment
+// via a dedicated var, never CLAUDE_CODE_SESSION_ID (this file's own header
+// comment documents that one as unreliable for a hook-spawned process).
+test('SessionStart spawn gate: threads ctx.input.session_id into the background child\'s environment as CLAUDE_TWEAKS_SESSION_ID (#1687)', async () => {
+  const cp = require('child_process');
+  const originalSpawn = cp.spawn;
+  let spawnedWith = null;
+  cp.spawn = (...args) => { spawnedWith = args; return { unref() {}, on() {} }; };
+  try {
+    const project = gitProject();
+    await sessionStart.run({ input: { session_id: 'sess-1687-abc' }, runDir: null, runState: null, cwd: project });
+    assert.ok(spawnedWith, 'expected the background pass to spawn');
+    assert.strictEqual(spawnedWith[1][1], 'reconcile-background');
+    assert.strictEqual(spawnedWith[2].env.CLAUDE_TWEAKS_SESSION_ID, 'sess-1687-abc');
+    // The rest of the parent's env must still be inherited, not replaced.
+    assert.strictEqual(spawnedWith[2].env.PATH, process.env.PATH);
+  } finally {
+    cp.spawn = originalSpawn;
+  }
+});
+
+// AC2's "no session id resolvable, behavior is unchanged" half, pinned at the
+// spawn boundary: with no session id known, the child must inherit the
+// parent's env object unchanged — not a copy carrying an empty/undefined
+// CLAUDE_TWEAKS_SESSION_ID key, which would itself be a (harmless but
+// needless) behavior change from today.
+test('SessionStart spawn gate: no CLAUDE_TWEAKS_SESSION_ID override when ctx.input carries no session id (#1687)', async () => {
+  const cp = require('child_process');
+  const originalSpawn = cp.spawn;
+  let spawnedWith = null;
+  cp.spawn = (...args) => { spawnedWith = args; return { unref() {}, on() {} }; };
+  try {
+    const project = gitProject();
+    await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.ok(spawnedWith, 'expected the background pass to spawn');
+    assert.strictEqual(spawnedWith[2].env, process.env, 'with no known session id, the child inherits the parent env object unchanged');
+  } finally {
+    cp.spawn = originalSpawn;
+  }
+});
+
 // #820 final review finding 1: D7's freshness cache is wired into the INLINE
 // fast pass, not just the background one — near-simultaneous session starts
 // in the same repo skip the mirror/red-tip/console work inside the TTL.
