@@ -51,11 +51,26 @@ function statusOf(check) {
 // from the stored stamp (spec Gotchas: a tree that went dirty after a clean
 // pass reports match:false).
 function stampStatus(parsed) {
-  const gitDir = parsed.gitDir || resolveGitDir();
+  const ownGitDir = resolveGitDir();
+  const gitDir = parsed.gitDir || ownGitDir;
   const stamp = gitDir ? readVerifyStamp(gitDir) : null;
   const git = gitDir ? gitInfo() : { sha: null, dirty: null };
   const present = stamp !== null;
   const scope = present ? (stamp.scope || null) : null;
+  // An explicit --git-dir that is not this checkout's own git dir can never
+  // match: head/dirty above are always the invoking cwd's (gitInfo() takes
+  // no directory argument), so a foreign --git-dir's stamp is still read and
+  // reported, but never trusted as verifying THIS cwd's HEAD — otherwise a
+  // sibling checkout sitting at the same commit could read match:true for a
+  // verification it never ran (review finding, refs #1921).
+  let foreignGitDir = false;
+  if (parsed.gitDir) {
+    let requested = null;
+    let own = null;
+    try { requested = fs.realpathSync(parsed.gitDir); } catch { requested = null; }
+    try { own = ownGitDir ? fs.realpathSync(ownGitDir) : null; } catch { own = null; }
+    foreignGitDir = requested === null || own === null || requested !== own;
+  }
   const status = {
     present,
     sha: present ? stamp.sha : null,
@@ -63,7 +78,7 @@ function stampStatus(parsed) {
     dirty: git.dirty,
     scope,
     fullSha: present ? (stamp.fullSha === undefined ? stamp.sha : stamp.fullSha) : null,
-    match: present && git.sha !== null && stamp.sha === git.sha && git.dirty === false && scope === 'full',
+    match: !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false && scope === 'full',
     reportPath: present && typeof stamp.reportPath === 'string' ? stamp.reportPath : null,
     legacy: present ? stamp.legacy === true : false,
   };

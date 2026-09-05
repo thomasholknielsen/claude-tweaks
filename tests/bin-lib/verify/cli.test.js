@@ -302,6 +302,23 @@ test('--stamp-status honors --git-dir and reads a legacy bare-SHA stamp as scope
   assert.strictEqual(s.reportPath, null);
 });
 
+// Review fix round 2, finding A: --stamp-status --git-dir <dir> read the
+// stamp from <dir> but computed head/dirty from the invoking cwd's own
+// git dir via gitInfo() -- a sibling checkout sitting at the same commit
+// could read match:true for a verification it never ran. B is a distinct
+// repo from A; A's stamp is read from B's cwd and must never match.
+test('--stamp-status --git-dir pointing at a foreign checkout never matches (#1921 review fix)', async () => {
+  const a = tmpGitRepo();
+  const b = tmpGitRepo();
+  const { code: passCode } = await runCli(['--cmd', 'tests=node -e 0'], { cwd: a.repo });
+  assert.strictEqual(passCode, 0);
+  const { code, stdout } = await runCli(['--stamp-status', '--git-dir', a.gitDir], { cwd: b.repo });
+  assert.strictEqual(code, 0);
+  const s = JSON.parse(stdout);
+  assert.strictEqual(s.present, true);
+  assert.strictEqual(s.match, false);
+});
+
 test('--stamp-status outside any checkout prints present:false and exits 0 (#1921 Gotchas)', async () => {
   const { code, stdout } = await runCli(['--stamp-status']);
   assert.strictEqual(code, 0);
