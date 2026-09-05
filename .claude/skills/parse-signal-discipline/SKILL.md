@@ -1,6 +1,6 @@
 ---
 name: parse-signal-discipline
-description: Use when writing or reviewing a mechanized deterministic check that parses loose, real-world prose (a plan, a record body, a free-form config value) rather than a formal grammar — the check's "I could not parse this" case must be a distinguishable signal, never silently identical to "this input legitimately does not apply." Keywords - parse failure, could-not-parse, deterministic check, prose heuristic, silent null, false negative, mechanized check, plan-audit, IL (see docs/incident-log.md's #903 lineage).
+description: Use when writing or reviewing a mechanized deterministic check that parses loose, real-world prose (a plan, a record body, a free-form config value) rather than a formal grammar — the check's "I could not parse this" case must be a distinguishable signal, never silently identical to "this input legitimately does not apply." Keywords - parse failure, could-not-parse, deterministic check, prose heuristic, silent null, false negative, mechanized check, plan-audit.
 ---
 
 # Parse-Signal Discipline — Distinguish "Couldn't Parse" From "Doesn't Apply"
