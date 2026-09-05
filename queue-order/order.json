@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T14:51:36.170Z",
+  "computedAt": "2026-09-05T15:53:18.324Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -80,7 +80,7 @@
       },
       {
         "number": 1580,
-        "updatedAt": "2026-08-29T16:19:07Z",
+        "updatedAt": "2026-09-05T14:55:52Z",
         "state": "OPEN"
       },
       {
@@ -1233,82 +1233,6 @@
         "state": "OPEN",
         "title": "plan-audit: Check C needs a \"Step 2 present but unparseable\" diagnostic signal",
         "updatedAt": "2026-08-29T16:19:09Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "# Reflect — staged finding 3\n\n**Category:** tangential\n\nOrigin: reflect light from #1410\nDefer-reason: tangential\n\n## Current State\n\n`bin/set-config.js` only accepts `--run <dir> --key <lever> --value <value>` — one config.yml\nlever per invocation. Recovering this run's inherited-but-uninitialized `PIPELINE_RUN_DIR`\n(`flow/steps-and-gates.md`'s case-3 recovery path) required computing all 13 canonical Manifesto\nlevers and writing them one at a time — 13 sequential `node bin/set-config.js` calls to produce\none `config.yml`. Every from-scratch Manifesto run (Step 3's normal, non-recovery path) pays the\nsame per-lever cost; this session's recovery path just made it visible as 13 back-to-back calls in\none place.\n\n## Deliverables\n\n- `set-config.js` gains a batch mode (e.g. `--run <dir> --from-json <path>` or `--set\n  key=value,key=value,...`) that writes every lever in one invocation, validating the full set\n  against the canonical lever list before writing any of them (all-or-nothing, matching the\n  existing single-key validation's error message).\n- `flow/manifesto.md`'s \"Approval flow\" section updated to call the batch form instead of one\n  `set-config.js` call per lever.\n\n## Acceptance Criteria\n\n- AC1: A single CLI call can write a complete Manifesto config.yml (all 13 canonical levers) in\n  one invocation, with the same fail-closed validation the single-key form already has.\n- AC2: The single-key form is kept as-is (used by the ceremony escape hatch and other one-lever\n  writers) — this is additive, not a replacement.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-08-27T21:46:11Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          }
-        ],
-        "number": 1580,
-        "state": "OPEN",
-        "title": "set-config.js: batch-write mode for a full Manifesto config.yml in one call",
-        "updatedAt": "2026-08-29T16:19:07Z",
         "facets": {
           "origin": null,
           "risk": "low",
