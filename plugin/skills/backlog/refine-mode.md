@@ -166,10 +166,15 @@ typically small and its re-authorization recommendation needs no `grant-check` c
 `grant-check` and recommend **`re-authorize (bot:blocked)`** directly, regardless of content — a
 prior failure means the human's renewed judgment is the point, not a mechanical (or
 judgment-driven) replay: applying this row grants `auto:build` only, never bundling `auto:merge`
-automatically. Restoring `auto:merge` too requires an explicit override. A `bot:blocked` record
-whose grants are still intact was parked by the merge-verification gate (checks red or timed out on
-its PR — `_shared/pr-first-merge.md`'s Step 2.5), not failed; re-triage there means checking the
-PR's checks, not re-authorizing a build.
+automatically. Restoring `auto:merge` too requires an explicit override. `blocked` is retry-ceiling
+records only — `bot:blocked` is applied **only** at the retry ceiling (`auto:*` grants always
+stripped alongside it), so a record here is never simultaneously grant-intact. A record the
+merge-verification gate parked (checks red or timed out on its PR — `_shared/pr-first-merge.md`'s
+Step 2.5) carries `bot:parked` instead, a distinct label that leaves `auto:*` grants intact — it
+therefore never enters `refineWorklist`'s own `worklist` at all (`bin/lib/issues/backlog.js`'s
+grant-absence filter excludes any record still carrying a grant) and is out of scope for this
+grant-check pass; re-triage there means checking the PR's checks, not re-authorizing a build, and
+is surfaced instead by `/claude-tweaks:tidy`'s Shape 5.6 (`tidy/step-1-records.md`).
 
 If `.grantSlice.remaining > 0`, state it plainly in the report: "`{remaining}`
 more ready records awaiting grant-check exist beyond this run's `--budget {N}` — re-run to

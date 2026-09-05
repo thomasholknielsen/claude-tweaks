@@ -47,7 +47,7 @@ Stage vocabulary is exactly these three words — **backlog** (absence of stage 
 | **Scoring** | `risk:low\|medium\|high` × `size:low\|medium\|high` | Labels — at most one of each family |
 | **Stage** | backlog (no label) \| `parked` \| `ready` | Labels — backlog is the absence of stage labels |
 | **Authorization** | `auto:build`, `auto:merge`, `auto:merge-pending` | Labels — human-granted, except `auto:merge-pending` (machine-only waypoint, see Grant semantics) — absence of all three is the default not-authorized state |
-| **Bot state** | `bot:in-progress`, `bot:blocked` | Labels — machinery-owned visibility layer |
+| **Bot state** | `bot:in-progress`, `bot:blocked`, `bot:parked` | Labels — machinery-owned visibility layer. `bot:blocked` = hit the retry ceiling (grants revoked); `bot:parked` = merge-verification gate parked it on a red/timed-out PR check (grants stay intact) — the two never overlap on one record |
 | **Acceptance** | `demo:pending` \| `demo:approved` \| `demo:changes-requested` — or no label | Labels — `demo:pending` is written by every skill the permission matrix below grants it to (more than one, and the matrix is the list; do not restate a single writer here), resolved to `demo:approved`/`demo:changes-requested` by `/claude-tweaks:demo` alone; independent of Stage and of the issue's own open/closed state |
 | **Acceptance provenance** | `demo:approved-batch` — a modifier, always stacked alongside `demo:approved`, never on its own | Label — written only when `/claude-tweaks:demo` resolves the verdict via a `#N,#M` batch invocation rather than a dedicated single-record session (both run the same per-item walkthrough — this distinguishes invocation shape, not whether one happened); absent means single-record-backed (including every `demo:approved` label applied before this modifier existed). Sole consumer: `bin/lib/issues/trust.js`'s coverage/verdict computation, via `bin/lib/issues/acceptance.js`'s `approvalProvenance` |
 
@@ -86,7 +86,7 @@ are about to apply.
 | Ceremony (2) | `ceremony:fast-lane`, `ceremony:standard` | Ceremony depth — cross-cutting, not one of the axes; stamped by `/specify` alongside Scoring, always explicit (no unscored state) |
 | Stage (2) | `parked`, `ready` | Stage |
 | Grants (3) | `auto:build`, `auto:merge`, `auto:merge-pending` | Authorization |
-| Bot state (2) | `bot:in-progress`, `bot:blocked` | Bot state |
+| Bot state (3) | `bot:in-progress`, `bot:blocked`, `bot:parked` | Bot state |
 | Acceptance (3) | `demo:pending`, `demo:approved`, `demo:changes-requested` | Acceptance |
 | Acceptance provenance (1) | `demo:approved-batch` | Modifier stacked alongside `demo:approved` — batch-invocation-sourced vs. single-record-backed (absent) |
 | Closure (1) | `wontfix` | re-filing suppression |

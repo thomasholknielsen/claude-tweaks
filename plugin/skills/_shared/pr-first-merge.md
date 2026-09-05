@@ -212,7 +212,7 @@ done
 **Red path — never merge; park.**
 
 1. Do not run any `gh pr merge`. Leave the PR ready (already undrafted; never re-draft).
-2. Park the run on the work-record issue(s): bootstrap-then-add `bot:blocked` (`_shared/label-bootstrap.md`)
+2. Park the run on the work-record issue(s): bootstrap-then-add `bot:parked` (`_shared/label-bootstrap.md`)
    on every record in `{issue-list}` — dispatch's existing `bot:*` home; `run-state.json` statuses are
    untouched (parking surfaces via label + log, not run-state) — and post one comment naming the
    failing check(s), the PR, and the reason:
@@ -227,13 +227,13 @@ done
    (`$REASON` holds the check names read from `/tmp/pr-checks-{n}.txt`'s `fail` rows, or the
    pending-timeout phrase — passed as a `printf` argument, never expanded inside the format string.)
    **Verify the label landed** — re-read each record's labels (`gh issue view {n} --json labels`)
-   after the add; a missing `bot:blocked` is retried once. If it is still missing, the park has no
+   after the add; a missing `bot:parked` is retried once. If it is still missing, the park has no
    lock the `[pr-unarmed]` sweep (`_shared/github-pr-scan.md`) would honor, so fall back to the one
    lock the sweep always honors: re-draft the PR (`gh pr ready {pr-number} --repo {owner}/{repo}
    --undo` — the sole exception to item 1's never-re-draft, taken only because the label failed) and
    say so in the log line below. Never report a park the label read did not confirm.
 3. Log to `decisions.md` per `_shared/auto-decision-log.md` (an action taken autonomously — parked, not asked):
-   `AUTO {HH:MM:SS} — Step 2.5 (merge-verification gate): parked — {reason: check-failed:{names} | checks-pending-timeout} on PR #{n}; bot:blocked applied to #{issue-list} {— or: bot:blocked NOT applied to #{list} ({error}); PR re-drafted as the fallback lock}. Reversibility: high (label removal + resume). [lever: merge-verification={value} ({source})]`
+   `AUTO {HH:MM:SS} — Step 2.5 (merge-verification gate): parked — {reason: check-failed:{names} | checks-pending-timeout} on PR #{n}; bot:parked applied to #{issue-list} {— or: bot:parked NOT applied to #{list} ({error}); PR re-drafted as the fallback lock}. Reversibility: high (label removal + resume). [lever: merge-verification={value} ({source})]`
 4. Report outcome `pending-review`. This is a HARD-GATE-class stop written as park-and-surface — the
    `_shared/auto-mode-contract.md` strict rule holds: never a mid-pipeline prompt here; the human-facing
    surface is dispatch's resume confirmation (`dispatch/SKILL.md`, "Confirm before resuming").

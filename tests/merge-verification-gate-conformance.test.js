@@ -68,7 +68,7 @@ test('the gate reads state before any merge attempt and names the red-path piece
   const section = gate.slice(step25, step3);
   // Every park/report reason the gate defines is pinned, not just the timeout one — a future edit
   // that drops one silently changes an outcome vocabulary other files cite.
-  for (const needle of ['statusCheckRollup', 'mergeStateStatus', 'bot:blocked', 'checks-pending-timeout', 'checks-read-failed', 'state-read-failed', 'pr-not-open', 'moving-target', 'AUTO ', '15 minutes', 'never merge', '--auto', '--body-file']) {
+  for (const needle of ['statusCheckRollup', 'mergeStateStatus', 'bot:parked', 'checks-pending-timeout', 'checks-read-failed', 'state-read-failed', 'pr-not-open', 'moving-target', 'AUTO ', '15 minutes', 'never merge', '--auto', '--body-file']) {
     assert.ok(section.includes(needle), `gate section missing "${needle}"`);
   }
   assert.ok(!/AskUserQuestion/.test(section), 'the gate is park-and-surface — no mid-pipeline prompt');

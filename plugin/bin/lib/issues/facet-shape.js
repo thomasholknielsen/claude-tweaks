@@ -29,7 +29,7 @@ function sharedFacetDefaults() {
     priority: null,
     stage: 'backlog',
     grants: { build: false, merge: false },
-    bot: { inProgress: false, blocked: false },
+    bot: { inProgress: false, blocked: false, parked: false },
     acceptance: null,
     isParentIssue: false,
     notPlanned: false,

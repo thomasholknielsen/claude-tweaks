@@ -45,7 +45,7 @@ Emit `[pr]` rows per the Output Contract.
 
 ## Scope: `repo-wide` (consumed by /tidy Step 4.8)
 
-Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, `by:journey-health`-labelled issues, and `by:docs-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/step-1-records.md`).
+Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-labelled issues, `by:journey-health`-labelled issues, and `by:docs-health`-labelled issues. Backlog-record findings (stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy, `bot:parked`) are `/tidy` Step 1's job now, not this scope's — `repo-wide` no longer queries the retired `backlog` label (see `tidy/step-1-records.md`).
 
 **Transport split (see Transport above):** items 3, 5, 6, 7, and 8 are issue-backed (`gh issue list`) and run unchanged on either transport. Items 1, 2, 4, 9, and 10 are PR-backed (`gh pr list`/`gh pr checks`/`gh api graphql`/`gh api repos/.../commits`) — on `gh`-absent, each degrades individually per the rule above rather than the whole scope skipping; item 10's claims-registry read (its first fetch) is issue-adjacent, not PR-backed, and already has a documented MCP path via `_shared/issue-claims.md`'s "List all claims", so only item 10's second (`bot:in-progress` list — issue-backed, routes via MCP too) and third (`gh pr list --state all`, PR-backed — degrades) fetches split the same way.
 
@@ -78,8 +78,8 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    "
    ```
 
-   - **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: any record any health skill, `/claude-tweaks:capture`, or a human filed counts, with or without a `by:*` label — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull (`skills/backlog/refine-mode.md`), which no longer tiers any health-skill origin specially. This is a maintenance signal only — `/tidy` never grants authorization itself (`/claude-tweaks:backlog refine` owns that).
-   - **`bot:blocked`** — records that hit their retry ceiling, or that `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) parked on a red or timed-out PR check; either way they need a human's renewed judgment at `/claude-tweaks:backlog refine` before re-entering the autonomous queue (same definition as `tidy/step-1-records.md`'s Shape 5).
+   - **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (`bot:in-progress`, `bot:blocked`, or `bot:parked`). Origin-agnostic: any record any health skill, `/claude-tweaks:capture`, or a human filed counts, with or without a `by:*` label — matching `/claude-tweaks:backlog refine`'s own origin-agnostic `ready`-queue pull (`skills/backlog/refine-mode.md`), which no longer tiers any health-skill origin specially. This is a maintenance signal only — `/tidy` never grants authorization itself (`/claude-tweaks:backlog refine` owns that).
+   - **`bot:blocked`** — records that hit their retry ceiling; needs a human's renewed judgment at `/claude-tweaks:backlog refine` before re-entering the autonomous queue (same definition as `tidy/step-1-records.md`'s Shape 5). A record `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) parked on a red or timed-out PR check carries `bot:parked` instead — a distinct label, since that path leaves `auto:*` grants intact (`tidy/step-1-records.md`'s Shape 5-parked) — and is not counted here.
    - **Backlog-state** — open records carrying neither `ready` nor `parked` — the default, unasserted state per `_shared/work-record.md`'s lifecycle spine.
 
    Surface all three as the `[queue]` Output Contract row below — bare counts only, per the Output Contract's own documented shape. No per-record enumeration is produced or needed here.
@@ -160,7 +160,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
          const linked = (pr.closingIssuesReferences || []).map((i) => i.number);
          granted = linked.length > 0
            && linked.every((n) => (labelsByIssue.get(n) || []).includes('auto:merge'))
-           && !linked.some((n) => (labelsByIssue.get(n) || []).includes('bot:blocked'));
+           && !linked.some((n) => (labelsByIssue.get(n) || []).includes('bot:blocked') || (labelsByIssue.get(n) || []).includes('bot:parked'));
        }
        if (granted) {
          console.log('[pr-unarmed] PR #' + pr.number + ': ' + pr.title + ' — green and granted, --auto never armed — arm per _shared/pr-first-merge.md' + armNote);
@@ -282,7 +282,7 @@ Findings and recommendations (tidy Action Vocabulary):
 | Unarmed ready PR, ungranted (item 9) | Grant `auto:merge` on every linked record, or set `housekeeping-auto-merge` for a tidy PR — judgment call, never auto-granted by this sweep |
 | Unsettled run (item 10) | Resume via the reported command, or release the claim and let a fresh dispatch pick the record back up — judgment call |
 
-Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer originate from this scope — see `tidy/step-1-records.md` for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]` row prefixes. Items 9 and 10 emit their own `[pr-unarmed]` and `[unsettled]` prefixes instead — see the Output Contract below.
+Emit `[pr]` and `[gh-issue]` rows per the Output Contract. Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy, `bot:parked`) no longer originate from this scope — see `tidy/step-1-records.md` for their findings table and `[backlog]`/`[parked]`/`[unsynced]`/`[scoring]`/`[blocked]`/`[legacy]`/`[bot-parked]` row prefixes. Items 9 and 10 emit their own `[pr-unarmed]` and `[unsettled]` prefixes instead — see the Output Contract below.
 
 **Anti-pattern: a self-scheduled per-PR check-in loop.** Do not have a session poll or re-check a single PR's arm/CI/merge state on its own schedule to "make sure it merges" — that durability lives in GitHub's own `--auto` (which merges the moment checks pass, with no session watching) plus this scheduled sweep (which catches the cases `--auto` alone can't: unarmed PRs and unsettled claims), neither of which depends on any session surviving. A per-PR loop dies with the session that started it and duplicates what the sweep already covers on a schedule nothing has to remember to run.
 
@@ -292,7 +292,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 
 **Transport split (see Transport above):** items 1 and 2 are issue-backed and run unchanged on either transport. Item 3's commits-endpoint query has no MCP equivalent — on `gh`-absent it degrades individually (omit the "Auto-merged this week" line rather than the whole scope).
 
-1. **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (neither `bot:in-progress` nor `bot:blocked`). Origin-agnostic: matches `/claude-tweaks:backlog refine`'s own `ready`-queue pull (`skills/backlog/refine-mode.md`), which tiers no health-skill origin specially — every `ready` record, with or without a `by:*` label, is in scope.
+1. **Pending authorization** — `ready` ∧ no `auto:*` ∧ no `bot:*` (`bot:in-progress`, `bot:blocked`, or `bot:parked`). Origin-agnostic: matches `/claude-tweaks:backlog refine`'s own `ready`-queue pull (`skills/backlog/refine-mode.md`), which tiers no health-skill origin specially — every `ready` record, with or without a `by:*` label, is in scope.
 
    Resolve this item's session-scoped temp path first, per `_shared/session-tmp-root.md`:
 
@@ -370,7 +370,7 @@ Two collection prefixes for PR/code-health/harness-health/journey-health/docs-he
 - `[pr-unarmed]` — a green, gate-passed, plugin-created PR whose `--auto` was never armed, granted or not (`repo-wide` item 9): `[pr-unarmed] PR #{n}: {title} — {granted-or-ungranted content} — {recommendation}`
 - `[unsettled]` — a claimed or `bot:in-progress` issue whose pipeline shows no progress past the threshold (`repo-wide` item 10): `[unsettled] #{n}: {PR-silent-or-no-PR content} — resume: {command}`
 
-Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` rows now (`tidy/step-1-records.md`).
+Backlog-record findings (the record-scan shapes: stale, parked-trigger, unsynced, needs-scoring, `bot:blocked`, legacy-taxonomy, `bot:parked`) no longer emit from this scope — they are `/tidy` Step 1's `[backlog]` / `[parked]` / `[unsynced]` / `[scoring]` / `[blocked]` / `[legacy]` / `[bot-parked]` rows now (`tidy/step-1-records.md`).
 
 Severity mapping (Template A Severity column):
 
