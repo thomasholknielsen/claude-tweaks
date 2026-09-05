@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T10:35:37.344Z",
+  "computedAt": "2026-09-05T10:45:48.604Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -115,7 +115,7 @@
       },
       {
         "number": 1442,
-        "updatedAt": "2026-09-04T09:46:02Z",
+        "updatedAt": "2026-09-05T10:38:40Z",
         "state": "OPEN"
       },
       {
@@ -1829,82 +1829,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n**Related:** #1391, #1274, #1275\n\nOrigin: review of #1391 (lens 3b, 2026-08-25) — the refine-mode.md call site named in grant-check.md's own header but deliberately left out of #1391's scoped deliverables\n\nDefer-reason: genuinely-larger\n\n## Current State\n\n`plugin/skills/backlog/refine-mode.md` Step 3 invokes `Skill(skill: \"claude-tweaks:assess-agent-autonomy\", args: \"grant-check #{n}\")` once per worklist record — `grant-check.md`'s own header names it as a caller of \"the identical call\" `grant-mode.md` makes. #1391 extended `_shared/untrusted-record-content.md` to `grant-mode.md` (caller side: wrap the record's title + body per the contract; read `^RECOMMEND_BUILD: (true|false)$` / `^RECOMMEND_MERGE: (true|false)$` only from the mode's own rendered output; a missing verdict line is a per-candidate skip with `failedKey: 'grant-check-no-verdict'`) and to `grant-check.md` Step 1 (callee side, \"regardless of which call site supplied it\"). `refine-mode.md` got neither: it passes the body unwrapped and its `RECOMMEND_BUILD: true`/`false` branching has no missing-verdict case, so a rendered output with no verdict line has no defined outcome there.\n\nExposure is lower than `grant-mode.md`'s — `refine`'s Grant lane is a recommendation a human batch-confirms before any label is written — and the callee-side obligation already applies to this call. But the contract's Scope says \"wrap on every entry path — interactive or headless\", so the caller side is out of contract at a live call site.\n\nThe blocker is size: `refine-mode.md` is 40,933 B against the 40,960 B ceiling (`tests/bin-lib/skill-audit/context-cost.test.js`), and it is pinned by several suites (`tests/backlog-refine-foldin-no-truncation.test.js`, `tests/grant-mode-inprogress-pin.test.js`, others). Adding a paragraph needs a deliberate slim-first pass, not a squeeze — the same shape #1274 hit with `record-creation.md` and deferred.\n\n## Deliverables\n\n- [ ] Slim `plugin/skills/backlog/refine-mode.md` by enough headroom to carry a short caller-side paragraph — prefer moving a self-contained section to a sub-file the skill lazy-loads, per `docs/skill-authoring.md`; re-run every suite that pins the file before and after.\n- [ ] Add the caller-side paragraph to Step 3: wrap per `plugin/skills/_shared/untrusted-record-content.md` (cite it, never restate the markers); read the two `^RECOMMEND_*: (true|false)$` verdict lines only from the mode's own rendered output; a missing verdict line renders that record's Grant lane row as a flag-back with an explicit \"no verdict rendered\" evidence string — never a default `auto:build` recommendation, never silently dropped from the table.\n- [ ] `plugin/skills/_shared/untrusted-record-content.md` Consumers table gains a `backlog/refine-mode.md` (Step 3) row.\n- [ ] `docs/skill-graph.md`: the `/backlog` ↔ `/assess-agent-autonomy` row's #1391 clause extends to name the refine call site.\n- [ ] Prose-conformance pins in `tests/untrusted-record-content-conformance.test.js` (a Phase 4 block), each with a frozen pre-change control and a go-red proof via `git show {base}:{file} | grep -c -F`.\n\n## Acceptance Criteria\n\n1. `grep -n -i \"untrusted\" plugin/skills/backlog/refine-mode.md` is non-empty and every hit names `_shared/untrusted-record-content.md`.\n2. `grep -rn -F \"BEGIN UNTRUSTED RECORD CONTENT\" plugin/skills/backlog/` is empty.\n3. `wc -c plugin/skills/backlog/refine-mode.md` prints a value at or below 40,960 after the edit, and `tests/bin-lib/skill-audit/context-cost.test.js` passes.\n4. Every new pinned literal prints 0 on `git show {base}:{file} | grep -c -F` and ≥ 1 at HEAD.\n5. `npm test` passes.\n\n_Filed by `capture` via specShapedBody._",
-        "createdAt": "2026-08-25T14:08:07Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 1442,
-        "state": "OPEN",
-        "title": "Extend the untrusted-record-content contract to refine-mode.md's grant-check call site — slim the file first, it sits 27 B under the 40,960 B ceiling",
-        "updatedAt": "2026-09-04T09:46:02Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
