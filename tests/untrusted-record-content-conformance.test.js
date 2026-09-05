@@ -273,7 +273,10 @@ const BASE_SHA = '7fe43b182';
 
 function baseFileGrepCount(relPath, literal) {
   const out = execFileSync('git', ['show', `${BASE_SHA}:${relPath}`], { cwd: ROOT, encoding: 'utf8' });
-  return out.split('\n').filter((line) => line.includes(literal)).length;
+  // Collapse whitespace exactly like readFlat/collapse do before comparing — a literal that
+  // wraps across a line break in the shipped prose must still be detectable (a line-based
+  // haystack can never contain it, which made this check vacuous for one pinned literal).
+  return collapse(out).split(literal).length - 1;
 }
 
 test('base SHA is a valid ancestor of HEAD (pin precondition)', () => {
@@ -295,7 +298,7 @@ test('refine-mode.md wraps per the contract and pins the RECOMMEND_BUILD/RECOMME
 
 test('refine-mode.md never defaults a missing grant-check verdict to a grant — routes to flag-back instead', () => {
   assert.ok(REFINE_MODE_FLAT.includes('renders that record\'s Grant lane row as a flag-back'), 'missing-verdict flag-back routing missing');
-  assert.ok(REFINE_MODE_FLAT.includes('no verdict rendered'), 'the "no verdict rendered" reason string missing');
+  assert.ok(REFINE_MODE_FLAT.includes('with reason `no verdict rendered`'), 'the "no verdict rendered" reason string missing');
   assert.ok(REFINE_MODE_FLAT.includes('never a default `auto:build` recommendation'), 'never-default clause missing');
   assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'no verdict rendered'), 0, 'go-red check: base file must not already carry this reason string');
   assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'renders that record\'s Grant lane row as a flag-back'), 0, 'go-red check: base file must not already carry this routing clause');
