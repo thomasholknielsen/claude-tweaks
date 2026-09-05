@@ -10,14 +10,20 @@
 // fail-closed posture as the single-key form) — see #1580. Lever values
 // never contain a comma (all 13 are short enum tokens), so a plain
 // comma-split is safe.
+// "All-or-nothing" above covers validation only — every write is a separate
+// sequential fs call (bin/lib/set-config/write.js's setConfigLever), so a
+// mid-batch fs failure exits 3 having already durably written the earlier
+// entries; the stderr message on that path names which keys were already
+// written (see the write loop below) so a caller isn't left guessing.
 // Exit 0 on success (echoes, per lever, the config.yml path and the
 // previous -> new value, so escape-hatch logs are evidence-based); 2 on a
 // malformed invocation (missing/conflicting args, a `--set` entry not in
-// key=value form, a key outside the canonical Manifesto lever set, or a
-// value outside that lever's enum — batch or single, nothing is written on
-// this exit code); 3 when the run dir is missing or not anchored under the
-// main checkout (a worktree-local shadow — _shared/pipeline-run-dir.md's
-// Anchoring section, [IL-127]), or config.yml is unwritable. The config.yml
+// key=value form, a key repeated within one `--set` batch, a key outside the
+// canonical Manifesto lever set, or a value outside that lever's enum —
+// batch or single, nothing is written on this exit code); 3 when the run dir
+// is missing or not anchored under the main checkout (a worktree-local
+// shadow — _shared/pipeline-run-dir.md's Anchoring section, [IL-127]), or
+// config.yml is unwritable. The config.yml
 // third of the sanctioned-write family: bin/log-decision.js (decisions.md),
 // bin/stage-item.js (staged/), this (config.yml levers — the ceremony
 // escape hatch's downgrade path, and the Manifesto's own batch write).
@@ -53,17 +59,29 @@ const realDeps = {
 
 // Splits a `--set` value into its comma-joined `key=value` pairs. Returns
 // { entries } on success, or { malformed } — the raw entries with no `=` —
-// on failure. A pair's key is everything before the FIRST `=`; no current
-// lever value ever contains `=`, so this is not a meaningful ambiguity today.
+// or { duplicateKey } — the first key seen more than once in the batch — on
+// failure. A pair's key is everything before the FIRST `=`; no current lever
+// value ever contains `=`, so this is not a meaningful ambiguity today. A
+// duplicate key within one batch is treated as malformed (not "last value
+// wins") because a composed 13-pair call carrying one is almost certainly a
+// compose bug, not intentional — see #1580.
 function parseSetEntries(raw) {
   const entries = [];
   const malformed = [];
+  const seen = new Set();
+  let duplicateKey = null;
   for (const pair of raw.split(',')) {
     const eq = pair.indexOf('=');
     if (eq <= 0) { malformed.push(pair); continue; }
-    entries.push({ key: pair.slice(0, eq), value: pair.slice(eq + 1) });
+    const key = pair.slice(0, eq);
+    const value = pair.slice(eq + 1);
+    if (!duplicateKey && seen.has(key)) duplicateKey = key;
+    seen.add(key);
+    entries.push({ key, value });
   }
-  return malformed.length ? { malformed } : { entries };
+  if (malformed.length) return { malformed };
+  if (duplicateKey) return { duplicateKey };
+  return { entries };
 }
 
 function run(argv, deps = realDeps) {
@@ -90,6 +108,9 @@ function run(argv, deps = realDeps) {
     const parsed = parseSetEntries(o.set);
     if (parsed.malformed) {
       return usageErrors(parsed.malformed.map((p) => `--set entry ${JSON.stringify(p)} is not in key=value form`));
+    }
+    if (parsed.duplicateKey) {
+      return usageError(`--set key ${JSON.stringify(parsed.duplicateKey)} appears more than once in the batch`);
     }
     entries = parsed.entries;
   } else {

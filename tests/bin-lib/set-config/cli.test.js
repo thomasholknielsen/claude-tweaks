@@ -138,6 +138,18 @@ test('cli: --set with a malformed entry (no "=") is exit 2 and nothing is writte
   assert.ok(body.includes('mode: auto'), 'nothing should have been written');
 });
 
+test('cli: --set with a duplicate key in the batch is exit 2 and nothing is written', () => {
+  const { main, runDir } = fixture();
+  const { deps, err } = fakeDeps(main);
+  const code = run(['--run', runDir, '--set', 'mode=auto,mode=hybrid'], deps);
+  assert.equal(code, 2);
+  const msg = err.join('');
+  assert.ok(msg.includes('"mode"'), 'error should name the duplicated key');
+  assert.ok(/more than once/.test(msg));
+  const body = fs.readFileSync(path.join(runDir, 'config.yml'), 'utf8');
+  assert.ok(body.includes('mode: auto'), 'nothing should have been written — original value intact');
+});
+
 test('cli: --set combined with --key/--value is exit 2', () => {
   const { main, runDir } = fixture();
   const { deps, err } = fakeDeps(main);

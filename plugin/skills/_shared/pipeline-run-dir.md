@@ -109,8 +109,9 @@ isolated to this worktree can still see an Edit/Write attempt against `decisions
 `staged/*.md`, `manifest.yml`, or any other file under a resolved run directory refused outright.
 When that happens, use `bin/log-decision.js` (`_shared/auto-decision-log.md`'s canonical
 appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged file; `bin/set-config.js`
-writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <value>` — the
-ceremony escape hatch's downgrade path, refs #1376) the same way — none of the three are
+writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <value>`, or the
+`--run <run-dir> --set <key1>=<value1>,...` batch form that writes every lever in one call,
+refs #1376/#1580) the same way — none of the three are
 subject to this tool-level pinning, and all work identically from a worktree session or the
 main checkout. Reach for `bin/set-config.js` rather than a hand-rolled `sed -i` on `config.yml`
 even from a Bash call: a `sed -i` target built from a shell variable set in an earlier command
