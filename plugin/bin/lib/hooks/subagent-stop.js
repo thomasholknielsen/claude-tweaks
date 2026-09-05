@@ -22,6 +22,34 @@ const ctxLib = require('./context');
 // still falls through to the violation path below.
 const STATUS_RE = /^(?:-\s+)?(?:\*\*Status:\*\*\s+)?(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\b/;
 
+// This plugin's own name (plugin/.claude-plugin/plugin.json's "name" field) —
+// the same literal already hardcoded in post-tool-use.js's manifest check.
+// No shared constant module exists for it yet; this is the second call site,
+// not a third, so introducing one is left for whenever a third appears.
+const OWN_PLUGIN_NAMESPACE = 'claude-tweaks';
+
+// #1596: the Subagent Contract's Exemption section (subagent-output-contract.md)
+// exempts an agent whose definition file lives outside this plugin's own
+// `agents/` directory — it ships with a third-party plugin and was never
+// given the status-line format, so a "malformed" reply from it is not
+// evidence of a violation at all. The SubagentStop hook's `agent_type` input
+// field (present "when the session uses --agent or the hook fires inside a
+// subagent call", per Claude Code's own hooks reference) carries that
+// plugin's namespace as a `plugin:agent-name` prefix for a real plugin agent
+// (e.g. "code-simplifier:code-simplifier", "impeccable:impeccable-finish-reviewer").
+// A bare type with no namespace (e.g. "general-purpose", "Explore") is a
+// harness built-in Task type — claude-tweaks' own ad hoc fan-out dispatches
+// use these, so they are NOT exempt: the contract's prompt, not the agent
+// type, governs those. `claude-tweaks:{name}` (this plugin's own agents/
+// directory) is likewise never exempt, per the contract's own "never exempt"
+// rule for this plugin's own agents.
+function isExemptAgentType(agentType) {
+  if (typeof agentType !== 'string' || !agentType) return false;
+  const idx = agentType.indexOf(':');
+  if (idx === -1) return false;
+  return agentType.slice(0, idx) !== OWN_PLUGIN_NAMESPACE;
+}
+
 function lastAssistantText(transcriptPath) {
   let raw;
   try { raw = fs.readFileSync(transcriptPath, 'utf8'); } catch { return null; }
@@ -74,8 +102,9 @@ function run(ctx) {
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
   if (STATUS_RE.test(text.trim())) return {};
+  if (isExemptAgentType(ctx.input.agent_type)) return {}; // third-party agent — never governed by this contract
   ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: text.trim().split('\n')[0].slice(0, 120) }, ownedRun.attribution);
   return { json: { systemMessage: 'claude-tweaks: a subagent reply is missing the Subagent Contract status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED). Logged to events.jsonl.' } };
 }
 
-module.exports = { run };
+module.exports = { run, isExemptAgentType };
