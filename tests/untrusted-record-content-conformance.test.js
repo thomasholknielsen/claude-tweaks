@@ -7,6 +7,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -271,13 +272,11 @@ const REFINE_MODE_FLAT = readFlat('plugin/skills/backlog/refine-mode.md');
 const BASE_SHA = '7fe43b182';
 
 function baseFileGrepCount(relPath, literal) {
-  const { execFileSync } = require('node:child_process');
   const out = execFileSync('git', ['show', `${BASE_SHA}:${relPath}`], { cwd: ROOT, encoding: 'utf8' });
   return out.split('\n').filter((line) => line.includes(literal)).length;
 }
 
 test('base SHA is a valid ancestor of HEAD (pin precondition)', () => {
-  const { execFileSync } = require('node:child_process');
   // Throws (non-zero exit) if BASE_SHA is not an ancestor of HEAD — fails loud rather
   // than silently comparing against a moved/rewritten history.
   execFileSync('git', ['merge-base', '--is-ancestor', BASE_SHA, 'HEAD'], { cwd: ROOT });
@@ -289,6 +288,9 @@ test('refine-mode.md wraps per the contract and pins the RECOMMEND_BUILD/RECOMME
   assert.ok(REFINE_MODE_FLAT.includes('^RECOMMEND_MERGE: (true|false)$'), 'anchored RECOMMEND_MERGE verdict regex missing');
   assert.ok(REFINE_MODE_FLAT.includes("from `grant-check.md`'s own rendered Step 3 output only"), 'verdict-source constraint missing');
   assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'wrapped per `_shared/untrusted-record-content.md`'), 0, 'go-red check: base file must not already carry this citation');
+  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', '^RECOMMEND_BUILD: (true|false)$'), 0, 'go-red check: base file must not already carry this anchored regex literal');
+  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', '^RECOMMEND_MERGE: (true|false)$'), 0, 'go-red check: base file must not already carry this anchored regex literal');
+  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', "from `grant-check.md`'s own rendered Step 3 output only"), 0, 'go-red check: base file must not already carry this verdict-source constraint');
 });
 
 test('refine-mode.md never defaults a missing grant-check verdict to a grant — routes to flag-back instead', () => {
@@ -297,6 +299,7 @@ test('refine-mode.md never defaults a missing grant-check verdict to a grant —
   assert.ok(REFINE_MODE_FLAT.includes('never a default `auto:build` recommendation'), 'never-default clause missing');
   assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'no verdict rendered'), 0, 'go-red check: base file must not already carry this reason string');
   assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'renders that record\'s Grant lane row as a flag-back'), 0, 'go-red check: base file must not already carry this routing clause');
+  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'never a default `auto:build` recommendation'), 0, 'go-red check: base file must not already carry this never-default clause');
 });
 
 test('refine-lanes.md Flag-back Population names the missing-verdict source', () => {
@@ -321,10 +324,10 @@ test('skill-graph rows carry the #1442 refine-mode.md extension, still one dedic
   const rows = GRAPH.split('\n').filter((l) => l.startsWith('| `_shared/untrusted-record-content.md`'));
   assert.strictEqual(rows.length, 1, 'still exactly one dedicated contract row');
   assert.strictEqual(baseFileGrepCount('docs/skill-graph.md', '#1442 extended the same wrap to `refine-mode.md`'), 0, 'go-red check: base file must not already carry this clause');
+  assert.strictEqual(baseFileGrepCount('docs/skill-graph.md', 'further extended by #1442 to `backlog/refine-mode.md`'), 0, 'go-red check: base file must not already carry this contract-row clause');
 });
 
 test('no restated BEGIN/END UNTRUSTED RECORD CONTENT markers under plugin/skills/backlog/', () => {
-  const { execFileSync } = require('node:child_process');
   let out = '';
   try {
     out = execFileSync('grep', ['-rn', '-F', 'BEGIN UNTRUSTED RECORD CONTENT', path.join(ROOT, 'plugin/skills/backlog/')], { encoding: 'utf8' });
