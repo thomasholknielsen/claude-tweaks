@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T21:29:26.421Z",
+  "computedAt": "2026-09-05T22:54:26.169Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -15,7 +15,7 @@
       },
       {
         "number": 1822,
-        "updatedAt": "2026-09-04T09:59:34Z",
+        "updatedAt": "2026-09-05T22:21:39Z",
         "state": "OPEN"
       },
       {
@@ -161,76 +161,6 @@
           "needsDefinition": false,
           "priority": null,
           "stage": "backlog",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: capture\n\n## Current State\n\n`/claude-tweaks:sweep`'s `## Next Actions` block (`plugin/skills/sweep/SKILL.md`) renders in a\nfixed order: the top `/claude-tweaks:backlog attention` pick (when present, replacing the\n`/claude-tweaks:dispatch` slot per the precedence rule) -> `/claude-tweaks:dispatch {grants}` ->\n`/claude-tweaks:tidy --approve` -> `/claude-tweaks:backlog attention`.\n\nObserved live on a real sweep run: tidy staged only two trivial, already-vetted items (one\n`docs/REGISTRY.md` line addition, three stale `bot:in-progress` label removals on issues whose\nclaims were already stale/released) -- yet `tidy --approve` rendered third in the Next Actions\nblock, after a `backlog refine #N` re-authorization pick and a `dispatch` call that kicks off\nnew autonomous builds. The user flagged this live as counter-intuitive: closing out a fully\nvetted, zero-judgment batch should be the cheapest, fastest thing to clear -- not buried behind\ntwo heavier, judgment-requiring actions.\n\n## Deliverables\n\n- Re-examine `sweep/SKILL.md`'s `## Next Actions` fixed ordering (`/claude-tweaks:dispatch` /\n  `/claude-tweaks:tidy --approve` / `/claude-tweaks:backlog attention`, with the needs-you\n  precedence rule only ever replacing the `/dispatch` slot) and decide whether \"apply\n  already-staged, mechanically-vetted proposals\" should sort ahead of \"start new autonomous\n  work\" or \"resolve a re-authorization.\"\n- Either (a) reorder so `tidy --approve` leads whenever this run's tidy step staged anything,\n  with dispatch/refine picks following, or (b) if the current order is intentional, add one\n  line to `sweep/SKILL.md` stating the rationale so a future reader isn't left guessing.\n- Check whether the same ordering question applies to `tidy/SKILL.md`'s own Next Actions\n  derivation rule (the \"Approve ({N})\" line's position relative to a Yours group's batch line)\n  for consistency across both skills.\n\n## Acceptance Criteria\n\n- `sweep/SKILL.md`'s `## Next Actions` section either reorders `tidy --approve` ahead of\n  `dispatch`/the needs-you pick whenever tidy staged anything this run, or documents why the\n  current order is deliberate.\n- No change to the underlying tidy/refine/dispatch mechanics -- this is purely about the\n  recommended ordering of paste-ready lines in the close-out render.\n\n_Filed by `capture` via specShapedBody._",
-        "createdAt": "2026-09-04T08:59:32Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          }
-        ],
-        "number": 1822,
-        "state": "OPEN",
-        "title": "Sweep's Next Actions buries the already-staged tidy --approve behind dispatch/refine picks",
-        "updatedAt": "2026-09-04T09:59:34Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "ready",
           "grants": {
             "build": true,
             "merge": false
