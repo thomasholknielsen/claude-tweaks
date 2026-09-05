@@ -928,6 +928,17 @@ async function main(argv) {
     // is the exact fixed-list drift this whole record eliminates.
     const result = archiveRunDir(mainRoot, runDir);
     if (!result.ok) {
+      if (result.reason === 'audit-untracked') {
+        process.stdout.write(
+          `claude-tweaks: archival refused — audit-untracked (${result.untrackedAuditFiles.join(', ')} ` +
+          'exist here but are not tracked by this checkout\'s git index). A pr-first standalone run\'s ' +
+          'decisions.md/report.md/staged only become tracked once their worktree copy has merged AND this ' +
+          'checkout has pulled that merge — sync this checkout with origin (git pull, or reconcile\'s own ' +
+          'mirror-ff) and retry. If no such merge exists (the content was never committed anywhere), it is ' +
+          'not recoverable from git history — re-run whatever produced it.\n',
+        );
+        return 0;
+      }
       process.stdout.write(`claude-tweaks: archival refused — ${result.reason}\n`);
       return 0;
     }
@@ -1120,6 +1131,15 @@ async function main(argv) {
     const { isFresh } = require('./lib/reconcile/cache');
     const { QUIET_SKIP_REASONS } = require('./lib/hooks/worktree-reap');
     const root = mainCheckoutRoot(cwd) || cwd;
+    // #1687: session-start.js's spawn site now threads the spawning session's
+    // id into this dedicated env var (never `CLAUDE_CODE_SESSION_ID` — see
+    // that file's own comment on why). `|| undefined` rather than `|| null`
+    // matches reconcile()'s own opts contract (`sessionId?: string`) and lets
+    // archiveMerged's destructuring default apply the same way an omitted key
+    // would. Absent (no spawning session id was ever known) leaves this
+    // exactly as unresolvable as before this fix — the other two gates
+    // (24h staleness, shipped-unclosed evidence) still govern alone.
+    const sessionId = process.env.CLAUDE_TWEAKS_SESSION_ID || undefined;
     const statusPath = path.join(root, '.claude-tweaks', 'reconcile-background-status.json');
 
     // Freshness is decided from THIS status file's own `completedAt` —
@@ -1165,7 +1185,7 @@ async function main(argv) {
 
     let summary = {};
     try {
-      const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS });
+      const r = await reconcile({ cwd, checks: BACKGROUND_CHECKS, sessionId });
       summary = {
         released: (r.claims || []).filter((c) => c.action === 'released').length,
         archived: (r.runs || []).filter((x) => x.action === 'archived').length,
