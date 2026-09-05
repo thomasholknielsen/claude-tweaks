@@ -140,9 +140,11 @@ approving one.
 
 Population: rows that reached this lane before Step 4 ever rendered — Step 3's
 `RECOMMEND_BUILD: false` recommendation (`flag back (needs scoring)`; the human may instead supply
-`risk:*`/`size:*` inline as a free-text override rather than accepting the flag-back — Step 5) and
-Step 3.5's body-shape auto-downgrade (a row Step 3 recommended granting whose body failed the
-spec-shape re-check immediately before Step 4).
+`risk:*`/`size:*` inline as a free-text override rather than accepting the flag-back — Step 5),
+Step 3's missing-verdict outcome (`flag back (no verdict rendered)` — `grant-check` rendered no
+`RECOMMEND_BUILD`/`RECOMMEND_MERGE` line at all, per `_shared/untrusted-record-content.md`'s
+verdict-source rule), and Step 3.5's body-shape auto-downgrade (a row Step 3 recommended granting
+whose body failed the spec-shape re-check immediately before Step 4).
 
 | # | Record | Current → Recommended | Evidence |
 |---|---|---|---|
