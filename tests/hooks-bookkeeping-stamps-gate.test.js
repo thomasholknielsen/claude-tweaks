@@ -197,6 +197,47 @@ test('bookkeeping-stamps gate (#989): worktree stamped, pr-first stubbed, a push
   assert.deepStrictEqual(out, {}, 'the initial publish push must not be denied — it is the prerequisite record-pr cannot exist without');
 });
 
+test('bookkeeping-stamps gate (#1860): a worktree branch created via `-b {branch} origin/main` (worktree.baseRef: fresh\'s own form) inherits tracking to origin/main before any push -> still allow the first publish push', () => {
+  const main = gitRepo();
+  // Give `main` a real self-remote so `origin/main` exists as an actual
+  // remote-tracking ref -- reproducing what `worktree.baseRef: fresh`
+  // (EnterWorktree's default, used for every pipeline worktree this plugin
+  // creates) actually does: `git worktree add -b {branch} {path} origin/main`.
+  const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-bare-'));
+  execFileSync('git', ['init', '-q', '--bare', bare]);
+  execFileSync('git', ['-C', main, 'remote', 'add', 'origin', bare]);
+  execFileSync('git', ['-C', main, 'push', '-q', 'origin', 'HEAD:refs/heads/main']);
+  execFileSync('git', ['-C', main, 'fetch', '-q', 'origin']);
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-wtparent-'));
+  const wt = path.join(parent, 'wt');
+  const branchName = `wt-branch-${path.basename(parent)}`;
+  // Branching FROM the remote-tracking ref (not from local HEAD, unlike
+  // `linkedWorktreeOf` above) is what triggers git's `branch.autoSetupMerge`
+  // default and inherits tracking to origin/main immediately -- before this
+  // branch has ever been pushed under its own name.
+  execFileSync('git', ['-C', main, 'worktree', 'add', '-q', wt, '-b', branchName, 'origin/main']);
+  const wtReal = fs.realpathSync(wt);
+  commitMaterializedSpec(wtReal, path.join('work', '991-spec.md'));
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-bsg-proj-'));
+  const { run } = mkRunDir(project, wtReal, undefined);
+  // Fixture sanity: @{u} must resolve successfully here (to origin/main), NOT
+  // fail with a git error -- the pre-#1860 bug required a git-error exit to
+  // recognize "never pushed", which this exact, common worktree-creation form
+  // never produces.
+  const upstream = execFileSync(
+    'git', ['-C', wtReal, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { encoding: 'utf8' },
+  ).trim();
+  assert.strictEqual(upstream, 'origin/main', 'fixture sanity: @{u} must resolve (inherited), not fail, to reproduce #1860');
+  const out = pre.run(
+    { input: bashInput(`git push origin ${branchName}`, wtReal), runDir: run, runState: { status: 'active', worktree: wtReal }, cwd: wtReal },
+    { resolveIntegrationModel: () => 'pr-first' },
+  );
+  assert.deepStrictEqual(
+    out, {},
+    'the initial publish push must not be denied even though @{u} resolves -- it resolves to origin/main (inherited from the branch-off point), not this branch\'s own remote ref',
+  );
+});
+
 test('bookkeeping-stamps gate (#989): worktree stamped, pr-first stubbed, a push of an ALREADY-tracked branch with no PR recorded -> still deny', () => {
   const main = gitRepo();
   const wt = linkedWorktreeOf(main);
