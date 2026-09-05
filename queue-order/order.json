@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T09:48:03.462Z",
+  "computedAt": "2026-09-05T10:09:46.198Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -140,7 +140,7 @@
       },
       {
         "number": 733,
-        "updatedAt": "2026-08-30T06:31:03Z",
+        "updatedAt": "2026-09-05T09:51:19Z",
         "state": "OPEN"
       },
       {
@@ -2061,88 +2061,6 @@
           "risk": "low",
           "size": "low",
           "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\nOrigin: /claude-tweaks:wrap-up Review Console (record #685, run 2026-08-16T205523-spec-685) — staged/reflect-4.md\n\n## Current State\n\n`categoriseReproduction` (`bin/lib/coordination.js`) requires severity-bucket agreement (`high`/`critical` vs `medium`/`low`/`info`) between two reviewers before treating a finding as reproduced. A run's own lens-3c reproduction pair agreed on location and substance for the digest-vs-Approve finding (`step-6-auto.md:154`) but rated it high (B) vs medium (A) — straddling that bucket boundary. Because of the strict bucket-agreement rule, a substantively reproduced finding came back `unconfirmed` and needed a direct-verification override to be rescued. A pair that agrees on the defect but straddles the high/medium line is a common shape; the bucket rule turns it into a false negative that only a source-reading reviewer catches.\n\n## Deliverables\n\nChange `categoriseReproduction` so a location+substance agreement with a straddled severity bucket is treated as reproduced (severity contested) rather than dropped to `unconfirmed` — e.g. take the lower of the two severities as the confirmed value, or flag the finding explicitly as \"reproduced, severity contested\" rather than silently downgrading it.\n\n## Acceptance Criteria\n\n- A reproduction pair that agrees on location and substance but rates severity in different buckets (e.g. high vs medium) is classified as reproduced, not `unconfirmed`.\n- The confirmed severity for such a pair is deterministic (e.g. the lower of the two) or the \"contested\" state is surfaced explicitly to whatever consumes `categoriseReproduction`'s output.\n- Existing reproduction-pair test cases that both agree on severity bucket keep their current classification (`reproduced` when they agree, `unconfirmed` for genuine location/substance disagreement) — this is a narrowing of the false-negative case only, not a general loosening.\n- `npm test` green.\n\n## Technical Approach\n\nLocate `categoriseReproduction` in `bin/lib/coordination.js` and its severity-bucket comparison logic. Add a location+substance-agreement check that, when true, short-circuits the strict bucket-equality requirement and instead resolves severity via the lower-of-two rule (or an explicit \"contested\" flag), consumed by `skills/review/step3-lens-dispatch.md`'s reproduction-pair handling.\n\n### Key Files\n\n- `bin/lib/coordination.js` — `categoriseReproduction`\n- `plugin/skills/review/step3-lens-dispatch.md` — reproduction-pair handling\n\n## Gotchas\n\n- Don't loosen the rule for pairs that disagree on *location or substance* — only the specific case of agreement on both with a straddled severity bucket.\n\n## Original request\n\nReproduction pairs — treat location+substance agreement with a straddled severity bucket as reproduced (severity contested), not unconfirmed\n\n# Reflect — staged finding 4\n\n**Category:** tangential\n**Severity:** low\n**Reversibility:** high\n**Source:** full mode, lens \"Surprises\"\n**Files:** bin/lib/coordination.js, skills/review/step3-lens-dispatch.md\n\n## Finding\n\nThe lens-3c reproduction pair agreed on location and substance for the digest-vs-Approve finding (step-6-auto.md:154) but rated it high (B) vs medium (A). `categoriseReproduction` requires severity-bucket agreement (`high`/`critical` vs `medium`/`low`/`info`), so a substantively reproduced finding came back `unconfirmed` and needed the direct-verification override. A pair that agrees on the defect but straddles the high/medium line is a common shape; the bucket rule turns it into a false negative that only a source-reading reviewer rescues. Routed D5 (names a `bin/lib` behavior; holds in any project) — self-reference: this repo owns it, so it becomes a project record, not an upstream issue.\n\n## Suggested resolution\n\nConsider a location-only match with the confirmed severity taken as the lower of the two (or flag \"reproduced, severity contested\") rather than dropping to unconfirmed — a record for `bin/lib/coordination.js` + `step3-lens-dispatch.md`'s reproduction rule.\n\n## Decision-log reference\n\nSTAGED — Step 3: pattern observation \"reproduction pair severity-bucket false negative\" (self-reference: this repo owns the component → project record). Stage path: staged/reflect-4.md.\n\n\nOrigin: /claude-tweaks:wrap-up Review Console (record #685, run 2026-08-16T205523-spec-685) — staged/reflect-4.md\n",
-        "createdAt": "2026-08-17T05:04:22Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 733,
-        "state": "OPEN",
-        "title": "Reproduction pairs — treat location+substance agreement with a straddled severity bucket as reproduced (severity contested), not unconfirmed",
-        "updatedAt": "2026-08-30T06:31:03Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
