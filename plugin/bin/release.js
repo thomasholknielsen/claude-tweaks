@@ -79,6 +79,22 @@ function status(args) {
   }
 }
 
+// The CLI form runs in a shell; the /plugin form runs inside an interactive
+// Claude Code session, which has no shell to paste the CLI form into.
+function installUpdateLines(marketplaceRepo) {
+  const marketplaceName = marketplaceRepo.split('/')[1];
+  return [
+    '',
+    'Install/update this release from the CLI:',
+    `  claude plugin marketplace add ${marketplaceRepo}`,
+    `  claude plugin install claude-tweaks@${marketplaceName}`,
+    '',
+    'Or from inside a Claude Code session:',
+    `  /plugin marketplace add ${marketplaceRepo}`,
+    `  /plugin install claude-tweaks@${marketplaceName}`,
+  ];
+}
+
 function main(argv) {
   const args = argv.slice(2);
   if (args.includes('--help') || args.includes('-h')) { console.log(USAGE); return 0; }
@@ -120,11 +136,7 @@ function main(argv) {
     const out = runRelease(deps, { part, summary, date, dryRun, allowUnnamed, log: (m) => console.log(m) });
     console.log(dryRun ? `[dry-run] v${out.version} — no changes written` : `released v${out.version}`);
     if (!dryRun) {
-      const marketplaceName = MARKETPLACE_REPO.split('/')[1];
-      console.log('');
-      console.log('Install/update this release from the CLI:');
-      console.log(`  claude plugin marketplace add ${MARKETPLACE_REPO}`);
-      console.log(`  claude plugin install claude-tweaks@${marketplaceName}`);
+      installUpdateLines(MARKETPLACE_REPO).forEach((line) => console.log(line));
     }
     return 0;
   } catch (err) {
@@ -133,4 +145,6 @@ function main(argv) {
   }
 }
 
-process.exitCode = main(process.argv);
+module.exports = { installUpdateLines };
+
+if (require.main === module) process.exitCode = main(process.argv);
