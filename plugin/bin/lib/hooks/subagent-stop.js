@@ -1,11 +1,22 @@
 // bin/lib/hooks/subagent-stop.js — E3: Subagent Contract status-line check (warn tier).
 // Best-effort by design: SubagentStop fires unreliably for Task dispatches
 // (claude-code#27755) and transcript field names may drift. Never blocks.
-// Known false-positive source: a dispatch whose own template specifies a
-// different first-line contract (e.g. superpowers:subagent-driven-development's
-// task-reviewer, which begins with a spec-compliance verdict) is logged here
-// even though nothing was actually violated — STATUS_RE has no way to know a
-// dispatch declared a different contract.
+// Known false-positive sources:
+// 1. A dispatch whose own template specifies a different first-line contract
+//    (e.g. superpowers:subagent-driven-development's task-reviewer, which
+//    begins with a spec-compliance verdict) is logged here even though
+//    nothing was actually violated — STATUS_RE has no way to know a dispatch
+//    declared a different contract.
+// 2. A session running as a background job (dispatched via the Agent tool by
+//    an outer orchestrator, e.g. a /claude-tweaks:dispatch two-call handoff)
+//    has every one of its own turn boundaries checked independently while it
+//    waits on its own parallel Task-tool dispatches — including its
+//    legitimate interim narration turns, which the subagent-output-contract's
+//    status-line requirement never applies to (that requirement is scoped to
+//    a dispatched subagent's own *final* reply). Each such narration turn is
+//    logged as a contract-violation even though the orchestrating session
+//    itself never violated the contract; only its own dispatched subagents'
+//    final replies are subject to that check.
 'use strict';
 const fs = require('fs');
 const ctxLib = require('./context');
