@@ -79,8 +79,8 @@ function run(argv, deps = realDeps) {
     return usageError('--set cannot be combined with --key/--value');
   }
   if (!batchMode) {
-    if (!o.key) return usageError('--key <lever> is required (or use --set key=value,...)');
-    if (o.value == null || o.value === '') return usageError('--value <value> is required (or use --set key=value,...)');
+    if (!o.key) return usageError('--key <lever> is required');
+    if (o.value == null || o.value === '') return usageError('--value <value> is required');
   } else if (o.set === '') {
     return usageError('--set requires at least one key=value pair');
   }
@@ -125,7 +125,8 @@ function run(argv, deps = realDeps) {
       results.push({ key, value, ...setConfigLever({ runDir: target.dir, key, value }) });
     }
   } catch (err) {
-    deps.stderr(`set-config.js: could not write config.yml (${err && err.message})\n`);
+    const msg = `set-config.js: could not write config.yml (${err && err.message})${results.length ? ` — already written before the failure: ${results.map(r => r.key).join(', ')}` : ''}`;
+    deps.stderr(`${msg}\n`);
     return 3;
   }
 
