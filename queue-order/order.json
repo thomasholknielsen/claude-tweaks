@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T11:09:29.896Z",
+  "computedAt": "2026-09-05T12:32:16.748Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -105,7 +105,7 @@
       },
       {
         "number": 1480,
-        "updatedAt": "2026-08-29T15:39:29Z",
+        "updatedAt": "2026-09-05T11:16:28Z",
         "state": "OPEN"
       },
       {
@@ -1647,88 +1647,6 @@
           "risk": "low",
           "size": "low",
           "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: reflect full mode from #1228\nDefer-reason: tangential\n\n## Current State\n\n`plugin/bin/lib/hooks/subagent-stop.js` checks the last assistant text of a SubagentStop-triggering\nevent against `STATUS_RE` (`^(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\\b`) and logs a\n`contract-violation` event when it doesn't match. When the session receiving this check is itself\nrunning as a background job (dispatched via the Agent tool by an outer orchestrator — e.g. a\n`/claude-tweaks:dispatch` two-call handoff), every one of that session's own turn boundaries while\nwaiting on its own parallel Task-tool dispatches is independently checked, even though the\nsubagent-output-contract's status-line requirement applies only to a dispatched subagent's own\n*final* reply — never to the orchestrating session's legitimate interim narration turns. During\nrecord #1228's own review+polish+wrap-up dispatch, 8 lens-review agents plus a code-simplifier\nagent were dispatched in parallel; the orchestrating session narrated one line per completion\nnotification per its own \"Narrate\" convention. `friction-events.js --run <that run>` returned 15\n`contract-violation` events for the run — all 15 are verbatim excerpts of the orchestrating\nsession's own narration text, not any dispatched agent's reply. All 9 real dispatched Task agents\nthat run correctly emitted a valid status line as their first reply line; zero genuine violations\noccurred. The file's own header comment already documents one known false-positive source (\"a\ndispatch whose own template specifies a different first-line contract\") but not this second class.\n\n## Deliverables\n\n- Extend `subagent-stop.js`'s existing \"Known false-positive source\" header comment to name this\n  second class: a background-job session's own interim narration turns, checked independently of\n  its dispatched subagents' replies. Documenting the limitation is sufficient given the hook is\n  warn-tier/best-effort and never blocks — no behavioral change required.\n\n## Acceptance Criteria\n\n- The false-positive comment block names both known sources.\n- A future reader of `events.jsonl`'s `contract-violation` entries for a background-job-orchestrated\n  run understands why a high count there does not necessarily indicate genuine subagent contract\n  violations.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-08-26T08:37:40Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxTu0eA",
-            "name": "by:reflect",
-            "description": "Origin: filed via /reflect (wrap-up Phase 1)",
-            "color": "ededed"
-          }
-        ],
-        "number": 1480,
-        "state": "OPEN",
-        "title": "subagent-stop.js contract-violation check false-fires against an orchestrating background-job session's own interim narration turns",
-        "updatedAt": "2026-08-29T15:39:29Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
