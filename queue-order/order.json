@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T20:27:45.512Z",
+  "computedAt": "2026-09-05T20:30:18.932Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -35,7 +35,7 @@
       },
       {
         "number": 1787,
-        "updatedAt": "2026-09-04T10:00:11Z",
+        "updatedAt": "2026-09-05T20:29:47Z",
         "state": "OPEN"
       },
       {
@@ -485,82 +485,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "# Ledger item 2 — staged backlog proposal\n\n**Category:** bug\n\nOrigin: /claude-tweaks:wrap-up run for record #1222 (Phase 2 curation, Journeys row), 2026-09-02.\nDefer-reason: genuinely-larger — pre-existing, unrelated to #1222's own diff, and a proper fix needs a new regression test in a file with no existing coverage of this function.\n\n## Current State\n\n`parseJourneyFilesList` in `plugin/bin/wrap-up-engine.js` (used by the `plan` CLI command's\n`buildJourneyFrontmatter`, which feeds `engine-plan.js`'s `resolveFrontmatterOverlapScope` for the\nJourneys curation row) splits journey frontmatter on `\\n` only. A journey file with CRLF (`\\r\\n`)\nline endings — `docs/journeys/verify-wrap-ups-closure-checklist-900.md` is a live example in this\nrepo — leaves each `- path` line in the parsed frontmatter array carrying a trailing `\\r`. The\nmatch regex `/^\\s*-\\s+(.+)$/` cannot consume it: JavaScript regex `.` excludes `\\r` as a line\nterminator, and `$` (without the `m` flag) requires the true end of the string, not \"before a\ntrailing `\\r`\". The regex match fails entirely on the first `- path` line, the loop's `if (!m)\nbreak;` fires immediately, and the whole `files:` list silently parses to `[]`.\n\nNet effect: any CRLF-encoded journey drops out of `/claude-tweaks:wrap-up` Phase 2's Journeys-row\ncandidate scan (`journey-curation.md`'s J1 check) — the wrap-up run proceeds as if that journey has\nzero overlap with the current diff, even when its own `files:` frontmatter names files the diff\nactually touched. Reproduced live: isolating `parseJourneyFilesList` + `gatherFacts` against\n`docs/journeys/verify-wrap-ups-closure-checklist-900.md` (frontmatter lists\n`plugin/bin/lib/wrap-up/engine-verify.js` and `plugin/bin/wrap-up-engine.js`, both changed by\nrecord #1222) returns `parsed files: []` and `overlap: false`, even though\n`changed.has('plugin/bin/lib/wrap-up/engine-verify.js')` is `true`.\n\nNo functional harm was caused in this specific run — the journey text was independently confirmed\naccurate by direct read during the same wrap-up pass — but the candidate computation itself is\nsilently wrong on any CRLF checkout, which is common on Windows without a normalizing\n`.gitattributes` entry for `docs/journeys/*.md`.\n\n## Deliverables\n\n- [ ] Make `parseJourneyFilesList` (`plugin/bin/wrap-up-engine.js`) CRLF-tolerant — e.g. normalize\n      the content (`content.replace(/\\r\\n/g, '\\n')`, or split on `/\\r\\n|\\n/`) before the existing\n      line-based parse, rather than reworking the match regex line by line.\n- [ ] Add a regression test pinning CRLF frontmatter parsing for this function (no existing test\n      file covers it today — check `tests/wrap-up-engine-run-dir-anchoring.test.js` and\n      `tests/bin-lib/wrap-up/` for the right home, or add a new focused test file).\n- [ ] Consider whether other frontmatter/markdown parsers in `plugin/bin/lib/wrap-up/` and\n      `plugin/bin/wrap-up-engine.js` share the same LF-only assumption (e.g. the Skills/Docs rows'\n      own file-reading paths) — scope this only if a quick grep turns up an obviously shared helper;\n      otherwise file a separate record rather than widening this one.\n\n## Acceptance Criteria\n\n1. A journey file with CRLF line endings and a `files:` frontmatter list correctly contributes its\n   listed files to the Journeys row's candidate-overlap computation (verified by the new\n   regression test).\n2. Existing LF-encoded journeys continue to parse identically (no regression).\n3. `npm test` stays fully green.\n\n---\n_Filed by `wrap-up` (Phase 2 curation, Journeys row fix-exhaust; auto-filed via the queueWriteAutoFile bookkeeping capability, autonomy ceiling unattended) via specShapedBody, from record #1222._\n",
-        "createdAt": "2026-09-02T11:53:00Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          }
-        ],
-        "number": 1787,
-        "state": "OPEN",
-        "title": "wrap-up engine's journey candidate-matching drops CRLF-encoded journeys",
-        "updatedAt": "2026-09-04T10:00:11Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
