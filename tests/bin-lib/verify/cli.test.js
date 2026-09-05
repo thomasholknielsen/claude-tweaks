@@ -329,3 +329,56 @@ test('an explicit --log-dir still wins inside a checkout (#1921)', async () => {
   assert.strictEqual(code, 0);
   assert.ok(stdout.includes(`report: ${path.join(logDir, 'report.json')}`));
 });
+
+// Review fix round 1, finding 1: every write-path test up to this point ran
+// from a freshly-committed CLEAN tmpGitRepo() — none proved the spec's
+// explicit "dirty never gates the write" invariant, so a regression that
+// reintroduced a `git.dirty === false` term into the write gate would pass
+// the whole suite undetected.
+test('a passing full-set run on a DIRTY tree still writes both stamp files, and --stamp-status reflects dirty:true, match:false (#1921 Gotchas)', async () => {
+  const { repo, git, gitDir } = tmpGitRepo();
+  fs.writeFileSync(path.join(repo, 'untracked.txt'), 'dirty');
+  const { code } = await runCli(['--cmd', 'tests=node -e 0'], { cwd: repo });
+  assert.strictEqual(code, 0);
+  const head = git('rev-parse', 'HEAD').trim();
+  const stamp = JSON.parse(fs.readFileSync(path.join(gitDir, 'claude-tweaks-verify-pass.json'), 'utf8'));
+  assert.strictEqual(stamp.dirty, true);
+  assert.strictEqual(stamp.scope, 'full');
+  assert.strictEqual(stamp.sha, head);
+  assert.ok(fs.existsSync(path.join(gitDir, 'claude-tweaks-verify-pass')), 'legacy bare-SHA stamp must also be written on a dirty tree');
+
+  const status = await runCli(['--stamp-status'], { cwd: repo });
+  assert.strictEqual(status.code, 0);
+  const s = JSON.parse(status.stdout);
+  assert.strictEqual(s.present, true);
+  assert.strictEqual(s.dirty, true);
+  assert.strictEqual(s.match, false);
+});
+
+// Review fix round 1, finding 2: --git-dir routing for a normal --cmd run
+// (as opposed to --stamp-status --git-dir, already covered above) had no
+// dedicated test. Run from a non-git cwd with --git-dir pointing at a
+// separate repo: default paths (--log-dir, report.json) resolve against
+// that --git-dir, but gitInfo() itself still reads HEAD/dirty from the
+// process's own cwd (report.js's gitInfo has no --git-dir-aware overload) —
+// from a non-git cwd that's sha:null, so the write gate's `&& git.sha` term
+// blocks the stamp write even though the report path routing worked.
+// --git-dir on a run therefore redirects paths only; the stamp still keys
+// on the invoking cwd's own HEAD. This is existing, unchanged verify.js
+// behavior (confirmed empirically before writing this test), not a defect
+// this test is asserting should be fixed.
+test('--git-dir on a normal run routes default paths to that git dir, but the stamp still keys on the invoking cwd (#1921)', async () => {
+  const { gitDir: otherGitDir } = tmpGitRepo();
+  const nonGitCwd = tmpDir();
+  const { code, stdout } = await runCli(['--cmd', 'tests=node -e 0', '--git-dir', otherGitDir], { cwd: nonGitCwd });
+  assert.strictEqual(code, 0);
+  assert.ok(
+    stdout.includes(`report: ${path.join(otherGitDir, 'claude-tweaks-verify', 'report.json')}`),
+    'report.json must land under the --git-dir-routed default log dir',
+  );
+  assert.ok(fs.existsSync(path.join(otherGitDir, 'claude-tweaks-verify', 'report.json')));
+  assert.ok(
+    !fs.existsSync(path.join(otherGitDir, 'claude-tweaks-verify-pass.json')),
+    'no stamp is written: the run cwd is non-git, so gitInfo() sees sha:null and the write gate blocks',
+  );
+});
