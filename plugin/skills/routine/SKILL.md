@@ -1,7 +1,7 @@
 ---
 name: routine
 description: Use to create, update, or check status of a Claude Code cloud Routine for a claude-tweaks skill — instantiates a project-agnostic template into a live, scheduled routine. Keywords - routine, schedule, cron, cloud agent, recurring, automation.
-argument-hint: "<create|update|status|pause|resume> <skill>|--all|<fleet on|status|off> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment]"
+argument-hint: "<create|update|status|pause|resume|webhook-trigger> <skill>|--all|<fleet on|status|off> [--dry-run] [--defaults] [--branch <name>] [--environment <id>] [--refresh-environment] [--events <e1,e2,...>] [--filter <field>=<op>:<value>[,...]]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
@@ -34,6 +34,7 @@ Supports both recurring and one-off (single-fire, auto-disabling) cadences for a
 | `update <skill>` | Re-sync an existing routine against its (possibly changed) template. |
 | `pause <skill>` | Pause `<skill>`'s live routine — a single-field `RemoteTrigger update` setting `enabled: false`, nothing else reassembled or changed. Reversible via `resume`. |
 | `resume <skill>` | Resume `<skill>`'s paused routine — the same single-field call, `enabled: true`. |
+| `webhook-trigger <skill> --events <e1,e2,...> [--filter <field>=<op>:<value>[,...]] [--dry-run]` | Attach a GitHub-event trigger to an existing routine, via `RemoteTrigger {action: "create_webhook_trigger"}` — the routine also fires on matching GitHub activity, in addition to its schedule. See `/claude-tweaks:routine`'s WEBHOOK-TRIGGER mode in `webhook-trigger.md`. |
 | `status <skill>` | Show the instantiated record for `<skill>` alongside live routine state. |
 | `status --all` | Bulk drift check across every instantiated record in the project (`.claude-tweaks/routines/*.yml`), regardless of skill — no `<skill>` argument. The only entry point that can discover a record whose named skill no longer exists at all (renamed/retired), since every other path here starts from a skill name and checks that skill's own template file forward. See STATUS Step 1's `--all` branch for the full verdict table. |
 | `fleet on` | Turn on the self-maintaining posture in one action: a Manifesto collecting the human-owned policy levers, then provisioning (or reconciling, on a re-run) every routine in the fleet composition table. That table — in `fleet.md`, this skill's directory — is the one place the fleet's membership is enumerated; read the buckets there rather than restating them here. |
@@ -48,13 +49,14 @@ Supports both recurring and one-off (single-fire, auto-disabling) cadences for a
 
 ## Workflow
 
-Resolve the mode from `$ARGUMENTS` (`create` | `update` | `pause` | `resume` | `status` | `fleet on` | `fleet status` | `fleet off`), then read exactly one procedure file from this skill's directory. The modes are mutually exclusive, and `status --all` — the form `/claude-tweaks:init`'s Update Mode fires in bulk — has no use for CREATE's or UPDATE's body at all.
+Resolve the mode from `$ARGUMENTS` (`create` | `update` | `pause` | `resume` | `webhook-trigger` | `status` | `fleet on` | `fleet status` | `fleet off`), then read exactly one procedure file from this skill's directory. The modes are mutually exclusive, and `status --all` — the form `/claude-tweaks:init`'s Update Mode fires in bulk — has no use for CREATE's or UPDATE's body at all.
 
 | Mode | Read | Covers |
 |---|---|---|
 | `create <skill>` | `create-and-update.md` | CREATE Steps 0-9. Its Step 3 idempotency check routes to UPDATE automatically — same file, no second read. |
 | `update <skill>` | `create-and-update.md` | UPDATE Steps 0-7. UPDATE reuses CREATE's Steps 1, 2, 4, 5.5, and 6 by name, which is why the two modes share one file rather than splitting into two that would each read the other. |
 | `pause <skill>` / `resume <skill>` | `create-and-update.md` | PAUSE / RESUME — a single-field `RemoteTrigger update` (`{"enabled": false}` / `{"enabled": true}`). Reuses CREATE/UPDATE's record-resolution steps by name; no schedule or body reassembly. |
+| `webhook-trigger <skill>` | `webhook-trigger.md` | WEBHOOK-TRIGGER — attaches a GitHub-event trigger to an existing routine via `create_webhook_trigger`. Kept out of `create-and-update.md` (own file, not folded in) since it needs none of CREATE's environment/schedule ceremony. |
 | `status <skill>` / `status --all` | `status.md` | STATUS Steps 1-3.5, including the `--all` bulk-enumeration branch. Needs nothing from CREATE or UPDATE. |
 | `fleet on / status / off` | `fleet.md` | Steps 1-5 (Manifesto, cloud-parity check, conditional grant-unit provisioning, per-routine provisioning loop, summary). Its provisioning loop itself reads `create-and-update.md` per row — same CREATE/UPDATE procedure, parameterized by `fleet.md`'s own composition table rather than a single skill argument. `fleet status` and `fleet off` are the two companion sections in the same file (aggregated dashboard; pause-based shutdown). |
 
@@ -79,6 +81,10 @@ Steps 1-3 live in `create-and-update.md` in this skill's directory, after the UP
 ### RESUME `<skill>`
 
 Same file, immediately after PAUSE — the mirror call (`{"enabled": true}`).
+
+### WEBHOOK-TRIGGER `<skill>`
+
+Steps 0-6 live in `webhook-trigger.md` in this skill's directory — attaches a GitHub-event trigger to an existing routine via `RemoteTrigger {action: "create_webhook_trigger"}`, parallel to CREATE's `cron_expression` path but without CREATE's environment/schedule ceremony.
 
 ### STATUS `<skill>`
 
