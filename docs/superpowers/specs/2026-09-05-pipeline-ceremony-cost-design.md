@@ -16,6 +16,18 @@ A dispatched file-overlap group costs 78–105 minutes of agent wall-clock acros
 
 `ceremony:fast-lane` today trims spec-compliance, cross-spec promise, hindsight, architecture alignment, plan audit, and reflect depth — none of which is where the minutes go.
 
+A second measurement, on this repo (record #1535, a `size:low` single-module CLI fix, dispatched 2026-09-05, from its `events.jsonl` and `decisions.md`), shows the fixed-cost tail dominating once verification is discounted:
+
+| Segment | Min |
+|---|---|
+| Call 1: plan, 5-task loop, whole-branch review (Opus), test | 25 |
+| Call 2: run-dir adoption, freshness probe, Manifesto render, auto-inserted suite run, change analysis — before review's first judgment | 24 |
+| Review, including a second full suite run after simplify | 8 |
+| Reflect, full mode | 12 |
+| Wrap-up: residue sweep, unblocked search, merge-check, oversight floor, size probe, PR refresh, merge, console, ledger, cleanup — ten deterministic probes, each its own model turn | 15 |
+
+Wrap-up plus reflect (27 min) exceeds every verification run combined. Phases 1–4 address the verification half; Phase 7 addresses this tail.
+
 ### Where the repeated cost actually comes from (root causes, not symptoms)
 
 1. **The second call re-runs the suite because of a context-carrying rule, not an isolation rule.** `flow/steps-and-gates.md`'s "Auto-insert `test`" puts a `/claude-tweaks:test` step in front of `review`; that step's only skip signal is `VERIFICATION_PASSED`/`VERIFICATION_SHA`, which live in the *first* call's conversation and never cross the two-call boundary by design (`dispatch/task-prompt.md`: "This call's prompt names ONLY the record number(s) and the `PIPELINE_RUN_DIR` path"). The durable pass stamp (`claude-tweaks-verify-pass`) is read only by `/review` Step 1.5's *standalone* branch, which the in-pipeline branch never reaches. What #296 actually asked of the second call is to **re-derive its verdict from raw artifacts** ("the actual diff, the actual test-output log in the run directory") — `bin/lib/dispatch/artifact-verdict.js` is the structural half of that guarantee and it *reads a file*; it does not re-execute anything.
@@ -300,13 +312,54 @@ Limitation stated in the output: `skill_invoked` records model-initiated Skill c
 - `/flow` Step 5's Pipeline Summary and `/wrap-up`'s summary gain a `## Timing` table (phase, minutes, verify rows with mode); under `pr-first` the same table goes into the run's PR comment (`_shared/pr-run-comments.md`).
 - The dispatch Reporting section prints one timing line per group.
 
+### Tokens per phase (the second axis)
+
+Minutes and tokens do not move together: the wrap-up tail is model latency over tiny tool results, while procedure loading is tokens that cost money and context headroom but little wall-clock. So the timing report carries both. The session transcript (`~/.claude/projects/{slug}/*.jsonl`) records `usage` (`input_tokens`, `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`) on every assistant message with a timestamp; `bin/lib/transcript-judge/` already locates and reads transcripts but does not parse usage. `bin/phase-timing.js` gains `--transcript <path>` (resolved the way `transcript-judge` resolves it; dispatch's two calls have their own agent transcripts): join each message's timestamp to the phase table above and sum per phase into `timing.json`'s `tokens` block, plus two derived columns — **procedure bytes loaded** (sum of `Read` results under `plugin/skills/**` per phase, from the transcript's tool results) and **tool round-trips** per phase. The markdown table gets three extra columns; a missing or unreadable transcript leaves them blank with a one-line note, never fails the summary. Also counted per run: `gate-denial`, `wd-ambiguous`, and `wd-deny` events — each is a wasted turn, and the four filed guard false-positive records (#1785, #1867, #1876, #1894) can then be prioritized by measured cost rather than by anecdote.
+
 ### `contract-violation` noise
 
 `bin/lib/hooks/subagent-stop.js` falls back to the parent session's `transcript_path` when `agent_transcript_path` is absent, so it grades the orchestrator's own narration ("waiting on task N", `### Strengths`, `ack`) as a subagent reply. Fix: no fallback — absent `agent_transcript_path` returns `{}`. Measurement: `contract-violation` events per dispatched group drop from ~4 to the true violation count (corpus: 2,471 events, most of this shape).
 
 ### Key Files
 
-`plugin/bin/phase-timing.js` (new), `plugin/bin/lib/verify/` (event append), `plugin/bin/lib/flow/manifest.js`, `plugin/bin/lib/hooks/subagent-stop.js`, `plugin/bin/lib/hooks/context.js` (no change — reuse `appendEvent`), `plugin/skills/flow/summary-template.md`, `plugin/skills/wrap-up/SKILL.md`, `plugin/skills/dispatch/SKILL.md` (Reporting), `plugin/skills/_shared/pr-run-comments.md`, `docs/hooks.md`, `tests/bin-lib/`.
+`plugin/bin/phase-timing.js` (new), `plugin/bin/lib/verify/` (event append), `plugin/bin/lib/flow/manifest.js`, `plugin/bin/lib/hooks/subagent-stop.js`, `plugin/bin/lib/hooks/context.js` (no change — reuse `appendEvent`), `plugin/bin/lib/transcript-judge/` (usage parsing, shared), `plugin/skills/flow/summary-template.md`, `plugin/skills/wrap-up/SKILL.md`, `plugin/skills/dispatch/SKILL.md` (Reporting), `plugin/skills/_shared/pr-run-comments.md`, `docs/hooks.md`, `tests/bin-lib/`.
+
+## Phase 7 — Deterministic-first: fact packs for the fixed-cost tail
+
+**Cost shed per group:** 15–24 min on this repo's runs (wrap-up ten-probe sequence ~8, second-call preflight ~5, reflect full-mode on a small diff ~6, console auto-resolution ~3); on #1904's Group A the corresponding "pipeline overhead" and "polish + wrap-up" rows (~30 min combined) shrink by roughly half. **Risk:** low — every item composes CLIs that already exist and changes no judgment; the model still decides, it just decides once over one JSON instead of ten times over ten tool results.
+
+### Principle
+
+Where a step is a sequence of git/gh/fs reads followed by a judgment, the reads are one CLI invocation returning one JSON document, and the judgment is one model turn. Today each read is its own tool call with a reasoning turn between — a minute of model latency per probe, and every probe's raw output left in context for the rest of the call. This is the same boundary `verify.js` (#892) drew for verification and `build-review-context.js` drew for review: the runner owns execution and bounding, the skill owns judgment.
+
+### Deliverables
+
+1. **`bin/wrap-up-facts.js --run <dir>`** — runs, concurrently, the deterministic inputs wrap-up's Phase 3 and Phase 4 consume today one at a time: `residue.js --scope blast-radius`, the newly-unblocked issue search, `blast-radius-cli.js` (merge-check inputs and the oversight-floor comparison), `merge-size-probe.js`, PR state (`gh pr view --json state,isDraft,mergeStateStatus,statusCheckRollup`), release status, claim-blob state, and the ledger's open-item count. Emits one JSON with a per-probe `{ok, value | error}` envelope — a probe failure degrades that field, never the pack (the `verify.js` fail-safe-per-check pattern). `wrap-up/SKILL.md` Phases 3–4 read the pack once; the `assess-agent-autonomy merge-check` LLM call keeps its own dispatch but takes its inputs from the pack. Every existing decision-log line still gets written, from the pack's values.
+2. **`bin/flow-preflight.js --run <dir> --steps <list>`** — the second call's pre-review facts in one call: run-dir adoption case (1–5 from `steps-and-gates.md`), `check-resume-freshness`, `check-staged-inventory`, `config.yml` levers for the FYI table, `work/{n}-spec.md` presence, PR record and checklist state, current stamp (Phase 1), and the shared changed-file set (Phase 2). `/flow` Step 3 renders the Manifesto FYI from the pack and proceeds; the adoption-case note lines are unchanged in wording.
+3. **Reflect depth from diff facts on every `auto`-mode firing.** `wrap-up/ceremony-derivation.md`'s gate — skip unless `DISPATCH_HEADLESS=1` — exists because a present human "could adjust the Manifesto's `ceremony-profile` lever." In `auto` mode the Manifesto is an FYI table and nobody adjusts it. New condition: apply the derivation whenever the run's `auto-mode` is `auto` (headless or human-present), skip only under `confirm`/`hybrid` where the lever was actually a question. The derivation's own rules (never upgrades; escape hatch still runs after) are unchanged.
+4. **Batch console auto-resolution.** At `autonomy: unattended` with `consoleAutoResolve`, the Review Console resolves each staged item in its own turn (render, log, write). New: `bin/stage-item.js resolve-all --run <dir> --policy console-auto` applies the contract's stance to every staged item in one process, writes one decisions block with one line per item, and prints the table the console would have rendered. The console then renders that table once. `supervised`/`trusted` are unchanged — a human still answers.
+
+### Guarantee preserved / weakened
+
+- Preserved: identical decision-log entries, identical judgments, identical gates; a probe that fails is reported as failed in the pack rather than silently absent (each pack field carries its own `ok`).
+- Weakened: none. The accepted trade is that a pack runs probes the model might have skipped after an early finding (a residue sweep on a run whose merge-check already said no) — seconds of CLI time against minutes of turns.
+
+### Measurement
+
+From Phase 6's `timing.json`: `wrap-up` tool round-trips per run drop from ~25 to under 10; `wrap-up` + `reflect` minutes on a `size:low` record drop from 27 to under 12; second-call time-to-first-review-judgment drops from 24 to under 10 min (with Phase 1's suite skip). Token column: wrap-up input tokens drop by the probe outputs no longer resident across turns.
+
+### Key Files
+
+`plugin/bin/wrap-up-facts.js` (new), `plugin/bin/flow-preflight.js` (new), `plugin/bin/lib/wrap-up/`, `plugin/bin/lib/residue/`, `plugin/bin/lib/blast-radius-cli.js`, `plugin/bin/lib/merge-size-probe.js`, `plugin/bin/lib/stage-item/`, `plugin/bin/lib/hooks/resume-freshness.js`, `plugin/bin/lib/hooks/staged-inventory.js`, `plugin/skills/wrap-up/SKILL.md`, `plugin/skills/wrap-up/review-console.md`, `plugin/skills/wrap-up/ceremony-derivation.md`, `plugin/skills/flow/SKILL.md`, `plugin/skills/flow/steps-and-gates.md`, `plugin/skills/flow/manifesto.md`, `tests/bin-lib/wrap-up/`, `tests/bin-lib/flow/`.
+
+## Filed separately (not phases of this doc)
+
+Evaluated in the same brainstorm and worth their own evidence before earning a slot; each is a backlog record rather than a phase because its return is unmeasured or its risk is judgment-shaped:
+
+- **Instruction-prose diet** (#1909) — operative skill text states the rule and the IL tag; provenance narrative moves to the incident log and decision records; a per-pipeline-step loaded-bytes budget joins the context-cost test. Tokens, not minutes. Companion to #1765 (fast-lane digest).
+- **Fast-lane bundling** (#1910) — dispatch packs up to three non-overlapping fast-lane records into one multi-spec run to share one preflight and wrap-up; bounded by `[IL-109]`.
+- **Micro-plan for single-file fast-lane records** (#1911) — build composes a one-task brief instead of invoking `writing-plans` and plan audit.
+- **Model tier by diff facts** (#1912) — a diff-size ceiling in `resolve-profile.js` so a 20-line diff's whole-branch review does not resolve to Capable by label alone.
 
 ## Deferred: parallel SDD implementers
 
