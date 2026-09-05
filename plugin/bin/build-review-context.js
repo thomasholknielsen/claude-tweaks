@@ -73,7 +73,7 @@ function run(argv, deps = realDeps) {
 
 if (require.main === module) {
   try {
-    process.exit(run(process.argv.slice(2)));
+    process.exitCode = run(process.argv.slice(2));
   } catch (err) {
     process.stderr.write(`build-review-context.js: ${err.message}\n`);
     process.exitCode = 1;
