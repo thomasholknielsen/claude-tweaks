@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T20:30:18.932Z",
+  "computedAt": "2026-09-05T21:29:26.421Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -20,7 +20,7 @@
       },
       {
         "number": 1821,
-        "updatedAt": "2026-09-04T09:59:36Z",
+        "updatedAt": "2026-09-05T20:33:58Z",
         "state": "OPEN"
       },
       {
@@ -31,11 +31,6 @@
       {
         "number": 1804,
         "updatedAt": "2026-09-04T07:50:39Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1787,
-        "updatedAt": "2026-09-05T20:29:47Z",
         "state": "OPEN"
       },
       {
@@ -227,76 +222,6 @@
         "state": "OPEN",
         "title": "Sweep's Next Actions buries the already-staged tidy --approve behind dispatch/refine picks",
         "updatedAt": "2026-09-04T09:59:34Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "## Current State\n\nDispatch (and/or `/build`'s worktree setup) does not appear to check for an existing open PR on a record before claiming and building it fresh, even when that PR's own run-marker shows it already reached `pending-review` under a prior run.\n\nObserved on #1058: a run on 2026-08-28 (`2026-08-28T080617-record-1058`) completed build/test/review and reached `pending-review`, opening draft PR #1602 on branch `worktree-dispatch-record-1058` — then sat unmerged for about a week. A fresh dispatch run on 2026-09-04 (`2026-09-04T080101-record-1058`) claimed and rebuilt #1058 from scratch on a freshly created local branch with the SAME deterministic name, producing a second, fully-diverged commit history for the identical fix. `_shared/pr-early-run-lifecycle.md` documents a Step 1.6 \"Remote-only stale branch check\" that is supposed to catch a same-name branch left on origin by a prior attempt and stop for a human decision before `EnterWorktree` ever runs — but the 2026-09-04 run's build phase evidently never hit that stop (or it was bypassed), since it proceeded to materialize, build, and commit without incident.\n\nRoot cause not yet diagnosed — candidates: (a) the claim on #1058 was released once the 2026-08-28 run reached `pending-review` (per the documented \"reconciler finishes armed/pending-review later\" model), making the record eligible for dispatch selection again despite an open PR already existing for it; (b) `build/worktree-setup.md`'s Step 1.5/1.6 stale-branch checks have a gap that let a remote-only collision through; (c) dispatch's own selection query doesn't exclude records with an already-open PR.\n\n## Deliverables\n\n- Diagnose why the 2026-09-04 run's build phase did not stop at `pr-early-run-lifecycle.md` Step 1.6 (or equivalent) despite PR #1602 already existing on the same deterministic branch name.\n- Either: (a) have dispatch's selection query skip records with an existing open PR (reuse it instead of reclaiming), or (b) fix the Step 1.6 stale-branch check gap that let this run past it, or both.\n\n## Acceptance Criteria\n\n- A record with an existing open PR from a prior run cannot be silently re-claimed and rebuilt from scratch on a colliding branch name; either the existing PR is reused/resumed, or a human is stopped for a decision before any new work is committed.\n\nOrigin: discovered during #1058's own `/flow review,polish,wrap-up` run (2026-09-04T080101-record-1058), which found PR #1602 already open and pending-review for the same issue\nDefer-reason: tangential\n\n_Filed by `capture` via specShapedBody._\n",
-        "createdAt": "2026-09-04T08:44:26Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          }
-        ],
-        "number": 1821,
-        "state": "OPEN",
-        "title": "dispatch can re-select an issue that already has an open, pending-review PR from a prior run",
-        "updatedAt": "2026-09-04T09:59:36Z",
         "facets": {
           "origin": "capture",
           "risk": "low",
