@@ -828,7 +828,7 @@ git -C "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees
 4. `{ files } = changedFiles({ base: resolvedBase })`.
 5. `sel = selectScope({ decl, files, stamp })` (when `decl` is null, `sel.mode` is `full` and steps 6-8 reduce to today's behavior).
 6. Usage check (only when `decl` is non-null): every `--cmd` name must be `types`, `lint`, or a member of `decl.suites` — otherwise stderr `--scope: --cmd "{name}" is not types, lint, or a declared suite ({list})` + `USAGE`, exit 2, write nothing (AC5).
-7. Filter: keep `types`/`lint` only when `sel.static`; keep a suite check when `sel.suites === '*'` or `sel.suites.includes(name)`. In tool-scoped mode, drop any caller `tests` entry and append `{ name: 'tests', command: decl.checks.tests.replace(/\{base\}/g, resolvedBase) }` (only when `sel.mode === 'tool-scoped'`).
+7. Filter: keep `types`/`lint` only when `sel.static`; keep a suite check when `sel.suites === '*'` or `sel.suites.includes(name)`. In tool-scoped mode, drop any caller `tests` entry and append `{ name: 'tests', command: decl.checks.tests.replace(/\{base\}/g, resolvedBase) }` (only when `sel.mode === 'tool-scoped'`). `args.js`'s "at least one `--cmd`" guard is unchanged — `--scope` never relaxes it: a tool-scoped declaration's full/unmatched runs execute the caller's own `tests` command, and an empty check set must never reach the stamp write (`Array.prototype.every` over `[]` is `true`).
 8. `mode === 'none'`: run nothing — `results = []`, `report.pass = true` (an empty check set passes), print the scope line plus `still-verified: bookkeeping-only delta ({files joined by ", "})`, then the (empty) table and `report:` line; write the stamp (step 10) and exit 0.
 9. Otherwise run the filtered set through `runChecks` exactly as today.
 10. Stamp write (replaces today's block): `report.pass && fullSet && !parsed.noStamp && gitDir && git.sha && !parsed.gitDir` where `fullSet` = no check `skipped` (an empty set counts as full); fields: `scope: sel.mode`; when `sel.mode === 'full'` → `fullSha: git.sha, base: null, changedFiles: []`; otherwise → `fullSha: sel.base, base: resolvedBase, changedFiles: files`; `suitesRun` = names of the checks actually run that are neither `types` nor `lint`. Without `--scope` the block is byte-for-byte today's (scope `full`, `fullSha: git.sha`, `base: null`, `changedFiles: []`).
@@ -872,11 +872,13 @@ test('composeReport carries a scope object when given one and omits it otherwise
 
 ```js
 // A declaration file inside a temp repo, plus a marker-touching "unit" command
-// so a test can prove a suite was or was not spawned.
+// so a test can prove a suite was or was not spawned. Two suites are declared
+// so "every declared suite selected" (which collapses to mode full) is not
+// trivially true whenever the one suite's rule matches.
 function scopedRepo(rules, extra = {}) {
   const r = tmpGitRepo();
   const marker = path.join(r.repo, 'unit-ran.marker');
-  const decl = { checks: { tests: { unit: 'placeholder' } }, rules, ...extra };
+  const decl = { checks: { tests: { unit: 'placeholder', other: 'placeholder' } }, rules, ...extra };
   fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
   r.git('add', '.claude-tweaks/verify-scope.json');
@@ -999,7 +1001,9 @@ test('--scope tool-scoped: {base} is substituted into the single tests command a
   fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
   r.git('add', '.claude-tweaks/verify-scope.json');
   r.git('commit', '-q', '-m', 'declare');
-  const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', r.git('symbolic-ref', '--short', 'HEAD').trim()];
+  // --cmd is always required (an empty check set must never stamp); run 1 (full)
+  // executes it, run 2 (tool-scoped) replaces it with the synthesized command.
+  const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', r.git('symbolic-ref', '--short', 'HEAD').trim(), '--cmd', 'tests=node -e 0'];
   const run1 = await runCli(args, { cwd: r.repo });
   assert.strictEqual(run1.code, 0, run1.stderr);
   const s1 = stampOf(r.gitDir);
@@ -1203,4 +1207,6 @@ Expected: exit 1 with exactly the 4 pre-existing baseline failures (`tests/bin-l
 
 - **Spec coverage:** `globToRegExp` export (T1); `declaration.js` incl. every named error, missing-file → null, flaky bounds (T2); `changed-files.js` union rules, rename/deletion mapping, `resolveBase` three cases + explicit `--base` + legacy stamp anchor + `ChangedFilesError` (T3); `scope.js` every branch incl. `static-only`, ordering, unmatched fail-closed, tool-scoped, no-stamp → full, `fullSha` anchor (T4); `--scope`/`--base`/`--integration-branch`, `--cmd` usage check (AC5), unknown-suite exit 2 with no stamp (AC6), `none` short-circuit + `still-verified` line, scope line, scoped stamp with `fullSha` carried (AC4), tool-scoped `{base}` substitution + `fullSha` unchanged, `report.json.scope`, AC7 unmodified cases (T5); docs rows + sibling note (T6); AC8 (T7).
 - **Placeholder scan:** none.
+- **Shell-quoting note (found by the Task 5 implementer):** the marker commands nest a `JSON.stringify`-quoted path inside a `node -e` script; the `-e` script must be single-quoted so `/bin/sh -c` does not close the outer quote at the embedded `"`.
+- **Fixture note (found by the Task 5 implementer):** the CLI fixture declares two suites (`unit`, `other`); with a single declared suite the first `src/**` match satisfies "every declared suite selected + static" and correctly collapses to `full`, which would advance `fullSha` and break AC4's run-3 assertions. The engine's rule is the spec's; the fixture was the bug.
 - **Type consistency:** `readDeclaration` returns `decl.suites`/`decl.toolScoped`/`decl.rules[].suites`/`decl.checks.tests` exactly as `scope.js` and `verify.js` read them; `resolveBase({stamp, integrationBranch, base})` matches both call sites; `selectScope({decl, files, stamp})` returns `base` as the stamp anchor while `verify.js` writes `base: resolvedBase` (the same value by construction when the anchor was usable — AC4's run 3 pins `base === fullSha`).
