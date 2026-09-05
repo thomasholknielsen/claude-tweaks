@@ -279,6 +279,12 @@ function baseFileGrepCount(relPath, literal) {
   return collapse(out).split(literal).length - 1;
 }
 
+// Shared go-red assertion for the checks below: the base file (pre-#1442) must not already
+// carry the literal a test pins as newly added — otherwise the pin can never go red.
+function assertGoRedAbsent(relPath, literal, label) {
+  assert.strictEqual(baseFileGrepCount(relPath, literal), 0, `go-red check: base file must not already carry ${label}`);
+}
+
 test('base SHA is a valid ancestor of HEAD (pin precondition)', () => {
   // Throws (non-zero exit) if BASE_SHA is not an ancestor of HEAD — fails loud rather
   // than silently comparing against a moved/rewritten history.
@@ -290,30 +296,30 @@ test('refine-mode.md wraps per the contract and pins the RECOMMEND_BUILD/RECOMME
   assert.ok(REFINE_MODE_FLAT.includes('^RECOMMEND_BUILD: (true|false)$'), 'anchored RECOMMEND_BUILD verdict regex missing');
   assert.ok(REFINE_MODE_FLAT.includes('^RECOMMEND_MERGE: (true|false)$'), 'anchored RECOMMEND_MERGE verdict regex missing');
   assert.ok(REFINE_MODE_FLAT.includes("from `grant-check.md`'s own rendered Step 3 output only"), 'verdict-source constraint missing');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'wrapped per `_shared/untrusted-record-content.md`'), 0, 'go-red check: base file must not already carry this citation');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', '^RECOMMEND_BUILD: (true|false)$'), 0, 'go-red check: base file must not already carry this anchored regex literal');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', '^RECOMMEND_MERGE: (true|false)$'), 0, 'go-red check: base file must not already carry this anchored regex literal');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', "from `grant-check.md`'s own rendered Step 3 output only"), 0, 'go-red check: base file must not already carry this verdict-source constraint');
+  assertGoRedAbsent('plugin/skills/backlog/refine-mode.md', 'wrapped per `_shared/untrusted-record-content.md`', 'this citation');
+  assertGoRedAbsent('plugin/skills/backlog/refine-mode.md', '^RECOMMEND_BUILD: (true|false)$', 'this anchored regex literal');
+  assertGoRedAbsent('plugin/skills/backlog/refine-mode.md', '^RECOMMEND_MERGE: (true|false)$', 'this anchored regex literal');
+  assertGoRedAbsent('plugin/skills/backlog/refine-mode.md', "from `grant-check.md`'s own rendered Step 3 output only", 'this verdict-source constraint');
 });
 
 test('refine-mode.md never defaults a missing grant-check verdict to a grant — routes to flag-back instead', () => {
   assert.ok(REFINE_MODE_FLAT.includes('renders that record\'s Grant lane row as a flag-back'), 'missing-verdict flag-back routing missing');
   assert.ok(REFINE_MODE_FLAT.includes('with reason `no verdict rendered`'), 'the "no verdict rendered" reason string missing');
   assert.ok(REFINE_MODE_FLAT.includes('never a default `auto:build` recommendation'), 'never-default clause missing');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'no verdict rendered'), 0, 'go-red check: base file must not already carry this reason string');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'renders that record\'s Grant lane row as a flag-back'), 0, 'go-red check: base file must not already carry this routing clause');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-mode.md', 'never a default `auto:build` recommendation'), 0, 'go-red check: base file must not already carry this never-default clause');
+  assertGoRedAbsent('plugin/skills/backlog/refine-mode.md', 'no verdict rendered', 'this reason string');
+  assertGoRedAbsent('plugin/skills/backlog/refine-mode.md', 'renders that record\'s Grant lane row as a flag-back', 'this routing clause');
+  assertGoRedAbsent('plugin/skills/backlog/refine-mode.md', 'never a default `auto:build` recommendation', 'this never-default clause');
 });
 
 test('refine-lanes.md Flag-back Population names the missing-verdict source', () => {
   const LANES_FLAT = readFlat('plugin/skills/backlog/refine-lanes.md');
   assert.ok(LANES_FLAT.includes('flag back (no verdict rendered)'), 'refine-lanes.md Population sentence missing the new outcome');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/backlog/refine-lanes.md', 'flag back (no verdict rendered)'), 0, 'go-red check: base file must not already carry this outcome label');
+  assertGoRedAbsent('plugin/skills/backlog/refine-lanes.md', 'flag back (no verdict rendered)', 'this outcome label');
 });
 
 test('untrusted-record-content.md Consumers table gains a refine-mode.md row', () => {
   assert.ok(CONTRACT_FLAT.includes('`backlog/refine-mode.md` (Step 3, human-present grant-check invocation)'), 'Consumers table missing the refine-mode.md row');
-  assert.strictEqual(baseFileGrepCount('plugin/skills/_shared/untrusted-record-content.md', '`backlog/refine-mode.md` (Step 3, human-present grant-check invocation)'), 0, 'go-red check: base file must not already carry this row');
+  assertGoRedAbsent('plugin/skills/_shared/untrusted-record-content.md', '`backlog/refine-mode.md` (Step 3, human-present grant-check invocation)', 'this row');
 });
 
 test('skill-graph rows carry the #1442 refine-mode.md extension, still one dedicated contract row', () => {
@@ -326,8 +332,8 @@ test('skill-graph rows carry the #1442 refine-mode.md extension, still one dedic
   assert.ok(GRAPH_FLAT.includes("and to grant-check by #1391 (`backlog/refine-headless.md`'s Phase B invocation, `assess-agent-autonomy/grant-check.md`'s Step 1)"), 'pre-existing #1391 clause must survive the #1442 edit verbatim');
   const rows = GRAPH.split('\n').filter((l) => l.startsWith('| `_shared/untrusted-record-content.md`'));
   assert.strictEqual(rows.length, 1, 'still exactly one dedicated contract row');
-  assert.strictEqual(baseFileGrepCount('docs/skill-graph.md', '#1442 extended the same wrap to `refine-mode.md`'), 0, 'go-red check: base file must not already carry this clause');
-  assert.strictEqual(baseFileGrepCount('docs/skill-graph.md', 'further extended by #1442 to `backlog/refine-mode.md`'), 0, 'go-red check: base file must not already carry this contract-row clause');
+  assertGoRedAbsent('docs/skill-graph.md', '#1442 extended the same wrap to `refine-mode.md`', 'this clause');
+  assertGoRedAbsent('docs/skill-graph.md', 'further extended by #1442 to `backlog/refine-mode.md`', 'this contract-row clause');
 });
 
 test('no restated BEGIN/END UNTRUSTED RECORD CONTENT markers under plugin/skills/backlog/', () => {
