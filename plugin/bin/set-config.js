@@ -36,7 +36,7 @@ const USAGE = 'usage: set-config.js --run <run-dir> --key <lever> --value <value
   '       set-config.js --run <run-dir> --set <lever1>=<value1>,<lever2>=<value2>,... [--help]\n';
 
 function parseArgs(argv) {
-  const o = { run: null, key: null, value: null, set: null, help: false };
+  const o = { run: null, key: null, value: null, set: null, sawSet: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i] ?? null;
@@ -44,7 +44,7 @@ function parseArgs(argv) {
     else if (a === '--run') o.run = next();
     else if (a === '--key') o.key = next();
     else if (a === '--value') o.value = next();
-    else if (a === '--set') o.set = next();
+    else if (a === '--set') { o.sawSet = true; o.set = next(); }
     else return { error: `unknown argument: ${a}` };
   }
   return o;
@@ -92,14 +92,14 @@ function run(argv, deps = realDeps) {
   if (o.help) { deps.stdout(USAGE); return 0; }
   if (!o.run) return usageError('--run <run-dir> is required');
 
-  const batchMode = o.set != null;
+  const batchMode = o.sawSet;
   if (batchMode && (o.key != null || o.value != null)) {
     return usageError('--set cannot be combined with --key/--value');
   }
   if (!batchMode) {
     if (!o.key) return usageError('--key <lever> is required');
     if (o.value == null || o.value === '') return usageError('--value <value> is required');
-  } else if (o.set === '') {
+  } else if (!o.set) {
     return usageError('--set requires at least one key=value pair');
   }
 
@@ -121,10 +121,15 @@ function run(argv, deps = realDeps) {
   for (const { key, value } of entries) {
     const verdict = validateLever(key, value);
     if (verdict.ok) continue;
+    // Batch mode prefixes the offending `--set` entry so a multi-pair call
+    // names which pair is wrong, rather than reusing bare --key/--value
+    // wording that misattributes the flag the caller actually passed. The
+    // single-key branch's message is untouched (empty prefix).
+    const prefix = batchMode ? `--set entry ${JSON.stringify(`${key}=${value}`)}: ` : '';
     if (verdict.reason === 'unknown-key') {
-      problems.push(`--key ${JSON.stringify(key)} is not a config.yml policy lever (the canonical Manifesto set: ${MANIFESTO_LEVERS.join(', ')})`);
+      problems.push(`${prefix}--key ${JSON.stringify(key)} is not a config.yml policy lever (the canonical Manifesto set: ${MANIFESTO_LEVERS.join(', ')})`);
     } else {
-      problems.push(`--value ${JSON.stringify(value)} is not valid for ${key} (allowed: ${verdict.allowed.join(', ')})`);
+      problems.push(`${prefix}--value ${JSON.stringify(value)} is not valid for ${key} (allowed: ${verdict.allowed.join(', ')})`);
     }
   }
   if (problems.length) return usageErrors(problems);

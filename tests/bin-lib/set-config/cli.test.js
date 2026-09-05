@@ -150,6 +150,25 @@ test('cli: --set with a duplicate key in the batch is exit 2 and nothing is writ
   assert.ok(body.includes('mode: auto'), 'nothing should have been written — original value intact');
 });
 
+test('cli: a dangling --set with no value is reported as a --set problem, not misattributed to --key', () => {
+  const { main, runDir } = fixture();
+  const { deps, err } = fakeDeps(main);
+  const code = run(['--run', runDir, '--set'], deps);
+  assert.equal(code, 2);
+  assert.ok(err.join('').includes('--set requires at least one key=value pair'));
+  assert.ok(!err.join('').includes('--key <lever> is required'), 'must not misreport a missing --key');
+});
+
+test('cli: batch validation errors name the offending --set entry, not bare --key/--value', () => {
+  const { main, runDir } = fixture();
+  const { deps, err } = fakeDeps(main);
+  const code = run(['--run', runDir, '--set', 'mode=hybrid,spec=13'], deps);
+  assert.equal(code, 2);
+  const msg = err.join('');
+  assert.ok(msg.includes('--set entry "spec=13"'), 'should name the offending --set entry');
+  assert.ok(/not a config\.yml policy lever/.test(msg), 'single-key wording is still reused after the prefix');
+});
+
 test('cli: --set combined with --key/--value is exit 2', () => {
   const { main, runDir } = fixture();
   const { deps, err } = fakeDeps(main);
