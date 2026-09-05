@@ -931,16 +931,34 @@ function hasLoggedPrDegrade(runDir) {
 // Step 2 itself — the one action a PR stamp cannot exist without. Without
 // this, the PR-stamp deny fires on that very push (worktree stamp already
 // landed, pr not yet recorded), making Step 6 structurally impossible: no run
-// could ever produce the PR this gate demands. `@{u}` fails with a git-error
-// exit when no upstream is configured — the definitive "not pushed yet"
-// signal. Ambiguous outcomes (timeout, no git, spawn failure) resolve to
-// false — NOT exempt, the opposite of this file's usual "ambiguity resolves
-// to allow" posture — because here ambiguity would silently widen a narrow,
-// one-shot exemption into an unbounded one instead of merely allowing a
-// single already-in-flight write through.
+// could ever produce the PR this gate demands. Ambiguous outcomes (timeout, no
+// git, spawn failure) resolve to false — NOT exempt, the opposite of this
+// file's usual "ambiguity resolves to allow" posture — because here ambiguity
+// would silently widen a narrow, one-shot exemption into an unbounded one
+// instead of merely allowing a single already-in-flight write through.
+//
+// #1860: `@{u}` failing with a git-error exit is NOT the only "never pushed"
+// signal — it is also the state of a worktree branch created via
+// `git worktree add -b {branch} {path} origin/{default}` (what
+// `worktree.baseRef: fresh`, this plugin's own default, always does): git's
+// `branch.autoSetupMerge` default inherits the branch-off point's tracking ref
+// (`origin/{default}`) onto the new branch immediately, before it has ever
+// been pushed under its own name. `@{u}` therefore resolves successfully —
+// but to a DIFFERENT ref than this branch's own eventual remote — so the old
+// git-error-only check misclassified every such worktree as "already tracked"
+// and denied its first publish push. Comparing the resolved ref's name
+// against `origin/{this-branch}` distinguishes the two: a match means a real
+// prior push already established this branch's own remote tracking; anything
+// else (a resolvable ref that isn't this branch's own, or resolution failing)
+// means it has not. The branch-name lookup shares the same ambiguity posture
+// as the upstream lookup above — a failure there is NOT exempt either.
 function hasNoUpstreamYet(dir) {
-  const { failure } = runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], dir);
-  return failure === FAILURE.GIT_ERROR;
+  const upstream = runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], dir);
+  if (upstream.failure === FAILURE.GIT_ERROR) return true;
+  if (upstream.failure) return false;
+  const branch = runGit(['rev-parse', '--abbrev-ref', 'HEAD'], dir);
+  if (branch.failure) return false;
+  return upstream.stdout !== `origin/${branch.stdout}`;
 }
 
 // The PRODUCTION integration-model read for the PR-stamp branch below.
