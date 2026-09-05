@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "record-1302",
-  "sessionId": "bf314a24-dbe8-4ca8-8f10-3d299bd72414",
-  "claimedAt": "2026-09-05T04:09:43.630Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "failed: blocked-dependency",
+  "releasedAt": "2026-09-05T04:11:38.499Z"
 }
