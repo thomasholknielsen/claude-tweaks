@@ -17,8 +17,10 @@ BACKLOG ──/specify shapes──► READY ──human grants──► AUTHORI
    │ │          │              │      (remove ready)                                         ├──► retry ceiling: bot:blocked,
    │ │   born-ready (health    │                                                             │    grants removed → needs re-triage
    │ │   skills file straight  └──────── parked (trigger set) ──► wakes on trigger           │
-   │ │   into READY)                                                                         └──► failure: auto:merge revoked unless transient;
+   │ │   into READY)                                                                         ├──► failure: auto:merge revoked unless transient;
    │ └── parked record wakes (trigger fires, parked removed)                                  auto:build retries next firing
+   │                                                                                         └──► merge-verification park: bot:parked,
+   │                                                                                              grants intact → human re-triages the red PR
    └──── closed as not-planned (wontfix / duplicate / absorbed) at any stage
 ```
 
@@ -431,7 +433,7 @@ dispatch/auto-merge/fetch/staleness/promise-register thresholds the Consumers be
 | `/flow`, `/build` | Executors — materialize the record into `{run-dir}/work/{n}-spec.md` and build it |
 | `/wrap-up` | Closes the loop — carrier commit (close-via-merge), claim release, leftover records; applies `demo:pending` + posts the Verification Brief |
 | `/demo` | Resolves the Acceptance axis — `demo:pending` → `demo:approved`/`demo:changes-requested`; files a linked follow-up backlog record on changes-requested |
-| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` surfacing; also the two acceptance backstops, each of which is a `github-pr-scan-acceptance.md` scope under `github-issues` and a Step 1 shape (`tidy/step-1-records.md`) under `local-files` — `acceptance-gap` surfaces closed records with no disposition and mutates nothing, while `parent-gate` surfaces complete-but-un-gated parent issues and carries the `Open parent gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief |
+| `/tidy` | Hygiene — stale backlog records, parked-trigger wakes, unsynced local records, `bot:blocked` / `bot:parked` surfacing; also the two acceptance backstops, each of which is a `github-pr-scan-acceptance.md` scope under `github-issues` and a Step 1 shape (`tidy/step-1-records.md`) under `local-files` — `acceptance-gap` surfaces closed records with no disposition and mutates nothing, while `parent-gate` surfaces complete-but-un-gated parent issues and carries the `Open parent gate` action, which applies `demo:pending` to the parent and attaches its Verification Brief |
 | `/help` | Dashboard — live counts by stage / grants / bot state / acceptance |
 | `/init` | Provisions the system — `work-backend` flag, label bootstrap, capability probes (`work-types`, `work-links`) |
 | `/visualize` | Read-only — `record-graph` type renders the live open-record queue (stage columns, dependency edges, six-axis badges) as a diagram; never writes labels or body content |
