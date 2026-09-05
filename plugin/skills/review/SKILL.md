@@ -62,6 +62,12 @@ In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:vis
 
 ## Code-Mode Procedure (Steps 1-7)
 
+**Fast-lane shortcut.** When a pipeline run directory's `config.yml` already reads
+`ceremony-profile: fast-lane`, read `_shared/fast-lane-digest.md` first — it names every
+skip/narrow decision below in one place. It never replaces `code-mode-steps.md`'s actual step
+content (Steps 1.5, 2, 2.5, 3-3.6, 5, 6, 6.5, 6.7, 7 still run there); it only saves re-deriving
+the skip list for Steps 1, 1.6, and 4 from that file's own header.
+
 In `code` and `full` mode, read `code-mode-steps.md` in this skill's directory now and execute its Steps 1-7 in order. It holds the full procedure: Ceremony-Aware Step Selection (the `fast-lane` skips for Steps 1, 1.6, and 4), Spec Compliance (1), the Test Gate with the verification pass stamp (1.5), Cross-Spec Promises (1.6), change analysis with the Merge-Provenance Check (2), review-effort derivation (2.5), the lens-based code review with its dispatch/debate/routing sub-files (3-3.6 and Step 3 Routing), Implementation Hindsight (4), Simplification (5), Visual Review (6), the Design Quality Pass (6.5), the consolidated late findings routing (6.7), and the summary with verdict (7).
 
 `visual`/`journey`/`discover` modes never read that file — the whole procedure is out of scope for them by the delegation rule above.
