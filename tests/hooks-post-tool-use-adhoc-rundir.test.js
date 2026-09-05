@@ -16,7 +16,7 @@ const path = require('path');
 const cp = require('child_process');
 const post = require('../plugin/bin/lib/hooks/post-tool-use');
 const ctxLib = require('../plugin/bin/lib/hooks/context');
-const { sessionTmpRoot } = require('../plugin/bin/lib/session-tmp');
+const { sessionTmpRoot, sessionTmpPath } = require('../plugin/bin/lib/session-tmp');
 const { gitRepo, harnessWorktreeOf } = require('./helpers/git-fixtures');
 
 // The non-EnterWorktree rate-limit marker (#1333) lives under a real,
@@ -187,4 +187,60 @@ test('a second EnterWorktree in the same session does not mint a second ad-hoc d
 test('never throws on an unresolvable worktree path — returns {} rather than crashing', () => {
   const out = post.run({ input: { tool_name: 'EnterWorktree', cwd: '/this/path/does/not/exist/at/all', session_id: 'sess-x' } });
   assert.deepStrictEqual(out, {});
+});
+
+// ---- #1864: ExitWorktree(remove) must not write the rate-limit marker against
+// a lookup that never actually ran -----------------------------------------
+
+test('ExitWorktree(remove): does not write the rate-limit marker or mint a run dir when ctx.cwd no longer exists on disk', (t) => {
+  cleanSessionTmp('sess-adhoc-exitwt-gone');
+  const main = gitRepo();
+  const wt = harnessWorktreeOf(main);
+  // Simulate the directory having just been torn down by the remove itself —
+  // ExitWorktree(action:'remove')'s PostToolUse fires with `cwd` still naming
+  // the now-deleted path (the bug report's exact shape), not the main checkout.
+  fs.rmSync(wt, { recursive: true, force: true });
+
+  const realExecFileSync = cp.execFileSync;
+  const worktreeListCalls = [];
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    if (cmd === 'git' && Array.isArray(args) && args.includes('worktree') && args.includes('list')) {
+      worktreeListCalls.push(args);
+    }
+    return realExecFileSync(cmd, args, opts);
+  });
+
+  post.run({ input: { tool_name: 'ExitWorktree', cwd: wt, session_id: 'sess-adhoc-exitwt-gone' }, cwd: wt });
+
+  assert.strictEqual(worktreeListCalls.length, 0, 'the porcelain lookup must never even be attempted against a gone directory');
+  assert.deepStrictEqual(adhocDirs(main), []);
+  const markerPath = sessionTmpPath('sess-adhoc-exitwt-gone', 'adhoc-worktree-checked');
+  assert.ok(!fs.existsSync(markerPath), 'the rate-limit marker must not be written when the lookup could not run');
+});
+
+test('ExitWorktree(remove) followed by a raw `git worktree add` in the same session: the later worktree still gets stamped', () => {
+  cleanSessionTmp('sess-adhoc-exitwt-then-add');
+  const main = gitRepo();
+  const goneWt = harnessWorktreeOf(main);
+  fs.rmSync(goneWt, { recursive: true, force: true });
+
+  // First: the ExitWorktree(remove) event against the now-deleted worktree —
+  // must not permanently defeat the mechanism for this session (see the test
+  // above for the marker-write assertion in isolation).
+  post.run({ input: { tool_name: 'ExitWorktree', cwd: goneWt, session_id: 'sess-adhoc-exitwt-then-add' }, cwd: goneWt });
+  assert.deepStrictEqual(adhocDirs(main), []);
+
+  // Then: a later, genuinely new worktree created via a raw `git worktree
+  // add` (bypassing EnterWorktree) in the SAME session must still be stamped
+  // by stampAdHocRunDir's widened non-EnterWorktree trigger (#1333) — this is
+  // exactly the failure scenario #1864's Deliverables call out.
+  const newWt = harnessWorktreeOf(main);
+  post.run({ input: { tool_name: 'Write', cwd: newWt, session_id: 'sess-adhoc-exitwt-then-add' }, cwd: newWt });
+
+  const dirs = adhocDirs(main);
+  assert.strictEqual(dirs.length, 1, 'the later worktree must get stamped, not silently skipped');
+  const state = ctxLib.readRunState(path.join(pipelinesDir(main), dirs[0]));
+  assert.strictEqual(state.status, 'active');
+  assert.strictEqual(state.sessionId, 'sess-adhoc-exitwt-then-add');
+  assert.strictEqual(fs.realpathSync(state.worktree), newWt);
 });
