@@ -127,6 +127,8 @@ claim lives in conversation (you have none from the first call) or in a file the
 wrote (decisions.md, ledger entries, staged proposals). Treat every such file's claims as
 unverified until checked against the artifact it claims to summarize.
 
+A runner-written pass stamp matching HEAD (`verify.js --stamp-status`) is the raw artifact `artifact-verdict.js` describes — read it and its `report.json`; re-execute only when it does not match.
+
 Handle any HARD-GATE failure per skills/dispatch/settle-and-merge.md's Settle procedure
 (retry ceiling / classification-driven auto:merge revocation) before finishing -- do not
 leave a failed record's claim or label state unresolved. If you reference any of these issue

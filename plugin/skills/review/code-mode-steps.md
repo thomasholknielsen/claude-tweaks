@@ -63,18 +63,18 @@ Verify that `/claude-tweaks:test` has passed before proceeding to analytical rev
 
 ### In `/claude-tweaks:flow` pipeline:
 
-Check for `TEST_PASSED=true` in pipeline context. If present, proceed to Step 2.
+Check for `TEST_PASSED=true` in pipeline context. If present, add one belt-and-braces read of the runner's own artifact (#1921) — `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --stamp-status` (one plain command; prints `{present, sha, head, dirty, scope, fullSha, match, reportPath, legacy}`, exit 0 always). `match: true` → proceed to Step 2. `match: false` with `TEST_PASSED=true` is reported, never silently accepted: "TEST_PASSED set but the runner stamp does not match HEAD ({stamp-sha} vs {head}) — re-running `/claude-tweaks:test`", then re-trigger `/claude-tweaks:test` and re-check.
 
 ### Standalone (outside `/claude-tweaks:flow`):
 
-Check the verification pass stamp (`test/verification.md`'s "Verification pass stamp" step) — one comparison, replacing the commit-archaeology this check used to require:
+Check the verification pass stamp (`test/verification.md`'s "Verification pass stamp" step) — one read of the runner-written stamp (#1921), replacing the commit-archaeology this check used to require:
 
 ```bash
-cat "$(git rev-parse --git-dir)/claude-tweaks-verify-pass"
+node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --stamp-status
 ```
 
-- **Stamp matches `git rev-parse HEAD`**, and the working tree carries no uncommitted modifications to files in the review scope → a recent pass; proceed to Step 2. The stamp asserts verification only (types + lint + tests) — when QA stories exist, the QA Ledger Check below still runs as usual.
-- **Stamp missing, unreadable, or mismatched — or review-scope files modified since** → no recent pass (fail-open; a stale stamp is never trusted): auto-trigger `/claude-tweaks:test`. If QA stories exist (`stories/*.yaml`), trigger `/claude-tweaks:test all` (full suite + QA). Otherwise trigger `/claude-tweaks:test` (standard suite only).
+- **`match: true`** (the stamp's `sha` equals `HEAD`, the live tree is clean, `scope` is `full`) → a recent pass; proceed to Step 2. The stamp asserts verification only (types + lint + tests) — when QA stories exist, the QA Ledger Check below still runs as usual.
+- **`present: false`, `match: false`, or `dirty: true`** → no recent pass (fail-open; a stale stamp is never trusted): auto-trigger `/claude-tweaks:test`. If QA stories exist (`stories/*.yaml`), trigger `/claude-tweaks:test all` (full suite + QA). Otherwise trigger `/claude-tweaks:test` (standard suite only).
 
 ### QA Ledger Check
 
