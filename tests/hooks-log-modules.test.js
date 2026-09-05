@@ -290,3 +290,47 @@ test('subagent-stop still flags a bolded non-"Status:" label as a contract viola
   assert.match(out.json.systemMessage, /status line/i);
   assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
 });
+
+// #1596: a third-party agent (a plugin-namespaced agent_type whose prefix
+// isn't this plugin's own "claude-tweaks") was never given the status-line
+// format at all, so a malformed-looking reply from it is not evidence of a
+// violation — subagent-output-contract.md's Exemption section. Previously
+// this module had no exemption check, so every such reply was still logged.
+test('isExemptAgentType: true for a third-party plugin-namespaced agent_type', () => {
+  assert.strictEqual(substop.isExemptAgentType('code-simplifier:code-simplifier'), true);
+  assert.strictEqual(substop.isExemptAgentType('impeccable:impeccable-finish-reviewer'), true);
+});
+
+test('isExemptAgentType: false for this plugin\'s own namespaced agent_type', () => {
+  assert.strictEqual(substop.isExemptAgentType('claude-tweaks:qa-agent'), false);
+});
+
+test('isExemptAgentType: false for a bare harness built-in type (no namespace)', () => {
+  assert.strictEqual(substop.isExemptAgentType('general-purpose'), false);
+  assert.strictEqual(substop.isExemptAgentType('Explore'), false);
+});
+
+test('isExemptAgentType: false for a missing/non-string agent_type', () => {
+  assert.strictEqual(substop.isExemptAgentType(undefined), false);
+  assert.strictEqual(substop.isExemptAgentType(null), false);
+});
+
+test('subagent-stop: does not log a contract-violation for an exempt third-party agent_type, even with malformed text (#1596)', () => {
+  const run = mkRun();
+  const out = substop.run({
+    input: { agent_transcript_path: transcript('Based on my review, the file looks fine.'), agent_type: 'code-simplifier:code-simplifier' },
+    runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x',
+  });
+  assert.deepStrictEqual(out, {});
+  assert.ok(!fs.existsSync(path.join(run, 'events.jsonl')), 'expected no events.jsonl for an exempt agent');
+});
+
+test('subagent-stop: still logs a contract-violation for a non-exempt agent_type with malformed text (#1596)', () => {
+  const run = mkRun();
+  const out = substop.run({
+    input: { agent_transcript_path: transcript('Based on my review, DONE'), agent_type: 'general-purpose' },
+    runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x',
+  });
+  assert.match(out.json.systemMessage, /status line/i);
+  assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
+});
