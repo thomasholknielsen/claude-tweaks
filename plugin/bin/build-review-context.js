@@ -19,10 +19,7 @@ function parseArgs(argv) {
   const o = { command: null, base: null, branch: null, dir: null, run: null, filesFrom: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = () => {
-      const v = argv[++i];
-      return v === undefined ? null : v;
-    };
+    const next = () => argv[++i] ?? null;
     if (a === '--help' || a === '-h') o.help = true;
     else if (a === '--base') o.base = next();
     else if (a === '--branch') o.branch = next();
