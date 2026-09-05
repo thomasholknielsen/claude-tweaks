@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-25T0831-tidy-standalone",
-  "reason": "swept: stale claim (tidy backstop, batch-approved via /tidy --approve)",
-  "releasedAt": "2026-09-02T11:16:38.493Z"
+  "runId": "2026-09-05T103659-record-1442",
+  "sessionId": "c5c3cf8c-1d09-4198-8c10-d00c592b09e8",
+  "claimedAt": "2026-09-05T10:38:31.973Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
