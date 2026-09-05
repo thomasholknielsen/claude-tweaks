@@ -4,7 +4,8 @@
 // and passes each as --cmd <name>=<command>; this CLI owns execution order,
 // per-check log capture, exit-code keying, bounded extraction, and
 // report.json. It never reads .claude-tweaks/policy.yml or CLAUDE.md —
-// command resolution stays caller-side (spec: Option A boundary).
+// command resolution stays caller-side (spec: Option A boundary). Reading
+// git and its own artifacts (the #1921 pass stamp) stays inside that boundary.
 'use strict';
 
 const fs = require('fs');
@@ -14,9 +15,10 @@ const path = require('path');
 const { parseArgs, UsageError, USAGE } = require('./lib/verify/args');
 const { runChecks } = require('./lib/verify/run');
 const { sniffFamily, extractFailingRegion, parseCounts, summaryLine } = require('./lib/verify/extract');
-const { gitInfo, composeReport } = require('./lib/verify/report');
-const { readStamp, detectRegression, caveatLine } = require('./lib/verify/count-stamp');
+const { gitInfo, gitDir: resolveGitDir, composeReport } = require('./lib/verify/report');
+const { readStamp: readCountStamp, detectRegression, caveatLine } = require('./lib/verify/count-stamp');
 const { writeJsonAtomic } = require('./lib/verify/atomic-write');
+const { composeStamp, writeStamp, readStamp: readVerifyStamp } = require('./lib/verify/stamp');
 
 function enrich(result) {
   if (result.skipped) return result;
@@ -43,6 +45,32 @@ function statusOf(check) {
   return check.exitCode === 0 ? 'pass' : 'fail';
 }
 
+// --stamp-status (#1921): a read of the runner's own artifact. Status is data,
+// never a failure — exit 0 in every case, including "no checkout at all".
+// `dirty` and `head` are recomputed fresh from the live tree, never echoed
+// from the stored stamp (spec Gotchas: a tree that went dirty after a clean
+// pass reports match:false).
+function stampStatus(parsed) {
+  const gitDir = parsed.gitDir || resolveGitDir();
+  const stamp = gitDir ? readVerifyStamp(gitDir) : null;
+  const git = gitDir ? gitInfo() : { sha: null, dirty: null };
+  const present = stamp !== null;
+  const scope = present ? (stamp.scope || null) : null;
+  const status = {
+    present,
+    sha: present ? stamp.sha : null,
+    head: git.sha,
+    dirty: git.dirty,
+    scope,
+    fullSha: present ? (stamp.fullSha === undefined ? stamp.sha : stamp.fullSha) : null,
+    match: present && git.sha !== null && stamp.sha === git.sha && git.dirty === false && scope === 'full',
+    reportPath: present && typeof stamp.reportPath === 'string' ? stamp.reportPath : null,
+    legacy: present ? stamp.legacy === true : false,
+  };
+  process.stdout.write(`${JSON.stringify(status)}\n`);
+  process.exitCode = 0;
+}
+
 async function main() {
   process.stdout.on('error', (err) => { if (err.code !== 'EPIPE') throw err; });
   let parsed;
@@ -57,9 +85,19 @@ async function main() {
     throw err;
   }
 
-  const logDir = parsed.logDir || fs.mkdtempSync(path.join(os.tmpdir(), 'claude-tweaks-verify-'));
+  if (parsed.stampStatus) { stampStatus(parsed); return; }
+
+  // Default paths resolve against the checkout's own git dir (#1921) so the
+  // canonical skill invocation is one plain command with no $(...)
+  // substitutions (the worktree Bash-shape guard refuses two of them).
+  // Explicit flags win; outside a checkout the tmpdir fallback stands and
+  // no count stamp is persisted.
+  const gitDir = parsed.gitDir || resolveGitDir();
+  const logDir = parsed.logDir
+    || (gitDir ? path.join(gitDir, 'claude-tweaks-verify') : fs.mkdtempSync(path.join(os.tmpdir(), 'claude-tweaks-verify-')));
   fs.mkdirSync(logDir, { recursive: true });
   const jsonPath = parsed.json || path.join(logDir, 'report.json');
+  const countStampPath = parsed.countStamp || (gitDir ? path.join(gitDir, 'claude-tweaks-test-count.json') : null);
 
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
@@ -68,15 +106,16 @@ async function main() {
 
   // Suite-count regression stamp (#881, IL-84): the "tests" check's own
   // parsed count is compared against the previous run's persisted count.
-  // --count-stamp is caller-resolved (verification.md Step 2), mirroring
-  // --log-dir; omitting it disables persistence and comparison entirely.
+  // --count-stamp is caller-resolved (verification.md Step 2) or defaults
+  // under the git dir (#1921); outside a checkout with no flag, persistence
+  // and comparison are disabled entirely.
   const testsCheck = results.find((c) => c.name === 'tests' && !c.skipped);
   const currentCount = testsCheck && testsCheck.counts && typeof testsCheck.counts.tests === 'number'
     ? { tests: testsCheck.counts.tests, sha: git.sha, recordedAt: startedAt }
     : null;
   let testCountRegression = null;
-  if (parsed.countStamp) {
-    const previousCount = readStamp(parsed.countStamp);
+  if (countStampPath) {
+    const previousCount = readCountStamp(countStampPath);
     testCountRegression = detectRegression(previousCount, currentCount);
     if (currentCount !== null) {
       // Fail-toward-absence on the write side too (readStamp already does
@@ -87,8 +126,8 @@ async function main() {
       // own stated intent). report.json's own write below is deliberately
       // unguarded: it IS the run's output, so a failure there must surface.
       try {
-        fs.mkdirSync(path.dirname(parsed.countStamp), { recursive: true });
-        writeJsonAtomic(parsed.countStamp, currentCount);
+        fs.mkdirSync(path.dirname(countStampPath), { recursive: true });
+        writeJsonAtomic(countStampPath, currentCount);
       } catch { /* best-effort persistence; next run simply has no baseline */ }
     }
   }
@@ -97,6 +136,23 @@ async function main() {
     checks: results, startedAt, durationMs: Date.now() - startMs, git, testCountRegression,
   });
   writeJsonAtomic(jsonPath, report);
+
+  // Verification pass stamp (#1921): the runner is the ONLY writer, and only
+  // for a passing run of the full resolved set — every --cmd check ran, none
+  // was fail-fast skipped (#1784: an agent-written stamp let a failing run
+  // stamp a pass). `dirty` never gates the write; --stamp-status's match
+  // rule already requires dirty === false. --no-stamp is the caller's
+  // declaration that this --cmd set is deliberately partial. The write is
+  // best-effort like the count stamp: a stamp failure never fails the run.
+  const fullSet = results.every((c) => !c.skipped);
+  if (report.pass === true && fullSet && !parsed.noStamp && gitDir && git.sha) {
+    const suitesRun = results.filter((c) => c.name !== 'types' && c.name !== 'lint').map((c) => c.name);
+    const stamp = composeStamp({
+      report, scope: 'full', fullSha: git.sha, base: null, changedFiles: [],
+      suitesRun, flakyRetried: [], reportPath: path.resolve(jsonPath), at: new Date().toISOString(),
+    });
+    try { writeStamp(gitDir, stamp); } catch { /* best-effort; next --stamp-status simply reads absent */ }
+  }
 
   const lines = ['| Check | Status | Duration | Summary |', '|---|---|---|---|'];
   for (const check of results) {

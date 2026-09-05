@@ -4,19 +4,39 @@ const assert = require('node:assert');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
-const { execFile, spawnSync } = require('child_process');
+const { execFile, spawnSync, execFileSync } = require('child_process');
 
 const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'verify.js');
 
-function runCli(args) {
+// Every invocation runs from a fresh temp dir — never from this repo — so the
+// runner's git-dir-relative defaults (#1921) can never write into the real
+// checkout's .git (a stamp or count written by a test would poison the next
+// real run's skip/caveat decisions).
+function tmpDir() {
+  // realpathSync: on macOS, os.tmpdir() is a symlink (/var -> /private/var)
+  // that a spawned child's own process.cwd() reports already resolved — an
+  // unresolved mkdtemp path compared against a path the CLI derives from its
+  // own cwd would spuriously mismatch on this platform alone.
+  return fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'verify-cli-test-')));
+}
+
+function runCli(args, opts = {}) {
+  const cwd = opts.cwd || tmpDir();
   return new Promise((resolve) => {
-    execFile(process.execPath, [CLI, ...args], { maxBuffer: 10 * 1024 * 1024 },
-      (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }));
+    execFile(process.execPath, [CLI, ...args], { maxBuffer: 10 * 1024 * 1024, cwd },
+      (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr, cwd }));
   });
 }
 
-function tmpDir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'verify-cli-test-'));
+// A throwaway git repo with one commit: git-dir === {repo}/.git.
+function tmpGitRepo() {
+  const repo = tmpDir();
+  const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  git('init', '-q');
+  git('config', 'user.email', 'verify-test@example.invalid');
+  git('config', 'user.name', 'verify test');
+  git('commit', '-q', '--allow-empty', '-m', 'init');
+  return { repo, git, gitDir: path.join(repo, '.git') };
 }
 
 test('recorded exitCode is the check command own exit code (AC4)', async () => {
@@ -68,7 +88,7 @@ test('a >1MB emitter leaves runner stdout <= 64KB while the log holds everything
   const result = spawnSync(process.execPath, [CLI,
     '--log-dir', logDir,
     '--cmd', 'tests=node -e "process.stdout.write(Buffer.alloc(1500000, 120), () => process.exit(1))"',
-  ], { stdio: ['ignore', outFd, 'ignore'] });
+  ], { stdio: ['ignore', outFd, 'ignore'], cwd: tmpDir() });
   fs.closeSync(outFd);
   assert.notStrictEqual(result.status, 0);
   const stdoutSize = fs.statSync(outFile).size;
@@ -184,11 +204,128 @@ test('omitting --count-stamp disables persistence and comparison entirely', asyn
   assert.ok(!stdout.includes('CAVEAT'));
 });
 
-test('--log-dir defaults to a fresh tmpdir and --json defaults inside it', async () => {
+test('outside a checkout, --log-dir defaults to a fresh tmpdir and --json defaults inside it (#1921 AC4)', async () => {
   const { code, stdout } = await runCli(['--cmd', 'tests=node -e "console.log(String(1))"']);
   assert.strictEqual(code, 0);
   const m = stdout.match(/report: (\S+)/);
   assert.ok(m, 'stdout must name the report path');
   assert.ok(fs.existsSync(m[1]));
   assert.ok(path.basename(m[1]) === 'report.json');
+  assert.ok(m[1].includes('claude-tweaks-verify-'), 'mkdtemp fallback dir');
+});
+
+test('a passing full-set run writes the JSON stamp and the legacy bare-SHA twin (#1921 AC1)', async () => {
+  const { repo, git, gitDir } = tmpGitRepo();
+  const { code, stdout } = await runCli(['--cmd', 'tests=node -e 0'], { cwd: repo });
+  assert.strictEqual(code, 0);
+  const stamp = JSON.parse(fs.readFileSync(path.join(gitDir, 'claude-tweaks-verify-pass.json'), 'utf8'));
+  const head = git('rev-parse', 'HEAD').trim();
+  assert.strictEqual(stamp.scope, 'full');
+  assert.strictEqual(stamp.sha, head);
+  assert.strictEqual(stamp.fullSha, head);
+  assert.strictEqual(stamp.dirty, false);
+  assert.strictEqual(stamp.base, null);
+  assert.deepStrictEqual(stamp.changedFiles, []);
+  assert.deepStrictEqual(stamp.suitesRun, ['tests']);
+  assert.deepStrictEqual(stamp.flakyRetried, []);
+  assert.ok(fs.existsSync(stamp.reportPath), 'reportPath must exist');
+  assert.strictEqual(fs.readFileSync(path.join(gitDir, 'claude-tweaks-verify-pass'), 'utf8'), `${head}\n`);
+  assert.ok(stdout.includes('report:'));
+});
+
+test('a failing run, a fail-fast skip, and --no-stamp write neither stamp file (#1921 AC2, #1784)', async () => {
+  for (const args of [
+    ['--cmd', 'tests=node -e "process.exit(1)"'],
+    ['--cmd', 'types=node -e "process.exit(1)"', '--cmd', 'tests=node -e 0'],
+    ['--cmd', 'tests=node -e 0', '--no-stamp'],
+  ]) {
+    const { repo, gitDir } = tmpGitRepo();
+    await runCli(args, { cwd: repo });
+    assert.ok(!fs.existsSync(path.join(gitDir, 'claude-tweaks-verify-pass.json')), `json stamp written for ${JSON.stringify(args)}`);
+    assert.ok(!fs.existsSync(path.join(gitDir, 'claude-tweaks-verify-pass')), `bare stamp written for ${JSON.stringify(args)}`);
+  }
+});
+
+test('--stamp-status reports match/mismatch/absent as data with exit 0 (#1921 AC3)', async () => {
+  const { repo, git, gitDir } = tmpGitRepo();
+  const absent = await runCli(['--stamp-status'], { cwd: repo });
+  assert.strictEqual(absent.code, 0);
+  const a = JSON.parse(absent.stdout);
+  assert.strictEqual(a.present, false);
+  assert.strictEqual(a.match, false);
+
+  await runCli(['--cmd', 'tests=node -e 0'], { cwd: repo });
+  const matched = await runCli(['--stamp-status'], { cwd: repo });
+  assert.strictEqual(matched.code, 0);
+  const m = JSON.parse(matched.stdout);
+  assert.strictEqual(m.present, true);
+  assert.strictEqual(m.match, true);
+  assert.strictEqual(m.sha, git('rev-parse', 'HEAD').trim());
+  assert.strictEqual(m.head, m.sha);
+  assert.strictEqual(m.dirty, false);
+  assert.strictEqual(m.scope, 'full');
+  assert.strictEqual(m.legacy, false);
+  assert.ok(fs.existsSync(m.reportPath));
+
+  git('commit', '-q', '--allow-empty', '-m', 'move head');
+  const moved = await runCli(['--stamp-status'], { cwd: repo });
+  assert.strictEqual(moved.code, 0);
+  const v = JSON.parse(moved.stdout);
+  assert.strictEqual(v.present, true);
+  assert.strictEqual(v.match, false);
+  assert.notStrictEqual(v.head, v.sha);
+  assert.ok(fs.existsSync(path.join(gitDir, 'claude-tweaks-verify-pass.json')));
+});
+
+test('--stamp-status recomputes dirty from the live tree — a dirty edit with no new commit is match:false (#1921 Gotchas)', async () => {
+  const { repo } = tmpGitRepo();
+  await runCli(['--cmd', 'tests=node -e 0'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'scratch.txt'), 'dirty');
+  const { code, stdout } = await runCli(['--stamp-status'], { cwd: repo });
+  assert.strictEqual(code, 0);
+  const s = JSON.parse(stdout);
+  assert.strictEqual(s.present, true);
+  assert.strictEqual(s.dirty, true);
+  assert.strictEqual(s.match, false);
+});
+
+test('--stamp-status honors --git-dir and reads a legacy bare-SHA stamp as scope full (#1921)', async () => {
+  const { repo, git, gitDir } = tmpGitRepo();
+  fs.writeFileSync(path.join(gitDir, 'claude-tweaks-verify-pass'), `${git('rev-parse', 'HEAD').trim()}\n`);
+  const { code, stdout } = await runCli(['--stamp-status', '--git-dir', gitDir], { cwd: repo });
+  assert.strictEqual(code, 0);
+  const s = JSON.parse(stdout);
+  assert.strictEqual(s.present, true);
+  assert.strictEqual(s.legacy, true);
+  assert.strictEqual(s.scope, 'full');
+  assert.strictEqual(s.match, true);
+  assert.strictEqual(s.reportPath, null);
+});
+
+test('--stamp-status outside any checkout prints present:false and exits 0 (#1921 Gotchas)', async () => {
+  const { code, stdout } = await runCli(['--stamp-status']);
+  assert.strictEqual(code, 0);
+  const s = JSON.parse(stdout);
+  assert.strictEqual(s.present, false);
+  assert.strictEqual(s.match, false);
+  assert.strictEqual(s.head, null);
+});
+
+test('inside a checkout, --log-dir defaults under the git dir and --count-stamp is persisted there (#1921 AC4)', async () => {
+  const { repo, gitDir } = tmpGitRepo();
+  const tap = 'node -e "console.log(\'# tests 3\'); console.log(\'# pass 3\'); console.log(\'# fail 0\')"';
+  const { code, stdout } = await runCli(['--cmd', `tests=${tap}`], { cwd: repo });
+  assert.strictEqual(code, 0);
+  const m = stdout.match(/report: (\S+)/);
+  assert.strictEqual(m[1], path.join(gitDir, 'claude-tweaks-verify', 'report.json'));
+  assert.ok(fs.existsSync(m[1]));
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(gitDir, 'claude-tweaks-test-count.json'), 'utf8')).tests, 3);
+});
+
+test('an explicit --log-dir still wins inside a checkout (#1921)', async () => {
+  const { repo } = tmpGitRepo();
+  const logDir = tmpDir();
+  const { code, stdout } = await runCli(['--log-dir', logDir, '--cmd', 'tests=node -e 0'], { cwd: repo });
+  assert.strictEqual(code, 0);
+  assert.ok(stdout.includes(`report: ${path.join(logDir, 'report.json')}`));
 });
