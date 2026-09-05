@@ -23,7 +23,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const filePath = path.join(dir, '14-bar.md');
   const facets = {
     type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', solutionUnjustified: true, needsDefinition: false, priority: null,
-    stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
+    stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false, parked: false },
     parent: 12, isParentIssue: false, notPlanned: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
 
@@ -437,7 +437,7 @@ test('readRecord on a file with no frontmatter: type null, stage backlog, body i
   assert.strictEqual(record.id, 5);
   assert.strictEqual(record.slug, 'broken');
   assert.deepStrictEqual(record.facets.grants, { build: false, merge: false });
-  assert.deepStrictEqual(record.facets.bot, { inProgress: false, blocked: false });
+  assert.deepStrictEqual(record.facets.bot, { inProgress: false, blocked: false, parked: false });
   assert.deepStrictEqual(record.facets.blockedBy, []);
   assert.strictEqual(record.facets.unsynced, false);
   assert.strictEqual(record.facets.acceptance, null);
