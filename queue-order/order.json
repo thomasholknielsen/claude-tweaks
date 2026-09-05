@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T04:16:33.922Z",
+  "computedAt": "2026-09-05T07:20:33.339Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -66,11 +66,6 @@
       {
         "number": 1765,
         "updatedAt": "2026-09-04T09:59:48Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1687,
-        "updatedAt": "2026-09-04T15:04:26Z",
         "state": "OPEN"
       },
       {
@@ -1132,88 +1127,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Current State\n\n`archive-merged.js`'s `isAbandonedInterrupted` (added by #1673) refuses to auto-close a run owned by the calling session:\n\n```js\nif (owner && sessionId && owner === sessionId) return false; // our own live run\n```\n\n`sessionId` reaches it from two places, and in the one that matters it is always `null`:\n\n- `plugin/bin/lib/hooks/session-start.js` now threads `ctx.input.session_id` into its inline `reconcile({...})` call (#1673). But that call passes `checks: FAST_CHECKS`, and `FAST_CHECKS = ['mirror', 'red-tip', 'console']` — **`archive` is not in it**. The gate is never reached from there.\n- The archive check runs only from the detached `reconcile-background` child (`BACKGROUND_CHECKS = ['release', 'archive', 'archive-branches', 'remote-prune', 'reap']`), spawned from `session-start.js` with `stdio: 'ignore'` and no stdin. It has no hook payload, so no `session_id`.\n- `archiveMerged`'s remaining fallback is `process.env.CLAUDE_CODE_SESSION_ID`, which `plugin/bin/hooks.js`'s own comment documents as \"not reliably present\" for a hook-spawned process.\n\nNet effect: in production the ownership gate is a no-op, and the substantive protection is the other two gates alone — the 24h staleness window over non-fallback events, and `checkRunIntegrity` returning `shipped-unclosed`.\n\n## Deliverables\n\n- [ ] The `reconcile-background` child receives a session id — most likely via its spawn environment, set from `ctx.input.session_id` at the spawn site in `session-start.js`.\n- [ ] `hooks.js`'s `reconcile-background` subcommand reads it and threads it into `reconcile({ ..., sessionId })`.\n- [ ] A test proving the gate actually engages on that path: a run owned by the spawning session is not auto-closed even when the staleness and evidence gates both pass.\n\n## Acceptance Criteria\n\n1. A run whose `run-state.json` records the same session id as the session that spawned the background pass is never auto-closed by `archiveMerged`, on the real `reconcile-background` path (not merely in a unit test that passes `sessionId` directly).\n2. With no session id resolvable, behavior is unchanged from today — the other two gates still govern, and nothing fails closed in a way that disables the sweep.\n3. `npm test` passes.\n\n## Gotchas\n\nThreading a value into a detached child process's environment is a change to the fast/background split's own contract (`#820`), not to the auto-close criterion #1673 added. This is a missing belt-and-braces guard, not an open hole: the auto-close still requires a run to be `interrupted`, to have had no self-attributed event for 24h, and to carry `shipped-unclosed` evidence.\n\n## Original request\n\nOrigin: `/claude-tweaks:review #1673`, Step 3 — both agents of the lens-3c reproduction pair independently found that `archiveMerged`'s ownership gate is inert in the path that actually runs it. #1673 fixed every finding inside its own blast radius and deliberately did not fake this one — `session-start.js` carries an in-code comment stating plainly that the threading it does perform \"has no effect on archive-merged.js's ownership gate today\". Filed via the `/claude-tweaks:flow #1463,#1672,#1673,#1674` consolidated Review Console.\n",
-        "createdAt": "2026-08-29T21:03:40Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Scoring: moderate blast radius — review before merge recommended",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1687,
-        "state": "OPEN",
-        "title": "reconcile-background: the archive sweep's ownership gate has no session id to check against",
-        "updatedAt": "2026-09-04T15:04:26Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
         }
       }
     ],
