@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-09-02T103225-record-1302",
-  "reason": "failed: blocked-dependency (RemoteTrigger tool unavailable)",
-  "releasedAt": "2026-09-02T10:40:53.112Z"
+  "runId": "record-1302",
+  "sessionId": "bf314a24-dbe8-4ca8-8f10-3d299bd72414",
+  "claimedAt": "2026-09-05T04:09:43.630Z",
+  "ttlHours": 72,
+  "host": "Djoef-PC-WE8Swd"
 }
