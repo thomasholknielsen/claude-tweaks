@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T10:17:21.244Z",
+  "computedAt": "2026-09-05T10:35:37.344Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -135,7 +135,7 @@
       },
       {
         "number": 1135,
-        "updatedAt": "2026-09-02T11:15:56Z",
+        "updatedAt": "2026-09-05T10:19:10Z",
         "state": "OPEN"
       },
       {
@@ -1980,82 +1980,6 @@
           "risk": "low",
           "size": "low",
           "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: reflect full-mode from #1076\nDefer-reason: tangential\n\n## Current State\n\n`/claude-tweaks:build` Common Step 2 executes plans via `/superpowers:subagent-driven-development`, whose own Finish step deletes the plan's SDD workspace (`.superpowers/sdd/{plan}/`) once the final review is clean — including `progress.md`, where SDD convention ledgers deferred-minor review findings. claude-tweaks' wrap-up reads only the run ledger (`docs/plans/*-ledger.md`), so any observation ledgered solely in the SDD workspace is structurally lost at the seam. Observed in run 2026-08-20T154419-spec-1076: a scoped re-review's out-of-scope observation survived only because a later hindsight pass happened to re-surface it.\n\n## Deliverables\n\n- [ ] `plugin/skills/build/SKILL.md` Common Step 2 (or the SDD invocation instruction it composes) directs the controller to copy any surviving SDD deferred-minor / parked-finding ledger lines into the run ledger (phase `build/*`, status `deferred` or `observation`) before the SDD workspace is deleted.\n- [ ] The instruction names the source (`{workspace}/progress.md` lines matching `minor (deferred)` / `parked`) and the destination table's column shape.\n\n## Acceptance Criteria\n\n1. After a `/build` run whose SDD pass recorded at least one deferred minor, the run ledger contains those lines and the SDD workspace is deleted — verifiable by inspecting `docs/plans/{run}-ledger.md` post-build.\n2. A conformance check (or the existing suite pattern) pins the instruction's presence in `build/SKILL.md`.\n\n_Filed by `reflect` via wrap-up upstream-row self-reference collapse._\n",
-        "createdAt": "2026-08-20T19:15:08Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          }
-        ],
-        "number": 1135,
-        "state": "OPEN",
-        "title": "build: copy surviving SDD deferred-minor ledger lines into the run ledger before workspace deletion",
-        "updatedAt": "2026-09-02T11:15:56Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
