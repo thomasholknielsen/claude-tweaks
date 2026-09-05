@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T13:28:46.473Z",
+  "computedAt": "2026-09-05T14:30:38.193Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -90,7 +90,7 @@
       },
       {
         "number": 1537,
-        "updatedAt": "2026-08-29T16:19:50Z",
+        "updatedAt": "2026-09-05T13:31:00Z",
         "state": "OPEN"
       },
       {
@@ -100,7 +100,7 @@
       },
       {
         "number": 1503,
-        "updatedAt": "2026-09-05T12:35:11Z",
+        "updatedAt": "2026-09-05T14:12:01Z",
         "state": "OPEN"
       },
       {
@@ -1396,94 +1396,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Related:** #1634\n\n**CLAUDE.md:** CLAUDE | **Section:** Auto-Mode Contract + Bookend Architecture (v4.6+) | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b3962148502d70e2970b7591c55634d62dc74162\n\n## Current State\n\n`plugin/skills/_shared/auto-mode-contract.md` line 30 states verbatim: \"Begin stop is opt-in under `auto`. `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** ... so the everyday auto pipeline has effectively **one** user-facing stop ... The 'at most two stops' promise is a ceiling, not a floor.\" CLAUDE.md's own paragraph omits this distinction entirely, leaving a reader (or an agent acting on CLAUDE.md alone) to assume the Manifesto is normally an interactive stop in default `auto`, which it is not.\n\n## Deliverables\n\n**Current:**\n```\nclaude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.\n```\n\n**Proposed:**\n```\nclaude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). The two-stop ceiling isn't a floor: in default `auto`, the Manifesto renders as a **read-only FYI** (displays levers, doesn't gate), so the everyday run has effectively **one** user-facing stop — the end Review Console. Pass `confirm` (or `hybrid`) to turn the Manifesto into a real approval gate. Everything in between is policy-driven automation logged to the auto-decision log.\n```\n\n## Acceptance Criteria\n\nCLAUDE.md's Auto-Mode Contract paragraph presents \"at most two stops\" as if both stops normally occur in `auto` mode, but the canonical `plugin/skills/_shared/auto-mode-contract.md` (the file this paragraph cites as single source of truth) now explicitly clarifies that the ceiling is not a floor: in default `auto`, the Manifesto renders as a read-only FYI and never gates, so the everyday auto run has effectively only one user-facing stop (the end Review Console) — the Manifesto only becomes a real stop under `confirm`/`hybrid`.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-1ee082ad -->",
-        "createdAt": "2026-08-27T05:23:55Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
-            "name": "by:harness-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
-            "name": "harness-health:additive",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 1537,
-        "state": "OPEN",
-        "title": "CLAUDE.md drift: CLAUDE — Auto-Mode Contract + Bookend Architecture (v4.6+)",
-        "updatedAt": "2026-08-29T16:19:50Z",
-        "facets": {
-          "origin": "harness-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
