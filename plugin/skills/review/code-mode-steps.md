@@ -87,7 +87,8 @@ After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger
 
 | Result | Action |
 |--------|--------|
-| `TEST_PASSED=true` (pipeline) | Proceed to Step 2 |
+| `TEST_PASSED=true` (pipeline) + runner stamp `match: true` | Proceed to Step 2 |
+| `TEST_PASSED=true` (pipeline) + runner stamp `match: false` | Report the mismatch (stamp sha vs HEAD), re-trigger `/claude-tweaks:test`, re-check |
 | Verification pass stamp matches `HEAD` (standalone) | Proceed to Step 2 |
 | `/claude-tweaks:test` triggered and passes | Proceed to Step 2 |
 | `/claude-tweaks:test` triggered and fails | **STOP** — present test failures. Fix before continuing. Run `/claude-tweaks:test` to re-verify. |
