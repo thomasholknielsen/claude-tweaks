@@ -406,3 +406,167 @@ test('--git-dir on a normal run redirects report/count paths to that git dir and
   );
   assert.ok(!fs.existsSync(path.join(cwdGitDir, 'claude-tweaks-verify-pass')));
 });
+
+// A declaration file inside a temp repo, plus a marker-touching "unit" command
+// so a test can prove a suite was or was not spawned. Two suites are declared
+// so "every declared suite selected" (which collapses to mode full) is not
+// trivially true whenever the one suite's rule matches.
+function scopedRepo(rules, extra = {}) {
+  const r = tmpGitRepo();
+  const marker = path.join(r.repo, 'unit-ran.marker');
+  const decl = { checks: { tests: { unit: 'placeholder', other: 'placeholder' } }, rules, ...extra };
+  fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
+  r.git('add', '.claude-tweaks/verify-scope.json');
+  r.git('commit', '-q', '-m', 'declare verify scope');
+  // Shell-quoted with an outer single-quoted -e script: JSON.stringify's
+  // double-quoted path literal must never sit inside an outer double-quoted
+  // -e script (spawn's shell:true runs this through /bin/sh -c) — nesting
+  // "..." inside "..." closes the shell's quoting early and corrupts the
+  // path into a bareword the JS parser then misreads as a regex literal.
+  const unitCmd = `node -e 'require("fs").writeFileSync(${JSON.stringify(marker)}, "ran")'`;
+  // The temp repo has no origin, so --integration-branch names its own local
+  // branch — whatever init.defaultBranch made it (master on this machine).
+  const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
+  return { ...r, marker, unitCmd, branch, declPath: '.claude-tweaks/verify-scope.json' };
+}
+
+function stampOf(gitDir) {
+  return JSON.parse(fs.readFileSync(path.join(gitDir, 'claude-tweaks-verify-pass.json'), 'utf8'));
+}
+
+function commitFile(r, rel, content) {
+  fs.mkdirSync(path.dirname(path.join(r.repo, rel)), { recursive: true });
+  fs.writeFileSync(path.join(r.repo, rel), content);
+  r.git('add', rel);
+  r.git('commit', '-q', '-m', `add ${rel}`);
+}
+
+test('--scope: full → none → scoped across three commits, anchored to the first full pass (#1922 AC4)', async () => {
+  const r = scopedRepo([
+    { match: 'src/**', suites: ['unit'], static: true },
+    { match: 'docs/**', suites: [], static: false },
+  ]);
+  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`];
+
+  const run1 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run1.code, 0, run1.stderr);
+  assert.match(run1.stdout, /^Scope: full/m);
+  const s1 = stampOf(r.gitDir);
+  assert.strictEqual(s1.scope, 'full');
+  assert.strictEqual(s1.fullSha, r.git('rev-parse', 'HEAD').trim());
+  assert.ok(fs.existsSync(r.marker), 'run 1 must spawn unit');
+  fs.unlinkSync(r.marker);
+
+  commitFile(r, 'docs/a.md', 'docs');
+  const run2 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run2.code, 0, run2.stderr);
+  assert.match(run2.stdout, /^Scope: none — 1 changed file\(s\) since/m);
+  assert.match(run2.stdout, /still-verified: bookkeeping-only delta \(docs\/a\.md\)/);
+  const s2 = stampOf(r.gitDir);
+  assert.strictEqual(s2.scope, 'none');
+  assert.strictEqual(s2.fullSha, s1.fullSha);
+  assert.strictEqual(s2.base, s1.fullSha);
+  assert.deepStrictEqual(s2.suitesRun, []);
+  assert.deepStrictEqual(s2.changedFiles, ['docs/a.md']);
+  assert.ok(!fs.existsSync(r.marker), 'run 2 must not spawn unit');
+  const report2 = JSON.parse(fs.readFileSync(s2.reportPath, 'utf8'));
+  assert.strictEqual(report2.scope.mode, 'none');
+  assert.strictEqual(report2.pass, true);
+
+  commitFile(r, 'src/a.js', 'module.exports = 1;');
+  const run3 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run3.code, 0, run3.stderr);
+  assert.match(run3.stdout, /^Scope: scoped — 2 changed file\(s\) since/m);
+  const s3 = stampOf(r.gitDir);
+  assert.strictEqual(s3.scope, 'scoped');
+  assert.deepStrictEqual(s3.suitesRun, ['unit']);
+  assert.strictEqual(s3.base, s1.fullSha);
+  assert.strictEqual(s3.fullSha, s1.fullSha);
+  assert.deepStrictEqual(s3.changedFiles, ['docs/a.md', 'src/a.js']);
+  assert.ok(fs.existsSync(r.marker), 'run 3 must spawn unit');
+});
+
+test('--scope: an unmatched path fails closed to a full run and is listed as unmatched (#1922)', async () => {
+  const r = scopedRepo([{ match: 'docs/**', suites: [], static: false }]);
+  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`];
+  await runCli(args, { cwd: r.repo });
+  fs.unlinkSync(r.marker);
+  commitFile(r, 'mystery/x.txt', 'x');
+  const run = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run.code, 0, run.stderr);
+  assert.match(run.stdout, /^Scope: full — 1 changed file\(s\) since .*unmatched: 1/m);
+  assert.ok(fs.existsSync(r.marker));
+  const s = stampOf(r.gitDir);
+  assert.strictEqual(s.scope, 'full');
+  assert.strictEqual(s.fullSha, r.git('rev-parse', 'HEAD').trim(), 'a full run advances fullSha');
+  const report = JSON.parse(fs.readFileSync(s.reportPath, 'utf8'));
+  assert.deepStrictEqual(report.scope.unmatched, ['mystery/x.txt']);
+});
+
+test('--scope: a --cmd name that is neither types/lint nor a declared suite exits 2 naming it, and writes no stamp (#1922 AC5)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['unit'], static: true }]);
+  const run = await runCli(['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', 'smoke=node -e 0'], { cwd: r.repo });
+  assert.strictEqual(run.code, 2);
+  assert.match(run.stderr, /smoke/);
+  assert.match(run.stderr, /usage:/);
+  assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json')));
+});
+
+test('--scope: a declaration with an unknown suite in a rule exits 2 naming the rule index and suite, and writes no stamp (#1922 AC6)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['nope'], static: true }]);
+  const run = await runCli(['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`], { cwd: r.repo });
+  assert.strictEqual(run.code, 2);
+  assert.match(run.stderr, /rules\[0\].*nope/);
+  assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json')));
+  assert.ok(!fs.existsSync(r.marker));
+});
+
+test('--scope with no declaration file behaves as a full run and stamps full (#1922)', async () => {
+  const r = tmpGitRepo();
+  const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
+  const run = await runCli(['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', branch, '--cmd', 'tests=node -e 0'], { cwd: r.repo });
+  assert.strictEqual(run.code, 0, run.stderr);
+  assert.match(run.stdout, /^Scope: full/m);
+  assert.strictEqual(stampOf(r.gitDir).scope, 'full');
+});
+
+test('--scope tool-scoped: {base} is substituted into the single tests command and fullSha never advances (#1922 Gotchas)', async () => {
+  const r = tmpGitRepo();
+  const out = path.join(r.repo, 'base-seen.txt');
+  // Same outer-single-quote shape as scopedRepo's unitCmd above: a
+  // JSON.stringify'd double-quoted path must never sit inside a
+  // double-quoted -e script.
+  const decl = {
+    checks: { tests: `node -e 'require("fs").writeFileSync(${JSON.stringify(out)}, "{base}")'` },
+    rules: [{ match: 'src/**', suites: [], static: true }, { match: 'docs/**', suites: [], static: false }],
+  };
+  fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
+  r.git('add', '.claude-tweaks/verify-scope.json');
+  r.git('commit', '-q', '-m', 'declare');
+  const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', r.git('symbolic-ref', '--short', 'HEAD').trim()];
+  const run1 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run1.code, 0, run1.stderr);
+  const s1 = stampOf(r.gitDir);
+  assert.strictEqual(s1.scope, 'full');
+  commitFile(r, 'src/a.js', '1');
+  const run2 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run2.code, 0, run2.stderr);
+  assert.match(run2.stdout, /^Scope: tool-scoped/m);
+  assert.strictEqual(fs.readFileSync(out, 'utf8'), s1.fullSha, 'the resolved base replaced {base}');
+  const s2 = stampOf(r.gitDir);
+  assert.strictEqual(s2.scope, 'tool-scoped');
+  assert.strictEqual(s2.fullSha, s1.fullSha);
+  assert.strictEqual(s2.base, s1.fullSha);
+  assert.deepStrictEqual(s2.suitesRun, ['tests']);
+});
+
+test('--scope: an unresolvable base exits 2 with a ChangedFilesError message, never an empty diff (#1922 AC3 posture)', async () => {
+  const r = tmpGitRepo();
+  fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify({ checks: { tests: 'x' }, rules: [] }));
+  const run = await runCli(['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', 'no-such-branch', '--cmd', 'tests=node -e 0'], { cwd: r.repo });
+  assert.strictEqual(run.code, 2);
+  assert.match(run.stderr, /could not resolve a base/);
+});

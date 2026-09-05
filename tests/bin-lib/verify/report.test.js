@@ -141,3 +141,13 @@ test('gitDir returns null when git fails (outside a checkout) (#1921)', () => {
   const exec = () => { throw new Error('fatal: not a git repository'); };
   assert.strictEqual(gitDir(exec, '/tmp'), null);
 });
+
+test('composeReport carries a scope object when given one and omits it otherwise (#1922)', () => {
+  const git = { sha: 'abc', dirty: false };
+  const checks = [{ name: 'tests', command: 'x', exitCode: 0, durationMs: 1, logPath: '/l' }];
+  const without = composeReport({ checks, startedAt: 't', durationMs: 1, git });
+  assert.ok(!('scope' in without));
+  const scope = { mode: 'scoped', suites: ['api'], static: true, base: 'fff', unmatched: [], changedFiles: ['apps/api/a.ts'] };
+  const withScope = composeReport({ checks, startedAt: 't', durationMs: 1, git, scope });
+  assert.deepStrictEqual(withScope.scope, scope);
+});

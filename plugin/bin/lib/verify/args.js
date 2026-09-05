@@ -7,9 +7,10 @@ class UsageError extends Error {}
 const USAGE =
   'usage: verify.js --cmd <name>=<command> [--cmd <name>=<command> ...] [--json <path>] '
   + '[--log-dir <dir>] [--count-stamp <path>] [--no-stamp] [--git-dir <dir>] '
+  + '[--scope <path>] [--base <ref>] [--integration-branch <name>] '
   + '| verify.js --stamp-status [--git-dir <dir>]';
 
-const VALUE_FLAGS = new Set(['--cmd', '--json', '--log-dir', '--count-stamp', '--git-dir']);
+const VALUE_FLAGS = new Set(['--cmd', '--json', '--log-dir', '--count-stamp', '--git-dir', '--scope', '--base', '--integration-branch']);
 
 // argv = process.argv.slice(2). Throws UsageError on any malformed input —
 // the CLI prints message + USAGE to stderr and exits non-zero (AC6).
@@ -22,6 +23,9 @@ function parseArgs(argv) {
   let gitDir = null;
   let stampStatus = false;
   let noStamp = false;
+  let scope = null;
+  let base = null;
+  let integrationBranch = null;
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === '--stamp-status') { stampStatus = true; continue; }
@@ -34,6 +38,9 @@ function parseArgs(argv) {
       if (flag === '--log-dir') { logDir = value; continue; }
       if (flag === '--count-stamp') { countStamp = value; continue; }
       if (flag === '--git-dir') { gitDir = value; continue; }
+      if (flag === '--scope') { scope = value; continue; }
+      if (flag === '--base') { base = value; continue; }
+      if (flag === '--integration-branch') { integrationBranch = value; continue; }
       const eq = value.indexOf('=');
       if (eq === -1) throw new UsageError(`--cmd value must be <name>=<command>, got: ${value}`);
       if (eq === 0) throw new UsageError(`--cmd value has an empty name: ${value}`);
@@ -49,9 +56,13 @@ function parseArgs(argv) {
     }
     throw new UsageError(`unknown flag: ${flag}`);
   }
-  if (cmds.length === 0 && !stampStatus) throw new UsageError('at least one --cmd <name>=<command> is required');
+  // --scope (#1922) can legitimately resolve to zero --cmd entries: a
+  // tool-scoped declaration synthesizes its own `tests` command from
+  // checks.tests, and mode `none`/an unscoped full run may have nothing to
+  // check at all. Without --scope the no-op-invocation guard still applies.
+  if (cmds.length === 0 && !stampStatus && !scope) throw new UsageError('at least one --cmd <name>=<command> is required');
   if (stampStatus && cmds.length) throw new UsageError('--stamp-status takes no --cmd');
-  return { cmds, json, logDir, countStamp, gitDir, stampStatus, noStamp };
+  return { cmds, json, logDir, countStamp, gitDir, stampStatus, noStamp, scope, base, integrationBranch };
 }
 
 module.exports = { parseArgs, UsageError, USAGE };

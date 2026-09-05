@@ -19,6 +19,9 @@ const { gitInfo, gitDir: resolveGitDir, composeReport } = require('./lib/verify/
 const { readStamp: readCountStamp, detectRegression, caveatLine } = require('./lib/verify/count-stamp');
 const { writeJsonAtomic } = require('./lib/verify/atomic-write');
 const { composeStamp, writeStamp, readStamp: readVerifyStamp } = require('./lib/verify/stamp');
+const { readDeclaration } = require('./lib/verify/declaration');
+const { changedFiles, resolveBase, ChangedFilesError } = require('./lib/verify/changed-files');
+const { selectScope } = require('./lib/verify/scope');
 
 function enrich(result) {
   if (result.skipped) return result;
@@ -114,9 +117,54 @@ async function main() {
   const jsonPath = parsed.json || path.join(logDir, 'report.json');
   const countStampPath = parsed.countStamp || (gitDir ? path.join(gitDir, 'claude-tweaks-test-count.json') : null);
 
+  // --scope (#1922): declaration → changed files since the anchor → pure
+  // selection → filtered check set. Without --scope every value below is
+  // its full-run default and the run is byte-for-byte today's.
+  let sel = null;
+  let resolvedBase = null;
+  let files = [];
+  let cmds = parsed.cmds;
+  if (parsed.scope) {
+    const read = readDeclaration(parsed.scope);
+    if (!read.ok) {
+      process.stderr.write(`${read.errors.join('\n')}\n${USAGE}\n`);
+      process.exitCode = 2;
+      return;
+    }
+    const decl = read.decl;
+    const priorStamp = gitDir ? readVerifyStamp(gitDir) : null;
+    try {
+      resolvedBase = resolveBase({ stamp: priorStamp, integrationBranch: parsed.integrationBranch, base: parsed.base });
+    } catch (err) {
+      if (!(err instanceof ChangedFilesError)) throw err;
+      process.stderr.write(`--scope: ${err.message}\n${USAGE}\n`);
+      process.exitCode = 2;
+      return;
+    }
+    files = changedFiles({ base: resolvedBase }).files;
+    sel = selectScope({ decl, files, stamp: priorStamp });
+    if (decl) {
+      const allowed = new Set(['types', 'lint', ...decl.suites]);
+      const bad = parsed.cmds.find((c) => !allowed.has(c.name));
+      if (bad) {
+        process.stderr.write(`--scope: --cmd "${bad.name}" is not types, lint, or a declared suite (${decl.suites.join(', ')})\n${USAGE}\n`);
+        process.exitCode = 2;
+        return;
+      }
+      cmds = parsed.cmds.filter((c) => {
+        if (c.name === 'types' || c.name === 'lint') return sel.static;
+        if (sel.mode === 'tool-scoped') return false;
+        return sel.suites === '*' || sel.suites.includes(c.name);
+      });
+      if (sel.mode === 'tool-scoped') {
+        cmds = cmds.concat([{ name: 'tests', command: decl.checks.tests.replace(/\{base\}/g, resolvedBase) }]);
+      }
+    }
+  }
+
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
-  const results = (await runChecks({ cmds: parsed.cmds, logDir })).map(enrich);
+  const results = sel && sel.mode === 'none' ? [] : (await runChecks({ cmds, logDir })).map(enrich);
   const git = gitInfo();
 
   // Suite-count regression stamp (#881, IL-84): the "tests" check's own
@@ -149,6 +197,7 @@ async function main() {
 
   const report = composeReport({
     checks: results, startedAt, durationMs: Date.now() - startMs, git, testCountRegression,
+    scope: sel ? { mode: sel.mode, suites: sel.suites, static: sel.static, base: resolvedBase, unmatched: sel.unmatched, changedFiles: files } : null,
   });
   writeJsonAtomic(jsonPath, report);
 
@@ -159,19 +208,32 @@ async function main() {
   // rule already requires dirty === false. --no-stamp is the caller's
   // declaration that this --cmd set is deliberately partial. The write is
   // best-effort like the count stamp: a stamp failure never fails the run.
+  // Under --scope the stamp's scope names exactly what ran; only a full run
+  // advances fullSha (#1922).
   const fullSet = results.every((c) => !c.skipped);
   // An explicit --git-dir redirects logs and the count stamp only; the pass
   // stamp keys on the invoking cwd's HEAD, which may not be that repo's.
   if (report.pass && fullSet && !parsed.noStamp && gitDir && git.sha && !parsed.gitDir) {
     const suitesRun = results.filter((c) => c.name !== 'types' && c.name !== 'lint').map((c) => c.name);
+    const mode = sel ? sel.mode : 'full';
     const stamp = composeStamp({
-      report, scope: 'full', fullSha: git.sha, base: null, changedFiles: [],
+      report, scope: mode,
+      fullSha: mode === 'full' ? git.sha : sel.base,
+      base: mode === 'full' ? null : resolvedBase,
+      changedFiles: mode === 'full' ? [] : files,
       suitesRun, flakyRetried: [], reportPath: path.resolve(jsonPath), at: new Date().toISOString(),
     });
     try { writeStamp(gitDir, stamp); } catch { /* best-effort; next --stamp-status simply reads absent */ }
   }
 
-  const lines = ['| Check | Status | Duration | Summary |', '|---|---|---|---|'];
+  const lines = [];
+  if (sel) {
+    const suiteList = sel.suites === '*' ? 'all' : (sel.suites.length ? sel.suites.join(', ') : 'none');
+    lines.push(`Scope: ${sel.mode} — ${files.length} changed file(s) since ${String(resolvedBase).slice(0, 9)}; suites: ${suiteList}; static: ${sel.static ? 'yes' : 'no'}; unmatched: ${sel.unmatched.length}`);
+    if (sel.mode === 'none') lines.push(`still-verified: bookkeeping-only delta (${files.join(', ')})`);
+    lines.push('');
+  }
+  lines.push('| Check | Status | Duration | Summary |', '|---|---|---|---|');
   for (const check of results) {
     const duration = check.skipped ? '—' : `${(check.durationMs / 1000).toFixed(1)}s`;
     const summary = check.skipped ? '—' : (check.summary || '—');

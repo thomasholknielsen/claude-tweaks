@@ -27,6 +27,9 @@ test('parses repeatable --cmd plus --json, --log-dir, and --count-stamp', () => 
     gitDir: null,
     stampStatus: false,
     noStamp: false,
+    scope: null,
+    base: null,
+    integrationBranch: null,
   });
 });
 
@@ -112,4 +115,15 @@ test('USAGE names the new flags (#1921)', () => {
 
 test('--stamp-status and --cmd are mutually exclusive (#1921 final review)', () => {
   assert.throws(() => parseArgs(['--stamp-status', '--cmd', 'tests=node -e 0']), UsageError);
+});
+
+test('--scope, --base, and --integration-branch parse as value flags (#1922)', () => {
+  const p = parseArgs(['--cmd', 'tests=node -e 0', '--scope', '.claude-tweaks/verify-scope.json', '--base', 'abc', '--integration-branch', 'main']);
+  assert.strictEqual(p.scope, '.claude-tweaks/verify-scope.json');
+  assert.strictEqual(p.base, 'abc');
+  assert.strictEqual(p.integrationBranch, 'main');
+  const d = parseArgs(['--cmd', 'tests=node -e 0']);
+  assert.strictEqual(d.scope, null); assert.strictEqual(d.base, null); assert.strictEqual(d.integrationBranch, null);
+  assert.throws(() => parseArgs(['--cmd', 'tests=x', '--scope']), UsageError);
+  for (const flag of ['--scope', '--base', '--integration-branch']) assert.ok(USAGE.includes(flag), flag);
 });
