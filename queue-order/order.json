@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T17:40:13.117Z",
+  "computedAt": "2026-09-05T17:45:10.356Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -55,7 +55,7 @@
       },
       {
         "number": 1765,
-        "updatedAt": "2026-09-04T09:59:48Z",
+        "updatedAt": "2026-09-05T17:44:48Z",
         "state": "OPEN"
       },
       {
@@ -842,82 +842,6 @@
           "risk": "low",
           "size": "low",
           "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect light from #1192\nDefer-reason: tangential\n\n## Current State\n\n`/claude-tweaks:review` and `/claude-tweaks:wrap-up` trim per-step *work* under `ceremony-profile: fast-lane` (skipping Steps 1/1.6/4 in review, the tradeoff review in reflect, narrowing domain-overlap caps), but the *procedure-discovery* cost is not trimmed: both skills still route through their full SKILL.md plus several multi-hundred-line sub-files (`code-mode-steps.md`, `review-effort-derivation.md`, `curation-engine.md`, `skill-curation.md`, `docs-health-integration.md`, `journey-curation.md`, `upstream-feedback.md`, `reflect/light-mode.md`, …) to discover which steps apply and which are skipped. Observed directly on record #1192 — a single-file, `size:low`, zero-review-finding backend concurrency fix — where the sub-file reading before any review/wrap-up substance began outweighed the substance itself (reading one diff, running a handful of `node --test` invocations).\n\n## Deliverables\n\n- [ ] Design a condensed \"fast-lane digest\" — a single short file naming exactly which review/wrap-up steps and registry rows apply at `fast-lane` (the trimmed step list plus the closed-gate reasons already known statically for a small diff), read instead of the full SKILL.md + sub-file chain.\n- [ ] Reserve the full chain for `standard`/non-fast-lane ceremony, where the extra procedure detail earns its cost.\n\n## Acceptance Criteria\n\n- A `fast-lane`-profiled run's review/wrap-up procedure-discovery reads measurably fewer sub-file lines than today's chain, with no change in which steps actually execute or skip.\n\n## Original request\n\nReflect light-mode Friction lens finding, record #1192: fast-lane ceremony overhead disproportionate to a zero-finding single-file fix. Evidence: the sequence of `Skill` tool invocations this session made before reaching any review substance — six-plus distinct multi-hundred-line files loaded back-to-back, none of which this record's diff needed more than a fraction of.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-09-01T19:09:40Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          }
-        ],
-        "number": 1765,
-        "state": "OPEN",
-        "title": "Condensed fast-lane digest entry point for review/wrap-up ceremony",
-        "updatedAt": "2026-09-04T09:59:48Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": "standard",
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
