@@ -90,3 +90,58 @@ test('cli: --help prints usage, exit 0', () => {
   assert.equal(run(['--help'], deps), 0);
   assert.ok(out.join('').includes('usage:'));
 });
+
+test('cli: --set writes multiple levers in one call, printing one line per lever', () => {
+  const { main, runDir } = fixture();
+  const { deps, out } = fakeDeps(main);
+  const code = run(['--run', runDir, '--set', 'mode=hybrid,ceremony-profile=standard'], deps);
+  assert.equal(code, 0);
+  const body = fs.readFileSync(path.join(runDir, 'config.yml'), 'utf8');
+  assert.ok(body.includes('mode: hybrid'));
+  assert.ok(body.includes('ceremony-profile: standard'));
+  assert.ok(body.includes('spec: 12'));
+  const printed = out.join('');
+  assert.ok(printed.includes('mode: auto -> hybrid'));
+  assert.ok(printed.includes('ceremony-profile: fast-lane -> standard'));
+});
+
+test('cli: --set validates the full set before writing any — one invalid value blocks the whole batch', () => {
+  const { main, runDir } = fixture();
+  const { deps, err } = fakeDeps(main);
+  const code = run(['--run', runDir, '--set', 'mode=hybrid,ceremony-profile=turbo'], deps);
+  assert.equal(code, 2);
+  assert.ok(err.join('').includes('fast-lane'));
+  const body = fs.readFileSync(path.join(runDir, 'config.yml'), 'utf8');
+  assert.ok(body.includes('mode: auto'), 'mode must NOT have been written — all-or-nothing');
+  assert.ok(!body.includes('mode: hybrid'));
+});
+
+test('cli: --set with an unknown key blocks the whole batch and names the canonical lever set', () => {
+  const { main, runDir } = fixture();
+  const { deps, err } = fakeDeps(main);
+  const code = run(['--run', runDir, '--set', 'mode=hybrid,spec=13'], deps);
+  assert.equal(code, 2);
+  const msg = err.join('');
+  assert.ok(/not a config\.yml policy lever/.test(msg));
+  assert.ok(msg.includes('ceremony-profile'));
+  const body = fs.readFileSync(path.join(runDir, 'config.yml'), 'utf8');
+  assert.ok(body.includes('mode: auto'), 'nothing should have been written');
+});
+
+test('cli: --set with a malformed entry (no "=") is exit 2 and nothing is written', () => {
+  const { main, runDir } = fixture();
+  const { deps, err } = fakeDeps(main);
+  const code = run(['--run', runDir, '--set', 'mode=hybrid,ceremony-profile-standard'], deps);
+  assert.equal(code, 2);
+  assert.ok(err.join('').includes('is not in key=value form'));
+  const body = fs.readFileSync(path.join(runDir, 'config.yml'), 'utf8');
+  assert.ok(body.includes('mode: auto'), 'nothing should have been written');
+});
+
+test('cli: --set combined with --key/--value is exit 2', () => {
+  const { main, runDir } = fixture();
+  const { deps, err } = fakeDeps(main);
+  const code = run(['--run', runDir, '--set', 'mode=hybrid', '--key', 'ceremony-profile', '--value', 'standard'], deps);
+  assert.equal(code, 2);
+  assert.ok(err.join('').includes('cannot be combined'));
+});
