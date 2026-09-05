@@ -21,10 +21,10 @@ files:
 ## Steps
 
 ### 1. Run the reserved three-stage set — terminal
-- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --log-dir "$(git rev-parse --git-dir)/claude-tweaks-verify" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"`
+- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"`
 - **Action:** Run against a project that supplies all three reserved names.
-- **Should feel:** One command replacing the old prose-orchestrated capture recipe — no `LOG=`, no `tail`, no `grep` pipeline to hand-assemble.
-- **Should understand:** `types` and `lint` start concurrently; `tests` only starts once every supplied one of them has exited 0. A stage-1 failure reports `tests` as `skipped: fail-fast` in both the stdout table and `report.json` — never silently dropped, never spawned anyway.
+- **Should feel:** One command replacing the old prose-orchestrated capture recipe — no `LOG=`, no `tail`, no `grep` pipeline to hand-assemble, and (since #1921) no `$(git rev-parse --git-dir)` substitution either.
+- **Should understand:** `types` and `lint` start concurrently; `tests` only starts once every supplied one of them has exited 0. A stage-1 failure reports `tests` as `skipped: fail-fast` in both the stdout table and `report.json` — never silently dropped, never spawned anyway. Inside a git checkout the runner resolves `--log-dir` itself to `{git-dir}/claude-tweaks-verify` (per-worktree, never the common dir); pass `--log-dir` explicitly only to relocate the logs, and expect a fresh `claude-tweaks-verify-` tmpdir outside any checkout.
 - **Red flags:** `tests` spawning before `types`/`lint` finish; a `types` failure that still lets `tests` run; a raw `npm test` log (megabytes of TAP output) landing on stdout instead of a bounded summary.
 
 ### 2. Read the bounded stdout, not the log file
@@ -72,4 +72,5 @@ files:
 ## Origin
 - Created during build of #892 (deterministic verification runner + `verification.md` migration) — replaces the retired prose-orchestrated `LOG=`/`tail`/`grep` capture discipline `verification.md` Step 2 used to document directly.
 - Step 6 added after #881 shipped (suite-count regression stamp) — the journey previously only forward-referenced it as "a future consumer of `report.json`'s `counts` field."
+- Step 7 added, and Step 1's invocation lost its `--log-dir` substitution, after #1921 shipped (runner-written pass stamp, `--stamp-status`, runner-resolved default paths) — the runner is now the stamp's only writer, and `/test`/`/review` read it through `--stamp-status`.
 - Related specs: #891 (parent — deterministic verification runner family), #881 (suite-count regression detection), #882 (flake adjudication — landed as a standalone `node --test` isolated re-run recipe in `verification.md`'s own "Flake adjudication" section; does not consume `verify.js`'s per-check log files)
