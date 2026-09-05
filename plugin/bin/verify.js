@@ -45,6 +45,10 @@ function statusOf(check) {
   return check.exitCode === 0 ? 'pass' : 'fail';
 }
 
+function realpathOrNull(targetPath) {
+  try { return fs.realpathSync(targetPath); } catch { return null; }
+}
+
 // --stamp-status (#1921): a read of the runner's own artifact. Status is data,
 // never a failure — exit 0 in every case, including "no checkout at all".
 // `dirty` and `head` are recomputed fresh from the live tree, never echoed
@@ -63,14 +67,10 @@ function stampStatus(parsed) {
   // reported, but never trusted as verifying THIS cwd's HEAD — otherwise a
   // sibling checkout sitting at the same commit could read match:true for a
   // verification it never ran (review finding, refs #1921).
-  let foreignGitDir = false;
-  if (parsed.gitDir) {
-    let requested = null;
-    let own = null;
-    try { requested = fs.realpathSync(parsed.gitDir); } catch { requested = null; }
-    try { own = ownGitDir ? fs.realpathSync(ownGitDir) : null; } catch { own = null; }
-    foreignGitDir = requested === null || own === null || requested !== own;
-  }
+  const requestedGitDir = parsed.gitDir ? realpathOrNull(parsed.gitDir) : null;
+  const resolvedOwnGitDir = ownGitDir ? realpathOrNull(ownGitDir) : null;
+  const foreignGitDir = Boolean(parsed.gitDir)
+    && (requestedGitDir === null || resolvedOwnGitDir === null || requestedGitDir !== resolvedOwnGitDir);
   const status = {
     present,
     sha: present ? stamp.sha : null,
