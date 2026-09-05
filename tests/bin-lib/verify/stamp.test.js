@@ -72,7 +72,7 @@ test('readStamp prefers the JSON stamp regardless of the bare file', () => {
 test('readStamp returns null on unparseable JSON — never falls back to the bare file', () => {
   const fsImpl = fakeFs({
     [path.join('/g', STAMP_JSON_NAME)]: 'not json',
-    [path.join('/g', STAMP_LEGACY_NAME)]: 'abc123\n',
+    [path.join('/g', STAMP_LEGACY_NAME)]: '0123456789abcdef0123456789abcdef01234567\n',
   });
   assert.strictEqual(readStamp('/g', fsImpl), null);
 });
