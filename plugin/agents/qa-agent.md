@@ -113,7 +113,7 @@ For each step in the steps array:
 
    **Escaping story-supplied strings:** every `<name>`/`<text>`/`<label>`/`<placeholder>` above (and the `<value>`/`<text>` arguments used by `fill`/`type`) is a story-authored string spliced into a double-quoted Bash argument. Before splicing any such string into a command, backslash-escape it for double-quoted-shell-argument safety, in this order: `\` → `\\`, then `"` → `\"`, `` ` `` → `` \` ``, and `$` → `\$` (escape backslashes first so the newly-inserted escape characters are not themselves re-escaped). Never interpolate a story-supplied string into a shell command unescaped.
 
-2. **Execute the command.** For `fill`/`type`, the story's `value` field supplies the trailing `[text]` argument (escaped per Step 1): e.g. `find label "Email" fill "user@example.com"`.
+2. **Execute the command.** For `fill`, the story's `value` field supplies the trailing `[text]` argument (escaped per Step 1): e.g. `find label "Email" fill "user@example.com"`. `find`'s action argument only resolves to `click`/`fill`/`check`/`hover` in this pinned version (`agent-browser-reference.md`'s Operation vocabulary) — a story action outside that set has no `find`-based translation.
 
 3. **Locator failure recovery:** If the `find` command errors with element-not-found, take a fresh snapshot:
    ```
