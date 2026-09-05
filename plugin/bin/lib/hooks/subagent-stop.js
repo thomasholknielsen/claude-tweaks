@@ -101,9 +101,10 @@ function run(ctx) {
   if (typeof transcriptPath !== 'string' || !transcriptPath) return {};
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
-  if (STATUS_RE.test(text.trim())) return {};
+  const trimmedText = text.trim();
+  if (STATUS_RE.test(trimmedText)) return {};
   if (isExemptAgentType(ctx.input.agent_type)) return {}; // third-party agent — never governed by this contract
-  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: text.trim().split('\n')[0].slice(0, 120) }, ownedRun.attribution);
+  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: trimmedText.split('\n')[0].slice(0, 120) }, ownedRun.attribution);
   return { json: { systemMessage: 'claude-tweaks: a subagent reply is missing the Subagent Contract status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED). Logged to events.jsonl.' } };
 }
 
