@@ -110,6 +110,7 @@ For each step in the steps array:
    - `screenshot` → `agent-browser --session <story-id> screenshot {SCREENSHOT_PATH}/<NN>_<step-name>-raw.png` (path is positional — there is no `--filename` flag; unannotated here, step 5 below captures the annotated version separately at the plain `<NN>_<step-name>.png` path)
    - `assert_visible` → take a fresh `snapshot -i -c` and check the tree for an element matching the locator (role + accessible name, testid, text). Element present = PASS, absent = FAIL. Never phrase this as an action-less `find` — that clicks.
    - `navigate` (rare; only inside step blocks) → `agent-browser --session <story-id> open <url>`
+   - `press` (no locator — acts at whatever currently has focus) → `agent-browser --session <story-id> press "<value>"` (the story's `value` field supplies the key/combo, e.g. `Enter`, `Control+a`, `Alt+ArrowLeft`; escape per the rule below)
 
    **Escaping story-supplied strings:** every `<name>`/`<text>`/`<label>`/`<placeholder>` above (and the `<value>`/`<text>` arguments used by `fill`/`type`) is a story-authored string spliced into a double-quoted Bash argument. Before splicing any such string into a command, backslash-escape it for double-quoted-shell-argument safety, in this order: `\` → `\\`, then `"` → `\"`, `` ` `` → `` \` ``, and `$` → `\$` (escape backslashes first so the newly-inserted escape characters are not themselves re-escaped). Never interpolate a story-supplied string into a shell command unescaped.
 

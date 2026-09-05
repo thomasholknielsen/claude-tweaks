@@ -65,6 +65,10 @@ Two command families act on elements:
   trusted over observed behavior. There is no `find ... select` fallback for a
   dropdown interaction: take a full `snapshot -i -c` to get the option's `@eN` ref,
   then run the top-level `select @eN <value>` command as a separate call.
+  `press` has the same fallback shape as `select`, but simpler: it is not a `find`
+  action, but it is a real, working top-level command that needs no locator at all
+  — `agent-browser --session <name> press "<key>"` presses a key (or combo, e.g.
+  `Control+a`) at whatever element currently has focus (verified v0.27.0).
   **`find role <role> ... --name X` only reliably resolves the `button` role** —
   `link` and `heading` silently fail to match (the command exits clean with no
   match, not an error) even when a same-named element with that role exists on the
@@ -84,6 +88,7 @@ Two command families act on elements:
 | click ref | `agent-browser --session <name> click <ref>` |
 | fill ref | `agent-browser --session <name> fill <ref> "<value>"` |
 | type ref | `agent-browser --session <name> type <ref> "<text>"` |
+| press key at current focus | `agent-browser --session <name> press "<key>"` |
 | assert visible | `agent-browser --session <name> is visible <sel>` |
 | wait for text | `agent-browser --session <name> wait --text "<text>"` |
 | wait for URL | `agent-browser --session <name> wait --url "<glob>"` |
