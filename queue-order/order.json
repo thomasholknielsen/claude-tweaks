@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T13:22:38.583Z",
+  "computedAt": "2026-09-05T13:28:46.473Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -95,7 +95,7 @@
       },
       {
         "number": 1535,
-        "updatedAt": "2026-08-29T15:39:06Z",
+        "updatedAt": "2026-09-05T13:25:09Z",
         "state": "OPEN"
       },
       {
@@ -1474,88 +1474,6 @@
         "updatedAt": "2026-08-29T16:19:50Z",
         "facets": {
           "origin": "harness-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Defer-reason: pre-existing-outside-diff\n\n## Current State\n\nWhile performing #1313's final whole-branch review (fix compute-then-exit truncation risk in `plugin/bin/release.js` and `plugin/bin/review-coordination.js` — itself a follow-up to #1176's earlier sweep), the reviewer found that #1313's own sweep enumeration was incomplete. `plugin/bin/build-review-context.js:76` carries the identical idiom:\n\n```js\nprocess.exit(run(process.argv.slice(2)));\n```\n\n`run()`'s `build`/`mint` branches end with `deps.stdout(JSON.stringify(result) + '\\n'); return 0;` — the same shape #1176/#1313 already fixed elsewhere: a stdout write immediately before returning an integer that then feeds `process.exit()`, which can truncate the write for a piped consumer.\n\nThe enumeration was verified exact by the #1313 final reviewer: `process.exit(` appears in exactly three `plugin/bin/*.js` files — `build-review-context.js:76` (this idiom, unfixed), `hooks.js:779` (correctly excluded — uses synchronous `fs.writeSync(1, ...)` with no async flush to lose), and `wrap-up-engine.js:361` (a comment, not a call, not in scope). A GitHub search (`gh issue list --search \"build-review-context process.exit\"` and `--search \"truncation exit in:title\"`, both `--state all`) found no existing record for this file.\n\nThis matters more than the other two instances: `build-review-context.js` is what `/claude-tweaks:review` Step 3 shells out to for its context bundle, and skill prose parses its stdout JSON line.\n\n## Deliverables\n\n- In `plugin/bin/build-review-context.js`, change `process.exit(run(process.argv.slice(2)));` to `process.exitCode = run(process.argv.slice(2));`. The call sits inside an existing `try` block whose `catch` already sets `process.exitCode = 1` — that fallback is unaffected, since `process.exit()` never threw there anyway.\n- Read `main()`/`run()` in full first, per #1176's own safety rule, to confirm no code after the changed line assumes an immediate hard-stop (the same check #1313 performed for its two files).\n\n## Acceptance Criteria\n\n1. The file exits with the same status code as before for a representative success and failure case.\n2. `npm test` passes in full.\n\n## Original request\n\nDiscovered while performing #1313's final whole-branch review — see that record's review findings for the full verification trail (grep of `plugin/bin/*.js` for `process.exit(`, GitHub search for an existing record).",
-        "createdAt": "2026-08-27T04:53:28Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          }
-        ],
-        "number": 1535,
-        "state": "OPEN",
-        "title": "Fix compute-then-exit truncation risk in build-review-context.js",
-        "updatedAt": "2026-08-29T15:39:06Z",
-        "facets": {
-          "origin": "capture",
           "risk": "low",
           "size": "low",
           "ceremony": null,
