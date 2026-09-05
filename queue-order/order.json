@@ -1,8 +1,18 @@
 {
-  "computedAt": "2026-09-04T19:00:27.870Z",
+  "computedAt": "2026-09-05T03:55:55.302Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
+      {
+        "number": 1865,
+        "updatedAt": "2026-09-04T19:51:42Z",
+        "state": "OPEN"
+      },
+      {
+        "number": 1864,
+        "updatedAt": "2026-09-04T19:51:28Z",
+        "state": "OPEN"
+      },
       {
         "number": 1822,
         "updatedAt": "2026-09-04T09:59:34Z",
@@ -104,18 +114,8 @@
         "state": "OPEN"
       },
       {
-        "number": 1520,
-        "updatedAt": "2026-09-04T14:39:08Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1503,
         "updatedAt": "2026-08-29T15:39:11Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1484,
-        "updatedAt": "2026-09-04T18:46:50Z",
         "state": "OPEN"
       },
       {
@@ -159,11 +159,6 @@
         "state": "OPEN"
       },
       {
-        "number": 703,
-        "updatedAt": "2026-09-04T09:57:54Z",
-        "state": "OPEN"
-      },
-      {
         "number": 666,
         "updatedAt": "2026-08-30T12:58:21Z",
         "state": "OPEN"
@@ -176,6 +171,86 @@
     ]
   },
   "groups": [
+    [
+      {
+        "body": "## Current State\n\nTwo committed historical artifacts from #703's continuation (commit range `42a8bbb05..afd33e3e9`) name the post-teardown handler `checkPostTeardownPin` throughout, but the function that actually shipped in `plugin/bin/lib/hooks/post-tool-use.js:578` is `checkPostTeardownReanchor`:\n\n- `.claude-tweaks/pipelines/2026-09-04T095553-record-703/work/703-spec.md` line 89 (Investigation Findings / Task 0 section)\n- `docs/superpowers/plans/2026-09-04-worktree-teardown-pin-backstop.md` lines 7, 29, 128, 172, 208-209, 224, 250, 269 (including a full function signature)\n\nFound by the whole-branch review gating the v6.116.0 release. Low severity — pure name drift in historical audit-trail documents, no functional impact.\n\n## Deliverables\n\n- Update both files to name the handler `checkPostTeardownReanchor` (or, if these are treated as immutable historical spec/plan artifacts per this repo's convention, add a one-line correction note instead of rewriting history).\n\n## Acceptance Criteria\n\n- Grepping either file for the actual shipped symbol name returns a hit.\n\n## Failure scenario this fixes\n\nA future maintainer greps for `checkPostTeardownPin` (per these permanently-committed documents' own text) to find or modify the post-teardown handler, gets zero hits in any `.js` source, and wrongly concludes the feature was never shipped or was silently removed.",
+        "createdAt": "2026-09-04T19:51:42Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          }
+        ],
+        "number": 1865,
+        "state": "OPEN",
+        "title": "Committed #703 spec + implementation plan name the shipped handler checkPostTeardownPin; it shipped as checkPostTeardownReanchor",
+        "updatedAt": "2026-09-04T19:51:42Z",
+        "facets": {
+          "origin": null,
+          "risk": null,
+          "size": null,
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": null,
+          "stage": "backlog",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "## Current State\n\nWiring `checkPostTeardownReanchor` into `plugin/hooks/hooks.json` for `ExitWorktree`/`git worktree remove` (landed via #703's continuation, commit range `42a8bbb05..afd33e3e9`) means `post-tool-use.js` now receives `ExitWorktree` events for the first time. This activates `stampAdHocRunDir`'s non-EnterWorktree branch (`plugin/bin/lib/hooks/post-tool-use.js:445`) against an input shape it was never exercised against: it calls `resolveWorktreePathViaPorcelain(ctx)`, which shells out `git -C <cwd> worktree list --porcelain` against the just-deleted worktree directory — guaranteed to fail — but unconditionally writes `ADHOC_WORKTREE_CHECKED_MARKER` regardless of that outcome.\n\nFound by the whole-branch review gating the v6.116.0 release (CLAUDE.md's Releasing section) — confirmed, not yet fixed. Narrow/edge-case severity: requires an ad-hoc (non-pipeline) session that later creates a different worktree via a raw `git worktree add` (bypassing `EnterWorktree`) within the same session.\n\n## Deliverables\n\n- Guard the marker write in `stampAdHocRunDir`'s non-EnterWorktree branch so it is only written on a successful resolution (or otherwise distinguishes \"checked and found nothing\" from \"the lookup itself couldn't run because the target no longer exists\").\n- Add a regression test: an `ExitWorktree(action:'remove')` event must not permanently defeat the #1333 ad-hoc-stamping mechanism for a later raw `git worktree add` in the same session.\n\n## Acceptance Criteria\n\n- An `ExitWorktree(action:'remove')` PostToolUse event does not write `ADHOC_WORKTREE_CHECKED_MARKER` when the porcelain lookup fails because the target directory is already gone.\n- A session that runs `ExitWorktree(remove)` and later creates a worktree via raw `git worktree add` still gets that worktree stamped by `stampAdHocRunDir`.\n\n## Failure scenario this fixes\n\nAn ad-hoc (non-pipeline) session runs `ExitWorktree(action:'remove')`. `stampAdHocRunDir` calls `resolveWorktreePathViaPorcelain(ctx)` against the now-deleted directory; it fails, but the marker file is still written. If that same session later creates a different worktree via a raw `git worktree add` (bypassing `EnterWorktree`), `stampAdHocRunDir`'s non-EnterWorktree path is now permanently skipped for the rest of the session (marker already exists) — no run-dir is ever stamped for that later worktree, silently defeating the #1333 mechanism this branch exists for.",
+        "createdAt": "2026-09-04T19:51:28Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          }
+        ],
+        "number": 1864,
+        "state": "OPEN",
+        "title": "stampAdHocRunDir always writes its one-shot marker on ExitWorktree(remove), even when the git lookup is guaranteed to fail",
+        "updatedAt": "2026-09-04T19:51:28Z",
+        "facets": {
+          "origin": null,
+          "risk": null,
+          "size": null,
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": null,
+          "stage": "backlog",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
     [
       {
         "body": "Origin: capture\n\n## Current State\n\n`/claude-tweaks:sweep`'s `## Next Actions` block (`plugin/skills/sweep/SKILL.md`) renders in a\nfixed order: the top `/claude-tweaks:backlog attention` pick (when present, replacing the\n`/claude-tweaks:dispatch` slot per the precedence rule) -> `/claude-tweaks:dispatch {grants}` ->\n`/claude-tweaks:tidy --approve` -> `/claude-tweaks:backlog attention`.\n\nObserved live on a real sweep run: tidy staged only two trivial, already-vetted items (one\n`docs/REGISTRY.md` line addition, three stale `bot:in-progress` label removals on issues whose\nclaims were already stale/released) -- yet `tidy --approve` rendered third in the Next Actions\nblock, after a `backlog refine #N` re-authorization pick and a `dispatch` call that kicks off\nnew autonomous builds. The user flagged this live as counter-intuitive: closing out a fully\nvetted, zero-judgment batch should be the cheapest, fastest thing to clear -- not buried behind\ntwo heavier, judgment-requiring actions.\n\n## Deliverables\n\n- Re-examine `sweep/SKILL.md`'s `## Next Actions` fixed ordering (`/claude-tweaks:dispatch` /\n  `/claude-tweaks:tidy --approve` / `/claude-tweaks:backlog attention`, with the needs-you\n  precedence rule only ever replacing the `/dispatch` slot) and decide whether \"apply\n  already-staged, mechanically-vetted proposals\" should sort ahead of \"start new autonomous\n  work\" or \"resolve a re-authorization.\"\n- Either (a) reorder so `tidy --approve` leads whenever this run's tidy step staged anything,\n  with dispatch/refine picks following, or (b) if the current order is intentional, add one\n  line to `sweep/SKILL.md` stating the rationale so a future reader isn't left guessing.\n- Check whether the same ordering question applies to `tidy/SKILL.md`'s own Next Actions\n  derivation rule (the \"Approve ({N})\" line's position relative to a Yours group's batch line)\n  for consistency across both skills.\n\n## Acceptance Criteria\n\n- `sweep/SKILL.md`'s `## Next Actions` section either reorders `tidy --approve` ahead of\n  `dispatch`/the needs-you pick whenever tidy staged anything this run, or documents why the\n  current order is deliberate.\n- No change to the underlying tidy/refine/dispatch mechanics -- this is purely about the\n  recommended ordering of paste-ready lines in the close-out render.\n\n_Filed by `capture` via specShapedBody._",
@@ -1840,94 +1915,6 @@
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`bin/hooks.js record-worktree` (bin/hooks.js:150-181) has two compounding gaps discovered live during #923's review+polish+wrap-up dispatch call:\n\n1. **No `--run` validation/requirement.** When `--run` is omitted, `resolveRunArg` falls through to `resolveRunDir`'s \"newest non-terminal run\" default — which, in a repo with many concurrent pipeline runs (the normal state under this project's own dispatch/flow usage), can resolve to a run directory that has nothing to do with the caller's intent. There is no confirmation, no dry-run, no \"which run did you mean\" surfaced to the caller.\n2. **No flag/usage validation.** `record-worktree --help` (a natural first probe when unsure of a CLI's exact flags) is not recognized as a help request at all — `--help` is silently consumed as `rest[0]`, i.e. the **worktree positional argument**, and the command proceeds to write `{worktree: \"<cwd>/--help\", status: \"active\", sessionId: \"<current session>\"}` into whatever run directory the default resolution above landed on.\n\nCombined, an agent that runs `record-worktree --help` (or any malformed invocation) without an explicit `--run` silently corrupts an unrelated, unowned run's `run-state.json` — overwriting its `worktree` and `sessionId` fields with garbage — with a success message (`claude-tweaks: worktree recorded for {basename}`) that gives no indication anything went wrong. In this incident it clobbered the dispatching session's own standalone bookkeeping run dir (`{ts}-dispatch-standalone`), mid-run, requiring a manual repair (`fs.writeFileSync` to strip the bad fields back out — not git-recoverable, since `run-state.json` is gitignored).\n\nConfirmed still live against the current checkout (`plugin/bin/hooks.js`'s `record-worktree` branch, ~line 243): `resolveRunArg` (line 96) only special-cases the literal `--run` flag — any other `--`-prefixed token in `rest` (e.g. `--help`) still falls straight through to `const worktreeArg = rest[0]` and, when a fallback `runDir` resolves, into the `writeRunState` write path unchanged. `#38`'s earlier fix added `--run <path>` support (explicit-path validation, anchoring under the main checkout, the worktree-local-fallback disclosure) but did not touch this separate flag-as-positional gap.\n\n## Deliverables\n\n- [ ] `record-worktree` (and, for consistency, `record-pr`/`close-run` — same `resolveRunArg` seam) rejects any argv token starting with `--` where a positional path/worktree argument is expected, with a clear usage error, rather than silently accepting it as the value\n- [ ] `record-worktree`/`record-pr` require an explicit `--run` (or otherwise refuse to fall back to the \"newest non-terminal run\" default) — or, if the default must stay for some existing caller, print a loud disclosure line naming which run dir the default resolved to, so a mismatch is at least visible in the tool's own stdout\n- [ ] Add `--help`/`-h` handling (or a documented \"no such thing as help in this dispatcher\" convention consistently applied) so an unrecognized flag can never silently become a positional value\n\n## Acceptance Criteria\n\n1. `record-worktree --help` (no `--run`) exits with a usage error and writes nothing, rather than mutating any run's `run-state.json`\n2. `record-worktree <positional-only, no --run>` either refuses (preferred) or prints the resolved run dir's path loudly enough that `node --test`-level fixtures can assert on it\n3. A new `tests/bin-lib/hooks/` (or wherever `record-worktree`'s existing suite lives) regression test pins case 1 above\n4. `npm test` green — full suite\n\n## Technical Approach\n\nThe fix lives in `bin/hooks.js`'s `record-worktree`/`record-pr` branches (bin/hooks.js:150-181, :246-273) and/or the shared `resolveRunArg` helper they both call. Validate `rest[0]` doesn't start with `-` before treating it as a path; consider requiring `--run` outright for both verbs, since every real caller in the skill prose already passes it explicitly (`_shared/pipeline-run-dir.md`'s citing sites) — the fallback exists for convenience but its failure mode is silent cross-run corruption, which is worse than a hard requirement.\n\n### Key Files\n\n- `plugin/bin/hooks.js` — `record-worktree`, `record-pr` command branches\n- `plugin/bin/lib/hooks/context.js` — `resolveRunArg`, `writeRunState`\n- Existing test suite for `record-worktree`/`record-pr` (grep for it under `tests/`)\n\n## Gotchas\n\n- `run-state.json` is gitignored, so a corruption from this bug is not git-recoverable — manual repair (as done live in #923's dispatch) is the only remedy today. This raises the value of preventing the corruption over merely detecting it after the fact.\n- Any fix must not break the legitimate no-`--run` callers already documented elsewhere in the skill prose (if any exist) — audit call sites before tightening validation.\n- `resolveRunArg` (plugin/bin/hooks.js:96) is shared by more callers than just `record-worktree`/`record-pr` — `spec-status`, `close-run`, and others also call it (see the additional `resolveRunArg` call sites in `bin/hooks.js`). A fix placed inside `resolveRunArg` itself changes behavior for all of them; a fix placed only in the `record-worktree`/`record-pr` branches leaves the others as-is. Decide and state which, since the Deliverables only name `record-worktree`/`record-pr`/`close-run` explicitly.\n\n## Decision Rationale\n\nFiled immediately per this project's no-implicit-deferrals rule (`CLAUDE.md`'s Philosophy section) — discovered live during #923's own dispatch execution, real and reproducible, but out of scope for #923's own diff (a `/tmp` session-scoping sweep across `skills/**` prose, unrelated to `bin/hooks.js`'s argument-parsing robustness). Self-reference check (`_shared/learning-routing.md`): this repo's own remote is `thomasholknielsen/claude-tweaks`, so this is an ordinary D3 backlog work record in this project, not upstream feedback filed against a dependency.\n\nDefer-reason: unrelated-to-current-diff\n\n## Original request\n\nrecord-worktree silently corrupts an unrelated run's run-state.json when --run is omitted and a flag typo is treated as the worktree positional\n\nSurface: infra\n\n## Current State\n\n`bin/hooks.js record-worktree` (bin/hooks.js:150-181) has two compounding gaps discovered live during #923's review+polish+wrap-up dispatch call:\n\n1. **No `--run` validation/requirement.** When `--run` is omitted, `resolveRunArg` falls through to `resolveRunDir`'s \"newest non-terminal run\" default — which, in a repo with many concurrent pipeline runs (the normal state under this project's own dispatch/flow usage), can resolve to a run directory that has nothing to do with the caller's intent. There is no confirmation, no dry-run, no \"which run did you mean\" surfaced to the caller.\n2. **No flag/usage validation.** `record-worktree --help` (a natural first probe when unsure of a CLI's exact flags) is not recognized as a help request at all — `--help` is silently consumed as `rest[0]`, i.e. the **worktree positional argument**, and the command proceeds to write `{worktree: \"<cwd>/--help\", status: \"active\", sessionId: \"<current session>\"}` into whatever run directory the default resolution above landed on.\n\nCombined, an agent that runs `record-worktree --help` (or any malformed invocation) without an explicit `--run` silently corrupts an unrelated, unowned run's `run-state.json` — overwriting its `worktree` and `sessionId` fields with garbage — with a success message (`claude-tweaks: worktree recorded for {basename}`) that gives no indication anything went wrong. In this incident it clobbered the dispatching session's own standalone bookkeeping run dir (`{ts}-dispatch-standalone`), mid-run, requiring a manual repair (`fs.writeFileSync` to strip the bad fields back out — not git-recoverable, since `run-state.json` is gitignored).\n\n## Deliverables\n\n- [ ] `record-worktree` (and, for consistency, `record-pr`/`close-run` — same `resolveRunArg` seam) rejects any argv token starting with `--` where a positional path/worktree argument is expected, with a clear usage error, rather than silently accepting it as the value\n- [ ] `record-worktree`/`record-pr` require an explicit `--run` (or otherwise refuse to fall back to the \"newest non-terminal run\" default) — or, if the default must stay for some existing caller, print a loud disclosure line naming which run dir the default resolved to, so a mismatch is at least visible in the tool's own stdout\n- [ ] Add `--help`/`-h` handling (or a documented \"no such thing as help in this dispatcher\" convention consistently applied) so an unrecognized flag can never silently become a positional value\n\n## Acceptance Criteria\n\n1. `record-worktree --help` (no `--run`) exits with a usage error and writes nothing, rather than mutating any run's `run-state.json`\n2. `record-worktree <positional-only, no --run>` either refuses (preferred) or prints the resolved run dir's path loudly enough that `node --test`-level fixtures can assert on it\n3. A new `tests/bin-lib/hooks/` (or wherever `record-worktree`'s existing suite lives) regression test pins case 1 above\n4. `npm test` green — full suite\n\n## Technical Approach\n\nThe fix lives in `bin/hooks.js`'s `record-worktree`/`record-pr` branches (bin/hooks.js:150-181, :246-273) and/or the shared `resolveRunArg` helper they both call. Validate `rest[0]` doesn't start with `-` before treating it as a path; consider requiring `--run` outright for both verbs, since every real caller in the skill prose already passes it explicitly (`_shared/pipeline-run-dir.md`'s citing sites) — the fallback exists for convenience but its failure mode is silent cross-run corruption, which is worse than a hard requirement.\n\n### Key Files\n\n- `plugin/bin/hooks.js` — `record-worktree`, `record-pr` command branches\n- `plugin/bin/lib/hooks/context.js` — `resolveRunArg`, `writeRunState`\n- Existing test suite for `record-worktree`/`record-pr` (grep for it under `tests/`)\n\n## Gotchas\n\n- `run-state.json` is gitignored, so a corruption from this bug is not git-recoverable — manual repair (as done live in #923's dispatch) is the only remedy today. This raises the value of preventing the corruption over merely detecting it after the fact.\n- Any fix must not break the legitimate no-`--run` callers already documented elsewhere in the skill prose (if any exist) — audit call sites before tightening validation.\n\n## Decision Rationale\n\nFiled immediately per this project's no-implicit-deferrals rule (`CLAUDE.md`'s Philosophy section) — discovered live during #923's own dispatch execution, real and reproducible, but out of scope for #923's own diff (a `/tmp` session-scoping sweep across `skills/**` prose, unrelated to `bin/hooks.js`'s argument-parsing robustness). Self-reference check (`_shared/learning-routing.md`): this repo's own remote is `thomasholknielsen/claude-tweaks`, so this is an ordinary D3 backlog work record in this project, not upstream feedback filed against a dependency.\n\nDefer-reason: unrelated-to-current-diff\n",
-        "createdAt": "2026-08-26T12:05:36Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
-            "name": "priority:high",
-            "description": "Priority: dispatch picks this band first",
-            "color": "FBCA04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACzz365Q",
-            "name": "fix-on-worktree-record-1484",
-            "description": "Fixed on worktree-record-1484, not yet on the default branch",
-            "color": "FBCA04"
-          }
-        ],
-        "number": 1484,
-        "state": "OPEN",
-        "title": "record-worktree silently corrupts an unrelated run's run-state.json when --run is omitted and a flag typo is treated as the worktree positional",
-        "updatedAt": "2026-09-04T18:46:50Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
           "stage": "ready",
           "grants": {
             "build": true,
