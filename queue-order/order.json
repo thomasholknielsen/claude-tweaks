@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-05T16:47:25.250Z",
+  "computedAt": "2026-09-05T16:54:43.452Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -70,7 +70,7 @@
       },
       {
         "number": 1595,
-        "updatedAt": "2026-08-29T16:19:14Z",
+        "updatedAt": "2026-09-05T16:49:01Z",
         "state": "OPEN"
       },
       {
@@ -1094,76 +1094,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Title: New skill or skill-section: deterministic checks parsing loose prose must signal parse failure, never a silent skip\nType: task\nLabels: risk:low, size:small\nDefer-reason: tangential\n\n# Ledger item 19 (from #903 review, reflect hindsight evaluation 5)\n\n**Origin:** ledger resolve gate, spec #903 review/hindsight\n**Defer-reason:** tangential\n\n## Current State\n\n`/claude-tweaks:reflect` hindsight mode (invoked during #903's review) surfaced a general,\nreusable pattern: a mechanized deterministic check that parses loose, real-world prose (not a\nformal grammar) needs an explicit could-not-parse signal, never a silent `null`/skip that\ncollapses into a false negative. This is the exact shape of #903's own ledger item 18 (Check C's\n`parseStep2`), but the lesson generalizes beyond plan-audit — any future \"mechanize a hand-run\nprose check\" work in this repo is at risk of the same failure mode. No existing project skill\nunder `.claude/skills/` obviously covers this general lesson (the closest, `gh-api-module-pattern`,\nis scoped to `gh`/`git`-shelling CLI conventions, not parser API design).\n\n## Deliverables\n\n- Either a new short section in an existing relevant skill, or a small new skill, stating the\n  rule: when mechanizing a prose heuristic into a deterministic check, the \"couldn't parse this\n  input\" case must be a distinguishable return value/signal, never silently identical to \"this\n  input legitimately doesn't apply.\"\n- Cite #903's `plugin/bin/lib/plan-audit/parser.js` `parseStep2` as the worked example.\n\n## Acceptance Criteria\n\n1. A reader of the target skill can find this guidance when writing a new mechanized/deterministic\n   check over free-form text.\n2. The guidance names the concrete anti-pattern (collapsing \"doesn't apply\" and \"couldn't parse\"\n   into one `null`/skip) and the concrete fix shape (a distinguishable signal + a surfaced warning).\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
-        "createdAt": "2026-08-28T05:24:09Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          }
-        ],
-        "number": 1595,
-        "state": "OPEN",
-        "title": "New skill or skill-section: deterministic checks parsing loose prose must signal parse failure, never a silent skip",
-        "updatedAt": "2026-08-29T16:19:14Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
