@@ -252,6 +252,88 @@ test('archiveRunDir: tidy-standalone run — tracked decisions.md/report.md/stag
   assert.equal(state.status, 'clean');
 });
 
+// Regression: a standalone run's decisions.md/report.md/staged only become
+// tracked once their worktree copy has merged AND this checkout has pulled
+// that merge — a real, documented window (SKILL.md's pr-first Step 7.5)
+// where they exist on disk but are genuinely untracked here. Before this
+// fix, the code above treated `fs.existsSync` as sufficient to attempt
+// `git mv`, which fails outright on an untracked source ('fatal: not under
+// version control' — verified directly) and, worse, left the file wherever
+// a since-then `git clean` could sweep it away with no trace. The fix must
+// refuse before ever calling `git mv` on these paths, never leave the run
+// half-archived, and name every offending file.
+test('archiveRunDir: tidy-standalone run — untracked decisions.md/staged refuses audit-untracked before any git mv, run dir untouched', () => {
+  const root = makeRepo();
+  const runId = '2026-08-30T090000-tidy-standalone';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(path.join(runDir, 'staged'), { recursive: true });
+  // Exists on disk, deliberately never `git add`/committed — the exact
+  // state a not-yet-synced main checkout leaves these files in.
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n');
+  fs.writeFileSync(path.join(runDir, 'staged', 'proposal-1.md'), '# proposal\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'audit-untracked');
+  assert.deepEqual(result.untrackedAuditFiles.sort(), ['decisions.md', 'staged']);
+
+  // Refused before anything moved — nothing in the run dir touched, and the
+  // archive dir (created up front as this run's "archiving" claim, before
+  // any content-specific check runs) stays empty rather than half-populated.
+  assert.equal(fs.existsSync(runDir), true);
+  assert.equal(fs.existsSync(path.join(runDir, 'decisions.md')), true);
+  assert.equal(fs.existsSync(path.join(runDir, 'staged', 'proposal-1.md')), true);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'decisions.md')), false);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'staged')), false);
+});
+
+// Same window, but only one of the two is still untracked (report.md was
+// never produced by this run and staged/ already merged) — decisions.md
+// alone must still block the whole archival, not just itself.
+test('archiveRunDir: tidy-standalone run — one untracked audit file among tracked ones still refuses audit-untracked', () => {
+  const root = makeRepo();
+  const runId = '2026-08-30T090000-tidy-standalone';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/staged/proposal-1.md`, '# proposal\n');
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'audit-untracked');
+  assert.deepEqual(result.untrackedAuditFiles, ['decisions.md']);
+  assert.ok(trackedFiles(root).includes(`.claude-tweaks/pipelines/${runId}/staged/proposal-1.md`), 'the already-tracked file must stay exactly where it was');
+});
+
+// Regression: `git ls-files --error-unmatch <dir>` exits 0 as soon as ONE
+// file under the directory is tracked, even when a sibling underneath is
+// genuinely untracked (empirically verified) — so a `staged/` directory
+// holding one already-merged proposal AND one still-untracked proposal must
+// still refuse audit-untracked, not silently `git mv` the whole directory
+// and leave the untracked file relocated-but-untracked at the archive path.
+test('archiveRunDir: staged/ with one tracked and one untracked file still refuses audit-untracked', () => {
+  const root = makeRepo();
+  const runId = '2026-08-30T090000-tidy-standalone';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/staged/proposal-1.md`, '# proposal 1\n');
+  fs.writeFileSync(path.join(runDir, 'staged', 'proposal-2.md'), '# proposal 2\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'audit-untracked');
+  assert.deepEqual(result.untrackedAuditFiles, ['staged']);
+
+  // Refused before anything moved — the mixed directory stays exactly where
+  // it was, both files still present, nothing relocated to the archive path.
+  assert.equal(fs.existsSync(path.join(runDir, 'staged', 'proposal-1.md')), true);
+  assert.equal(fs.existsSync(path.join(runDir, 'staged', 'proposal-2.md')), true);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'staged')), false);
+});
+
 // #1493 review fix, negative case: the tidy-standalone carve-out above must
 // not widen into a blanket exemption — a stray tracked file this function
 // doesn't know how to move (anything other than work/, or, on a

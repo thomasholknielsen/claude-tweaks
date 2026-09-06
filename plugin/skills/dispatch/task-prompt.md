@@ -26,7 +26,7 @@ that needs no resolution, only inclusion:
 
    | CLI | Canonical shape |
    |---|---|
-   | `log-decision.js` | `node "{plugin-root}/bin/log-decision.js" --run "{minted-run-dir}" --reversibility high\|med\|low\|n/a --text "..."` |
+   | `log-decision.js` | `node "{plugin-root}/bin/log-decision.js" --run "{minted-run-dir}" --status AUTO\|STAGED\|KEPT-PROMPT\|SCANNED\|REFUSED\|SKIP --text "..." [--reversibility high\|med\|low\|n/a]` |
    | `claim-targets.js` | `node "{plugin-root}/bin/claim-targets.js" --run-id "{run-id}" --targets {n}[,{m}...] [--keep-going]` |
    | `materialize.js` | `node "{plugin-root}/bin/materialize.js" <n> --run-dir "{minted-run-dir}" [--multi-record-slug <n>]` |
    | claims-registry read | `_shared/issue-claims.md`'s "Reading claim state" git-trees path (`claims/issue-{n}.json` on the `claims-registry` branch) — never `gh api ...?ref=` query-string quoting, never `-f ref=` on a GET |

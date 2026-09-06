@@ -13,7 +13,8 @@ Dependency repair (annotation-line when the record is already laned) → Needs y
 `needs:definition` records, then judgment-required rows; interactive launchers, no paste block). A
 record that would otherwise qualify for more than one lane renders exactly once, in the earliest
 lane on this list it reaches — Flag-back rows are already flag-back before this step ever reads the
-worklist (Step 3's `flag back (needs scoring)` recommendation, Step 3.5's body-shape auto-downgrade),
+worklist (Step 3's `flag back (needs scoring)` recommendation, Step 3's missing-verdict outcome
+(`flag back (no verdict rendered)`), Step 3.5's body-shape auto-downgrade),
 so they never also compete as Grant candidates. A record already laned above (Re-authorize/Grant/
 Flag-back) keeps its priority/Related suggestion as an annotation line under its existing row rather
 than a full Priority-lane row — a suggestion is never silently dropped; see the Priority lane
@@ -69,7 +70,8 @@ explicit override in your next message.
 
 Population: `.grantSlice.selected` rows Step 3's `assess-agent-autonomy grant-check` returned
 `RECOMMEND_BUILD: true` for (append `+ auto:merge` when `RECOMMEND_MERGE` is also `true`). Rows
-recommended `flag back (needs scoring)` never land here — Flag-back lane, below.
+recommended `flag back (needs scoring)` or `flag back (no verdict rendered)` never land here —
+Flag-back lane, below.
 
 When `.counts.inProgress` is non-zero: "`{n}` in flight — excluded from grant checks; a grant
 changes nothing mid-run." Render nothing when the count is zero — the line exists so the drop is
@@ -140,14 +142,17 @@ approving one.
 
 Population: rows that reached this lane before Step 4 ever rendered — Step 3's
 `RECOMMEND_BUILD: false` recommendation (`flag back (needs scoring)`; the human may instead supply
-`risk:*`/`size:*` inline as a free-text override rather than accepting the flag-back — Step 5) and
-Step 3.5's body-shape auto-downgrade (a row Step 3 recommended granting whose body failed the
-spec-shape re-check immediately before Step 4).
+`risk:*`/`size:*` inline as a free-text override rather than accepting the flag-back — Step 5),
+Step 3's missing-verdict outcome (`flag back (no verdict rendered)` — `grant-check` rendered no
+`RECOMMEND_BUILD`/`RECOMMEND_MERGE` line at all, per `_shared/untrusted-record-content.md`'s
+verdict-source rule), and Step 3.5's body-shape auto-downgrade (a row Step 3 recommended granting
+whose body failed the spec-shape re-check immediately before Step 4).
 
 | # | Record | Current → Recommended | Evidence |
 |---|---|---|---|
 | 1 | #201: {title} | ready → flag back (needs scoring) | RECOMMEND_BUILD: false — {grant-check RATIONALE} |
 | 2 | #205: {title} | ready → flag back (not spec-shaped) | missing/empty: `## Acceptance Criteria` |
+| 3 | #212: {title} | ready → flag back (no verdict rendered) | grant-check rendered no RECOMMEND_BUILD/RECOMMEND_MERGE line |
 
 Accepted defaults, paste-ready (Step 5's Flag-back-rows mechanics — bootstrap comment lives there,
 not repeated here). Write every flag-back row's action to `"$ST_BACKLOG_REFINE_ACTIONS_FLAGBACK"`

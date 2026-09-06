@@ -527,6 +527,50 @@ function partitionByOpenNativeBlockers(candidates, repoData) {
   });
 }
 
+// candidate issue numbers -> one batched, aliased GraphQL query requesting
+// each candidate's closedByPullRequestsReferences connection (#1224) — the
+// PRs that would close it via a closing keyword (Closes/Fixes/Resolves #N)
+// or GitHub's native "Development" linkage, whether still open or already
+// merged/closed. Runs unconditionally — unlike buildNativeDependencyQuery
+// (work-links: native only), this check isn't gated behind a dependency-
+// tracking policy: it exists purely to stop wasted re-dispatch of a record
+// that already has a build in flight. Same alias/null conventions as
+// buildNativeDependencyQuery above.
+function buildLinkedPRQuery(numbers) {
+  if (!Array.isArray(numbers) || numbers.length === 0) return null;
+  const fields = numbers
+    .map((n) => `i${n}: issue(number:${n}){ number closedByPullRequestsReferences(first:10){ nodes{ number state } } }`)
+    .join('\n      ');
+  return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
+}
+
+// candidates[] (each with .number), repoData: the linked-PR GraphQL response's
+// repository{} object (i{number} aliases, buildLinkedPRQuery's shape) ->
+// { eligible, excludedByOpenPR }. A candidate already covered by an open,
+// unmerged PR that will close it is excluded from re-dispatch — building it
+// again would race or duplicate a build already in flight (#1224). Mirrors
+// partitionByOpenNativeBlockers's shape and fail-safe posture (a malformed
+// or missing connection degrades to "no open linked PR", never throws), but
+// carries the linked PR's own number for the excluded entry rather than a
+// list of blocker ids, since there is exactly one PR to name per exclusion.
+// A candidate missing from repoData (this query was never run for it) stays
+// eligible, same no-alias -> eligible behavior as the native-blocker check.
+function partitionByOpenLinkedPR(candidates, repoData) {
+  const { eligible, excluded } = partitionByOpenBlockers(candidates, (c) => {
+    const node = repoData && repoData['i' + c.number];
+    const rawNodes = node && node.closedByPullRequestsReferences && node.closedByPullRequestsReferences.nodes;
+    const nodes = Array.isArray(rawNodes) ? rawNodes : [];
+    const openPR = nodes.find((n) => n && n.state === 'OPEN');
+    return openPR ? [openPR.number] : [];
+  });
+  // partitionByOpenBlockers' generic shape carries a blocker LIST per
+  // excluded candidate (a candidate can have several open blockers); this
+  // caller only ever has exactly one linked PR to name, so unwrap back to
+  // the single `pr` field this function's own callers expect.
+  const excludedByOpenPR = excluded.map((e) => ({ number: e.number, pr: e.blockedBy[0] }));
+  return { eligible, excludedByOpenPR };
+}
+
 // body -> array of {number, assumption} for every line-anchored
 // 'Blocked by #N: {text}' declaration, in order of appearance. A bare
 // 'Blocked by #N' line (no colon) contributes nothing here — parseDependencies
@@ -616,4 +660,5 @@ module.exports = {
   parseDependencies, parseDependencyAssumptions, buildNativeDependencyQuery,
   hasOpenNativeBlocker, CLASSIFICATION_SCORING, fenceFor, fencedBlock, parseSubIssues,
   buildNativeSubIssuesQuery, buildNativeParentQuery, partitionByOpenBodyBlockers, partitionByOpenNativeBlockers,
+  buildLinkedPRQuery, partitionByOpenLinkedPR,
 };

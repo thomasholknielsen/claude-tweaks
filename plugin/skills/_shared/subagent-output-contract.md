@@ -108,7 +108,7 @@ Need: actual file path of the auth middleware, or confirmation it doesn't exist.
 
 SubagentStop hook (E3) logs replies missing the status line to the run dir's `events.jsonl` (best-effort — the event fires unreliably for Task dispatches, claude-code#27755).
 
-**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) tests one regex against the last assistant text it can reach and has no way to know *which* agent replied or what contract that dispatch declared, so at least two non-violating cases land in the log identically: a dispatch whose own template specifies a different first line (its header comment names this one), and a **third-party agent exempt from this contract entirely** (see Exemption below — an exempt agent "is not violating a format it was never given", yet its reply still trips the regex; `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch is the everyday instance). Triage each entry against the dispatch that produced it before treating it as a finding — and never re-prompt an exempt agent on the strength of one.
+**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) tests one regex against the last assistant text it can reach and has no way to know *which* agent replied or what contract that dispatch declared, so two non-violating cases still land in the log: a dispatch whose own template specifies a different first line (its header comment names this one), and a **background-job-orchestrated session's own interim narration turns** — checked independently while that session waits on its own parallel Task-tool dispatches, even though the status-line requirement above is scoped to a dispatched subagent's own *final* reply and never applies to an orchestrator's interim turns (its header comment names this case too). A **third-party agent exempt from this contract entirely** (see Exemption below) is now filtered out at the detector itself via its `agent_type` input field (#1596), so `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch no longer needs manual triage. Triage the remaining two cases against the dispatch that produced it before treating it as a finding.
 
 ## Model Selection
 
@@ -275,7 +275,7 @@ In a Form B blockquote:
 
 ```
 > **Parallel execution:** Dispatch {scope} as parallel Task agents — each runs independently and returns findings in Template A format. Assemble results after all agents complete.
-> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then Template A. Pick the cheapest work profile that fits ({Fast | Standard | Capable} — Frontier never rides a fan-out; singleton slots only, §Model Selection) and resolve it per §Model Selection. Inline the template literally; reject and re-prompt on format violations.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, nothing before it (WRONG: "Based on my review, DONE"), then Template A. Pick the cheapest work profile that fits ({Fast | Standard | Capable} — Frontier never rides a fan-out; singleton slots only, §Model Selection) and resolve it per §Model Selection. Inline the template literally; reject and re-prompt on format violations.
 ```
 
 In the actual `Task()` call, the prompt body must contain the literal template — not a reference to it. Concrete example:
@@ -283,7 +283,7 @@ In the actual `Task()` call, the prompt body must contain the literal template �
 ```
 Task scope: Review src/auth.ts and src/api.ts for security issues.
 
-Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+Status line (required): First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED, nothing before it. WRONG: "Based on my review, DONE".
 
 OUTPUT FORMAT (required):
 Return ONLY a markdown table, no preamble:

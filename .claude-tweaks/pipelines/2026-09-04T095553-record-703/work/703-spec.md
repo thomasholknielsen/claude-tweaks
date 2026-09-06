@@ -9,6 +9,8 @@ surface: backend
 ---
 # 703: Worktree-isolation pin survives worktree removal, permanently blocking git context for the rest of the session
 
+> **Correction (#1865):** Line 89 below names the new handler `checkPostTeardownPin`; it shipped as `checkPostTeardownReanchor` (`plugin/bin/lib/hooks/post-tool-use.js:578`). Left as originally written per this file's audit-trail convention (materialized build-time files are committed history, not rewritten after the fact).
+
 Surface: backend
 
 ## Current State
