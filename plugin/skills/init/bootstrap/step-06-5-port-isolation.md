@@ -8,7 +8,7 @@ the statusline/reaper wiring — this step is the one place that ever turns it o
 
 Scan the same inputs `_shared/dev-url-detection.md` Step 2 already reads live (CLAUDE.md Commands,
 `package.json` scripts, `vite.config.*`, `next.config.*`, `angular.json`, `vue.config.*`,
-`.env`/`.env.local` `PORT=` — and, while reading those two env files plus `vitest.config.*`, a literal test-database name, which §3 reports), plus three more this step owns:
+`.env`/`.env.local` `PORT=`) — and, while reading those two env files, also `vitest.config.*` for a literal test-database name, which §3 reports — plus three more this step owns:
 
 - `docker-compose.yml` / `compose.yml` — a service's host-side `ports:` mapping (`"5432:5432"`)
 - a JS/TS server entry file — `app.listen(<int>)` / `.listen(<int>, ...)`
