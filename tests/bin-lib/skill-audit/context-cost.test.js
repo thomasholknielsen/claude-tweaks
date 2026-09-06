@@ -207,7 +207,12 @@ test('reports the payload total and the tightest headroom', () => {
     + `(${tightest.free} B under the ceiling)`);
 
   assert.ok(total > 0);
-  assert.ok(tightest.free >= 0, `${tightest.name} is already over the ceiling`);
+  // Warning tier since #1990 (the hard gate is composed bytes per call site): a
+  // negative headroom is reported, never failed — the same treatment the
+  // per-file ceiling test above gives it.
+  if (tightest.free < 0) {
+    console.warn(`    WARNING: ${tightest.name} is ${-tightest.free} B over the per-file ceiling (warning tier since #1990)`);
+  }
 });
 
 // ── Early-warning tier (#336). Non-failing: flags files approaching the
