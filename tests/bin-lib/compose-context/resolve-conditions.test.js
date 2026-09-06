@@ -87,6 +87,28 @@ test('work-backend reads the CLAUDE.md line at repoRoot (never the run dir), and
   assert.equal(resolveConditions({ runDir: bad.runDir, repoRoot: bad.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions['work-backend'], 'unresolved');
 });
 
+test('work-backend is read via parseFlatLines, so a trailing comment on the line still resolves', () => {
+  const { root, runDir } = fixture({ claudeMd: 'work-backend: github-issues # default\n' });
+  assert.equal(resolveConditions({ runDir, repoRoot: root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions['work-backend'], 'github-issues');
+});
+
+test('an unreadable-but-present file is a real error surfaced to the caller, not silently read as unresolved', () => {
+  const { root, runDir } = fixture({ policy: 'autonomy: trusted\n' });
+  const policyPath = path.join(root, '.claude-tweaks', 'policy.yml');
+  const readFile = (p, enc) => {
+    if (p === policyPath) { const e = new Error('EACCES: permission denied'); e.code = 'EACCES'; throw e; }
+    return fs.readFileSync(p, enc);
+  };
+  assert.throws(
+    () => resolveConditions({ runDir, repoRoot: root }, {
+      readFile,
+      execFileSync: ghPresent,
+      resolveIntegrationModel: () => 'pr-first',
+    }),
+    (err) => err.code === 'EACCES',
+  );
+});
+
 test('transport is the only shell-out and it is the injected execFileSync — no other command is spawned', () => {
   const { root, runDir } = fixture({ policy: 'autonomy: supervised\nworktree-always: false\n', config: 'mode: hybrid\nintegration-model: pr-first\n', claudeMd: 'work-backend: github-issues\n' });
   const calls = [];

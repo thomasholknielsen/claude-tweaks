@@ -8,6 +8,10 @@
 //
 // A key nobody set resolves to 'unresolved' — never a guessed default — so the
 // composer keeps both branches for it (the record's unresolvable-key rule).
+//
+// An unreadable-but-present file is a real error surfaced to the caller,
+// never silently read as unresolved — only an absent file (ENOENT/ENOTDIR)
+// is swallowed.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -16,7 +20,6 @@ const { parseFlatLines, resolvePolicyKeys, resolveIntegrationModel } = require('
 const { KEYS, VOCAB, UNRESOLVED } = require('./compose');
 
 const GH_TIMEOUT_MS = 5000; // remote-contacting seam convention; --version is local, but the bound is free
-const WORK_BACKEND_RE = /^work-backend:[ \t]*(github-issues|local-files)[ \t]*$/m;
 
 const realDeps = {
   readFile: (p, enc) => fs.readFileSync(p, enc),
@@ -25,7 +28,12 @@ const realDeps = {
 };
 
 function readFileSafe(p, readFile) {
-  try { return readFile(p, 'utf8'); } catch { return null; }
+  try {
+    return readFile(p, 'utf8');
+  } catch (err) {
+    if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) return null;
+    throw err;
+  }
 }
 
 // { runDir, repoRoot } -> { conditions, unresolved }
@@ -64,8 +72,8 @@ function resolveConditions({ runDir, repoRoot }, deps = {}) {
     ? (policy['worktree-always'].value === true ? 'always' : 'optional')
     : UNRESOLVED;
 
-  const wb = claudeMdRaw ? claudeMdRaw.match(WORK_BACKEND_RE) : null;
-  conditions['work-backend'] = wb ? wb[1] : UNRESOLVED;
+  const wb = parseFlatLines(claudeMdRaw)['work-backend'];
+  conditions['work-backend'] = VOCAB['work-backend'].includes(wb) ? wb : UNRESOLVED;
 
   return { conditions, unresolved: KEYS.filter((key) => conditions[key] === UNRESOLVED) };
 }
