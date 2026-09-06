@@ -733,9 +733,13 @@ function mainCheckoutWithRun({ autonomy = 'unattended', staged = {}, decisions =
 
 const THREE = { 'reflect-1.md': 'r', 'wrap-up-memory-1.md': 'm', 'wrap-up-upstream-1.md': 'u' };
 
-function fakeExec(calls) {
+// The ceiling read runs `git rev-parse --show-toplevel` through the same execFile
+// seam, so the fake must answer it with the fixture root — otherwise
+// resolvePolicyConfig falls back to process.cwd() and reads THIS repo's policy.yml.
+function fakeExec(calls, root) {
   return (cmd, args) => {
     calls.push([cmd, ...args]);
+    if (cmd === 'git' && args[0] === 'rev-parse') return `${root}\n`;
     if (cmd === 'gh' && args[0] === 'issue' && args[1] === 'view') return JSON.stringify({ labels: [{ name: 'auto:merge' }], comments: [] });
     if (cmd === 'git' && args[0] === 'apply') return '';
     throw new Error(`unexpected exec: ${cmd} ${args.join(' ')}`);
@@ -745,7 +749,7 @@ function fakeExec(calls) {
 function baseDeps(fx, calls, over = {}) {
   let out = '';
   let err = '';
-  const d = { cwd: () => fx.root, mainRoot: fx.root, stdout: (s) => { out += s; }, stderr: (s) => { err += s; }, now: () => Date.parse('2026-09-06T12:00:00Z'), execFile: fakeExec(calls), ...over };
+  const d = { cwd: () => fx.root, mainRoot: fx.root, stdout: (s) => { out += s; }, stderr: (s) => { err += s; }, now: () => Date.parse('2026-09-06T12:00:00Z'), execFile: fakeExec(calls, fx.root), ...over };
   return { d, out: () => out, err: () => err };
 }
 
@@ -831,7 +835,7 @@ test('the merge is computed, never executed: no gh pr merge / git merge across a
 
 test('a gh failure while reading grants leaves the PR open with reason grants-unreadable (#1932 AC3)', async () => {
   const fx = mainCheckoutWithRun({ staged: THREE });
-  const { d } = baseDeps(fx, [], { execFile: (cmd) => { if (cmd === 'gh') throw new Error('gh: not logged in'); return ''; } });
+  const { d } = baseDeps(fx, [], { execFile: (cmd, args) => { if (cmd === 'gh') throw new Error('gh: not logged in'); if (cmd === 'git' && args[0] === 'rev-parse') return `${fx.root}\n`; return ''; } });
   assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'console-auto'], d), 0);
   const cj = JSON.parse(fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8'));
   assert.deepStrictEqual(cj.merge, { resolution: 'leave-open', reason: 'grants-unreadable' });
@@ -1037,8 +1041,8 @@ test('review-console.md calls console-resolve.js --run exactly once, inside the 
   const next = t.indexOf('## Present a real stop');
   const call = t.indexOf('console-resolve.js" --run');
   assert.ok(section < call && call < next, 'the call lives in the short-circuit section');
-  assert.match(t, /exit 4/);
-  assert.match(t, /exit 2/);
+  assert.match(t, /exit code 4/);
+  assert.match(t, /exit codes 2 and 3/);
   assert.match(t, /HARD-GATE/);
   assert.match(t, /--dry-run/);
   assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
@@ -1071,7 +1075,7 @@ Expected: FAIL (no `console-resolve.js" --run` call; no `needs-human` log line; 
 In the "## Auto-resolution short-circuit (`consoleAutoResolve`)" section, replace the paragraph beginning `Execute each resolution via the normal "On approval" procedure below. Two differences from a human-driven "Approve all":` and ending `…even though nothing prompted at `unattended`.` with:
 
 ```markdown
-Resolve every item in one process instead of one turn each (#1932): `node "${CLAUDE_PLUGIN_ROOT}/bin/console-resolve.js" --run "$PIPELINE_RUN_DIR" --policy console-auto` (append `--dry-run` when this wrap-up runs `--dry-run` — it then prints without writing). The CLI applies exactly the stances above to every staged item (`bin/lib/console/resolve.js`'s `SECTION_STANCES`, its prefix table `SECTION_MAP`; a staged patch is `git apply --check`ed first and resolves to `stale — re-derive from Invariant:` when it no longer applies, never applied blind, per `_shared/staged-patch.md`; an unrecognized staged prefix lands in Pending review as `pending — unmapped-prefix`, never auto-approved), computes the merge half with both carve-outs above (`merge.resolution` = `merge` | `leave-open`, with the reason — it **never** runs the merge itself), appends one decisions block (`AUTO {time} — Review Console: Console auto-resolved {n} item(s) at unattended (console-resolve.js). Reversibility: per item.` plus one line per item), writes `{run-dir}/console.json` (`{resolved: true, mode: 'auto-resolve', at, ceiling, items, merge}` — the write the reconciler's archival needs, #1854), and prints the console table once — every row stamped `AUTO-RESOLVED`. Render that table verbatim. Then execute the returned resolutions through the normal "On approval" procedure below: the merge half per `merge.resolution` (`_shared/pr-first-merge.md` under `pr-first`; branch-finish under `local-merge`), the `M#` memory writes per `_shared/learning-routing.md`, the `U#` filings via `/claude-tweaks:feedback --pre-confirmed`, and the `apply` patches — **retain `staged/` files** rather than deleting them (they stay as revert artifacts, the same way the auto-merge short-circuit's own commit is still revertible). Exit codes: `4` (ceiling not granted) → skip this section and proceed to "Present a real stop" below, the ordinary path; `2`/`3` (malformed invocation / `--run` not anchored) → a HARD-GATE failure: stop the wrap-up and report the CLI's stderr — an unattended run has nobody to answer a real stop. Send one consolidated `PushNotification` summarizing the run, at the same point the auto-merge short-circuit sends its own FYI (`_shared/autonomy-ceiling.md`'s Notification section) — one notification for the whole run, never one per item. End with the absolute path to `decisions.md`, `console.json`, and any retained `staged/*` files, so the operator has a concrete pointer even though nothing prompted at `unattended`.
+Resolve every item in one process instead of one turn each (#1932): `node "${CLAUDE_PLUGIN_ROOT}/bin/console-resolve.js" --run "$PIPELINE_RUN_DIR" --policy console-auto` (append `--dry-run` when this wrap-up runs `--dry-run` — it then prints without writing). The CLI applies exactly the stances above to every staged item (`bin/lib/console/resolve.js`'s `SECTION_STANCES`, its prefix table `SECTION_MAP`; a staged patch is `git apply --check`ed first and resolves to `stale — re-derive from Invariant:` when it no longer applies, never applied blind, per `_shared/staged-patch.md`; an unrecognized staged prefix lands in Pending review as `pending — unmapped-prefix`, never auto-approved), computes the merge half with both carve-outs above (`merge.resolution` = `merge` | `leave-open`, with the reason — it **never** runs the merge itself), appends one decisions block (`AUTO {time} — Review Console: Console auto-resolved {n} item(s) at unattended (console-resolve.js). Reversibility: per item.` plus one line per item), writes `{run-dir}/console.json` (`{resolved: true, mode: 'auto-resolve', at, ceiling, items, merge}` — the write the reconciler's archival needs, #1854), and prints the console table once — every row stamped `AUTO-RESOLVED`. Render that table verbatim. Then execute the returned resolutions through the normal "On approval" procedure below: the merge half per `merge.resolution` (`_shared/pr-first-merge.md` under `pr-first`; branch-finish under `local-merge`), the `M#` memory writes per `_shared/learning-routing.md`, the `U#` filings via `/claude-tweaks:feedback --pre-confirmed`, and the `apply` patches — **retain `staged/` files** rather than deleting them (they stay as revert artifacts, the same way the auto-merge short-circuit's own commit is still revertible). Non-zero exits: exit code 4 (ceiling not granted) → skip this section and proceed to "Present a real stop" below, the ordinary path; exit codes 2 and 3 (malformed invocation / `--run` not anchored) → a HARD-GATE failure: stop the wrap-up and report the CLI's stderr — an unattended run has nobody to answer a real stop. Send one consolidated `PushNotification` summarizing the run, at the same point the auto-merge short-circuit sends its own FYI (`_shared/autonomy-ceiling.md`'s Notification section) — one notification for the whole run, never one per item. End with the absolute path to `decisions.md`, `console.json`, and any retained `staged/*` files, so the operator has a concrete pointer even though nothing prompted at `unattended`.
 ```
 
 Keep the stance bullets above it byte-identical (Task 2's comments quote them). Keep the closing `After resolving, proceed directly to the phase-trace report…` sentence.
