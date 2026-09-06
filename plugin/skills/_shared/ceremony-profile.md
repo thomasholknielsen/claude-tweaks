@@ -49,3 +49,5 @@ Lines that pair `fast-lane` with `skip` without skipping a step. The conformance
 | `wrap-up/ceremony-derivation.md` | `Skip this file.` | Derivation has nothing to do when the profile is already set |
 | `_shared/ceremony-check-invocation.md` | `Skip the call entirely when \`facets.ceremony\`` | The ceremony-check CLI is skipped when a label already exists, at any profile |
 | `_shared/fast-lane-digest.md` | `skips or narrows` | A restatement file that defers to this roster |
+| `flow/steps-and-gates.md` | `a fast-lane run logs the polish SKIP and proceeds to wrap-up` | The polish decision tree's entry line — the skip itself is the tagged `polish` row |
+| `flow/summary-template.md` | `Skipped — fast-lane` | The Pipeline Summary's rendering of the tagged `polish` row |
