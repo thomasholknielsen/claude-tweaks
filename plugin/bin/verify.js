@@ -397,7 +397,7 @@ async function main() {
     } else {
       appendEvent(target.dir, 'verify', {
         mode: report.scope ? report.scope.mode : 'full',
-        suitesRun: report.scope ? (report.scope.suites || []) : results.filter((c) => !c.skipped).map((c) => c.name),
+        suitesRun: results.filter((c) => !c.skipped).map((c) => c.name),
         durationMs: report.durationMs,
         pass: report.pass,
         sha: git.sha,

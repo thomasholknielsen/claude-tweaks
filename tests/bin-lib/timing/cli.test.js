@@ -54,3 +54,10 @@ test('#1928: malformed invocation exits 2 — no --run, or a --run that is not a
   assert.equal(run(['--run', path.join(os.tmpdir(), 'ct-timing-does-not-exist')]).status, 2);
   assert.equal(run(['--run']).status, 2);
 });
+
+test('#1928 fix round 2: --run "" (present but empty — the unset-$PIPELINE_RUN_DIR idiom) exits 0 and writes nothing', () => {
+  const r = run(['--run', '', '--markdown']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, '');
+  assert.match(r.stderr, /no run directory/);
+});

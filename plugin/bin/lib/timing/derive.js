@@ -40,7 +40,15 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
     .sort((a, b) => a.t - b.t);
   const nowT = now instanceof Date ? now.getTime() : (ms(now) ?? Date.now());
   const terminal = evs.find((e) => TERMINAL_TYPES.has(e.type));
-  const endOfRun = terminal ? terminal.t : nowT;
+  // worktree-reaped fires hours after the session ends — its own ts would
+  // let the idle gap get absorbed into whatever phase was still open, so
+  // fall back to the last real (non-terminal) event's ts instead (#1928
+  // fix round 2).
+  const endOfRun = terminal
+    ? (terminal.type === 'worktree-reaped'
+      ? (evs.filter((e) => !TERMINAL_TYPES.has(e.type)).slice(-1)[0]?.t ?? terminal.t)
+      : terminal.t)
+    : nowT;
 
   const skillEvents = evs.filter((e) => e.type === 'skill_invoked');
   const flows = skillEvents.filter((e) => e.skill === `${NS}flow`);
@@ -182,6 +190,23 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
       if (nestedIn(r, call)) inner += r.minutes;
     }
     call.ownMinutes = Math.max(0, call.minutes - inner);
+  }
+
+  // merge's span is never excluded from other rows above, so a phase that
+  // is still open when the merge push happens (build, a call-N) overlaps
+  // merge's own minutes — subtract that overlap from ownMinutes so
+  // totals.minutes never double-counts it (#1928 fix round 2).
+  if (byName.merge && byName.merge._list && byName.merge._list.length) {
+    const mergeSpan = byName.merge._list[0];
+    for (const r of rows) {
+      if (r.phase === 'merge' || !r._list) continue;
+      const overlap = r._list.reduce((sum, s) => {
+        const start = Math.max(s.start, mergeSpan.start);
+        const end = Math.min(s.end, mergeSpan.end);
+        return sum + minutesBetween(start, end);
+      }, 0);
+      r.ownMinutes = Math.max(0, r.ownMinutes - overlap);
+    }
   }
 
   const phases = rows.map(({ _list, ...r }) => r);

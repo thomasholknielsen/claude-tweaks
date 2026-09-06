@@ -32,6 +32,13 @@ test('#1928 AC6: both summary templates carry a ### Timing section rendered from
   }
 });
 
+test('#1928: the multi-spec summary also carries a ### Timing section, rendered at the parent level', () => {
+  const t = read('plugin/skills/flow/multispec-summary.md');
+  assert.match(t, /^### Timing$/m);
+  assert.match(t, /bin\/phase-timing\.js" --run "(\$PIPELINE_RUN_DIR|\$MULTISPEC_PARENT_DIR)" --markdown/);
+  assert.match(t, /\| Phase \| Minutes \| Verify \|/);
+});
+
 test('#1928 AC6: pr-run-comments.md has a timing comment kind with its producer', () => {
   const t = read('plugin/skills/_shared/pr-run-comments.md');
   assert.match(t, /^\| `timing` \| `\/claude-tweaks:wrap-up`[^|]*\| `<!-- run-comment: timing -->` \|$/m);
@@ -62,6 +69,8 @@ test('#1928: docs name the timing module, the CLI, and the flow/wrap-up table so
   const sg = read('docs/skill-graph.md');
   const flow = sg.slice(sg.indexOf('\n## flow\n'), sg.indexOf('\n## ', sg.indexOf('\n## flow\n') + 1));
   const wrap = sg.slice(sg.indexOf('\n## wrap-up\n'), sg.indexOf('\n## ', sg.indexOf('\n## wrap-up\n') + 1));
+  const dispatch = sg.slice(sg.indexOf('\n## dispatch\n'), sg.indexOf('\n## ', sg.indexOf('\n## dispatch\n') + 1));
   assert.match(flow, /`bin\/phase-timing\.js`/);
   assert.match(wrap, /`bin\/phase-timing\.js`/);
+  assert.match(dispatch, /`bin\/phase-timing\.js`/);
 });

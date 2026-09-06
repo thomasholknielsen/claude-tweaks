@@ -9,8 +9,11 @@
 // {run-dir}/timing.json, and prints the markdown table (--markdown) or the
 // JSON object (--json); with neither it prints the path it wrote. Exit 0 in
 // every derivable case — missing events degrade per row to `unattributed`.
-// Exit 2 only on a malformed invocation: no --run, a --run that is not a
-// directory, or an events.jsonl that exists but cannot be read.
+// `--run ""` (present but empty — the canonical skill snippet's unset-
+// $PIPELINE_RUN_DIR idiom, matching verify.js's own treatment of it) prints
+// "no run directory" to stderr, writes nothing, and returns 0. Exit 2 only
+// on a genuinely malformed invocation: a MISSING --run flag, a --run that
+// is not a directory, or an events.jsonl that exists but cannot be read.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -28,7 +31,7 @@ function parseArgs(argv) {
     if (a === '--markdown') { o.markdown = true; continue; }
     return null;
   }
-  if (!o.run) return null;
+  if (o.run === null) return null; // flag never supplied — malformed
   return o;
 }
 
@@ -74,6 +77,10 @@ function renderMarkdown(out) {
 function main(argv) {
   const o = parseArgs(argv);
   if (!o) { process.stderr.write(USAGE); return 2; }
+  if (o.run === '') {
+    process.stderr.write('timing: no run directory (PIPELINE_RUN_DIR unset)\n');
+    return 0;
+  }
   const runDir = path.resolve(o.run);
   let stat;
   try { stat = fs.statSync(runDir); } catch { process.stderr.write(`phase-timing.js: --run ${o.run} is not a directory\n${USAGE}`); return 2; }

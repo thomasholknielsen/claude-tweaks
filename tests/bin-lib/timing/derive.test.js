@@ -128,3 +128,29 @@ test('#1928 fix round 1: two subagent-driven-development starts before one verif
   assert.equal(p.tasks.minutes, 14, `tasks.minutes ${p.tasks.minutes}`);
   assert.equal(p.plan.minutes, 6, `plan.minutes ${p.plan.minutes}`);
 });
+
+test('#1928 fix round 2: an open phase at merge time is excluded from other rows so totals never double-count merge', () => {
+  const events = [
+    { skill: 'claude-tweaks:flow', ts: '2026-09-05T13:00:00.000Z', type: 'skill_invoked' },
+    { skill: 'claude-tweaks:build', ts: '2026-09-05T13:01:00.000Z', type: 'skill_invoked' },
+    { skill: 'claude-tweaks:wrap-up', ts: '2026-09-05T13:30:00.000Z', type: 'skill_invoked' },
+    { action: 'push', ts: '2026-09-05T13:35:00.000Z', type: 'commit' },
+    { ts: '2026-09-05T13:40:00.000Z', type: 'session-end' },
+  ];
+  const out = derivePhases({ events });
+  const p = byName(out);
+  assert.ok(out.totals.minutes <= 40, `totals ${out.totals.minutes}`);
+  assert.equal(p.merge.minutes, 5, `merge ${p.merge.minutes}`);
+});
+
+test('#1928 fix round 2: worktree-reaped as terminal clips endOfRun to the last real event, not the reap ts', () => {
+  const events = [
+    { skill: 'claude-tweaks:flow', ts: '2026-09-05T13:00:00.000Z', type: 'skill_invoked' },
+    { skill: 'claude-tweaks:build', ts: '2026-09-05T13:01:00.000Z', type: 'skill_invoked' },
+    { ts: '2026-09-05T13:20:00.000Z', type: 'commit' },
+    { ts: '2026-09-06T06:00:00.000Z', type: 'worktree-reaped' },
+  ];
+  const p = byName(derivePhases({ events }));
+  assert.equal(p.build.minutes, 19, `build.minutes ${p.build.minutes}`);
+  assert.equal(p['call-1'].minutes, 20, `call-1.minutes ${p['call-1'].minutes}`);
+});
