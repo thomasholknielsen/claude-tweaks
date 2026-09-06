@@ -37,13 +37,26 @@ function isComposeContextSourceRepoRelative(line) {
   return line.includes('compose-context.js') && line.includes(' plugin/skills/');
 }
 
+// The predicate above is per-line, so normalize the two wrap shapes that would put a
+// compose-context invocation's source arg on a later line than `compose-context.js` and hide
+// a repo-relative offender (the same blind spot the `node\nplugin/bin/` normalization below
+// closes for #1170): a backticked invocation wrapped mid-span (a code span may span lines),
+// and a fenced-block invocation continued with a trailing backslash.
+function joinComposeContextInvocations(text) {
+  return text
+    .replace(/`node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/compose-context\.js"[^`]*`/g, (span) => span.replace(/\s*\n\s*/g, ' '))
+    .replace(/compose-context\.js(?:[^\n]*\\\n)+[^\n]*/g, (block) => block.replace(/\\\n\s*/g, ' '));
+}
+
 test('no skill prose invokes a bin via a repo-relative `node plugin/bin/` path (install-dead — #1170)', () => {
   const offenders = [];
   for (const file of walk(SKILLS)) {
     const rel = path.relative(SKILLS, file);
     // Normalize the one wrap shape that hid the original bug: `node` at end-of-line,
     // `plugin/bin/…` starting the next line (pr-early-run-lifecycle.md's own line wrap).
-    const text = fs.readFileSync(file, 'utf8').replace(/node\s*\n\s*plugin\/bin\//g, 'node plugin/bin/');
+    const text = joinComposeContextInvocations(
+      fs.readFileSync(file, 'utf8').replace(/node\s*\n\s*plugin\/bin\//g, 'node plugin/bin/'),
+    );
     const exemptRe = EXEMPT.get(rel);
     for (const line of text.split('\n')) {
       const isInvokedRepoRelative = line.includes('node plugin/bin/');
@@ -73,4 +86,17 @@ test('the compose-context source-arg check can actually go red (predicate proof)
   const offendersInstallSafe = [installSafe].filter(isComposeContextSourceRepoRelative);
   assert.equal(offendersRepoRelative.length, 1);
   assert.equal(offendersInstallSafe.length, 0);
+});
+
+test('a compose-context invocation wrapped across lines is still caught when its source arg is repo-relative (wrap-shape proof)', () => {
+  const wrappedSpan = 'Read it as one bundle: `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR"\n  --step merge plugin/skills/_shared/a.md`, then read the bundle.';
+  const wrappedFence = '```bash\nnode "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step merge \\\n  "${CLAUDE_PLUGIN_ROOT}/skills/_shared/a.md" \\\n  plugin/skills/_shared/b.md\n```';
+  const wrappedInstallSafe = 'Read it as one bundle: `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR"\n  --step merge "${CLAUDE_PLUGIN_ROOT}/skills/_shared/a.md"`, then read the bundle.';
+  const offendersIn = (text) => joinComposeContextInvocations(text).split('\n').filter(isComposeContextSourceRepoRelative);
+  // Unnormalized, the per-line predicate misses both wrapped offenders — the blind spot the join closes.
+  assert.equal(wrappedSpan.split('\n').filter(isComposeContextSourceRepoRelative).length, 0);
+  assert.equal(wrappedFence.split('\n').filter(isComposeContextSourceRepoRelative).length, 0);
+  assert.equal(offendersIn(wrappedSpan).length, 1);
+  assert.equal(offendersIn(wrappedFence).length, 1);
+  assert.equal(offendersIn(wrappedInstallSafe).length, 0);
 });
