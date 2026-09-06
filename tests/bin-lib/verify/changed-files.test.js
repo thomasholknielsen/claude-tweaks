@@ -59,7 +59,7 @@ test('changedFiles reports each file in a new untracked directory individually, 
 
 test('resolveBase returns the canonical rev-parse of the stamp fullSha when it is an ancestor of HEAD (AC3 case 1, finding 11)', () => {
   const exec = fakeExec({
-    [`merge-base --is-ancestor ${FULL} HEAD`]: '',
+    [`merge-base --is-ancestor --end-of-options ${FULL} HEAD`]: '',
     [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
   });
   assert.strictEqual(resolveBase({ stamp: { sha: 'x', fullSha: FULL }, integrationBranch: 'main', execImpl: exec }), CANON);
@@ -67,7 +67,7 @@ test('resolveBase returns the canonical rev-parse of the stamp fullSha when it i
 
 test('resolveBase falls back to the integration-branch merge-base when the stamp anchor is not an ancestor (rewritten history) or no stamp exists (AC3 case 2)', () => {
   const noAncestor = fakeExec({
-    [`merge-base --is-ancestor ${FULL} HEAD`]: new Error('exit 1'),
+    [`merge-base --is-ancestor --end-of-options ${FULL} HEAD`]: new Error('exit 1'),
     'rev-parse --verify --quiet refs/remotes/origin/main': 'abc\n',
     'merge-base --end-of-options origin/main HEAD': `${MB}\n`,
   });
@@ -92,7 +92,7 @@ test('resolveBase throws when no explicit base, no usable stamp anchor, and no -
 
 test('resolveBase throws ChangedFilesError when the integration branch is given but resolves to nothing — never an empty set (AC3 case 3)', () => {
   const exec = fakeExec({
-    [`merge-base --is-ancestor ${FULL} HEAD`]: new Error('exit 1'),
+    [`merge-base --is-ancestor --end-of-options ${FULL} HEAD`]: new Error('exit 1'),
     'rev-parse --verify --quiet refs/remotes/origin/main': new Error('no'),
     'merge-base --end-of-options main HEAD': new Error('fatal: not a valid object name'),
   });
@@ -109,7 +109,7 @@ test('resolveBase verifies an explicit base as a commit and never consults the s
 
 test('resolveBase uses stamp.sha as the anchor for a legacy stamp that carries no fullSha, canonicalized via rev-parse (finding 11)', () => {
   const exec = fakeExec({
-    [`merge-base --is-ancestor ${FULL} HEAD`]: '',
+    [`merge-base --is-ancestor --end-of-options ${FULL} HEAD`]: '',
     [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
   });
   assert.strictEqual(resolveBase({ stamp: { sha: FULL, scope: 'full', legacy: true }, integrationBranch: 'main', execImpl: exec }), CANON);
@@ -121,7 +121,7 @@ test('resolveBase uses stamp.sha as the anchor for a legacy stamp that carries n
 // call sites can never silently diverge.
 test('usableAnchor returns the canonical sha when the stamp anchor is an ancestor of HEAD', () => {
   const exec = fakeExec({
-    [`merge-base --is-ancestor ${FULL} HEAD`]: '',
+    [`merge-base --is-ancestor --end-of-options ${FULL} HEAD`]: '',
     [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
   });
   assert.strictEqual(usableAnchor({ stamp: { sha: 'x', fullSha: FULL }, execImpl: exec }), CANON);
@@ -129,7 +129,7 @@ test('usableAnchor returns the canonical sha when the stamp anchor is an ancesto
 
 test('usableAnchor returns null when the anchor is not an ancestor of HEAD (a rewritten/rebased history)', () => {
   const exec = fakeExec({
-    [`merge-base --is-ancestor ${FULL} HEAD`]: new Error('exit 1'),
+    [`merge-base --is-ancestor --end-of-options ${FULL} HEAD`]: new Error('exit 1'),
   });
   assert.strictEqual(usableAnchor({ stamp: { sha: 'x', fullSha: FULL }, execImpl: exec }), null);
 });
@@ -140,8 +140,21 @@ test('usableAnchor returns null when there is no stamp at all', () => {
 
 test('usableAnchor falls back to stamp.sha for a legacy stamp with no fullSha', () => {
   const exec = fakeExec({
-    [`merge-base --is-ancestor ${FULL} HEAD`]: '',
+    [`merge-base --is-ancestor --end-of-options ${FULL} HEAD`]: '',
     [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
   });
   assert.strictEqual(usableAnchor({ stamp: { sha: FULL, scope: 'full', legacy: true }, execImpl: exec }), CANON);
+});
+
+// #1922 review finding (medium): a dash-prefixed anchor from the JSON stamp
+// must not be parsed as a git flag — --end-of-options guards the untrusted
+// anchor the same way every other git call in this file does.
+test('usableAnchor guards a dash-prefixed anchor with --end-of-options so it cannot be parsed as a flag', () => {
+  const exec = fakeExec({
+    'merge-base --is-ancestor --end-of-options --bogus HEAD': new Error('exit 1'),
+  });
+  assert.strictEqual(usableAnchor({ stamp: { sha: 'x', fullSha: '--bogus' }, execImpl: exec }), null);
+  const call = exec.calls.find((c) => c.includes('--is-ancestor'));
+  const idx = call.indexOf('--is-ancestor');
+  assert.strictEqual(call[idx + 1], '--end-of-options');
 });

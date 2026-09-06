@@ -186,8 +186,16 @@ async function main() {
     // is legitimately correct once history was rewritten and the old anchor
     // stopped being an ancestor of HEAD, even though it still resolves to a
     // real (now-stranded) commit (#1922 re-review NEW-1).
+    // Computed once, reused by the H4 --base check right below and by the
+    // scope selection further down: a stamp whose anchor is not a usable
+    // ancestor of HEAD (a rewritten/rebased history) must never reach
+    // selectScope as if it were still valid — that would stamp a non-full
+    // run with `base` pointing at today's merge-base but `fullSha` still
+    // naming the stale anchor, breaking the base === fullSha invariant a
+    // full run relies on. Passing `stamp: null` instead forces mode 'full'
+    // (#1922 review finding: stale anchor must force a full run).
+    const anchorSha = usableAnchor({ stamp: priorStamp });
     if (parsed.base) {
-      const anchorSha = usableAnchor({ stamp: priorStamp });
       if (anchorSha && resolvedBase !== anchorSha) {
         scopeUsageExit(`--scope: --base ${parsed.base} conflicts with the stamp anchor ${anchorSha.slice(0, 9)}; omit --base (pass --integration-branch instead) or clear the stamp`);
         return;
@@ -195,7 +203,7 @@ async function main() {
     }
 
     files = changedFiles({ base: resolvedBase }).files;
-    sel = selectScope({ decl, files, stamp: priorStamp });
+    sel = selectScope({ decl, files, stamp: anchorSha ? priorStamp : null });
     if (decl) {
       cmds = parsed.cmds.filter((c) => {
         if (c.name === 'types' || c.name === 'lint') return sel.static;

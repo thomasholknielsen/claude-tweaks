@@ -765,3 +765,31 @@ test('--scope --base after a history rewrite is accepted when the old anchor is 
   assert.strictEqual(run.code, 0, run.stderr);
   assert.match(run.stdout, /^Scope:/m);
 });
+
+// #1922 review fix 3: a stale stamp anchor (not an ancestor of HEAD after a
+// history rewrite) must force a full run even with no --base at all —
+// selectScope must never see the stale priorStamp as still valid, or a
+// non-full run would stamp fullSha at the old anchor while base points at
+// today's merge-base, breaking the base === fullSha invariant a full run
+// relies on.
+test('--scope after a history rewrite (no --base) forces mode full and stamps fullSha at the new HEAD (#1922 review fix 3)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['unit'], static: true }]);
+  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
+  const run1 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run1.code, 0, run1.stderr);
+  fs.unlinkSync(r.marker); // untracked; must not linger as an uncommitted change.
+
+  // Rewrite history: the old stamp anchor (run1's HEAD) still resolves to a
+  // real commit object, but is no longer an ancestor of the new HEAD. The
+  // integration branch moves with the amend, so no --base is needed to
+  // exercise the fallback-to-merge-base path.
+  r.git('commit', '--amend', '--allow-empty', '-q', '-m', 'rewritten');
+  const newHead = r.git('rev-parse', 'HEAD').trim();
+
+  const run2 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run2.code, 0, run2.stderr);
+  assert.match(run2.stdout, /^Scope: full/m);
+  const stamp = stampOf(r.gitDir);
+  assert.strictEqual(stamp.scope, 'full');
+  assert.strictEqual(stamp.fullSha, newHead);
+});

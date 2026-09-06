@@ -46,7 +46,7 @@ function usableAnchor({ stamp = null, execImpl = execFileSync } = {}) {
     ? (typeof stamp.fullSha === 'string' ? stamp.fullSha : stamp.sha)
     : null;
   if (!anchor) return null;
-  if (tryGit(execImpl, ['merge-base', '--is-ancestor', anchor, 'HEAD']) === null) return null;
+  if (tryGit(execImpl, ['merge-base', '--is-ancestor', '--end-of-options', anchor, 'HEAD']) === null) return null;
   const canonical = tryGit(execImpl, ['rev-parse', '--verify', '--end-of-options', `${anchor}^{commit}`]);
   return canonical === null || canonical.trim() === '' ? null : canonical.trim();
 }

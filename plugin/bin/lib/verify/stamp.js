@@ -12,7 +12,9 @@
 // Read fallback order (spec Gotchas): JSON present and parses -> use it
 // (regardless of the bare file); JSON present but unparseable -> null (no
 // fallback); JSON absent -> try the bare file; bare file absent or not a
-// 40-hex SHA -> null. Fail toward absence, like count-stamp.js.
+// 40-hex SHA -> null. A malformed sha or fullSha inside an otherwise-parsed
+// JSON stamp is treated as absent (null), same posture as the legacy path —
+// fail toward absence, like count-stamp.js.
 'use strict';
 
 const fs = require('fs');
@@ -65,6 +67,8 @@ function readStamp(gitDir, fsImpl = fs) {
     let parsed;
     try { parsed = JSON.parse(jsonText); } catch { return null; }
     if (typeof parsed !== 'object' || parsed === null || typeof parsed.sha !== 'string') return null;
+    if (!SHA_RE.test(parsed.sha)) return null;
+    if (parsed.fullSha !== undefined && parsed.fullSha !== null && !SHA_RE.test(parsed.fullSha)) return null;
     return parsed;
   }
   let bare;

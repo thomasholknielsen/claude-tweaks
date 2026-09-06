@@ -74,11 +74,12 @@ test('readStamp returns null when neither file exists', () => {
 });
 
 test('readStamp prefers the JSON stamp regardless of the bare file', () => {
+  const JSON_SHA = '0123456789abcdef0123456789abcdef01234567';
   const fsImpl = fakeFs({
-    [path.join('/g', STAMP_JSON_NAME)]: JSON.stringify({ sha: 'json', scope: 'full', fullSha: 'json' }),
+    [path.join('/g', STAMP_JSON_NAME)]: JSON.stringify({ sha: JSON_SHA, scope: 'full', fullSha: JSON_SHA }),
     [path.join('/g', STAMP_LEGACY_NAME)]: 'bare\n',
   });
-  assert.deepStrictEqual(readStamp('/g', fsImpl), { sha: 'json', scope: 'full', fullSha: 'json' });
+  assert.deepStrictEqual(readStamp('/g', fsImpl), { sha: JSON_SHA, scope: 'full', fullSha: JSON_SHA });
 });
 
 test('readStamp returns null on unparseable JSON — never falls back to the bare file', () => {
@@ -103,4 +104,30 @@ test('readStamp returns null when the bare file is not a 40-hex SHA', () => {
   const fsImpl = fakeFs({ [path.join('/g', STAMP_LEGACY_NAME)]: 'garbage\n' });
   assert.strictEqual(readStamp('/g', fsImpl), null);
   assert.strictEqual(readStamp('/g', fakeFs({ [path.join('/g', STAMP_LEGACY_NAME)]: '' })), null);
+});
+
+// #1922 review finding (low): the JSON branch must enforce SHA_RE on sha and
+// (when present) fullSha the same way the legacy bare-file branch does —
+// fail toward absence rather than trusting an arbitrary JSON string.
+test('readStamp returns null when the JSON sha is not a 40-hex SHA', () => {
+  const fsImpl = fakeFs({
+    [path.join('/g', STAMP_JSON_NAME)]: JSON.stringify({ sha: 'not-a-sha', scope: 'full' }),
+  });
+  assert.strictEqual(readStamp('/g', fsImpl), null);
+});
+
+test('readStamp returns null when the JSON sha is valid but fullSha is not a 40-hex SHA', () => {
+  const VALID = '0123456789abcdef0123456789abcdef01234567';
+  const fsImpl = fakeFs({
+    [path.join('/g', STAMP_JSON_NAME)]: JSON.stringify({ sha: VALID, scope: 'scoped', fullSha: '--x' }),
+  });
+  assert.strictEqual(readStamp('/g', fsImpl), null);
+});
+
+test('readStamp returns the JSON stamp as-is when sha is valid and fullSha is absent', () => {
+  const VALID = '0123456789abcdef0123456789abcdef01234567';
+  const fsImpl = fakeFs({
+    [path.join('/g', STAMP_JSON_NAME)]: JSON.stringify({ sha: VALID, scope: 'full' }),
+  });
+  assert.deepStrictEqual(readStamp('/g', fsImpl), { sha: VALID, scope: 'full' });
 });
