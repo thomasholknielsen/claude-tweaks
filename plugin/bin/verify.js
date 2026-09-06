@@ -397,11 +397,11 @@ async function main() {
     } else {
       appendEvent(target.dir, 'verify', {
         mode: report.scope ? report.scope.mode : 'full',
-        suitesRun: report.scope ? (report.scope.suites || []) : results.map((c) => c.name),
+        suitesRun: report.scope ? (report.scope.suites || []) : results.filter((c) => !c.skipped).map((c) => c.name),
         durationMs: report.durationMs,
         pass: report.pass,
         sha: git.sha,
-        flakyRetried: results.filter((c) => Array.isArray(c.flakyRetried) && c.flakyRetried.length).map((c) => c.name),
+        flakyRetried: retriedFiles,
         reportPath: jsonPath,
       });
     }

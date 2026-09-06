@@ -1190,3 +1190,20 @@ test('#1928 AC1: a run dir outside the main checkout is refused on stderr and no
   assert.match(stderr, /--run .* refused/);
   assert.strictEqual(fs.existsSync(path.join(foreign, 'events.jsonl')), false);
 });
+
+test('#1928 fix round 1: a fail-fast-skipped check is excluded from the verify event suitesRun', async () => {
+  const { repo } = tmpGitRepo();
+  const runDir = anchoredRunDir(repo);
+  const { code } = await runCli([
+    '--run', runDir, '--no-stamp',
+    '--cmd', 'lint=node -e "process.exit(1)"',
+    '--cmd', 'tests=node -e "console.log(String(1))"',
+  ], { cwd: repo });
+  assert.notStrictEqual(code, 0);
+  const lines = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8').trim().split('\n');
+  assert.strictEqual(lines.length, 1);
+  const ev = JSON.parse(lines[0]);
+  assert.strictEqual(ev.pass, false);
+  assert.ok(!ev.suitesRun.includes('tests'), `suitesRun should not include the fail-fast-skipped 'tests' check: ${JSON.stringify(ev.suitesRun)}`);
+  assert.deepStrictEqual(ev.suitesRun, ['lint']);
+});
