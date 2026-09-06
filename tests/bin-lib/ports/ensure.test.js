@@ -50,7 +50,7 @@ test('ensure: fresh registry activates, returns the leased block, writes .env.lo
   const result = await ensure(checkout, { home, policyServices: ['web', 'api'], resolveRoot: () => checkout, probe: async () => true });
   assert.equal(result.active, true);
   assert.equal(result.reallocated, null);
-  assert.deepEqual(result.vars, [['PORT', String(result.base)], ['API_PORT', String(result.base + 1)]]);
+  assert.deepEqual(result.vars, [['CLAUDE_TWEAKS_LEASE', String(result.base)], ['PORT', String(result.base)], ['API_PORT', String(result.base + 1)]]);
   const envLocal = fs.readFileSync(path.join(checkout, '.env.local'), 'utf8');
   assert.match(envLocal, new RegExp(`PORT=${result.base}`));
 });
