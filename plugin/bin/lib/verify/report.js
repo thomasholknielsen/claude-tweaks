@@ -52,11 +52,15 @@ function entryFor(check) {
   };
   if (check.spawnError !== undefined) entry.spawnError = check.spawnError;
   if (check.counts !== undefined && check.counts !== null) entry.counts = check.counts;
+  if (check.flakyRetried && check.flakyRetried.length) entry.flakyRetried = check.flakyRetried;
+  if (check.retryFailed && check.retryFailed.length) entry.retryFailed = check.retryFailed;
+  if (check.retryAttempts) entry.retryAttempts = check.retryAttempts.map(({ file, attempt, exitCode, logPath }) => ({ file, attempt, exitCode, logPath }));
+  if (check.retryDecision) entry.retryDecision = check.retryDecision;
   return entry;
 }
 
 function composeReport({
-  checks, startedAt, durationMs, git, testCountRegression = null, scope = null,
+  checks, startedAt, durationMs, git, testCountRegression = null, scope = null, flakyEscalation = [],
 }) {
   const byName = {};
   for (const check of checks) byName[check.name] = entryFor(check);
@@ -72,6 +76,9 @@ function composeReport({
   // never guessed/partial, absence over a fabricated non-regression.
   if (testCountRegression !== null) report.testCountRegression = testCountRegression;
   if (scope !== null) report.scope = scope;
+  // #1925: only when an allowlisted file has crossed the escalation
+  // threshold — absence over an empty array, same as the fields above.
+  if (Array.isArray(flakyEscalation) && flakyEscalation.length) report.flakyEscalation = flakyEscalation;
   return report;
 }
 

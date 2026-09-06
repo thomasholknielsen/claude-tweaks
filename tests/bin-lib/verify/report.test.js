@@ -151,3 +151,25 @@ test('composeReport carries a scope object when given one and omits it otherwise
   const withScope = composeReport({ checks, startedAt: 't', durationMs: 1, git, scope });
   assert.deepStrictEqual(withScope.scope, scope);
 });
+
+test('composeReport carries flakyRetried/retryFailed/retryAttempts/retryDecision on a check entry and flakyEscalation at top level only when non-empty (#1925)', () => {
+  const retried = {
+    name: 'tests', command: 'x', exitCode: 0, durationMs: 1, logPath: '/l/tests.log',
+    flakyRetried: ['tests/a.test.js'],
+    retryAttempts: [{ file: 'tests/a.test.js', attempt: 1, exitCode: 0, logPath: '/l/r1.log', durationMs: 1 }],
+    retryDecision: { retry: true, files: ['tests/a.test.js'] },
+  };
+  const plain = { name: 'lint', command: 'y', exitCode: 0, durationMs: 1, logPath: '/l/lint.log' };
+  const git = { sha: 'abc', dirty: false };
+  const report = composeReport({ checks: [retried, plain], startedAt: 't', durationMs: 2, git, flakyEscalation: [{ file: 'tests/a.test.js', hits: 5 }] });
+  assert.deepStrictEqual(report.checks.tests.flakyRetried, ['tests/a.test.js']);
+  assert.deepStrictEqual(report.checks.tests.retryAttempts, [{ file: 'tests/a.test.js', attempt: 1, exitCode: 0, logPath: '/l/r1.log' }]);
+  assert.deepStrictEqual(report.checks.tests.retryDecision, { retry: true, files: ['tests/a.test.js'] });
+  assert.strictEqual('flakyRetried' in report.checks.lint, false);
+  assert.deepStrictEqual(report.flakyEscalation, [{ file: 'tests/a.test.js', hits: 5 }]);
+  const none = composeReport({ checks: [plain], startedAt: 't', durationMs: 2, git, flakyEscalation: [] });
+  assert.strictEqual('flakyEscalation' in none, false);
+  const failed = composeReport({ checks: [{ ...plain, name: 'tests', exitCode: 1, retryFailed: ['tests/a.test.js'], flakyRetried: [] }], startedAt: 't', durationMs: 2, git });
+  assert.deepStrictEqual(failed.checks.tests.retryFailed, ['tests/a.test.js']);
+  assert.strictEqual('flakyRetried' in failed.checks.tests, false);
+});

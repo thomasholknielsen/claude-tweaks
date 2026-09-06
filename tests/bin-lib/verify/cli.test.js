@@ -973,3 +973,121 @@ test('#1801 shape: a ledger-row commit after a full pass resolves to none — st
   assert.ok(!fs.existsSync(marker), 'no tests check may spawn on a bookkeeping-only delta');
   assert.strictEqual(stampOf(r.gitDir).scope, 'none');
 });
+
+// A repo whose string-form tests command prints a TAP failure naming
+// `failingFile` and exits 1, plus a retry template whose command writes a
+// marker with the retried file and exits `retryExit`. `flaky` overrides
+// the declaration's flaky section (default: tests/flaky.test.js listed).
+function flakyRepo({ failingFile = 'tests/flaky.test.js', retryExit = 0, flaky = { files: ['tests/flaky.test.js'] }, extraDecl = {} } = {}) {
+  const r = tmpGitRepo();
+  const tap = ['not ok 1 - a flaky one', '  ---', '  stack: |-', `    at TestContext.<anonymous> (${failingFile}:12:5)`, '  ...', '# tests 1', '# pass 0', '# fail 1'].join('\n');
+  fs.writeFileSync(path.join(r.repo, 'fail.js'), `process.stdout.write(${JSON.stringify(tap)} + '\\n'); process.exit(1);\n`);
+  fs.writeFileSync(path.join(r.repo, 'retry.js'), `require('fs').writeFileSync('retry.marker', process.argv[2]); process.exit(${retryExit});\n`);
+  const decl = {
+    checks: { tests: 'node fail.js' },
+    retry: { tests: 'node retry.js {file}' },
+    rules: [{ match: 'src/**', suites: ['tests'], static: true }],
+    flaky,
+    ...extraDecl,
+  };
+  fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
+  r.git('add', '.');
+  r.git('commit', '-q', '-m', 'flaky fixture');
+  const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
+  const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', branch, '--cmd', 'tests=node fail.js'];
+  return { ...r, branch, args, marker: path.join(r.repo, 'retry.marker'), retryLog: (i) => path.join(r.gitDir, 'claude-tweaks-verify', `tests-retry-tests-flaky.test.js-${i}.log`) };
+}
+
+test('flaky retry: an allowlisted failing file is re-run through the template and the run passes with flakyRetried on row, report, and stamp (#1925 AC3)', async () => {
+  const r = flakyRepo();
+  const { code, stdout, stderr } = await runCli(r.args, { cwd: r.repo });
+  assert.strictEqual(code, 0, stderr);
+  assert.match(stdout, /\| tests \| pass \(flaky-retried: tests\/flaky\.test\.js\) \|/);
+  assert.match(stdout, /^CAVEAT: flaky-retried: tests\/flaky\.test\.js — passed on isolated rerun; see .*tests-retry-tests-flaky\.test\.js-1\.log$/m);
+  assert.strictEqual(fs.readFileSync(r.marker, 'utf8'), 'tests/flaky.test.js');
+  const report = JSON.parse(fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify', 'report.json'), 'utf8'));
+  assert.strictEqual(report.pass, true);
+  assert.deepStrictEqual(report.checks.tests.flakyRetried, ['tests/flaky.test.js']);
+  assert.deepStrictEqual(report.checks.tests.retryDecision, { retry: true, files: ['tests/flaky.test.js'] });
+  assert.strictEqual(report.checks.tests.retryAttempts.length, 1);
+  assert.strictEqual(report.checks.tests.exitCode, 0);
+  const stamp = stampOf(r.gitDir);
+  assert.deepStrictEqual(stamp.flakyRetried, ['tests/flaky.test.js']);
+  assert.strictEqual(stamp.scope, 'full');
+});
+
+test('flaky retry: an unlisted failing file is an ordinary failure — no retry spawned, no stamp, the decision names it (#1925 AC4)', async () => {
+  const r = flakyRepo({ failingFile: 'tests/real.test.js' });
+  const { code, stdout } = await runCli(r.args, { cwd: r.repo });
+  assert.strictEqual(code, 1);
+  assert.match(stdout, /\| tests \| fail \|/);
+  assert.doesNotMatch(stdout, /flaky-retried/);
+  assert.ok(!fs.existsSync(r.marker), 'no retry command may run for an unlisted file');
+  assert.ok(!fs.existsSync(r.retryLog(1)));
+  assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json')));
+  const report = JSON.parse(fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify', 'report.json'), 'utf8'));
+  assert.deepStrictEqual(report.checks.tests.retryDecision, { retry: false, reason: 'unlisted: [tests/real.test.js]' });
+  assert.strictEqual('flakyRetried' in report.checks.tests, false);
+});
+
+test('flaky retry: maxRetries 2 performs at most two attempts and an exhausted file fails the run with retryFailed; maxRetries 3 is rejected by the declaration (#1925 AC6)', async () => {
+  const r = flakyRepo({ retryExit: 1, flaky: { files: ['tests/flaky.test.js'], maxRetries: 2 } });
+  const { code, stdout } = await runCli(r.args, { cwd: r.repo });
+  assert.strictEqual(code, 1);
+  assert.match(stdout, /\| tests \| fail \|/);
+  assert.ok(fs.existsSync(r.retryLog(1)) && fs.existsSync(r.retryLog(2)), 'two attempts logged');
+  assert.ok(!fs.existsSync(r.retryLog(3)));
+  const report = JSON.parse(fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify', 'report.json'), 'utf8'));
+  assert.deepStrictEqual(report.checks.tests.retryFailed, ['tests/flaky.test.js']);
+  assert.strictEqual(report.checks.tests.retryAttempts.length, 2);
+  assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json')));
+
+  const r3 = flakyRepo({ flaky: { files: ['tests/flaky.test.js'], maxRetries: 3 } });
+  const three = await runCli(r3.args, { cwd: r3.repo });
+  assert.strictEqual(three.code, 2);
+  assert.match(three.stderr, /flaky\.maxRetries: must be an integer from 0 to 2/);
+});
+
+test('flaky retry: a failing lint check never triggers a retry and still fail-fasts tests (#1925 AC7)', async () => {
+  const r = flakyRepo();
+  const { code } = await runCli([...r.args, '--cmd', 'lint=node fail.js'], { cwd: r.repo });
+  assert.strictEqual(code, 1);
+  assert.ok(!fs.existsSync(r.marker));
+  const report = JSON.parse(fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify', 'report.json'), 'utf8'));
+  assert.strictEqual(report.checks.tests.skipped, 'fail-fast');
+  assert.strictEqual('retryDecision' in report.checks.lint, false);
+});
+
+test('flaky retry: without --scope (no declaration) a failing tests check is never retried, byte-for-byte today\'s behavior (#1925)', async () => {
+  const r = flakyRepo();
+  const { code, stdout } = await runCli(['--cmd', 'tests=node fail.js'], { cwd: r.repo });
+  assert.strictEqual(code, 1);
+  assert.doesNotMatch(stdout, /flaky-retried/);
+  assert.ok(!fs.existsSync(r.marker));
+});
+
+test('flaky retry: a retried-to-pass suite does not fail-fast-skip the suites behind it, so the full set stamps (#1925 design)', async () => {
+  const r = tmpGitRepo();
+  const tap = ['not ok 1 - flaky', '    at TestContext.<anonymous> (tests/flaky.test.js:1:1)', '# tests 1', '# pass 0', '# fail 1'].join('\n');
+  fs.writeFileSync(path.join(r.repo, 'fail.js'), `process.stdout.write(${JSON.stringify(tap)} + '\\n'); process.exit(1);\n`);
+  fs.writeFileSync(path.join(r.repo, 'retry.js'), 'process.exit(0);\n');
+  fs.writeFileSync(path.join(r.repo, 'other.js'), "require('fs').writeFileSync('other.marker', 'ran');\n");
+  const decl = {
+    checks: { tests: { unit: 'node fail.js', other: 'node other.js' } },
+    retry: { unit: 'node retry.js {file}' },
+    rules: [{ match: 'src/**', suites: ['unit'], static: true }],
+    flaky: { files: ['tests/flaky.test.js'] },
+  };
+  fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
+  r.git('add', '.');
+  r.git('commit', '-q', '-m', 'two suites');
+  const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
+  const { code, stdout, stderr } = await runCli(['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', branch, '--cmd', 'unit=node fail.js', '--cmd', 'other=node other.js'], { cwd: r.repo });
+  assert.strictEqual(code, 0, stderr);
+  assert.match(stdout, /\| unit \| pass \(flaky-retried: tests\/flaky\.test\.js\) \|/);
+  assert.match(stdout, /\| other \| pass \|/);
+  assert.ok(fs.existsSync(path.join(r.repo, 'other.marker')), 'other ran after unit was retried to a pass');
+  assert.deepStrictEqual(stampOf(r.gitDir).flakyRetried, ['tests/flaky.test.js']);
+});

@@ -13,8 +13,11 @@ const os = require('os');
 const path = require('path');
 
 const { parseArgs, UsageError, USAGE } = require('./lib/verify/args');
-const { runChecks } = require('./lib/verify/run');
-const { sniffFamily, extractFailingRegion, parseCounts, summaryLine } = require('./lib/verify/extract');
+const { runChecks, runOne } = require('./lib/verify/run');
+const {
+  sniffFamily, extractFailingRegion, parseCounts, summaryLine, extractFailingFiles, stripAnsi,
+} = require('./lib/verify/extract');
+const { planRetry, runRetries, flakyCaveatLines } = require('./lib/verify/flaky');
 const { gitInfo, gitDir: resolveGitDir, composeReport } = require('./lib/verify/report');
 const { readStamp: readCountStamp, detectRegression, caveatLine } = require('./lib/verify/count-stamp');
 const { writeJsonAtomic } = require('./lib/verify/atomic-write');
@@ -49,6 +52,7 @@ function enrich(result) {
 
 function statusOf(check) {
   if (check.skipped) return `skipped: ${check.skipped}`;
+  if (check.exitCode === 0 && check.flakyRetried && check.flakyRetried.length) return `pass (flaky-retried: ${check.flakyRetried.join(', ')})`;
   return check.exitCode === 0 ? 'pass' : 'fail';
 }
 
@@ -275,7 +279,30 @@ async function main() {
 
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
-  const results = sel && sel.mode === 'none' ? [] : (await runChecks({ cmds, logDir })).map(enrich);
+  // Flaky retry (#1925): only a --scope run with a declaration that lists
+  // flaky files ever retries; without one every failure is byte-for-byte
+  // today's. Eligible checks are `tests` or a declared suite — never
+  // types/lint (run.js never offers those to the hook either). The decision
+  // is recorded on the check whether or not a retry ran.
+  const flakyEnabled = Boolean(decl && decl.flaky.files.length > 0);
+  const retryHook = async (result, ctx) => {
+    if (!flakyEnabled) return result;
+    if (!(result.name === 'tests' || decl.suites.includes(result.name))) return result;
+    let text = '';
+    try { text = fs.readFileSync(result.logPath, 'utf8'); } catch { return result; }
+    const plain = stripAnsi(text);
+    const failingFiles = extractFailingFiles(plain, sniffFamily(plain));
+    const plan = planRetry({ failingFiles, flaky: decl.flaky, retry: decl.retry, suite: result.name });
+    const decision = plan.retry ? { retry: true, files: plan.files } : { retry: false, reason: plan.reason };
+    if (!plan.retry) return { ...result, retryDecision: decision };
+    const retried = await runRetries({
+      check: result, plan, maxRetries: decl.flaky.maxRetries,
+      logDir: ctx.logDir, runOne, spawnImpl: ctx.spawnImpl, now: ctx.now,
+    });
+    return { ...retried, retryDecision: decision };
+  };
+  const results = sel && sel.mode === 'none' ? [] : (await runChecks({ cmds, logDir, retry: retryHook })).map(enrich);
+  const retriedFiles = [...new Set(results.flatMap((c) => c.flakyRetried || []))];
   const git = gitInfo();
 
   // Suite-count regression stamp (#881, IL-84): the "tests" check's own
@@ -324,6 +351,7 @@ async function main() {
   const report = composeReport({
     checks: results, startedAt, durationMs: Date.now() - startMs, git, testCountRegression,
     scope: sel ? { mode: sel.mode, suites: scopeSuites, static: sel.static, base: resolvedBase, unmatched: sel.unmatched, changedFiles: files, matched: sel.matched } : null,
+    flakyEscalation: [],
   });
   writeJsonAtomic(jsonPath, report);
 
@@ -362,7 +390,7 @@ async function main() {
       fullSha: mode === 'full' ? git.sha : sel.base,
       base: mode === 'full' ? null : resolvedBase,
       changedFiles: mode === 'full' ? [] : files,
-      suitesRun, flakyRetried: [], reportPath: path.resolve(jsonPath), at: new Date().toISOString(),
+      suitesRun, flakyRetried: retriedFiles, reportPath: path.resolve(jsonPath), at: new Date().toISOString(),
     });
     // H1 (review): the legacy bare-SHA twin only ever names a real FULL
     // pass — a narrowed run leaves it untouched rather than repointing it
@@ -402,6 +430,7 @@ async function main() {
     }
   }
   if (testCountRegression) lines.push('', caveatLine(testCountRegression));
+  for (const line of flakyCaveatLines(results)) lines.push('', line);
   lines.push('', `report: ${jsonPath}`);
   process.stdout.write(`${lines.join('\n')}\n`);
   process.exitCode = report.pass ? 0 : 1;
