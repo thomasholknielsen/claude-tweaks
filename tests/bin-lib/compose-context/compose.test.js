@@ -124,3 +124,16 @@ test('a marker opened at line 1 whose only close sits inside a fence throws Mark
     (err) => err instanceof MarkerError && /unclosed/.test(err.message) && err.line === 1,
   );
 });
+
+test('a four-backtick fence containing a nested three-backtick block and a marker pair composes verbatim', () => {
+  const content = '````markdown\n```bash\necho hi\n```\n<!-- when: mode=confirm -->\nx\n<!-- /when -->\n````\nafter\n';
+  const src = { path: 'a.md', content };
+  assert.equal(compose([src], ALL), `${HEADER}\n${content}`);
+});
+
+test('a ```markdown fence containing a ~~~ line and a marker pair, closed by ```, composes verbatim with no error', () => {
+  const content = '```markdown\n<!-- when: mode=auto -->\n~~~\nx\n<!-- /when -->\n```\nafter\n';
+  const src = { path: 'a.md', content };
+  assert.equal(compose([src], ALL), `${HEADER}\n${content}`);
+  assert.equal(stripMarkers(content), content);
+});

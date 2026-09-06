@@ -32,9 +32,12 @@ const MAX_DEPTH = 2; // outer + one nested level
 const CANDIDATE_RE = /^\s*<!--\s*(?:when:|\/when\b)/;
 const OPEN_RE = /^\s*<!--\s*when:\s*([A-Za-z0-9-]+)=([A-Za-z0-9-]+)\s*-->\s*$/;
 const CLOSE_RE = /^\s*<!--\s*\/when\s*-->\s*$/;
-// A line opening or closing a fenced code block (```/~~~, up to 3 leading
-// spaces per CommonMark). While inside a fence every line — marker-shaped or
-// not — is literal text: never a candidate, never validated, never stripped.
+// A line opening a fenced code block (```/~~~, up to 3 leading spaces per
+// CommonMark). Once open, the fence is closed only by a fence of the same
+// character and at least the same length — every other line while inside it,
+// including a fence-shaped line of the other character or a shorter run of
+// the same character, is literal text: never a candidate, never validated,
+// never stripped.
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
 
 class MarkerError extends Error {
@@ -52,15 +55,29 @@ function parseMarkers(text, file = null) {
   const tokens = [];
   const stack = [];
   let inFence = false;
+  let fenceChar = null;
+  let fenceLen = 0;
   const fail = (message, line) => { throw new MarkerError(message, { file, line }); };
   lines.forEach((raw, i) => {
     const line = i + 1;
-    if (FENCE_RE.test(raw)) {
-      inFence = !inFence;
+    const fenceMatch = raw.match(FENCE_RE);
+    if (inFence) {
+      if (fenceMatch && fenceMatch[1][0] === fenceChar && fenceMatch[1].length >= fenceLen) {
+        inFence = false;
+        fenceChar = null;
+        fenceLen = 0;
+      }
       tokens.push({ type: 'text', line });
       return;
     }
-    if (inFence || !CANDIDATE_RE.test(raw)) {
+    if (fenceMatch) {
+      inFence = true;
+      fenceChar = fenceMatch[1][0];
+      fenceLen = fenceMatch[1].length;
+      tokens.push({ type: 'text', line });
+      return;
+    }
+    if (!CANDIDATE_RE.test(raw)) {
       tokens.push({ type: 'text', line });
       return;
     }
