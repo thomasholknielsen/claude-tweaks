@@ -227,6 +227,19 @@ test('configValue tolerates a trailing `# comment` on a config.yml line (#1931 M
   assert.deepStrictEqual(pack.levers.value.find((l) => l.key === 'ceremony-profile'), { key: 'ceremony-profile', value: 'fast-lane', source: 'header' });
 });
 
+// #1931 N1: a `#` is only a YAML comment introducer when whitespace precedes it.
+// The first form of the M3 fix stripped an unspaced one too, truncating `a#b` to `a`.
+test('configValue strips a whitespace-preceded comment but never an unspaced `#` inside the value (#1931 N1)', async () => {
+  const fx = mainRoot();
+  seedCase1(fx);
+  fs.writeFileSync(path.join(fx.runDir, 'config.yml'), 'mode: a#b\nceremony-profile: fast-lane\n');
+  const unspaced = await gatherPreflight({ runDir: fx.runDir, steps: ['review'], cwd: fx.root, mainRoot: fx.root, deps: deps(fx) });
+  assert.strictEqual(unspaced.mode, 'a#b', 'an unspaced # is part of the value, not a comment');
+  fs.writeFileSync(path.join(fx.runDir, 'config.yml'), 'mode: auto   # note\nceremony-profile: fast-lane\n');
+  const spaced = await gatherPreflight({ runDir: fx.runDir, steps: ['review'], cwd: fx.root, mainRoot: fx.root, deps: deps(fx) });
+  assert.strictEqual(spaced.mode, 'auto', 'a whitespace-preceded # introduces a comment');
+});
+
 test('the levers and the changed-files integration branch share ONE resolvePolicy call per pack (#1931 M5)', async () => {
   const fx = mainRoot();
   seedCase1(fx);

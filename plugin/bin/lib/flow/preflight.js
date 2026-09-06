@@ -82,7 +82,7 @@ function readText(deps, file) {
 }
 
 function configValue(text, key) {
-  const m = new RegExp(`^${key}:\\s*(\\S+?)\\s*(?:#.*)?$`, 'm').exec(text || '');
+  const m = new RegExp(`^${key}:\\s*(\\S+)(?:\\s+#.*)?\\s*$`, 'm').exec(text || '');
   return m ? m[1] : null;
 }
 

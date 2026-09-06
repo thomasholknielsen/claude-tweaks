@@ -104,3 +104,24 @@ test('run: a spec header committed on the run\'s recorded branch → specMateria
   assert.strictEqual(file.spec.value.present, true);
   assert.strictEqual(file.spec.value.record, 7);
 });
+
+// #1931 N2: the multi-spec parent shape against REAL `git ls-tree` — the fixture in
+// preflight.test.js fakes the listing, so only this one proves the `-r` fallback
+// actually recurses. A non-recursive `{rel}/` listing returns the `spec-9`/`work`
+// TREE names and would leave specMaterialized false.
+test('run: a multi-spec parent whose headers live under spec-{N}/work/ resolves via the recursive fallback (#1931 N2)', async () => {
+  const fx = mainCheckoutWithRun();
+  fs.rmSync(path.join(fx.runDir, 'work'), { recursive: true, force: true });
+  fs.mkdirSync(path.join(fx.runDir, 'spec-9', 'work'), { recursive: true });
+  fs.writeFileSync(path.join(fx.runDir, 'spec-9', 'work', '9-spec.md'), '---\nrecord: 9\n---\n');
+  const git = (...a) => execFileSync('git', a, { cwd: fx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  git('checkout', '-q', '-b', 'flow/record-9');
+  git('add', '-f', path.relative(fx.root, path.join(fx.runDir, 'spec-9', 'work', '9-spec.md')));
+  git('commit', '-q', '-m', 'materialize 9');
+  fs.writeFileSync(path.join(fx.runDir, 'run-state.json'), JSON.stringify({ worktree: fx.root, status: 'active', pr: { number: 42, branch: 'flow/record-9' } }));
+  const { d } = baseDeps(fx);
+  assert.strictEqual(await run(['--run', fx.runDir, '--steps', 'review'], d), 0);
+  const file = JSON.parse(fs.readFileSync(path.join(fx.runDir, 'preflight.json'), 'utf8'));
+  assert.strictEqual(file.adoption.value.specMaterialized, true, JSON.stringify(file.adoption.value));
+  assert.deepStrictEqual(file.spec.value, { path: null, present: true, record: null, records: [9] });
+});

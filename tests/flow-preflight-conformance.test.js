@@ -34,7 +34,12 @@ test('the adoption section branches on the CLI\'s non-zero exits — 3 is case 4
   assert.ok(section.length > 0, 'the adoption section bounds must still resolve');
   assert.match(section, /exit code 3/);
   assert.match(section, /exit code 2/);
-  assert.match(section, /is not anchored to the main checkout/);
+  // Anchored to the I1 paragraph's OWN wording — the reason-mapping sentence.
+  // `is not anchored to the main checkout` alone would be satisfied by case 4's
+  // note literal, which predates this paragraph.
+  assert.match(section, /`missing` → `does not exist`/);
+  assert.match(section, /the reason the CLI's own stderr names/);
+  assert.match(section, /passes no `--json`/);
   // Case 4's own bullet no longer claims the pack reports the reason — it never
   // runs far enough to write one.
   assert.doesNotMatch(section, /The pack reports which reason applied/);
