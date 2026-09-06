@@ -2,9 +2,13 @@
 // .claude-tweaks/verify-scope.json (#1922): the caller-named declaration that
 // maps changed-path globs to test suites and static checks. Not a policy key
 // (never read by resolve-policy.js); the runner receives its path as an
-// explicit --scope input. A missing file is {ok: true, decl: null} — mode
-// full, today's behavior — never a throw. Every invalid field is reported,
-// not just the first, so a project fixes its declaration in one pass.
+// explicit --scope input. A missing file is {ok: true, decl: null,
+// missing: true} — mode full, today's behavior — never a throw; `missing`
+// lets a caller tell "no declaration" (ENOENT) apart from a read that failed
+// for another reason (EACCES, EISDIR, ...), which is ok: false instead so it
+// is never silently treated as "not declared" (review finding, refs #1922).
+// Every invalid field is reported, not just the first, so a project fixes
+// its declaration in one pass.
 'use strict';
 
 const fs = require('fs');
@@ -18,8 +22,9 @@ function readDeclaration(filePath, fsImpl = fs) {
   let text;
   try {
     text = fsImpl.readFileSync(filePath, 'utf8');
-  } catch {
-    return { ok: true, decl: null };
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return { ok: true, decl: null, missing: true };
+    return { ok: false, errors: [`verify-scope.json: could not read ${filePath}: ${err.message}`] };
   }
   let raw;
   try {
@@ -53,6 +58,13 @@ function readDeclaration(filePath, fsImpl = fs) {
         tests[name] = cmd;
       }
       suites = Object.keys(checks.tests);
+    } else if (checks.tests !== undefined && typeof checks.tests !== 'string' && !isPlainObject(checks.tests)) {
+      // A present but wrong-typed value (array, number, boolean, null, ...)
+      // is a distinct mistake from leaving it out entirely — name the actual
+      // type rather than reusing the "required" message (review finding,
+      // refs #1922). Undefined and empty string/object fall through below,
+      // keeping the existing "required" message.
+      errors.push(`checks.tests: must be a command string or a map of suite name to command, got ${typeof checks.tests}`);
     } else {
       errors.push('checks.tests: required — a command string or a map of suite name to command');
     }
@@ -88,7 +100,14 @@ function readDeclaration(filePath, fsImpl = fs) {
       } else if (Array.isArray(rule.suites)) {
         ruleSuites = rule.suites;
         for (const s of rule.suites) {
-          if (typeof s !== 'string' || !declared.has(s)) errors.push(`${where}.suites: unknown suite "${s}" (declared: ${suites.join(', ') || 'none'})`);
+          if (typeof s !== 'string') {
+            // A non-string entry names its type, not a stringified rendering
+            // of the value in an "unknown suite" message (review finding,
+            // refs #1922).
+            errors.push(`${where}.suites: entries must be strings, got ${typeof s}`);
+          } else if (!declared.has(s)) {
+            errors.push(`${where}.suites: unknown suite "${s}" (declared: ${suites.join(', ') || 'none'})`);
+          }
         }
       } else {
         errors.push(`${where}.suites: must be "*" or an array of declared suite names`);

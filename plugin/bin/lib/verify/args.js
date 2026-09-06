@@ -7,7 +7,7 @@ class UsageError extends Error {}
 const USAGE =
   'usage: verify.js --cmd <name>=<command> [--cmd <name>=<command> ...] [--json <path>] '
   + '[--log-dir <dir>] [--count-stamp <path>] [--no-stamp] [--git-dir <dir>] '
-  + '[--scope <path>] [--base <ref>] [--integration-branch <name>] '
+  + '[--scope <path> [--base <ref>] [--integration-branch <name>]] '
   + '| verify.js --stamp-status [--git-dir <dir>]';
 
 const VALUE_FLAGS = new Set(['--cmd', '--json', '--log-dir', '--count-stamp', '--git-dir', '--scope', '--base', '--integration-branch']);
@@ -58,6 +58,16 @@ function parseArgs(argv) {
   }
   if (cmds.length === 0 && !stampStatus) throw new UsageError('at least one --cmd <name>=<command> is required');
   if (stampStatus && cmds.length) throw new UsageError('--stamp-status takes no --cmd');
+  // L12 (review, #1922): --base/--integration-branch only mean anything
+  // alongside --scope, and --stamp-status is a read-only mode that takes
+  // none of the three — each combination is a usage error, not a silently
+  // ignored flag.
+  if (stampStatus && (scope !== null || base !== null || integrationBranch !== null)) {
+    throw new UsageError('--stamp-status takes no --scope/--base/--integration-branch');
+  }
+  if (!scope && (base !== null || integrationBranch !== null)) {
+    throw new UsageError('--base and --integration-branch require --scope');
+  }
   return { cmds, json, logDir, countStamp, gitDir, stampStatus, noStamp, scope, base, integrationBranch };
 }
 

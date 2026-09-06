@@ -11,6 +11,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const { parseArgs, UsageError, USAGE } = require('./lib/verify/args');
 const { runChecks } = require('./lib/verify/run');
@@ -124,6 +125,8 @@ async function main() {
   let resolvedBase = null;
   let files = [];
   let cmds = parsed.cmds;
+  let decl = null;
+  let priorStamp = null;
   if (parsed.scope) {
     const read = readDeclaration(parsed.scope);
     if (!read.ok) {
@@ -131,18 +134,13 @@ async function main() {
       process.exitCode = 2;
       return;
     }
-    const decl = read.decl;
-    const priorStamp = gitDir ? readVerifyStamp(gitDir) : null;
-    try {
-      resolvedBase = resolveBase({ stamp: priorStamp, integrationBranch: parsed.integrationBranch, base: parsed.base });
-    } catch (err) {
-      if (!(err instanceof ChangedFilesError)) throw err;
-      process.stderr.write(`--scope: ${err.message}\n${USAGE}\n`);
-      process.exitCode = 2;
-      return;
-    }
-    files = changedFiles({ base: resolvedBase }).files;
-    sel = selectScope({ decl, files, stamp: priorStamp });
+    decl = read.decl;
+
+    // AC5 (review L13): the --cmd-name-vs-declaration check only needs decl,
+    // so it runs immediately after the declaration is read — before any
+    // anchor/base resolution below, so a bad --cmd name never pays for a git
+    // call it doesn't need. H2's required-names check (below) cannot move
+    // here: it needs `sel`, which needs the anchor resolved first.
     if (decl) {
       const allowed = new Set(['types', 'lint', ...decl.suites]);
       const bad = parsed.cmds.find((c) => !allowed.has(c.name));
@@ -151,6 +149,52 @@ async function main() {
         process.exitCode = 2;
         return;
       }
+    }
+
+    // M5 (review): the anchor always reads THIS checkout's OWN git dir,
+    // never an explicit --git-dir — the identical rule stampStatus() applies
+    // above (a foreign --git-dir's stamp is read but never trusted): a
+    // sibling checkout must never borrow another repo's pass as its own.
+    const ownGitDir = resolveGitDir();
+    priorStamp = ownGitDir ? readVerifyStamp(ownGitDir) : null;
+
+    try {
+      resolvedBase = resolveBase({ stamp: priorStamp, integrationBranch: parsed.integrationBranch, base: parsed.base });
+    } catch (err) {
+      if (!(err instanceof ChangedFilesError)) throw err;
+      process.stderr.write(`--scope: ${err.message}\n${USAGE}\n`);
+      process.exitCode = 2;
+      return;
+    }
+
+    // H4 (review): an explicit --base that resolves to a commit other than
+    // the stamp's own anchor is a contradiction, not a silent override — the
+    // caller almost certainly meant the anchor, and running the diff against
+    // the wrong base would silently under- or over-verify.
+    if (parsed.base) {
+      const anchorRef = priorStamp && typeof priorStamp.sha === 'string'
+        ? (typeof priorStamp.fullSha === 'string' ? priorStamp.fullSha : priorStamp.sha)
+        : null;
+      let anchorSha = null;
+      if (anchorRef) {
+        try {
+          anchorSha = String(execFileSync(
+            'git', ['rev-parse', '--verify', '--end-of-options', `${anchorRef}^{commit}`], { encoding: 'utf8' },
+          )).trim();
+        } catch {
+          anchorSha = null; // unresolvable anchor == "no usable anchor" — nothing to conflict with.
+        }
+      }
+      if (anchorSha && resolvedBase !== anchorSha) {
+        process.stderr.write(`--scope: --base ${parsed.base} conflicts with the stamp anchor ${anchorSha.slice(0, 9)}; omit --base or clear the stamp\n${USAGE}\n`);
+        process.exitCode = 2;
+        return;
+      }
+    }
+
+    files = changedFiles({ base: resolvedBase }).files;
+    sel = selectScope({ decl, files, stamp: priorStamp });
+    if (decl) {
       cmds = parsed.cmds.filter((c) => {
         if (c.name === 'types' || c.name === 'lint') return sel.static;
         if (sel.mode === 'tool-scoped') return false;
@@ -158,6 +202,25 @@ async function main() {
       });
       if (sel.mode === 'tool-scoped') {
         cmds = cmds.concat([{ name: 'tests', command: decl.checks.tests.replace(/\{base\}/g, resolvedBase) }]);
+      }
+    }
+
+    // H2 (review): a filtered check set that leaves out a name the selection
+    // itself requires is a usage error, not a silently-partial run — every
+    // suite/static check the selection says must run has to be among the
+    // caller's --cmd names (minus `tests` under tool-scoped, which is
+    // synthesized from decl.checks.tests rather than passed via --cmd).
+    if (decl && sel.mode !== 'none') {
+      const suiteNames = sel.suites === '*' ? decl.suites : sel.suites;
+      const staticNames = sel.static ? ['types', 'lint'].filter((k) => decl.checks[k] !== null) : [];
+      let required = [...suiteNames, ...staticNames];
+      if (sel.mode === 'tool-scoped') required = required.filter((n) => n !== 'tests');
+      const have = new Set(parsed.cmds.map((c) => c.name));
+      const missing = required.filter((n) => !have.has(n));
+      if (missing.length) {
+        process.stderr.write(`--scope: mode ${sel.mode} requires --cmd for: ${missing.join(', ')}\n${USAGE}\n`);
+        process.exitCode = 2;
+        return;
       }
     }
   }
@@ -177,7 +240,10 @@ async function main() {
     ? { tests: testsCheck.counts.tests, sha: git.sha, recordedAt: startedAt }
     : null;
   let testCountRegression = null;
-  if (countStampPath) {
+  // H3 (review): a narrowed run's "tests" count is not comparable to a full
+  // run's baseline — comparing it would fire a false CAVEAT, and persisting
+  // it would silently corrupt the baseline the next full run reads against.
+  if (countStampPath && (!sel || sel.mode === 'full')) {
     const previousCount = readCountStamp(countStampPath);
     testCountRegression = detectRegression(previousCount, currentCount);
     if (currentCount !== null) {
@@ -195,9 +261,20 @@ async function main() {
     }
   }
 
+  const mode = sel ? sel.mode : 'full';
+  // L16 (review): report.json's scope.suites is always an array, never the
+  // internal '*' shorthand scope.js uses — the declared suite list when the
+  // declaration says "everything", else the actual --cmd names run when
+  // there is no declaration at all to name them.
+  const scopeSuites = sel
+    ? (sel.suites === '*'
+      ? (decl ? decl.suites : cmds.filter((c) => c.name !== 'types' && c.name !== 'lint').map((c) => c.name))
+      : sel.suites)
+    : null;
+
   const report = composeReport({
     checks: results, startedAt, durationMs: Date.now() - startMs, git, testCountRegression,
-    scope: sel ? { mode: sel.mode, suites: sel.suites, static: sel.static, base: resolvedBase, unmatched: sel.unmatched, changedFiles: files } : null,
+    scope: sel ? { mode: sel.mode, suites: scopeSuites, static: sel.static, base: resolvedBase, unmatched: sel.unmatched, changedFiles: files } : null,
   });
   writeJsonAtomic(jsonPath, report);
 
@@ -211,11 +288,26 @@ async function main() {
   // Under --scope the stamp's scope names exactly what ran; only a full run
   // advances fullSha (#1922).
   const fullSet = results.every((c) => !c.skipped);
+  // M6 (review): a --scope run at an unchanged HEAD (clean tree, same sha as
+  // the prior FULL stamp) never downgrades that stamp. Its own selection
+  // legitimately found nothing to do (mode 'none') — that is not evidence
+  // the last full pass stopped being true, so the full stamp must stand.
+  const unchangedHeadNoop = Boolean(
+    sel && sel.mode !== 'full' && priorStamp && priorStamp.scope === 'full'
+    && priorStamp.sha === git.sha && git.dirty === false,
+  );
+  // Belt-and-braces (H2 review): even if a filtered set somehow came out
+  // empty for a mode other than 'none' (H2 above should already refuse
+  // that as a usage error), never let it stamp — an empty run proves
+  // nothing about the checks that mode claims to have covered.
+  const emptyNonNoneRun = results.length === 0 && mode !== 'none';
   // An explicit --git-dir redirects logs and the count stamp only; the pass
   // stamp keys on the invoking cwd's HEAD, which may not be that repo's.
-  if (report.pass && fullSet && !parsed.noStamp && gitDir && git.sha && !parsed.gitDir) {
+  if (
+    report.pass && fullSet && !parsed.noStamp && gitDir && git.sha && !parsed.gitDir
+    && !unchangedHeadNoop && !emptyNonNoneRun
+  ) {
     const suitesRun = results.filter((c) => c.name !== 'types' && c.name !== 'lint').map((c) => c.name);
-    const mode = sel ? sel.mode : 'full';
     const stamp = composeStamp({
       report, scope: mode,
       fullSha: mode === 'full' ? git.sha : sel.base,
@@ -223,13 +315,21 @@ async function main() {
       changedFiles: mode === 'full' ? [] : files,
       suitesRun, flakyRetried: [], reportPath: path.resolve(jsonPath), at: new Date().toISOString(),
     });
-    try { writeStamp(gitDir, stamp); } catch { /* best-effort; next --stamp-status simply reads absent */ }
+    // H1 (review): the legacy bare-SHA twin only ever names a real FULL
+    // pass — a narrowed run leaves it untouched rather than repointing it
+    // at a sha that a scoped/tool-scoped/none run never fully verified.
+    try { writeStamp(gitDir, stamp, { legacy: mode === 'full' }); } catch { /* best-effort; next --stamp-status simply reads absent */ }
   }
 
   const lines = [];
   if (sel) {
     const suiteList = sel.suites === '*' ? 'all' : (sel.suites.length ? sel.suites.join(', ') : 'none');
-    lines.push(`Scope: ${sel.mode} — ${files.length} changed file(s) since ${String(resolvedBase).slice(0, 9)}; suites: ${suiteList}; static: ${sel.static ? 'yes' : 'no'}; unmatched: ${sel.unmatched.length}`);
+    const sinceClause = `${files.length} changed file(s) since ${String(resolvedBase).slice(0, 9)}`;
+    // L10 (review): decl === null means "no declaration on disk" — name the
+    // path so the caller can tell that apart from a genuine full-mode
+    // selection outcome, while keeping the same trailing fields.
+    const lead = decl === null ? `Scope: full — no declaration at ${parsed.scope}; ${sinceClause}` : `Scope: ${sel.mode} — ${sinceClause}`;
+    lines.push(`${lead}; suites: ${suiteList}; static: ${sel.static ? 'yes' : 'no'}; unmatched: ${sel.unmatched.length}`);
     if (sel.mode === 'none') lines.push(`still-verified: bookkeeping-only delta (${files.join(', ')})`);
     lines.push('');
   }

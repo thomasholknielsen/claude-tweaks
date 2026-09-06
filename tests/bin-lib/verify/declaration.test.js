@@ -32,8 +32,19 @@ const EXAMPLE = {
   flaky: { files: ['apps/api/test/mailer.test.ts'], maxRetries: 1 },
 };
 
-test('a missing declaration file is ok with decl null (mode full), never a throw', () => {
-  assert.deepStrictEqual(readDeclaration('/nope.json', fakeFs({})), { ok: true, decl: null });
+test('a missing declaration file is ok with decl null (mode full) and missing:true, never a throw', () => {
+  assert.deepStrictEqual(readDeclaration('/nope.json', fakeFs({})), { ok: true, decl: null, missing: true });
+});
+
+test('a non-ENOENT read failure is ok:false naming the path, distinct from "missing" (#1922 review L10)', () => {
+  const fsImpl = {
+    readFileSync: () => { const e = new Error('permission denied'); e.code = 'EACCES'; throw e; },
+  };
+  const r = readDeclaration('/d.json', fsImpl);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.errors.length, 1);
+  assert.match(r.errors[0], /could not read \/d\.json/);
+  assert.match(r.errors[0], /permission denied/);
 });
 
 test('the example declaration parses to the normalized shape', () => {
@@ -107,4 +118,34 @@ test('flaky.maxRetries defaults to 1 and accepts 0..2 only', () => {
   const dflt = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: 'x' }, rules: [], flaky: { files: ['a.js'] } }) }));
   assert.strictEqual(dflt.decl.flaky.maxRetries, 1);
   assert.strictEqual(readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: 'x' }, rules: [], flaky: { files: [], maxRetries: 3 } }) })).ok, false);
+});
+
+test('a present but wrong-typed checks.tests names its actual type, distinct from the required/missing message (#1922 review L15)', () => {
+  const arr = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: ['a', 'b'] }, rules: [] }) }));
+  assert.strictEqual(arr.ok, false);
+  assert.match(arr.errors.join('\n'), /checks\.tests: must be a command string or a map of suite name to command, got object/);
+
+  const num = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: 7 }, rules: [] }) }));
+  assert.strictEqual(num.ok, false);
+  assert.match(num.errors.join('\n'), /checks\.tests: must be a command string or a map of suite name to command, got number/);
+
+  // undefined and empty string/object still keep the existing "required" message.
+  const missing = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: {}, rules: [] }) }));
+  assert.match(missing.errors.join('\n'), /checks\.tests: required/);
+  const emptyStr = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: '' }, rules: [] }) }));
+  assert.match(emptyStr.errors.join('\n'), /checks\.tests: required/);
+  const emptyObj = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: {} }, rules: [] }) }));
+  assert.match(emptyObj.errors.join('\n'), /checks\.tests: required/);
+});
+
+test('a non-string rules[i].suites entry names its type, not "unknown suite" (#1922 review L15)', () => {
+  const r = readDeclaration('/d.json', fakeFs({
+    '/d.json': JSON.stringify({
+      checks: { tests: { api: 'a' } },
+      rules: [{ match: 'x/**', suites: ['api', 7], static: true }],
+    }),
+  }));
+  assert.strictEqual(r.ok, false);
+  assert.match(r.errors.join('\n'), /rules\[0\]\.suites: entries must be strings, got number/);
+  assert.ok(!r.errors.join('\n').includes('unknown suite'), 'a wrong-typed entry must not also fire the unknown-suite message');
 });

@@ -447,14 +447,19 @@ test('--scope: full → none → scoped across three commits, anchored to the fi
     { match: 'src/**', suites: ['unit'], static: true },
     { match: 'docs/**', suites: [], static: false },
   ]);
-  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`];
+  // run 1 is mode 'full' (no prior stamp — the very first run is always the
+  // anchor), so review fix H2 requires --cmd for every declared suite, not
+  // just the one `src/**`'s rule happens to select.
+  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
 
   const run1 = await runCli(args, { cwd: r.repo });
   assert.strictEqual(run1.code, 0, run1.stderr);
   assert.match(run1.stdout, /^Scope: full/m);
   const s1 = stampOf(r.gitDir);
+  const bareSha1 = fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify-pass'), 'utf8');
   assert.strictEqual(s1.scope, 'full');
   assert.strictEqual(s1.fullSha, r.git('rev-parse', 'HEAD').trim());
+  assert.strictEqual(bareSha1, `${s1.fullSha}\n`, 'a full run writes the legacy bare-SHA twin (#1922 review H1)');
   assert.ok(fs.existsSync(r.marker), 'run 1 must spawn unit');
   fs.unlinkSync(r.marker);
 
@@ -473,6 +478,10 @@ test('--scope: full → none → scoped across three commits, anchored to the fi
   const report2 = JSON.parse(fs.readFileSync(s2.reportPath, 'utf8'));
   assert.strictEqual(report2.scope.mode, 'none');
   assert.strictEqual(report2.pass, true);
+  assert.strictEqual(
+    fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify-pass'), 'utf8'), bareSha1,
+    'a non-full run must never rewrite the legacy bare-SHA twin (#1922 review H1)',
+  );
 
   commitFile(r, 'src/a.js', 'module.exports = 1;');
   const run3 = await runCli(args, { cwd: r.repo });
@@ -485,11 +494,18 @@ test('--scope: full → none → scoped across three commits, anchored to the fi
   assert.strictEqual(s3.fullSha, s1.fullSha);
   assert.deepStrictEqual(s3.changedFiles, ['docs/a.md', 'src/a.js']);
   assert.ok(fs.existsSync(r.marker), 'run 3 must spawn unit');
+  assert.strictEqual(
+    fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify-pass'), 'utf8'), bareSha1,
+    'a scoped run must also never rewrite the legacy bare-SHA twin (#1922 review H1)',
+  );
 });
 
 test('--scope: an unmatched path fails closed to a full run and is listed as unmatched (#1922)', async () => {
   const r = scopedRepo([{ match: 'docs/**', suites: [], static: false }]);
-  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`];
+  // Both declared suites are required: the very first run is always mode
+  // 'full' (no prior stamp), and the unmatched-path run below fails closed
+  // to 'full' too — H2 requires --cmd for every declared suite in that mode.
+  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
   await runCli(args, { cwd: r.repo });
   fs.unlinkSync(r.marker);
   commitFile(r, 'mystery/x.txt', 'x');
@@ -528,6 +544,7 @@ test('--scope with no declaration file behaves as a full run and stamps full (#1
   const run = await runCli(['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', branch, '--cmd', 'tests=node -e 0'], { cwd: r.repo });
   assert.strictEqual(run.code, 0, run.stderr);
   assert.match(run.stdout, /^Scope: full/m);
+  assert.match(run.stdout, /no declaration at/, '#1922 review L10: the message names the missing declaration path');
   assert.strictEqual(stampOf(r.gitDir).scope, 'full');
 });
 
@@ -577,4 +594,93 @@ test('--scope: an unresolvable base exits 2 with a ChangedFilesError message, ne
   const run = await runCli(['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', 'no-such-branch', '--cmd', 'tests=node -e 0'], { cwd: r.repo });
   assert.strictEqual(run.code, 2);
   assert.match(run.stderr, /could not resolve a base/);
+});
+
+// Review fix H2: a filtered check set that leaves a required suite out of
+// --cmd is a usage error, not a silently-partial run. A baseline full pass
+// establishes a real anchor first so the second run is genuinely 'scoped'
+// (only 'other' selected) rather than the always-full first run.
+test('--scope: a filtered check set missing a required suite is a usage error naming it, and writes no stamp (#1922 review H2)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['other'], static: false }]);
+  const baselineArgs = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
+  const base = await runCli(baselineArgs, { cwd: r.repo });
+  assert.strictEqual(base.code, 0, base.stderr);
+  const baseline = stampOf(r.gitDir);
+  fs.unlinkSync(r.marker); // the marker is untracked; left behind it would pollute the next diff.
+
+  commitFile(r, 'src/a.js', '1');
+  const run = await runCli(['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`], { cwd: r.repo });
+  assert.strictEqual(run.code, 2);
+  assert.match(run.stderr, /--scope: mode scoped requires --cmd for: other/);
+  assert.match(run.stderr, /usage:/);
+  assert.deepStrictEqual(stampOf(r.gitDir), baseline, 'the failed run must not touch the existing stamp');
+});
+
+// Review fix H4: an explicit --base that resolves to a different commit than
+// the stamp's own anchor is rejected rather than silently overriding it.
+test('--scope: --base that contradicts the stamp anchor is a usage error, and writes no stamp (#1922 review H4)', async () => {
+  const r = scopedRepo([
+    { match: 'src/**', suites: ['unit'], static: true },
+    { match: 'docs/**', suites: [], static: false },
+  ]);
+  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
+  const run0 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run0.code, 0, run0.stderr);
+  const baseline = stampOf(r.gitDir);
+  fs.unlinkSync(r.marker); // the marker is untracked; left behind it would pollute the next diff.
+
+  commitFile(r, 'src/a.js', 'module.exports = 1;');
+  const c1 = r.git('rev-parse', 'HEAD').trim();
+  commitFile(r, 'docs/a.md', 'docs');
+
+  const run = await runCli(['--scope', r.declPath, '--base', c1, '--cmd', `unit=${r.unitCmd}`], { cwd: r.repo });
+  assert.strictEqual(run.code, 2);
+  assert.match(run.stderr, /--scope: --base .* conflicts with the stamp anchor/);
+  assert.deepStrictEqual(stampOf(r.gitDir), baseline, 'a rejected --base must never touch the existing stamp');
+});
+
+// Review fix M5: the --scope anchor always reads THIS checkout's OWN git
+// dir, never an explicit --git-dir. A forged stamp in a foreign git dir,
+// anchored at B's own current HEAD (so it would resolve as a real ancestor
+// if the bug used it), must not leak into B's scope selection — B's own git
+// dir has no stamp of its own, so the run must still be 'full'.
+test('--scope resolves the anchor from the OWN git dir, never an explicit --git-dir (#1922 review M5)', async () => {
+  const b = scopedRepo([{ match: 'docs/**', suites: [], static: false }]);
+  const headBeforeDocsChange = b.git('rev-parse', 'HEAD').trim();
+
+  const foreignGitDir = tmpDir();
+  fs.writeFileSync(path.join(foreignGitDir, 'claude-tweaks-verify-pass.json'), JSON.stringify({
+    sha: headBeforeDocsChange, dirty: false, scope: 'full', fullSha: headBeforeDocsChange,
+    base: null, changedFiles: [], suitesRun: ['unit', 'other'], flakyRetried: [],
+    reportPath: null, at: new Date().toISOString(),
+  }));
+
+  commitFile(b, 'docs/x.md', 'docs');
+  const run = await runCli(
+    ['--scope', b.declPath, '--integration-branch', b.branch, '--git-dir', foreignGitDir, '--cmd', `unit=${b.unitCmd}`, '--cmd', 'other=node -e 0'],
+    { cwd: b.repo },
+  );
+  assert.strictEqual(run.code, 0, run.stderr);
+  assert.match(
+    run.stdout, /^Scope: full/m,
+    'a foreign --git-dir\'s stamp must never supply the anchor — B\'s own git dir has none, so this must be full, not none',
+  );
+});
+
+// Review fix M6: a --scope run at an unchanged HEAD (clean tree, same sha as
+// the prior full stamp) must never downgrade that stamp to 'none'.
+test('a --scope run at an unchanged HEAD never downgrades the prior full stamp (#1922 review M6)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['unit'], static: true }]);
+  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
+  const run1 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run1.code, 0, run1.stderr);
+  assert.strictEqual(stampOf(r.gitDir).scope, 'full');
+  fs.unlinkSync(r.marker); // untracked; must not linger as an uncommitted change for run 2's "clean tree" to hold.
+
+  const run2 = await runCli(args, { cwd: r.repo }); // same HEAD, clean tree, no new commits
+  assert.strictEqual(run2.code, 0, run2.stderr);
+  assert.strictEqual(stampOf(r.gitDir).scope, 'full', 'the prior full stamp must stand, never downgraded to none');
+
+  const status = await runCli(['--stamp-status'], { cwd: r.repo });
+  assert.strictEqual(JSON.parse(status.stdout).match, true);
 });

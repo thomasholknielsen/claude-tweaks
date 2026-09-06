@@ -127,3 +127,18 @@ test('--scope, --base, and --integration-branch parse as value flags (#1922)', (
   assert.throws(() => parseArgs(['--cmd', 'tests=x', '--scope']), UsageError);
   for (const flag of ['--scope', '--base', '--integration-branch']) assert.ok(USAGE.includes(flag), flag);
 });
+
+test('--base/--integration-branch without --scope is a usage error (#1922 review L12)', () => {
+  assert.throws(() => parseArgs(['--cmd', 'tests=x', '--base', 'abc']), UsageError);
+  assert.throws(() => parseArgs(['--cmd', 'tests=x', '--integration-branch', 'main']), UsageError);
+  // --scope present makes both fine (existing behavior, unaffected).
+  assert.doesNotThrow(() => parseArgs(['--cmd', 'tests=x', '--scope', 's.json', '--base', 'abc']));
+});
+
+test('--stamp-status rejects --scope/--base/--integration-branch (#1922 review L12)', () => {
+  assert.throws(() => parseArgs(['--stamp-status', '--scope', 's.json']), UsageError);
+  assert.throws(() => parseArgs(['--stamp-status', '--base', 'abc']), UsageError);
+  assert.throws(() => parseArgs(['--stamp-status', '--integration-branch', 'main']), UsageError);
+  // --git-dir stays fine alongside --stamp-status (existing behavior, unaffected).
+  assert.doesNotThrow(() => parseArgs(['--stamp-status', '--git-dir', '/g']));
+});

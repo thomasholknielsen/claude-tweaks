@@ -4,7 +4,10 @@
 // (#1784: the agent stamped a failing run). JSON is canonical from this
 // release; the bare-SHA twin (STAMP_LEGACY_NAME) is written for one minor
 // release so an installed build running older skill prose still finds it —
-// removal condition in skills/_shared/policy-deprecations.md.
+// removal condition in skills/_shared/policy-deprecations.md. writeStamp's
+// `deps.legacy` (default true) gates that twin: bin/verify.js passes `false`
+// for a non-full --scope run (#1922) so a narrowed pass never repoints the
+// bare file — it is left naming the last real FULL pass.
 //
 // Read fallback order (spec Gotchas): JSON present and parses -> use it
 // (regardless of the bare file); JSON present but unparseable -> null (no
@@ -42,12 +45,15 @@ function composeStamp({
 
 function writeStamp(gitDir, stamp, deps = {}) {
   const fsImpl = deps.fsImpl || fs;
+  const legacy = deps.legacy === undefined ? true : deps.legacy;
   const jsonPath = path.join(gitDir, STAMP_JSON_NAME);
   const legacyPath = path.join(gitDir, STAMP_LEGACY_NAME);
   writeJsonAtomic(jsonPath, stamp, fsImpl);
-  const tmp = `${legacyPath}.tmp`;
-  fsImpl.writeFileSync(tmp, `${stamp.sha}\n`);
-  fsImpl.renameSync(tmp, legacyPath);
+  if (legacy) {
+    const tmp = `${legacyPath}.tmp`;
+    fsImpl.writeFileSync(tmp, `${stamp.sha}\n`);
+    fsImpl.renameSync(tmp, legacyPath);
+  }
   return { jsonPath, legacyPath };
 }
 

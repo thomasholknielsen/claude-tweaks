@@ -57,6 +57,18 @@ test('writeStamp writes the JSON stamp and the legacy bare-SHA twin atomically',
   assert.ok(!Object.keys(fsImpl.files).some((p) => p.endsWith('.tmp')), 'no tmp files left behind');
 });
 
+test('writeStamp with legacy:false writes only the JSON stamp and leaves an existing bare file untouched (#1922 review H1)', () => {
+  const fsImpl = fakeFs({ [path.join('/g', STAMP_LEGACY_NAME)]: 'lastfullsha\n' });
+  const stamp = composeStamp({
+    report: REPORT, scope: 'scoped', fullSha: 'lastfullsha', base: 'lastfullsha', changedFiles: ['a.js'],
+    suitesRun: ['unit'], flakyRetried: [], reportPath: '/r.json', at: 't',
+  });
+  const out = writeStamp('/g', stamp, { fsImpl, legacy: false });
+  assert.deepStrictEqual(JSON.parse(fsImpl.files[out.jsonPath]), stamp);
+  assert.strictEqual(fsImpl.files[out.legacyPath], 'lastfullsha\n', 'the bare file must keep naming the last real FULL pass');
+  assert.ok(!Object.keys(fsImpl.files).some((p) => p.endsWith('.tmp')), 'no tmp files left behind');
+});
+
 test('readStamp returns null when neither file exists', () => {
   assert.strictEqual(readStamp('/g', fakeFs()), null);
 });
