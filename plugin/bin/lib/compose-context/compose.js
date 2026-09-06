@@ -67,14 +67,16 @@ function parseMarkers(text, file = null) {
         fenceChar = null;
         fenceLen = 0;
       }
-      tokens.push({ type: 'text', line });
+      // `fenced` lets a consumer (the marker-conformance test) skip code-fence lines with the parser's own fence state instead of a second tracker.
+      tokens.push({ type: 'text', line, fenced: true });
       return;
     }
     if (fenceMatch) {
       inFence = true;
       fenceChar = fenceMatch[1][0];
       fenceLen = fenceMatch[1].length;
-      tokens.push({ type: 'text', line });
+      // `fenced` lets a consumer (the marker-conformance test) skip code-fence lines with the parser's own fence state instead of a second tracker.
+      tokens.push({ type: 'text', line, fenced: true });
       return;
     }
     if (!CANDIDATE_RE.test(raw)) {
