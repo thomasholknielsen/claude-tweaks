@@ -25,6 +25,15 @@ On successful completion of all steps (`wrap-up` in the step list):
 
 **Reconcile:** {one line from `node "{pluginRoot}/bin/hooks.js" reconcile-summary`, run once here and printed verbatim — `reconcile: {archived} archived, {stuck} stuck (oldest {age}), mirror ff {ok | declined — {reason} | anomaly — {state} | skipped — {reason} | failed — {reason} | n/a}`}
 
+### Timing
+
+Rendered verbatim from `node "${CLAUDE_PLUGIN_ROOT}/bin/phase-timing.js" --run "$PIPELINE_RUN_DIR" --markdown` (#1928) — never composed by hand; a phase with no event reads `unattributed`. `{Minutes}` is the phase's span, with `(own N)` when nested phases are excluded.
+
+| Phase | Minutes | Verify |
+|---|---|---|
+| {phase} | {minutes} | {mode ×n | — | unattributed} |
+| total | {totals.minutes} | {verifyRuns} run(s) ({modes}) |
+
 ### Key Outputs
 - {summary of what was built}
 - {summary of review findings, if any}

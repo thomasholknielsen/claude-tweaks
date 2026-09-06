@@ -261,6 +261,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `_shared/console-on-pr.md` | `multispec-review-console.md`'s new Console-on-PR section renders the consolidated console as a bundle-PR checkbox comment under `integration-model: pr-first`, in place of the blocking `AskUserQuestion` gate. Shared with `/wrap-up` (`review-console-interactive.md`'s single-spec Console-on-PR section, same renderer) — owned here as the alphabetically-first of the two citing skills. |
 | `_shared/terminal-ux.md` | `polish-execution.md`'s craft-context assembly carries it (with `_shared/design-craft.md`) on the terminal track — no Emil skills, no motion add-on. |
 | `_shared/github-rate-limit.md` | `_shared/issue-claims.md`'s Failure posture table (used at flow's Step 2.8 claim) cites this contract to classify a `gh`/MCP failure before applying the table's existing retry-once/TTL outcome — the outcome itself is unchanged. |
+| `bin/phase-timing.js` | The Pipeline Summary's `### Timing` section is that CLI's `--markdown` output over the run's `events.jsonl` + `manifest.yml` (#1928) — rendered verbatim, never composed by hand. |
 
 ## harness-health
 
@@ -563,6 +564,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `_shared/pr-early-run-lifecycle.md` | `residue-sweep.md`'s `pr-first` branch (#435) reuses this file's Step 1 (existing-PR check) and Step 3 (compose-and-create) shapes to open its `<!-- wrap-up-residue-pr -->`-marked PR — the same reuse `tidy/SKILL.md` Step 7.5 already established (#424) for its own `<!-- tidy-housekeeping-pr -->` PR. |
 | `_shared/pr-first-merge.md` | `residue-sweep.md`'s `pr-first` branch (#435) arms the opened PR via this file's Step 3 initial `gh pr merge --auto` call only (never its degrade chain), gated by the reused `housekeeping-auto-merge` lever — logged to `decisions.md` before `ExitWorktree`. |
 | `bin/resolve-profile.js` | Phase 2's curation-engine row-judgment dispatches as one `[Use: Frontier]` singleton Task agent when fewer than 3 rows are open (below the existing 3+-row Capable fan-out threshold, which stays untouched — Frontier is structurally forbidden in a parallel fan-out) — record #221, `curation-engine.md` section 4. |
+| `bin/phase-timing.js` | The wrap-up summary's `### Timing` section and the PR's `timing` run-comment (`verification-brief.md` Step 4, `_shared/pr-run-comments.md`) are that CLI's `--markdown` output (#1928). |
 
 ## Provenance
 

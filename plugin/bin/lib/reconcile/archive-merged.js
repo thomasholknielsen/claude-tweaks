@@ -320,10 +320,11 @@ function localHasMerge(root, mergeCommit) {
 // failure leaves the run non-terminal and picked up again next pass; the
 // fs.existsSync guards below make a retry over an already-partially-moved
 // run dir a safe no-op on whatever already succeeded.
-// Multi-spec parent run dirs (`multi-spec.md`'s Run directory layout) nest
-// one `spec-{N}/` subdirectory per record, each carrying its own git-tracked
-// `work/{N}-spec.md` plus its own gitignored config.yml/decisions.md/staged/
-// (`multi-spec.md`: "Each spec-{N}/ carries its own config.yml"). A
+// Multi-spec parent run dirs (`multispec-run-dir-layout.md`'s Run directory
+// layout) nest one `spec-{N}/` subdirectory per record, each carrying its own
+// git-tracked `work/{N}-spec.md` plus its own gitignored
+// config.yml/decisions.md/staged/ (`multispec-run-dir-layout.md`: "Each
+// spec-{N}/ carries its own config.yml"). A
 // single-spec run dir has none of these. Returns [] (not an error) when
 // runDir is unreadable — the top-level work/ move below still runs.
 function listSpecDirs(runDir) {

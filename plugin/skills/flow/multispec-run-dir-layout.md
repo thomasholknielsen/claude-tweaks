@@ -1,4 +1,4 @@
-# Multi-spec run directory — per-spec config, slug convention, and `manifest.yml`
+# Multi-Spec run directory — per-spec config, slug convention, and `manifest.yml`
 
 Read from `multi-spec.md`'s "Run directory layout" section (which keeps the anchoring rule and the tree diagram). This file carries the field-level detail.
 

@@ -56,6 +56,15 @@ Then append, in record mode only:
 Record    #{n} — {closes via merge | closed | open}
 Ledger    {n} items, {n} open   |   none
 
+### Timing
+
+Rendered verbatim from `node "${CLAUDE_PLUGIN_ROOT}/bin/phase-timing.js" --run "$PIPELINE_RUN_DIR" --markdown` (#1928) — never composed by hand; a phase with no event reads `unattributed`. `{Minutes}` is the phase's span, with `(own N)` when nested phases are excluded.
+
+| Phase | Minutes | Verify |
+|---|---|---|
+| {phase} | {minutes} | {mode ×n | — | unattributed} |
+| total | {totals.minutes} | {verifyRuns} run(s) ({modes}) |
+
 ### Phase 1 — Establish
 
 | Item | Value |

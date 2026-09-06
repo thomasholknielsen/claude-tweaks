@@ -20,3 +20,48 @@ test('#1928: the layout sub-file documents manifest.yml phases[] and the latest 
   assert.match(sub, /`phases\[\]`[^.]*append-only|append-only[^.]*`phases\[\]`/i);
   assert.match(sub, /spec-status/);
 });
+
+const CEILING = 40960;
+
+test('#1928 AC6: both summary templates carry a ### Timing section rendered from phase-timing.js', () => {
+  for (const f of ['plugin/skills/flow/summary-template.md', 'plugin/skills/wrap-up/summary-template.md']) {
+    const t = read(f);
+    assert.match(t, /^### Timing$/m, f);
+    assert.match(t, /bin\/phase-timing\.js" --run "\$PIPELINE_RUN_DIR" --markdown/, f);
+    assert.match(t, /\| Phase \| Minutes \| Verify \|/, f);
+  }
+});
+
+test('#1928 AC6: pr-run-comments.md has a timing comment kind with its producer', () => {
+  const t = read('plugin/skills/_shared/pr-run-comments.md');
+  assert.match(t, /^\| `timing` \| `\/claude-tweaks:wrap-up`[^|]*\| `<!-- run-comment: timing -->` \|$/m);
+  assert.match(t, /^\| `\/claude-tweaks:wrap-up` \([^)]*verification-brief\.md[^)]*\) \| `timing` \|/m);
+  assert.match(read('plugin/skills/wrap-up/verification-brief.md'), /run-comment: timing/);
+});
+
+test('#1928 AC6: dispatch/SKILL.md prints the per-group timing line from timing.json and stays under the ceiling', () => {
+  const t = read('plugin/skills/dispatch/SKILL.md');
+  assert.match(t, /`timing: call-1 \{m\}m · call-2 \{m\}m · verify \{n\} run\(s\) \(\{modes\}\)`/);
+  assert.match(t, /timing\.json/);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING, `dispatch/SKILL.md is ${Buffer.byteLength(t, 'utf8')} B`);
+});
+
+test('#1928: the canonical verify.js snippets pass --run "$PIPELINE_RUN_DIR"', () => {
+  const v = read('plugin/skills/test/verification.md');
+  const snippets = [...v.matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]).filter((b) => b.includes('bin/verify.js') && b.includes('--cmd'));
+  assert.ok(snippets.length >= 2, 'both the canonical and the --scope invocation');
+  for (const s of snippets) assert.match(s, /--run "\$PIPELINE_RUN_DIR"/);
+  assert.match(v, /empty[^.]*no `verify` event|no `verify` event[^.]*empty/i);
+});
+
+test('#1928: docs name the timing module, the CLI, and the flow/wrap-up table source', () => {
+  const ps = read('docs/plugin-structure.md');
+  assert.match(ps, /^plugin\/bin\/lib\/timing\/ /m);
+  assert.match(ps, /^node plugin\/bin\/phase-timing\.js --run <dir> \[--json\] \[--markdown\]/m);
+  assert.match(ps, /verify\.js[^\n]*\[--run <dir>\]/);
+  const sg = read('docs/skill-graph.md');
+  const flow = sg.slice(sg.indexOf('\n## flow\n'), sg.indexOf('\n## ', sg.indexOf('\n## flow\n') + 1));
+  const wrap = sg.slice(sg.indexOf('\n## wrap-up\n'), sg.indexOf('\n## ', sg.indexOf('\n## wrap-up\n') + 1));
+  assert.match(flow, /`bin\/phase-timing\.js`/);
+  assert.match(wrap, /`bin\/phase-timing\.js`/);
+});

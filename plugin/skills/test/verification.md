@@ -18,8 +18,10 @@ If CLAUDE.md doesn't document verification commands, scan `package.json` scripts
 Run every resolved check through the deterministic runner — one plain command at the invocation level (no `;`, `&&`, or pipe chains):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
+node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --run "$PIPELINE_RUN_DIR" --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
 ```
+
+`--run` names the pipeline run so the runner appends its `verify` event to that run's `events.jsonl` (#1928, the tasks→test boundary in `bin/phase-timing.js`); an unset `$PIPELINE_RUN_DIR` passes an empty value and writes no `verify` event, and a run dir outside the main checkout is refused on stderr without failing the run.
 
 Substitute the project's own commands from Step 1, one `--cmd <name>=<command>` per resolved check, and omit any stage the project doesn't have (`--cmd tests="npm test"` alone is valid — in this repo it is the whole set). The reserved names `types`, `lint`, and `tests` get the ordering policy: `types` and `lint` run concurrently, `tests` starts only after every supplied one of them exits 0, and a stage-1 failure reports `tests` as `skipped: fail-fast`. Any other name runs serially after the known stages under the same fail-fast. The runner resolves its own paths (#1921): inside a git checkout, logs land under `{git-dir}/claude-tweaks-verify/` and the suite-count stamp at `{git-dir}/claude-tweaks-test-count.json` — the checkout's own git dir (`git rev-parse --git-dir`), per-worktree unique, so a concurrent session's run can never clobber it; outside a checkout it falls back to a fresh directory under the OS tmpdir with no count stamp — with no count-stamp path, `flakyHits` is not persisted and the `flaky-allowlist` escalation never renders. `--log-dir` and `--count-stamp` still override when passed explicitly. This is why the invocation above is one plain command with no `$(...)` substitutions — the worktree Bash-shape guard (`_shared/scratch-worktree.md` §7) refuses two of them in one command. `--git-dir` on a run redirects logs and the count stamp only — it never writes the pass stamp.
 
@@ -71,7 +73,7 @@ The runner owns execution and scope (`verify.js --scope`, #1922); this table own
 **Scoped invocation.** A "scoped" site runs Step 2's command with the declaration and the integration branch added — one plain command (shown for a declaration whose `checks.tests` is a single command string; when it maps suites, replace `--cmd tests=` with one `--cmd {suite}=` per declared suite):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --scope .claude-tweaks/verify-scope.json --integration-branch {ref} --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
+node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --run "$PIPELINE_RUN_DIR" --scope .claude-tweaks/verify-scope.json --integration-branch {ref} --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
 ```
 
 `{ref}` resolves via `_shared/integration-branch.md`'s ladder (the runner has no `origin/HEAD` fallback and exits 2 without it when no usable stamp anchor exists). The `--cmd` set is the same full set Step 1 resolved — pass every declared suite (`--cmd api=…`, `--cmd web=…` when the declaration maps suites) and then **no** `--cmd tests=` — `tests` is not a declared suite in that case and an undeclared name is a usage error (exit 2); the runner filters it to what the selected mode needs and refuses a set missing a required check (exit 2 naming it). No declaration file → the runner reports `Scope: full — no declaration at …` and the run is today's full run; a stamp whose anchor is no longer an ancestor of HEAD (rebase, force-push) → the runner forces `full` — the same fail-closed posture unmatched paths get. A scoped stamp is never a full pass (`--stamp-status`'s `match` stays `false`), but it does verify HEAD: Skip-if-recent and `/claude-tweaks:review` Step 1.5 read `verifiedHead`, so a passing scoped run is never re-triggered by the next gate.
