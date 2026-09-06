@@ -29,13 +29,25 @@ function statOrNull(fsImpl, p) { try { return fsImpl.statSync(p); } catch { retu
 
 // { cwd?, sessionId?, homeDir?, fsImpl? } -> [{ path, mtimeMs }] newest first.
 // Both keys absent -> []. Only the run's own keys are ever consulted.
+// A sessionId that isn't a plain file-name token (e.g. carries "/" or "..")
+// is a malformed request, not an absent one: it never falls back to a wider
+// scan (that would silently widen a targeted lookup into a directory
+// listing) — the whole call returns [] instead.
 function locateTranscripts({ cwd, sessionId, homeDir = os.homedir(), fsImpl = fs } = {}) {
-  if (!cwd && !sessionId) return [];
+  const sessionIdGiven = typeof sessionId === 'string';
+  const sid = sessionIdGiven && /^[A-Za-z0-9._-]+$/.test(sessionId) && !sessionId.includes('..') ? sessionId : null;
+  if (sessionIdGiven && !sid) return [];
+  if (!cwd && !sid) return [];
   const projects = path.join(homeDir, '.claude', 'projects');
+  const projectsResolved = path.resolve(projects) + path.sep;
   const out = [];
-  const push = (p) => { const st = statOrNull(fsImpl, p); if (st && st.isFile()) out.push({ path: p, mtimeMs: st.mtimeMs }); };
-  if (cwd && sessionId) {
-    push(path.join(projects, slugForCwd(cwd), `${sessionId}.jsonl`));
+  const push = (p) => {
+    if (!path.resolve(p).startsWith(projectsResolved)) return;
+    const st = statOrNull(fsImpl, p);
+    if (st && st.isFile()) out.push({ path: p, mtimeMs: st.mtimeMs });
+  };
+  if (cwd && sid) {
+    push(path.join(projects, slugForCwd(cwd), `${sid}.jsonl`));
   } else if (cwd) {
     const dir = path.join(projects, slugForCwd(cwd));
     let names = [];
@@ -44,7 +56,7 @@ function locateTranscripts({ cwd, sessionId, homeDir = os.homedir(), fsImpl = fs
   } else {
     let dirs = [];
     try { dirs = fsImpl.readdirSync(projects); } catch { dirs = []; }
-    for (const d of dirs) push(path.join(projects, d, `${sessionId}.jsonl`));
+    for (const d of dirs) push(path.join(projects, d, `${sid}.jsonl`));
   }
   return out.sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
@@ -71,11 +83,27 @@ function resultBytes(content) {
 
 // path, { fsImpl?, worktree? } -> Promise<rows>. Streams line by line;
 // malformed lines (bad JSON, no timestamp, no message.role) are skipped.
-// Rejects only when the file cannot be opened (err.code carries ENOENT/EACCES).
+// Rejects when the file cannot be opened, with the real stat failure's
+// code (ENOENT/EACCES/...; EUNKNOWN if the error carries none), or with
+// EISDIR when the path resolves but names a directory.
 async function readUsage(filePath, { fsImpl = fs, worktree = null } = {}) {
   await new Promise((resolve, reject) => {
-    const st = statOrNull(fsImpl, filePath);
-    if (!st) { const e = new Error(`transcript not readable: ${filePath}`); e.code = 'ENOENT'; reject(e); return; }
+    let st;
+    try {
+      st = fsImpl.statSync(filePath);
+    } catch (err) {
+      const code = (err && err.code) || 'EUNKNOWN';
+      const e = new Error(`transcript not readable (${code}): ${filePath}`);
+      e.code = code;
+      reject(e);
+      return;
+    }
+    if (!st.isFile()) {
+      const e = new Error(`transcript not readable (EISDIR): ${filePath}`);
+      e.code = 'EISDIR';
+      reject(e);
+      return;
+    }
     resolve();
   });
   const rows = [];

@@ -45,6 +45,12 @@ test('#1929 AC1: locateTranscripts looks under the worktree slug and keys on the
   assert.deepEqual(locateTranscripts({ cwd: '/nope', sessionId: 'x', homeDir: home }), []);
 });
 
+test('#1929: locateTranscripts refuses a session id that could traverse out of ~/.claude/projects', () => {
+  const { home } = fakeHome();
+  assert.deepEqual(locateTranscripts({ sessionId: '../../etc/passwd', homeDir: home }), []);
+  assert.deepEqual(locateTranscripts({ cwd: '/Users/x/Code/repo/.claude/worktrees/wt', sessionId: '../sess-1', homeDir: home }), []);
+});
+
 test('#1929: isProcedurePath matches repo skills, installed-plugin skills, and nothing else', () => {
   assert.equal(isProcedurePath('/repo/plugin/skills/review/SKILL.md', '/repo'), true);
   assert.equal(isProcedurePath('plugin/skills/_shared/x.md', '/repo'), true);
@@ -70,4 +76,8 @@ test('#1929 AC2: readUsage streams rows, sums procedure bytes for skills Reads o
 
 test('#1929: readUsage on a missing file rejects with a code the CLI can name', async () => {
   await assert.rejects(readUsage(path.join(os.tmpdir(), 'ct-no-such-transcript.jsonl'), {}), (err) => err.code === 'ENOENT');
+});
+
+test('#1929: readUsage on a directory path rejects with EISDIR', async () => {
+  await assert.rejects(readUsage(__dirname, {}), (err) => err.code === 'EISDIR');
 });
