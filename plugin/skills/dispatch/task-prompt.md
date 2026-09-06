@@ -11,7 +11,7 @@ Input Discipline) — so every `${CLAUDE_PLUGIN_ROOT}`-style env-var reference e
 in a template resolves to nothing inside the dispatched agent's own shell, forcing it to
 rediscover the value from scratch (`--help` probes, `find` searches, trial-and-error against CLI
 argument enums — the exact rediscovery this section eliminates). The dispatching session already
-resolved all four of these facts earlier in the same firing (Steps 1-4); it resolves them **once
+resolved these facts earlier in the same firing (Steps 1-4); it resolves them **once
 more here, as literals**, before composing either call:
 
 1. **`{plugin-root}`** — this session's own already-resolved `$CLAUDE_PLUGIN_ROOT` value,
@@ -30,26 +30,28 @@ more here, as literals**, before composing either call:
    | `materialize.js` | `node "{plugin-root}/bin/materialize.js" <n> --run-dir "{minted-run-dir}" [--multi-record-slug <n>]` |
    | claims-registry read | `{minted-run-dir}/context/claims.md`'s "Reading claim state" git-trees path (`claims/issue-{n}.json` on the `claims-registry` branch) — never `gh api ...?ref=` query-string quoting, never `-f ref=` on a GET (if that bundle is absent, read `_shared/issue-claims.md` directly) |
 
-5. **Composed bundles** — the dispatching session composes, once, before either call, into the
-   minted run directory — one physical line each, the shape every skill call site uses (the composed-bytes gate measures these two bundles at their skill call sites; with `{plugin-root}` substituted as a literal, these lines are placeholders to its scanner, not call sites of their own):
-   `node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step claims "{plugin-root}/skills/_shared/issue-claims.md"`
-   and
-   `node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step merge "{plugin-root}/skills/_shared/pr-first-merge.md" "{plugin-root}/skills/_shared/pr-early-run-lifecycle.md"`,
-   producing `{minted-run-dir}/context/claims.md` and `{minted-run-dir}/context/merge.md`. The
-   templates below cite those paths, never the raw `_shared/` sources, in every citation except
-   the fallback sentence itself. The directory needs nothing else to compose into: Step 4 minted
-   it mkdir-only, and `mode` is unresolved at this point (no `config.yml` yet) — both `mode`
-   branches compose cleanly, since neither bundle's sources branch on that key today. Run both
-   compose commands before substituting `{context-pack}` into either call. Should either command
-   be unavailable or exit non-zero, substitute the raw `_shared/` paths back into the templates'
-   citations below so the agent is never sent to a bundle that does not exist:
-   if the compose command is unavailable or exits non-zero, read the named source files directly.
+5. **Composed bundles** — `{minted-run-dir}/context/claims.md` and
+   `{minted-run-dir}/context/merge.md`, composed by the dispatching session before either call;
+   every citation of them in the templates below carries its own fallback to the source file.
 
 Substitute this whole block, filled in with this firing's actual resolved values, as
 `{context-pack}` immediately after each call's opening `Task scope:` paragraph below. This is
 environment facts and tool signatures only — never a prior call's conclusions (test results,
 verdicts) — so it does not weaken the two-call gate's fresh-context independence property (see
 each template's own "CRITICAL"/re-derive-from-artifacts language, unchanged by this section).
+
+**Before substituting `{context-pack}` into either call, compose item 5's two bundles** — once,
+into the minted run directory, one physical line each:
+`node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step claims "{plugin-root}/skills/_shared/issue-claims.md"`
+and
+`node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step merge "{plugin-root}/skills/_shared/pr-first-merge.md" "{plugin-root}/skills/_shared/pr-early-run-lifecycle.md"`.
+The directory needs nothing else to compose into: Step 4 minted it mkdir-only, and `mode` is
+unresolved at this point (no `config.yml` yet) — neither bundle's sources branch on that key
+today. `integration-model` resolves only from `.claude-tweaks/policy.yml`'s pin — on a repo that
+does not pin it the `merge` bundle keeps both integration-model branches, and item 3's resolved
+value is what the agent acts on. These `{plugin-root}` lines are placeholders to the
+composed-bytes scanner, not call sites of their own — the bundles are measured at their skill
+call sites. Compose both before either dispatch anyway: if the compose command is unavailable or exits non-zero, read the named source files directly — which, for the dispatched agent, each template citation's own fallback already says.
 
 ## First call — build,test
 
@@ -204,7 +206,7 @@ ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
 
 **`integration-model: pr-first`** (`_shared/integration-model.md`) — `merged` / `armed` /
 `pending-review` are `{minted-run-dir}/context/merge.md`'s own outcome vocabulary (the composed
-`_shared/pr-first-merge.md`; if that bundle is absent, read it directly), reported verbatim: you
+`_shared/pr-first-merge.md`; if that bundle is absent, read `_shared/pr-first-merge.md` directly), reported verbatim: you
 run the merge procedure yourself, in this same call, whichever file's Auto-merge gate you reach
 (`dispatch/settle-and-merge.md` for a bundle, `wrap-up/review-console.md`'s dispatch-claim branch
 for a singleton). `merged` means you also completed claim release and run-dir archival directly
@@ -229,7 +231,7 @@ per `settle-and-merge.md`'s Dispatching-session merge execution (local-merge fal
 
 `pending-review` also covers what `pr-opened` used to name separately: under pr-first the PR
 already exists from run start (`{minted-run-dir}/context/merge.md`, which composes
-`_shared/pr-early-run-lifecycle.md`; if that bundle is absent, read it directly), so there is no longer a
+`_shared/pr-early-run-lifecycle.md`; if that bundle is absent, read `_shared/pr-early-run-lifecycle.md` directly), so there is no longer a
 distinct "the branch reached its finish decision, a PR just opened" transition to report — a
 run that reaches the Review Console with nobody answering it is `pending-review` regardless of
 how long the PR has already existed.

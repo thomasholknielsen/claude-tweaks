@@ -1,9 +1,12 @@
 // tests/dispatch-prompt-bundle-citations.test.js — pins #1995: a dispatched Task agent must be
 // pointed at the run's composed bundle (`{minted-run-dir}/context/{step}.md`), never at a raw
 // `_shared/*.md` path, inside any text that actually reaches the agent (fenced Task-prompt
-// blocks, and the Context pack table those blocks are substituted from) — except the agent-side
-// fallback sentence itself, which is expected to name the source it falls back to, and two
-// documented gaps with no compose step yet. Modeled on
+// blocks, and the Context pack's numbered-list region — items 1-5, including the CLI table and
+// any indented continuation lines — those blocks are substituted into the templates verbatim)
+// — except the agent-side fallback sentence itself, which is expected to name the source it
+// falls back to, and two documented gaps with no compose step yet. The dispatcher-facing
+// compose-context.js procedure paragraph that follows the "Substitute this whole block"
+// paragraph is deliberately NOT governed — it never reaches the dispatched agent. Modeled on
 // tests/skill-prose-plugin-root-invocations.test.js's walk/exemption shape.
 'use strict';
 const { test } = require('node:test');
@@ -16,14 +19,16 @@ const TASK_PROMPT = path.join(PLUGIN, 'skills', 'dispatch', 'task-prompt.md');
 const LENS_DISPATCH = path.join(PLUGIN, 'skills', 'review', 'step3-lens-dispatch.md');
 
 // Documented gaps: a `_shared/` citation with no compose step behind it yet. Each entry must
-// still occur inside a fenced block below — a stale-exemption check (parse-signal-discipline):
-// if a gap's file is ever composed and its citation moves to a bundle path, this list must
-// shrink with it, or a rotted exemption starts silently covering something new.
+// still occur on a governed line with no fallback clause on it — a stale-exemption check
+// (parse-signal-discipline): if a gap's file is ever composed and its citation moves to a
+// bundle path (or gains a "read directly" fallback of its own), this list must shrink with it,
+// or a rotted exemption starts silently covering something new.
 const GAPS = ['_shared/pipeline-run-dir.md', '_shared/integration-model.md'];
 
 // The agent-side fallback shape: a `_shared/` mention is allowed only when it is the source
-// named by a "read directly" fallback clause on the same physical line.
-const FALLBACK_RE = /is absent, read `_shared\/|if that bundle is absent, read it directly/;
+// named by a "read `_shared/<file>` directly" fallback clause on the same physical line — every
+// agent-side fallback in the file now names its file this way (#1995 Task A step 4).
+const FALLBACK_RE = /if that bundle is absent, read `_shared\/[^`]+` directly/;
 
 function fencedBlocks(text) {
   const blocks = [];
@@ -47,16 +52,26 @@ function section(text, heading) {
   return lines.slice(startIdx, endIdx);
 }
 
+// The Context pack's numbered-list region: from the first `1. ` item through the line before
+// the "Substitute this whole block" paragraph — items 1-5, the CLI table, and any indented
+// continuation lines. The dispatcher-facing compose-context.js paragraph sits AFTER that
+// paragraph and is excluded on purpose: it is never substituted into a dispatched agent's prompt.
+function contextPackNumberedRegion(text) {
+  const packLines = section(text, '## Context pack');
+  const startIdx = packLines.findIndex((l) => /^1\. /.test(l));
+  assert.ok(startIdx !== -1, 'no numbered item 1 found in the Context pack section');
+  const endIdx = packLines.findIndex((l) => l.startsWith('Substitute this whole block'));
+  assert.ok(endIdx !== -1, 'no "Substitute this whole block" paragraph found in the Context pack section');
+  assert.ok(endIdx > startIdx, 'the "Substitute this whole block" paragraph appears before the numbered list');
+  return packLines.slice(startIdx, endIdx);
+}
+
 // The lines this file's `_shared/`-citation rule actually governs: every fenced code block in
-// the whole file, plus the table rows (`| ` lines) of the `## Context pack` section specifically
-// (prose in that section is out of scope — only the table row is substituted into the templates
-// verbatim, per task-prompt.md's own "Substitute this whole block" instruction).
+// the whole file, plus the Context pack's numbered-list region (item 5's own line included).
 function governedLines(text) {
   const out = [];
   for (const block of fencedBlocks(text)) out.push(...block);
-  for (const line of section(text, '## Context pack')) {
-    if (line.trim().startsWith('|')) out.push(line);
-  }
+  out.push(...contextPackNumberedRegion(text));
   return out;
 }
 
@@ -69,21 +84,52 @@ function sharedOffenders(lines, { gaps = [] } = {}) {
   });
 }
 
-test('task-prompt.md fenced blocks and Context-pack table rows cite composed bundles, not _shared/ paths', () => {
+// A gap is stale once its citation either disappears from the governed region, or is already
+// fallback-shaped (in which case it no longer needs the GAPS exemption at all).
+function gapStatus(text, gap) {
+  const governed = governedLines(text);
+  const hit = governed.find((line) => line.includes(gap));
+  if (!hit) return 'missing';
+  if (FALLBACK_RE.test(hit)) return 'fallback-shaped';
+  return 'ok';
+}
+
+test('task-prompt.md fenced blocks and the Context-pack numbered list cite composed bundles, not _shared/ paths', () => {
   const text = fs.readFileSync(TASK_PROMPT, 'utf8');
   const offenders = sharedOffenders(governedLines(text), { gaps: GAPS });
   assert.deepStrictEqual(offenders, [], `un-exempted _shared/ citation(s):\n${offenders.join('\n')}`);
 });
 
-test('the documented gap list is not stale — each gap still occurs inside a fenced block', () => {
+test('the compose-context.js procedure is dispatcher-facing (outside the governed region) while item 5 stays governed and _shared/-free', () => {
   const text = fs.readFileSync(TASK_PROMPT, 'utf8');
-  const fenced = fencedBlocks(text).flat();
-  for (const gap of GAPS) {
-    assert.ok(
-      fenced.some((line) => line.includes(gap)),
-      `documented gap no longer appears in a fenced block (fix the citation or shrink GAPS): ${gap}`,
-    );
+  const governed = governedLines(text);
+  const composeLines = text.split('\n').filter((l) => l.includes('compose-context.js'));
+  assert.equal(composeLines.length, 2, `expected exactly two compose-context.js lines, found ${composeLines.length}`);
+  for (const line of composeLines) {
+    assert.ok(!governed.includes(line), `compose-context.js line leaked into the governed region: ${line}`);
   }
+  const item5 = governed.find((l) => l.includes('**Composed bundles**'));
+  assert.ok(item5, 'item 5 ("Composed bundles") not found inside the governed numbered-list region');
+  assert.ok(!item5.includes('_shared/'), `item 5's line must be _shared/-free: ${item5}`);
+});
+
+test('the documented gap list is not stale — each gap still occurs on a governed, non-fallback-shaped line', () => {
+  const text = fs.readFileSync(TASK_PROMPT, 'utf8');
+  for (const gap of GAPS) {
+    assert.equal(gapStatus(text, gap), 'ok', `gap is stale or missing (fix the citation or shrink GAPS): ${gap}`);
+  }
+});
+
+test('the gap stale-check can detect a fallback-shaped gap (discrimination proof)', () => {
+  const text = fs.readFileSync(TASK_PROMPT, 'utf8');
+  const gap = GAPS[0];
+  const lines = text.split('\n');
+  const idx = lines.findIndex((l) => l.includes(gap));
+  assert.ok(idx !== -1, `setup: gap citation not found in the file: ${gap}`);
+  assert.equal(gapStatus(text, gap), 'ok', 'setup: gap must not already be stale before doctoring');
+  lines[idx] = `if that bundle is absent, read \`${gap}\` directly`;
+  const doctored = lines.join('\n');
+  assert.equal(gapStatus(doctored, gap), 'fallback-shaped', 'doctored fallback-shaped gap was not caught as stale');
 });
 
 test('review/step3-lens-dispatch.md fenced blocks never cite _shared/ at all', () => {
@@ -102,8 +148,8 @@ test('task-prompt.md composes exactly one claims bundle and one merge bundle bef
     assert.match(line, /--run "\{minted-run-dir\}"/, `compose line missing --run "{minted-run-dir}": ${line}`);
   }
   assert.ok(
-    text.includes('if the compose command is unavailable or exits non-zero, read the named source files directly.'),
-    'Context pack section is missing the verbatim compose-fallback sentence',
+    text.includes('if the compose command is unavailable or exits non-zero, read the named source files directly'),
+    'Context pack section is missing the compose-fallback sentence',
   );
 });
 
@@ -117,7 +163,7 @@ test('the second-call template still runs whole skills via /claude-tweaks:flow, 
 
   // eslint-disable-next-line global-require
   const { findComposeCallSites } = require('../plugin/bin/lib/skill-audit/context-cost.js');
-  const mergeRows = findComposeCallSites('plugin').filter((c) => c.step === 'merge' && !c.unparsed);
+  const mergeRows = findComposeCallSites(PLUGIN).filter((c) => c.step === 'merge' && !c.unparsed);
   assert.ok(mergeRows.length > 0, 'expected at least one real (non-placeholder) merge compose call site');
   assert.ok(
     mergeRows.some((c) => c.file.startsWith('wrap-up/')),

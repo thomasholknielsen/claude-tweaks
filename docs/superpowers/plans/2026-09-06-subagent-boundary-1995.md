@@ -21,7 +21,7 @@ Compose steps that exist: `merge` (`_shared/pr-first-merge.md` + `_shared/pr-ear
 3. **Two structural gaps stay as raw citations** (`pipeline-run-dir.md`, `integration-model.md` — no compose step exists) and are named in the test's documented gap list with a stale-exemption check, and in the PR description. Staged deviation.
 4. **`step3-lens-dispatch.md` is not edited**: it has no agent-facing `_shared/` citation to switch, and its fenced block is byte-pinned. Staged deviation (premise false for this file).
 5. **AC3's "fixture dispatch" becomes a conformance assertion**: the second-call template still invokes `/claude-tweaks:flow … review,polish,wrap-up` (a skill invocation, not a `_shared/` read), and `findComposeCallSites('plugin')` shows the skills it runs compose `merge` at their own sites. A real dispatch proves nothing a static assertion does not. Staged deviation.
-6. **Extraction for headroom**: "Waiting for Dispatched Agents" moves verbatim to `_shared/dispatch-waiting.md`; the contract keeps a one-line pointer; `docs/skill-graph.md` and `docs/plugin-structure.md` gain the file.
+6. **Extraction for headroom**: "Waiting for Dispatched Agents" moves verbatim to `_shared/dispatch-waiting.md`; the contract keeps a one-line pointer; `docs/skill-graph.md` gains a row for the file (filed under `dispatch`, the reader it addresses, since the graph has no section for a contract-owned file). `docs/plugin-structure.md` needs nothing — its `_shared` row is a curated subset, not a listing (narrowed from the first draft of this ruling at the whole-branch review).
 7. **AC2 is a measurement commitment** with a measured pre-release baseline (Task 4).
 
 ## Tasks
