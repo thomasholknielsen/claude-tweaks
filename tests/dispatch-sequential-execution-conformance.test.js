@@ -11,7 +11,7 @@ test('sequential-execution.md documents the N-session drain shape once, naming t
   const t = read('plugin/skills/dispatch/sequential-execution.md');
   assert.strictEqual((t.match(/^## Running more than one session$/gm) || []).length, 1);
   const section = t.slice(t.indexOf('## Running more than one session'));
-  for (const control of ['_shared/issue-claims.md', 'sibling-session-check.md', 'worktree-reap.js', 'port', 'github-rate-limit.md']) {
+  for (const control of ['_shared/issue-claims.md', 'sibling-session-check.md', 'worktree-reap.js', 'bin/lib/ports/registry.js', 'github-rate-limit.md']) {
     assert.ok(section.includes(control), `names ${control}`);
   }
   assert.match(section, /same worktree/);
