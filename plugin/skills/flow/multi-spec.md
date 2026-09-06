@@ -121,9 +121,9 @@ Record any failures as ledger items in the **parent** run directory (not a per-s
 
 This does not replace each spec's own `/test` gate — every spec still runs verification normally. It establishes the baseline so a spec whose `/test` run hits a failure already recorded here cites the existing ledger entry (`Pre-existing — see ledger #{N}, batch pre-flight sweep`) instead of re-diagnosing it, per `test/verification.md`'s "Pre-existing failures (multi-spec batches)" note.
 
-Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
+Run each spec's full pipeline in order. Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
 
-**Spec-N verification is scoped** (`test/verification.md`, #1801): bookkeeping deltas log `still-verified: bookkeeping-only delta ({paths})`; else full run.
+**Spec-N verification is scoped** (`test/verification.md`'s table, #1801): a bookkeeping-only delta (ledger rows, `work/*-spec.md`) resolves to `none`, logging `still-verified: bookkeeping-only delta ({paths})`.
 
 **Boundary freshness check (spec 2 onward)** — before each spec's per-spec scaffold below, read `multispec-freshness.md` in this skill's directory and run its per-boundary check: trivial drift merges automatically with a parent-`decisions.md` entry; a merge conflict, or a clean merge whose incoming diff overlaps run-modified paths or the remaining specs' Key Files, escalates as a run-level HARD-GATE (fires in `auto`; `MULTISPEC_KEEP_GOING` does not bypass it). Spec 1 needs no check — the creation-time catch-up (Shared-worktree Step 1) just ran.
 
