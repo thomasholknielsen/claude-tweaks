@@ -123,6 +123,8 @@ This does not replace each spec's own `/test` gate — every spec still runs ver
 
 Run each spec's full pipeline in order (spec 42 → spec 45 → spec 48). Each spec completes its pipeline (build → test → review → wrap-up) before the next begins.
 
+**Spec-N verification scopes against the batch's last full pass** (`test/verification.md`'s re-verify scoping table, #1923): spec N's auto-inserted `test` step runs `verify.js --scope` anchored on the stamp's `fullSha`, so a delta consisting only of bookkeeping — the ledger rows spec N-1's wrap-up committed to `docs/plans/*-ledger.md`, or `work/*-spec.md` — resolves to `none` and is logged `still-verified: bookkeeping-only delta ({paths})` with no suite spawned. This is #1801's resolution; the ledger stays in the tree (moving it out was rejected in the parent's Decision Rationale). A project without a declaration sees today's full run.
+
 **Boundary freshness check (spec 2 onward)** — before each spec's per-spec scaffold below, read `multispec-freshness.md` in this skill's directory and run its per-boundary check: trivial drift merges automatically with a parent-`decisions.md` entry; a merge conflict, or a clean merge whose incoming diff overlaps run-modified paths or the remaining specs' Key Files, escalates as a run-level HARD-GATE (fires in `auto`; `MULTISPEC_KEEP_GOING` does not bypass it). Spec 1 needs no check — the creation-time catch-up (Shared-worktree Step 1) just ran.
 
 **Scaffold the per-spec subdirectory before exporting its `PIPELINE_RUN_DIR`** — read `multispec-config-scaffold.md` in this skill's directory for the concrete `mkdir`/`cp`/`touch` step, its ordering rule, and why the parent-level Manifesto (Step 3) does not itself perform this copy (`#678`; `#925`).

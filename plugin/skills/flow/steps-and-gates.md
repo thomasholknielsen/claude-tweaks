@@ -17,7 +17,7 @@ Only automatable skills can be included in the pipeline:
 
 **Not allowed in flow:** `capture`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
 
-`re-verify` is **bundled** with `polish` — it is not a separately addressable step. When `polish` runs and modifies code, the re-verify gate runs automatically afterward (`/test skip-qa`, one-cycle cap). Including `re-verify` in a step list is a no-op; treat it as already implied by `polish`.
+`re-verify` is **bundled** with `polish` — it is not a separately addressable step. When `polish` runs and modifies code, the re-verify gate runs automatically afterward (`/test skip-qa`, one-cycle cap) — scoped per `test/verification.md`'s re-verify scoping table. Including `re-verify` in a step list is a no-op; treat it as already implied by `polish`.
 
 **Resume-only step `review-console`** — accepted only on multi-spec resume after a Halt at the consolidated console (see `multispec-review-console.md`). Usage: `/claude-tweaks:flow {specs} review-console` re-reads the parent run dir and re-presents the console. Not a normal pipeline step; not valid in a comma-separated step list with other steps.
 
@@ -116,6 +116,8 @@ Carrying `PIPELINE_RUN_DIR` in that note is load-bearing for any caller resuming
 **Auto-insert `test`:** If `review` is in the step list but `test` is not, auto-insert `test` before `review` and note: "Auto-inserted `test` before `review` — review gates on test passing." This ensures backward compatibility.
 
 **Polish bundled with re-verify:** If `polish` is in the step list, the re-verify gate runs automatically when polish modifies code. Users do not need to add a separate `re-verify` step. If a user includes the literal `re-verify` in the step list, treat it as a no-op (already bundled with polish) and note: "`re-verify` is bundled with `polish` — no separate step needed."
+
+**Re-verify scoping:** every in-pipeline re-verify — the auto-inserted `test`, the polish re-verify, the review-fix re-verify, and a multi-spec spec-N `test` step — runs scoped against the last full pass per `test/verification.md`'s "Re-verify scoping" table (build Common Step 5 stays full; standalone `/claude-tweaks:test` stays full). `/flow` states this once here and does not restate the rule.
 
 **`no-polish` argument behavior:** When `no-polish` is set, the polish phase (and its re-verify gate) is removed from the pipeline. The default pipeline becomes `build,test,review,wrap-up` (the pre-Phase-2 default). `no-polish` overrides any explicit `polish` in the step list — the user's explicit step request wins on the rest of the pipeline, but polish is unconditionally dropped.
 
