@@ -78,7 +78,11 @@ test('manifesto.md and multi-spec.md each fit the ~20KB read budget (#724)', () 
   // row, suppression row, Recommendation defaults row, canonical numbering
   // entry) even at parity terseness with sibling levers 11/12 — there was no
   // slack left to absorb it under the 12-lever budget.
-  const BUDGETS = { 'plugin/skills/flow/manifesto.md': 21504, 'plugin/skills/flow/multi-spec.md': 20480 };
+  // 21504 -> 21760, #1991: four `when:` marker pairs (~170 B of marker lines)
+  // fence the per-mode bullets and the auto-FYI paragraph; the pin stays a
+  // raw-bytes single-Read budget because `flow/SKILL.md`'s fallback path
+  // still reads this file directly — #1997 retires it.
+  const BUDGETS = { 'plugin/skills/flow/manifesto.md': 21760, 'plugin/skills/flow/multi-spec.md': 20480 };
   for (const [p, budget] of Object.entries(BUDGETS)) {
     const bytes = fs.statSync(path.join(REPO_ROOT, p)).size;
     assert.ok(bytes < budget, `${p} is ${bytes} bytes — must stay under ${budget}`);
