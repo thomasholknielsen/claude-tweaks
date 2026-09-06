@@ -40,11 +40,30 @@ function locateTranscripts({ cwd, sessionId, homeDir = os.homedir(), fsImpl = fs
   if (!cwd && !sid) return [];
   const projects = path.join(homeDir, '.claude', 'projects');
   const projectsResolved = path.resolve(projects) + path.sep;
+  let projectsRealResolved;
+  try {
+    projectsRealResolved = fsImpl.realpathSync(projects);
+  } catch {
+    return [];
+  }
   const out = [];
+  // Containment is decided on the REAL path (symlinks resolved at every
+  // component, including the leaf) — statSync/createReadStream follow
+  // symlinks, so a lexical check alone lets a symlinked {sid}.jsonl or slug
+  // directory under ~/.claude/projects/ escape the sandbox (#1929 review
+  // finding, [IL-150]). The lexical check stays first: it's cheap and
+  // rejects a literal ".." before any filesystem call.
   const push = (p) => {
     if (!path.resolve(p).startsWith(projectsResolved)) return;
-    const st = statOrNull(fsImpl, p);
-    if (st && st.isFile()) out.push({ path: p, mtimeMs: st.mtimeMs });
+    let real;
+    try {
+      real = fsImpl.realpathSync(p);
+    } catch {
+      return; // missing file or dangling symlink — unprovable, skip (fail closed)
+    }
+    if (!real.startsWith(projectsRealResolved + path.sep)) return;
+    const st = statOrNull(fsImpl, real);
+    if (st && st.isFile()) out.push({ path: real, mtimeMs: st.mtimeMs });
   };
   if (cwd && sid) {
     push(path.join(projects, slugForCwd(cwd), `${sid}.jsonl`));

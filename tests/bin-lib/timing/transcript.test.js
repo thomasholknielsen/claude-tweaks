@@ -39,7 +39,10 @@ function fakeHome() {
 test('#1929 AC1: locateTranscripts looks under the worktree slug and keys on the session id', () => {
   const { home, slugDir } = fakeHome();
   const both = locateTranscripts({ cwd: '/Users/x/Code/repo/.claude/worktrees/wt', sessionId: 'sess-2', homeDir: home });
-  assert.deepEqual(both.map((c) => c.path), [path.join(slugDir, 'sess-2.jsonl')]);
+  // path is the REAL path (realpathSync'd for the containment check,
+  // [IL-150]) — on macOS the tmpdir itself resolves through a symlink
+  // (/var -> /private/var), so compare against the realpath'd expectation.
+  assert.deepEqual(both.map((c) => c.path), [fs.realpathSync(path.join(slugDir, 'sess-2.jsonl'))]);
   const cwdOnly = locateTranscripts({ cwd: '/Users/x/Code/repo/.claude/worktrees/wt', homeDir: home });
   assert.deepEqual(cwdOnly.map((c) => path.basename(c.path)).sort(), ['sess-1.jsonl', 'sess-2.jsonl']);
   const sessionOnly = locateTranscripts({ sessionId: 'sess-3', homeDir: home });
@@ -57,6 +60,24 @@ test('#1929: locateTranscripts refuses a session id that could traverse out of ~
   // (projects/escaped.jsonl) — on the pre-fix code this sessionId would
   // resolve there and be returned; containment must still yield [].
   assert.deepEqual(locateTranscripts({ cwd: '/Users/x/Code/repo/.claude/worktrees/wt', sessionId: '../escaped', homeDir: home }), []);
+});
+
+test('#1929 [IL-150]: locateTranscripts refuses a symlinked leaf file that escapes ~/.claude/projects', () => {
+  const { home, slugDir } = fakeHome();
+  const outsideFile = path.join(home, 'outside.jsonl');
+  fs.writeFileSync(outsideFile, '{}\n');
+  fs.symlinkSync(outsideFile, path.join(slugDir, 'sess-link.jsonl'));
+  assert.deepEqual(locateTranscripts({ cwd: '/Users/x/Code/repo/.claude/worktrees/wt', sessionId: 'sess-link', homeDir: home }), []);
+});
+
+test('#1929 [IL-150]: locateTranscripts refuses a symlinked slug directory that escapes ~/.claude/projects', () => {
+  const { home, slugDir } = fakeHome();
+  const outsideDir = path.join(home, 'outside-dir');
+  fs.mkdirSync(outsideDir, { recursive: true });
+  fs.writeFileSync(path.join(outsideDir, 'sess-7.jsonl'), '{}\n');
+  const projects = path.dirname(slugDir);
+  fs.symlinkSync(outsideDir, path.join(projects, '-Users-x-linked'));
+  assert.deepEqual(locateTranscripts({ sessionId: 'sess-7', homeDir: home }), []);
 });
 
 test('#1929: isProcedurePath matches repo skills, installed-plugin skills, and nothing else', () => {
