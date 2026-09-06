@@ -31,7 +31,7 @@ more here, as literals**, before composing either call:
    | claims-registry read | `{minted-run-dir}/context/claims.md`'s "Reading claim state" git-trees path (`claims/issue-{n}.json` on the `claims-registry` branch) — never `gh api ...?ref=` query-string quoting, never `-f ref=` on a GET (if that bundle is absent, read `_shared/issue-claims.md` directly) |
 
 5. **Composed bundles** — the dispatching session composes, once, before either call, into the
-   minted run directory — on ONE physical line each so the call-site scanner can see them:
+   minted run directory — one physical line each, the shape every skill call site uses (the composed-bytes gate measures these two bundles at their skill call sites; with `{plugin-root}` substituted as a literal, these lines are placeholders to its scanner, not call sites of their own):
    `node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step claims "{plugin-root}/skills/_shared/issue-claims.md"`
    and
    `node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step merge "{plugin-root}/skills/_shared/pr-first-merge.md" "{plugin-root}/skills/_shared/pr-early-run-lifecycle.md"`,

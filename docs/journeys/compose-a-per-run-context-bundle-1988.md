@@ -19,6 +19,10 @@ files:
   - plugin/skills/build/SKILL.md
   - plugin/skills/_shared/worktree-setup.md
   - plugin/skills/build/worktree-setup.md
+  - plugin/skills/dispatch/task-prompt.md
+  - plugin/skills/_shared/subagent-output-contract.md
+  - plugin/skills/_shared/dispatch-waiting.md
+  - tests/dispatch-prompt-bundle-citations.test.js
 ---
 
 # Compose a Per-Run Context Bundle From Fenced Skill Sources
@@ -93,10 +97,18 @@ files:
 - **Should understand:** The record that added this call site assumed the files held always-vs-optional prose; a plan-time survey measured 0 B on both, so no markers were added and the switch ships on its other rationale — one read of one bundle instead of a read of the build file plus section-by-section reads of the shared contract. What that costs: the bundle is ~36.8 KB against a 40,960 B composed ceiling, so the two files' growth budgets are now coupled at this call site, and `context-cost.test.js`'s composed gate is what says so first. A zero-fence bundle is the composer working as designed, not a failure of it — but it buys only the read-once shape, and can cost ~3.5 KB of shared prose the old path could skip (the shared file's Resolving, Pre-creation reconcile, and Anti-patterns sections, which the build addendum never cites by name).
 - **Red flags:** any `when:` marker in either source (the survey said none belongs); a header naming `worktree-policy=unresolved` on a project whose `policy.yml` sets `worktree-always` (the resolver reads that key); a composed-gate failure at this call site after an unrelated edit to either file; a compose attempt with `$PIPELINE_RUN_DIR` unset — it would exit 2 on every run and the fallback would mask it, which is why the call site gates on the variable being set (a `/flow` parent exports it; a standalone `/build` usually has none yet, since record mode mints its directory at Spec Step 1's materialize and design mode never does, though a most-recent-matching directory or the inline-export resume form can legitimately supply one).
 
+### 10. Hand a dispatched agent the bundle, not the contract — terminal
+- **URL:** `plugin/skills/dispatch/task-prompt.md`, Context pack item 5, and the second-call template's four bundle citations — after `/claude-tweaks:dispatch` has minted a group's run directory.
+- **Action:** Compose `claims` and `merge` into `{minted-run-dir}/context/` as item 5 says, then read the second-call template as the dispatched agent would: every claim-state or merge-outcome citation names `{minted-run-dir}/context/claims.md` or `merge.md`, with "if that bundle is absent, read `_shared/…` directly" in the same sentence.
+- **Should feel:** The agent is never sent to a `_shared/` file to discover which branch applies — the dispatcher already resolved that and left the answer in the run directory; the two `_shared/` names that remain in the template (`pipeline-run-dir.md`, `integration-model.md`) are the documented gaps, not oversights.
+- **Should understand:** The clean room is the contract's founding premise: an agent only sees its prompt, so a prompt citing `_shared/pr-first-merge.md` sends it to read both integration models, and a prompt citing the composed `merge.md` sends it to the one it is running under. The compose command's own fallback ("if the compose command is unavailable or exits non-zero, read the named source files directly") belongs to whoever runs the command — the dispatcher — so the agent's fallback is phrased for what the agent can observe: the bundle file being absent. `tests/dispatch-prompt-bundle-citations.test.js` pins every fenced template `_shared/`-free except those two shapes and the named gaps, and fails if a listed gap disappears, so the list cannot rot. The lens prompts in `review/step3-lens-dispatch.md` were already clean — their fenced block is byte-pinned to the calibration fragment and carries no path at all.
+- **Red flags:** a `_shared/` path inside a fenced template without a fallback shape or a gap entry; a compose line in the Context pack that still reads `${CLAUDE_PLUGIN_ROOT}` instead of the substituted `{plugin-root}` literal (the agent's shell cannot expand it); `_shared/subagent-output-contract.md` within a sentence of its 40,960 B raw gate again (it sat at 252 B before #1995 extracted `_shared/dispatch-waiting.md`).
+
 ## Origin
 - Created during build of #1988 (per-run skill-context composer CLI — Phase 1 of #1987's decomposition); steps 1-5 built in this session.
 - Step 6 added during build of #1989 (merge-path markers — the first production consumer: `pr-first-merge.md` and `pr-early-run-lifecycle.md` fenced, `/wrap-up`'s two merge sites reading the composed `merge` bundle).
 - Step 7 added during build of #1991 (mode markers on `manifesto.md`; `flow/SKILL.md`'s Step 3 reads the composed `manifesto` bundle; the other three named sources measured as carrying no prose on this axis).
 - Step 8 added during build of #1992 (transport markers on `issue-claims.md` and `github-pr-scan.md`; the single-source `claims` and `pr-scan` bundles at tidy's claim sweep and PR scan and flow's MCP claim path; the transport probe exercised with `gh` removed from PATH).
 - Step 9 added during build of #1993 (the `worktree-setup` bundle at `build/SKILL.md` Common Step 1 — a two-source bundle with zero fences, after a survey found no worktree-policy prose in either file).
+- Step 10 added during build of #1995 (dispatch task prompts cite the `claims` and `merge` bundles the dispatcher composes before dispatch; the contract's cite-the-bundle rule; `_shared/dispatch-waiting.md` extracted for headroom).
 - Related specs: #1987 (parent design), #1990 (composed-bytes measurement, imports `stripMarkers`/`compose`; carries the merge bundle's byte budget), #1991-#1994 (the remaining records that fence real `_shared/*.md` files), #1995-#1997.
