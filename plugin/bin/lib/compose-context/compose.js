@@ -159,5 +159,5 @@ function compose(sources, conditions) {
 }
 
 module.exports = {
-  KEYS, VOCAB, UNRESOLVED, MarkerError, parseMarkers, stripMarkers, compose, unresolvedKeys, renderResolvedHeader,
+  KEYS, VOCAB, UNRESOLVED, CANDIDATE_RE, MarkerError, parseMarkers, stripMarkers, compose, unresolvedKeys, renderResolvedHeader,
 };

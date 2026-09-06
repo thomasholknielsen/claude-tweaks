@@ -9,12 +9,11 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseMarkers, MarkerError, KEYS, VOCAB } = require('../plugin/bin/lib/compose-context/compose');
+const { parseMarkers, MarkerError, KEYS, VOCAB, CANDIDATE_RE } = require('../plugin/bin/lib/compose-context/compose');
 
 const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const HEADING_RE = /^#{1,6} /;
 const STEP_LABEL_RE = /^\*\*Step \d/;
-const MARKER_SHAPED_RE = /^\s*<!--\s*(when:|\/when\b)/;
 
 function* walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -47,7 +46,7 @@ function checkMarkers(text, file) {
   // Swallowed-marker check: a marker-shaped line living inside a code fence is parsed as
   // literal text (never open/close), so it silently never takes effect — count marker-shaped
   // lines in the raw text and compare against the tokens the parser actually recognized.
-  const markerShapedLineCount = lines.filter((line) => MARKER_SHAPED_RE.test(line)).length;
+  const markerShapedLineCount = lines.filter((line) => CANDIDATE_RE.test(line)).length;
   const parsedMarkerCount = tokens.filter((token) => token.type === 'open' || token.type === 'close').length;
   if (markerShapedLineCount !== parsedMarkerCount) {
     const swallowed = markerShapedLineCount - parsedMarkerCount;
