@@ -88,7 +88,7 @@ When `$ARGUMENTS` specifies a targeted scope, resolve commands from CLAUDE.md (s
 - **By check type** (`types`, `lint`, `unit`, etc.) — run only the specified checks
 - **By path** — scope test commands to the given file or directory
 - **By pattern** — pass the pattern to the test runner's filter flag (e.g., `jest --testNamePattern`, `pytest -k`)
-- **`affected`** — read the changed-file set with one plain command, `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --changed-files --integration-branch {ref}` (`{ref}` via `_shared/integration-branch.md`; the stamp's `fullSha` wins whenever it is still an ancestor of HEAD, pipeline or not; `--integration-branch` is the fallback (with no stamp and no divergence from it, effectively the working tree alone) — an unresolvable base is exit 1, never a silent empty set), then scope tests to those files and their dependents. Never hand-roll `git diff --name-only` — it is empty for every committed pipeline diff.
+- **`affected`** — read the changed-file set with one plain command, `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --changed-files --integration-branch {ref}` (`{ref}` via `_shared/integration-branch.md`; the stamp's `fullSha` wins whenever it is still an ancestor of HEAD, pipeline or not; `--integration-branch` is the fallback (with no stamp and no divergence from it, effectively the working tree alone) — an unresolvable base is exit 1, never a silent empty set: stop and report the runner's message, and offer the standard suite instead of running a narrowed set on a guess), then scope tests to those files and their dependents. Never hand-roll `git diff --name-only` — it is empty for every committed pipeline diff.
 
 > **Parallel execution:** When running multiple check types (e.g., `/claude-tweaks:test types lint`), run them as parallel Bash calls — they are independent.
 
@@ -109,7 +109,7 @@ Run QA story validation only — types, lint, and tests are skipped.
 
 When the `affected` argument is present, filter stories to only those whose `source_files` overlap the changed-file set:
 
-1. Read the changed-file set: `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --changed-files --integration-branch {ref}` — the same `{base, files}` the `affected` argument and the pipeline story filter read, so the three never disagree.
+1. Read the changed-file set: `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --changed-files --integration-branch {ref}` — the same `{base, files}` the `affected` argument and the pipeline story filter read, so the three never disagree. Exit 1 means no base resolved — stop and report the runner's stderr message verbatim ("`qa affected` could not resolve a base: {message}") instead of continuing; never read it as an empty set or as "No QA stories affected".
 2. Read each discovered story YAML file and collect the `source_files` array from every story. Stories without a `source_files` field or with an empty array are excluded from affected runs. (This is the explicit-argument rule only: the automatic pipeline selection above always includes a story with no `source_files`, so a brand-new UI story is never dropped — #808.)
 3. Filter to stories where at least one entry in `source_files` appears in the changed files list.
 4. If no stories match, report: "No QA stories affected by current changes." and stop.

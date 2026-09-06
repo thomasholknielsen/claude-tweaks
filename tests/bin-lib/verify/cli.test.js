@@ -899,7 +899,24 @@ test('--changed-files prints {base, files} = committed-since-anchor ∪ working 
   assert.strictEqual(run.code, 0, run.stderr);
   const out = JSON.parse(run.stdout.trim());
   assert.strictEqual(out.base, anchor);
+  // files is sorted by contract (changed-files.js returns [...set].sort()), so the order is asserted deliberately.
   assert.deepStrictEqual(out.files, ['notes.txt', 'src/a.js']);
+});
+
+test('--changed-files includes staged and modified-tracked files alongside committed and untracked ones (#1923 review)', async () => {
+  const r = tmpGitRepo();
+  const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
+  const full = await runCli(['--cmd', 'tests=node -e 0'], { cwd: r.repo });
+  assert.strictEqual(full.code, 0, full.stderr);
+  commitFile(r, 'src/a.js', '1');
+  fs.writeFileSync(path.join(r.repo, 'staged.js'), 'staged');
+  r.git('add', 'staged.js');
+  fs.writeFileSync(path.join(r.repo, 'src', 'a.js'), '2');
+  fs.writeFileSync(path.join(r.repo, 'notes.txt'), 'uncommitted');
+  const run = await runCli(['--changed-files', '--integration-branch', branch], { cwd: r.repo });
+  assert.strictEqual(run.code, 0, run.stderr);
+  const out = JSON.parse(run.stdout.trim());
+  assert.deepStrictEqual(out.files, ['notes.txt', 'src/a.js', 'staged.js']);
 });
 
 test('--changed-files with no stamp and no resolvable integration branch exits 1 with a message — never an empty list (#1923 AC2)', async () => {
