@@ -30,6 +30,7 @@ test('parses repeatable --cmd plus --json, --log-dir, and --count-stamp', () => 
     scope: null,
     base: null,
     integrationBranch: null,
+    changedFiles: false,
   });
 });
 
@@ -141,4 +142,16 @@ test('--stamp-status rejects --scope/--base/--integration-branch (#1922 review L
   assert.throws(() => parseArgs(['--stamp-status', '--integration-branch', 'main']), UsageError);
   // --git-dir stays fine alongside --stamp-status (existing behavior, unaffected).
   assert.doesNotThrow(() => parseArgs(['--stamp-status', '--git-dir', '/g']));
+});
+
+test('--changed-files is a read-only mode: no --cmd, no --scope, not with --stamp-status; --base/--integration-branch allowed (#1923)', () => {
+  const p = parseArgs(['--changed-files', '--integration-branch', 'main']);
+  assert.strictEqual(p.changedFiles, true);
+  assert.strictEqual(p.integrationBranch, 'main');
+  assert.deepStrictEqual(p.cmds, []);
+  assert.strictEqual(parseArgs(['--cmd', 'tests=x']).changedFiles, false);
+  assert.throws(() => parseArgs(['--changed-files', '--cmd', 'tests=x']), UsageError);
+  assert.throws(() => parseArgs(['--changed-files', '--scope', 's.json']), UsageError);
+  assert.throws(() => parseArgs(['--changed-files', '--stamp-status']), UsageError);
+  assert.ok(USAGE.includes('--changed-files'));
 });

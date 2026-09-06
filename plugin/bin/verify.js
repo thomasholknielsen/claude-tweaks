@@ -91,6 +91,29 @@ function stampStatus(parsed) {
   process.exitCode = 0;
 }
 
+// --changed-files (#1923): the read-only "what changed in this run" set the
+// skills consume — /claude-tweaks:test affected and the QA story filter read
+// this instead of hand-rolling `git diff --name-only` (empty for every
+// committed pipeline diff). Same base resolution as --scope: the checkout's
+// own stamp anchor when usable, else --base / --integration-branch; an
+// unresolvable base is exit 1 with a message, never an empty list.
+function changedFilesMode(parsed) {
+  const ownGitDir = resolveGitDir();
+  const priorStamp = ownGitDir ? readVerifyStamp(ownGitDir) : null;
+  let base;
+  try {
+    base = resolveBase({ stamp: priorStamp, integrationBranch: parsed.integrationBranch, base: parsed.base });
+  } catch (err) {
+    if (!(err instanceof ChangedFilesError)) throw err;
+    process.stderr.write(`--changed-files: ${err.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const { files } = changedFiles({ base });
+  process.stdout.write(`${JSON.stringify({ base, files })}\n`);
+  process.exitCode = 0;
+}
+
 async function main() {
   process.stdout.on('error', (err) => { if (err.code !== 'EPIPE') throw err; });
   let parsed;
@@ -106,6 +129,7 @@ async function main() {
   }
 
   if (parsed.stampStatus) { stampStatus(parsed); return; }
+  if (parsed.changedFiles) { changedFilesMode(parsed); return; }
 
   // Default paths resolve against the checkout's own git dir (#1921) so the
   // canonical skill invocation is one plain command with no $(...)

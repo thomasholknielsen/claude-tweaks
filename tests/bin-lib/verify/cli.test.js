@@ -793,3 +793,37 @@ test('--scope after a history rewrite (no --base) forces mode full and stamps fu
   assert.strictEqual(stamp.scope, 'full');
   assert.strictEqual(stamp.fullSha, newHead);
 });
+
+test('--changed-files prints {base, files} = committed-since-anchor ∪ working tree, anchored on the stamp fullSha (#1923 AC2)', async () => {
+  const r = tmpGitRepo();
+  const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
+  const full = await runCli(['--cmd', 'tests=node -e 0'], { cwd: r.repo });
+  assert.strictEqual(full.code, 0, full.stderr);
+  const anchor = stampOf(r.gitDir).fullSha;
+  commitFile(r, 'src/a.js', '1');
+  fs.writeFileSync(path.join(r.repo, 'notes.txt'), 'uncommitted');
+  const run = await runCli(['--changed-files', '--integration-branch', branch], { cwd: r.repo });
+  assert.strictEqual(run.code, 0, run.stderr);
+  const out = JSON.parse(run.stdout.trim());
+  assert.strictEqual(out.base, anchor);
+  assert.deepStrictEqual(out.files, ['notes.txt', 'src/a.js']);
+});
+
+test('--changed-files with no stamp and no resolvable integration branch exits 1 with a message — never an empty list (#1923 AC2)', async () => {
+  const r = tmpGitRepo();
+  const run = await runCli(['--changed-files'], { cwd: r.repo });
+  assert.strictEqual(run.code, 1);
+  assert.match(run.stderr, /could not resolve a base/);
+  assert.strictEqual(run.stdout.trim(), '');
+});
+
+test('--changed-files honors --base and never writes a stamp or report (#1923)', async () => {
+  const r = tmpGitRepo();
+  const first = r.git('rev-parse', 'HEAD').trim();
+  commitFile(r, 'docs/a.md', 'x');
+  const run = await runCli(['--changed-files', '--base', first], { cwd: r.repo });
+  assert.strictEqual(run.code, 0, run.stderr);
+  assert.deepStrictEqual(JSON.parse(run.stdout.trim()), { base: first, files: ['docs/a.md'] });
+  assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json')));
+  assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify', 'report.json')));
+});

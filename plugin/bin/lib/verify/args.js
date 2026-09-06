@@ -8,7 +8,8 @@ const USAGE =
   'usage: verify.js --cmd <name>=<command> [--cmd <name>=<command> ...] [--json <path>] '
   + '[--log-dir <dir>] [--count-stamp <path>] [--no-stamp] [--git-dir <dir>] '
   + '[--scope <path> [--base <ref>] [--integration-branch <name>]] '
-  + '| verify.js --stamp-status [--git-dir <dir>]';
+  + '| verify.js --stamp-status [--git-dir <dir>] '
+  + '| verify.js --changed-files [--base <ref>] [--integration-branch <name>]';
 
 const VALUE_FLAGS = new Set(['--cmd', '--json', '--log-dir', '--count-stamp', '--git-dir', '--scope', '--base', '--integration-branch']);
 
@@ -26,10 +27,12 @@ function parseArgs(argv) {
   let scope = null;
   let base = null;
   let integrationBranch = null;
+  let changedFiles = false;
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     if (flag === '--stamp-status') { stampStatus = true; continue; }
     if (flag === '--no-stamp') { noStamp = true; continue; }
+    if (flag === '--changed-files') { changedFiles = true; continue; }
     if (VALUE_FLAGS.has(flag)) {
       const value = argv[i + 1];
       i++;
@@ -56,8 +59,11 @@ function parseArgs(argv) {
     }
     throw new UsageError(`unknown flag: ${flag}`);
   }
-  if (cmds.length === 0 && !stampStatus) throw new UsageError('at least one --cmd <name>=<command> is required');
+  if (cmds.length === 0 && !stampStatus && !changedFiles) throw new UsageError('at least one --cmd <name>=<command> is required');
   if (stampStatus && cmds.length) throw new UsageError('--stamp-status takes no --cmd');
+  if (changedFiles && cmds.length) throw new UsageError('--changed-files takes no --cmd');
+  if (changedFiles && scope !== null) throw new UsageError('--changed-files takes no --scope');
+  if (changedFiles && stampStatus) throw new UsageError('--changed-files and --stamp-status are separate modes');
   // L12 (review, #1922): --base/--integration-branch only mean anything
   // alongside --scope, and --stamp-status is a read-only mode that takes
   // none of the three — each combination is a usage error, not a silently
@@ -65,10 +71,12 @@ function parseArgs(argv) {
   if (stampStatus && (scope !== null || base !== null || integrationBranch !== null)) {
     throw new UsageError('--stamp-status takes no --scope/--base/--integration-branch');
   }
-  if (!scope && (base !== null || integrationBranch !== null)) {
-    throw new UsageError('--base and --integration-branch require --scope');
+  if (!scope && !changedFiles && (base !== null || integrationBranch !== null)) {
+    throw new UsageError('--base and --integration-branch require --scope or --changed-files');
   }
-  return { cmds, json, logDir, countStamp, gitDir, stampStatus, noStamp, scope, base, integrationBranch };
+  return {
+    cmds, json, logDir, countStamp, gitDir, stampStatus, noStamp, scope, base, integrationBranch, changedFiles,
+  };
 }
 
 module.exports = { parseArgs, UsageError, USAGE };
