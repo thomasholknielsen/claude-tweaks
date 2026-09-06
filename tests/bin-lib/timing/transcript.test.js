@@ -21,14 +21,18 @@ test('#1929 AC1: slugForCwd reproduces the observed project-directory name (spac
 
 function fakeHome() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-transcript-home-'));
-  const slugDir = path.join(home, '.claude', 'projects', slugForCwd('/Users/x/Code/repo/.claude/worktrees/wt'));
+  const projects = path.join(home, '.claude', 'projects');
+  const slugDir = path.join(projects, slugForCwd('/Users/x/Code/repo/.claude/worktrees/wt'));
   fs.mkdirSync(slugDir, { recursive: true });
   fs.writeFileSync(path.join(slugDir, 'sess-1.jsonl'), '{}\n');
   fs.writeFileSync(path.join(slugDir, 'sess-2.jsonl'), '{}\n');
   fs.mkdirSync(path.join(slugDir, 'sess-1'), { recursive: true }); // subagent dir — never a candidate
-  const other = path.join(home, '.claude', 'projects', '-Users-x-elsewhere');
+  const other = path.join(projects, '-Users-x-elsewhere');
   fs.mkdirSync(other, { recursive: true });
   fs.writeFileSync(path.join(other, 'sess-3.jsonl'), '{}\n');
+  // planted directly under projects/, outside every slug dir — the escape target
+  // a "../" sessionId would reach from inside slugDir if containment were absent.
+  fs.writeFileSync(path.join(projects, 'escaped.jsonl'), '{}\n');
   return { home, slugDir, other };
 }
 
@@ -49,6 +53,10 @@ test('#1929: locateTranscripts refuses a session id that could traverse out of ~
   const { home } = fakeHome();
   assert.deepEqual(locateTranscripts({ sessionId: '../../etc/passwd', homeDir: home }), []);
   assert.deepEqual(locateTranscripts({ cwd: '/Users/x/Code/repo/.claude/worktrees/wt', sessionId: '../sess-1', homeDir: home }), []);
+  // discriminating case: a real file sits at the traversed location
+  // (projects/escaped.jsonl) — on the pre-fix code this sessionId would
+  // resolve there and be returned; containment must still yield [].
+  assert.deepEqual(locateTranscripts({ cwd: '/Users/x/Code/repo/.claude/worktrees/wt', sessionId: '../escaped', homeDir: home }), []);
 });
 
 test('#1929: isProcedurePath matches repo skills, installed-plugin skills, and nothing else', () => {
