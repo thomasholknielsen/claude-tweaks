@@ -126,7 +126,9 @@ function extractVerificationChecks(text) {
 // prose marker — a plan header that quotes another plan's `**Execution:**
 // batched` line inside a fenced example must not itself read as batched.
 function stripFencedCodeBlocks(text) {
-  return text.replace(/```[\s\S]*?```/g, '');
+  // Backtick and tilde fences alike (both are CommonMark fences); an
+  // unclosed fence strips nothing — the lazy quantifier needs its closer.
+  return text.replace(/```[\s\S]*?```|~~~[\s\S]*?~~~/g, '');
 }
 
 // Task count for /build's single-task fast-lane condition (#1926): the plan

@@ -212,9 +212,9 @@ test('--count-tasks prints {"tasks": 1, "batched": false} for a one-task plan, 3
     const one = writePlan(repo, '### Task 1: Only\n**Files:**\n- Modify: `a.js`\n');
     assert.deepStrictEqual(runCount(one), { exitCode: 0, stdout: '{"tasks": 1, "batched": false}\n', stderr: '' });
     const three = writePlan(repo, '### Task 1: A\n\n### Task 2: B\n\n### Task 3: C\n');
-    assert.strictEqual(runCount(three).stdout, '{"tasks": 3, "batched": false}\n');
+    assert.deepStrictEqual(runCount(three), { exitCode: 0, stdout: '{"tasks": 3, "batched": false}\n', stderr: '' });
     const batched = writePlan(repo, '# P\n\n**Execution:** batched\n\n### Task 1: A\n\n### Task 2: B\n');
-    assert.strictEqual(runCount(batched).stdout, '{"tasks": 2, "batched": true}\n');
+    assert.deepStrictEqual(runCount(batched), { exitCode: 0, stdout: '{"tasks": 2, "batched": true}\n', stderr: '' });
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -240,7 +240,7 @@ test('--count-tasks never runs Checks A/B/C — a plan naming a missing path sti
   const repo = makeTmpRepo();
   try {
     const plan = writePlan(repo, '### Task 1: X\n**Files:**\n- Modify: `does/not/exist.js`\n');
-    assert.strictEqual(runCount(plan).exitCode, 0);
+    assert.deepStrictEqual(runCount(plan), { exitCode: 0, stdout: '{"tasks": 1, "batched": false}\n', stderr: '' });
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

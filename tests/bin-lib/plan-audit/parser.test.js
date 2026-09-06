@@ -137,4 +137,7 @@ test('countTasks flags a batched plan by the header marker or a [batch] task tit
 test('countTasks ignores an **Execution:** batched line inside a fenced code block in the header (#1926)', () => {
   const text = '# Plan\n\n```\n**Execution:** batched\n```\n\n### Task 1: A\n';
   assert.deepStrictEqual(countTasks(text), { tasks: 1, batched: false });
+  // Tilde fences are CommonMark fences too (review 3f, #1926).
+  const tilde = '# Plan\n\n~~~\n**Execution:** batched\n~~~\n\n### Task 1: A\n';
+  assert.deepStrictEqual(countTasks(tilde), { tasks: 1, batched: false });
 });

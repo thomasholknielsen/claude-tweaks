@@ -38,7 +38,9 @@ const roster = fs.readFileSync(ROSTER, 'utf8');
 const skipTags = rows(section(roster, 'Skips by profile')).map((r) => cells(r)[0].replace(/`/g, ''));
 const neverRows = rows(section(roster, 'Never skipped')).map((r) => cells(r)[0]);
 const mentions = rows(section(roster, 'Mentions that are not skips')).map((r) => {
-  const [file, contains] = cells(r);
+  const cs = cells(r);
+  assert.strictEqual(cs.length, 3, `malformed Mentions row (expected | File | Line contains | Why |): ${r}`);
+  const [file, contains] = cs;
   return { file: file.replace(/`/g, ''), contains: contains.replace(/^`|`$/g, '').replace(/\\`/g, '`') };
 });
 
