@@ -5,6 +5,11 @@ files:
   - plugin/bin/lib/compose-context/resolve-conditions.js
   - plugin/bin/lib/compose-context/index.js
   - docs/skill-authoring.md
+  - plugin/skills/_shared/pr-first-merge.md
+  - plugin/skills/_shared/pr-early-run-lifecycle.md
+  - plugin/skills/wrap-up/auto-merge-short-circuit.md
+  - plugin/skills/wrap-up/review-console.md
+  - tests/compose-markers-conformance.test.js
 ---
 
 # Compose a Per-Run Context Bundle From Fenced Skill Sources
@@ -51,6 +56,14 @@ files:
 - **Should understand:** Exit `2` with a message naming the main checkout the path resolves outside of, nothing written. A path outside any checkout at all (this journey's `/tmp/compose-demo`) is accepted as-is — the anchored-or-outside rule `resolve-policy.js` and `resolve-profile.js` carry, registered for this CLI in `plugin/skills/_shared/pipeline-run-dir.md`'s CLI-argument-boundary section.
 - **Red flags:** A bundle written into a worktree-local shadow run dir; a temp-dir run dir refused.
 
+### 6. Compose the real merge bundle the way `/wrap-up` does — terminal
+- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run /tmp/compose-demo --step merge "${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-first-merge.md" "${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-early-run-lifecycle.md"`, with `config.yml` restored to `integration-model: pr-first` and `gh` on PATH — the exact call `plugin/skills/wrap-up/auto-merge-short-circuit.md` and `review-console.md`'s "Approve all + merge" step carry.
+- **Action:** Run it, read the JSON line's `bytes`, then open `context/merge.md` and search it for `Local-merge fallback` and `Scope extends to issue reads`.
+- **Should feel:** The first production use of the composer, and nothing changed in how the procedure reads — only what is absent.
+- **Should understand:** The `## Local-merge fallback` heading is still there but its body is gone (a fenced-whole section renders as a bare heading in the untaken composition — the heading marks the branch's place, so any citation to it by name still resolves); the `## Skip / degrade behavior` section keeps its degrade table (rows 2-7 are pr-first paths) and loses only the local-merge paragraph and its SKIP block; the MCP root-cause section keeps its `Confirmed against…` bullets and `**Consequence:**` paragraph (three later sentences cite "Root cause above" under every transport) and loses only the `**Scope extends…**` paragraph. Source paths are `${CLAUDE_PLUGIN_ROOT}`-rooted, never repo-relative — a `plugin/skills/…` path resolves only from a claude-tweaks checkout and would exit 1 in every consumer install. The bundle is ~56 KB against ~59 KB for the two raw files: additive fencing of prose that already exists is a small saving; the per-step byte budget is #1990's job. `stripMarkers(source) === git show origin/main:{source}` holds for both files — the migration inserted marker lines and changed nothing else.
+- **Red flags:** A `Local-merge fallback` body present under `pr-first`; a degrade-table row missing; a "Root cause above" citation with no root cause left in the bundle; exit 1 with an ENOENT naming `plugin/skills/…`; a skill step that reads `context/merge.md` without checking the exit code first.
+
 ## Origin
 - Created during build of #1988 (per-run skill-context composer CLI — Phase 1 of #1987's decomposition); steps 1-5 built in this session.
-- Related specs: #1987 (parent design), #1990 (composed-bytes measurement, imports `stripMarkers`/`compose`), #1989 and #1991-#1994 (the records that fence real `_shared/*.md` files and call this CLI from skill prose), #1995-#1997.
+- Step 6 added during build of #1989 (merge-path markers — the first production consumer: `pr-first-merge.md` and `pr-early-run-lifecycle.md` fenced, `/wrap-up`'s two merge sites reading the composed `merge` bundle).
+- Related specs: #1987 (parent design), #1990 (composed-bytes measurement, imports `stripMarkers`/`compose`; carries the merge bundle's byte budget), #1991-#1994 (the remaining records that fence real `_shared/*.md` files), #1995-#1997.
