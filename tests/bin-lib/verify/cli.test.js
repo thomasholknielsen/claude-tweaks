@@ -1061,10 +1061,15 @@ test('flaky retry: a failing lint check never triggers a retry and still fail-fa
 
 test('flaky retry: without --scope (no declaration) a failing tests check is never retried, byte-for-byte today\'s behavior (#1925)', async () => {
   const r = flakyRepo();
+  const countStampPath = path.join(r.gitDir, 'claude-tweaks-test-count.json');
+  fs.writeFileSync(countStampPath, JSON.stringify({ tests: 1, sha: 'seed', recordedAt: 't', flakyHits: { 'tests/flaky.test.js': 3 } }));
   const { code, stdout } = await runCli(['--cmd', 'tests=node fail.js'], { cwd: r.repo });
   assert.strictEqual(code, 1);
   assert.doesNotMatch(stdout, /flaky-retried/);
   assert.ok(!fs.existsSync(r.marker));
+  // I1 (#1925 review): a run with no declaration at all must not be read as
+  // "the allowlist is empty" — the prior flakyHits map must survive untouched.
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(countStampPath, 'utf8')).flakyHits, { 'tests/flaky.test.js': 3 });
 });
 
 test('flaky retry: a retried-to-pass suite does not fail-fast-skip the suites behind it, so the full set stamps (#1925 design)', async () => {

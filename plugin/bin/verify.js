@@ -290,9 +290,13 @@ async function main() {
   const flakyEnabled = Boolean(decl && decl.flaky.files.length > 0);
   const retryHook = async (result, ctx) => {
     if (!flakyEnabled) return result;
+    // `result.name === 'tests'` is belt-and-braces here: the --cmd-vs-
+    // declaration check earlier already rejects an undeclared `tests`, and
+    // tool-scoped mode's synthesized `tests` is always declared — so this
+    // disjunct never actually widens eligibility beyond decl.suites.
     if (!(result.name === 'tests' || decl.suites.includes(result.name))) return result;
     let text = '';
-    try { text = fs.readFileSync(result.logPath, 'utf8'); } catch { return result; }
+    try { text = fs.readFileSync(result.logPath, 'utf8'); } catch { return { ...result, retryDecision: { retry: false, reason: 'unreadable-log' } }; }
     const plain = stripAnsi(text);
     const failingFiles = extractFailingFiles(plain, sniffFamily(plain));
     const plan = planRetry({ failingFiles, flaky: decl.flaky, retry: decl.retry, suite: result.name });
@@ -329,11 +333,19 @@ async function main() {
     const fullMode = !sel || sel.mode === 'full';
     const previousCount = readCountStamp(countStampPath);
     if (fullMode) testCountRegression = detectRegression(previousCount, currentCount);
-    const allowlist = decl ? decl.flaky.files : [];
+    // decl === null means no declaration was read at all (no --scope, or
+    // --scope with a missing file) — that is not the same as "the
+    // allowlist is empty" (parse-signal discipline), so nextFlakyHits gets
+    // null rather than [] and carries every prior hit count forward as-is.
+    const allowlist = decl ? decl.flaky.files : null;
     const hits = nextFlakyHits(previousCount, retriedFiles, allowlist);
     flakyEscalation = flakyEscalations(hits);
     let toWrite = null;
     if (fullMode && currentCount !== null) toWrite = { ...currentCount, flakyHits: hits };
+    // Deliberately NOT gated on `!fullMode`: a full run with a retry but an
+    // unparseable count (currentCount === null) still persists the hit
+    // under the previous baseline (H3-safe), and gating it here would make
+    // the escalation counter lossy exactly when suite output stops parsing.
     else if (retriedFiles.length > 0 && previousCount !== null) toWrite = { ...previousCount, flakyHits: hits };
     if (toWrite !== null) {
       // Fail-toward-absence on the write side too (readStamp already does

@@ -5,7 +5,7 @@ const path = require('path');
 
 const {
   sniffFamily, extractFailingRegion, parseCounts, summaryLine,
-  MAX_REGION_LINES, GENERIC_TAIL_LINES,
+  MAX_REGION_LINES, GENERIC_TAIL_LINES, stripAnsi, extractFailingFiles,
 } = require(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'extract.js'));
 
 const TAP_FIXTURE = [
@@ -142,8 +142,6 @@ test('summaryLine is one bounded line', () => {
   const long = summaryLine('x'.repeat(5000), 'generic');
   assert.ok(long.length <= 200);
 });
-
-const { stripAnsi, extractFailingFiles } = require(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'extract.js'));
 
 test('extractFailingFiles: a node --test log with one failing frame yields that test file (AC1)', () => {
   const text = [

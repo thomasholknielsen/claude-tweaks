@@ -65,13 +65,26 @@ function caveatLine(regression) {
 // those happens — an allowlist with no pressure to shrink becomes permanent.
 const FLAKY_ESCALATION_HITS = 5;
 
+// allowlist is the declaration's flaky.files array, or null when no
+// declaration was read at all (no --scope, or --scope with a missing file) —
+// a run without a declaration says nothing about which files are still
+// allowlisted, so it must not be read as "the allowlist is empty" (parse-
+// signal discipline). null carries every finite positive prior count forward
+// untouched before applying this run's increments; only a real array prunes
+// entries whose file has left the allowlist.
 function nextFlakyHits(previous, retriedFiles, allowlist) {
   const prior = previous && previous.flakyHits && typeof previous.flakyHits === 'object' && !Array.isArray(previous.flakyHits)
     ? previous.flakyHits : {};
   const next = {};
-  for (const file of allowlist) {
-    const n = prior[file];
-    if (typeof n === 'number' && Number.isFinite(n) && n > 0) next[file] = n;
+  if (allowlist === null) {
+    for (const [file, n] of Object.entries(prior)) {
+      if (typeof n === 'number' && Number.isFinite(n) && n > 0) next[file] = n;
+    }
+  } else {
+    for (const file of allowlist) {
+      const n = prior[file];
+      if (typeof n === 'number' && Number.isFinite(n) && n > 0) next[file] = n;
+    }
   }
   for (const file of retriedFiles) next[file] = (next[file] || 0) + 1;
   return next;

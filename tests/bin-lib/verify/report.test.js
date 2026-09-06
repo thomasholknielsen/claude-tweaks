@@ -156,14 +156,20 @@ test('composeReport carries flakyRetried/retryFailed/retryAttempts/retryDecision
   const retried = {
     name: 'tests', command: 'x', exitCode: 0, durationMs: 1, logPath: '/l/tests.log',
     flakyRetried: ['tests/a.test.js'],
-    retryAttempts: [{ file: 'tests/a.test.js', attempt: 1, exitCode: 0, logPath: '/l/r1.log', durationMs: 1 }],
+    retryAttempts: [
+      { file: 'tests/a.test.js', attempt: 1, exitCode: 0, logPath: '/l/r1.log', durationMs: 1 },
+      { file: 'tests/b.test.js', attempt: 1, exitCode: null, logPath: '/l/r2.log', durationMs: 1, spawnError: 'ENOENT' },
+    ],
     retryDecision: { retry: true, files: ['tests/a.test.js'] },
   };
   const plain = { name: 'lint', command: 'y', exitCode: 0, durationMs: 1, logPath: '/l/lint.log' };
   const git = { sha: 'abc', dirty: false };
   const report = composeReport({ checks: [retried, plain], startedAt: 't', durationMs: 2, git, flakyEscalation: [{ file: 'tests/a.test.js', hits: 5 }] });
   assert.deepStrictEqual(report.checks.tests.flakyRetried, ['tests/a.test.js']);
-  assert.deepStrictEqual(report.checks.tests.retryAttempts, [{ file: 'tests/a.test.js', attempt: 1, exitCode: 0, logPath: '/l/r1.log' }]);
+  assert.deepStrictEqual(report.checks.tests.retryAttempts, [
+    { file: 'tests/a.test.js', attempt: 1, exitCode: 0, logPath: '/l/r1.log' },
+    { file: 'tests/b.test.js', attempt: 1, exitCode: null, logPath: '/l/r2.log', spawnError: 'ENOENT' },
+  ]);
   assert.deepStrictEqual(report.checks.tests.retryDecision, { retry: true, files: ['tests/a.test.js'] });
   assert.strictEqual('flakyRetried' in report.checks.lint, false);
   assert.deepStrictEqual(report.flakyEscalation, [{ file: 'tests/a.test.js', hits: 5 }]);

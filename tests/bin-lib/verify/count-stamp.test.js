@@ -82,6 +82,11 @@ test('nextFlakyHits increments each retried file, keeps other allowlisted counts
   );
 });
 
+test('nextFlakyHits treats a null allowlist (no declaration read) as unknown and carries every prior count forward untouched (#1925)', () => {
+  const previous = { tests: 1, flakyHits: { 'tests/a.test.js': 3, 'tests/b.test.js': 1 } };
+  assert.deepStrictEqual(nextFlakyHits(previous, [], null), { 'tests/a.test.js': 3, 'tests/b.test.js': 1 });
+});
+
 test('nextFlakyHits tolerates a missing or malformed flakyHits map and a null previous stamp (bootstrap)', () => {
   assert.deepStrictEqual(nextFlakyHits(null, ['tests/a.test.js'], ['tests/a.test.js']), { 'tests/a.test.js': 1 });
   assert.deepStrictEqual(nextFlakyHits({ tests: 1, flakyHits: 'nope' }, [], ['tests/a.test.js']), {});

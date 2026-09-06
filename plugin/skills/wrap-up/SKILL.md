@@ -202,7 +202,7 @@ Every reflect insight in this whole-insight-set carries its own `Evidence:` and 
 
 ### Leftover work (formerly Step 4, record-based only)
 
-Identify unfinished spec sections that cannot be completed in the current work context. If at least one such section exists, read `leftover-routing.md` in this skill's directory and route them per that file — which owns the fix-exhaust qualification criteria, the auto-mode stage entry format, the interactive routing table (5 routing options), and the per-item routing semantics. If every spec section is complete and the run's latest `report.json` carries no `flakyEscalation` (that file's runner-reported row), report "No leftover work to route" and skip this step entirely — do not read the file.
+Identify unfinished spec sections that cannot be completed in the current work context. If at least one such section exists, or the run's latest `report.json` carries `flakyEscalation`, read `leftover-routing.md` in this skill's directory and route them per that file — which owns the fix-exhaust qualification criteria, the auto-mode stage entry format, the interactive routing table (5 routing options), and the per-item routing semantics. If neither holds, report "No leftover work to route" and skip this step entirely — do not read the file.
 
 ### Nothing left behind (formerly Step 8.5, gate)
 

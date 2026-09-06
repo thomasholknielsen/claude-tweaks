@@ -54,7 +54,14 @@ function entryFor(check) {
   if (check.counts !== undefined && check.counts !== null) entry.counts = check.counts;
   if (check.flakyRetried && check.flakyRetried.length) entry.flakyRetried = check.flakyRetried;
   if (check.retryFailed && check.retryFailed.length) entry.retryFailed = check.retryFailed;
-  if (check.retryAttempts) entry.retryAttempts = check.retryAttempts.map(({ file, attempt, exitCode, logPath }) => ({ file, attempt, exitCode, logPath }));
+  if (check.retryAttempts) {
+    entry.retryAttempts = check.retryAttempts.map((a) => {
+      const { file, attempt, exitCode, logPath } = a;
+      const out = { file, attempt, exitCode, logPath };
+      if (a.spawnError !== undefined) out.spawnError = a.spawnError;
+      return out;
+    });
+  }
   if (check.retryDecision) entry.retryDecision = check.retryDecision;
   return entry;
 }
