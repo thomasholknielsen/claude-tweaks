@@ -36,7 +36,7 @@ full — the single-record version of
 `/claude-tweaks:dispatch` was involved. That file routes on `_shared/integration-model.md`'s
 `pr-first`/`local-merge` split. Otherwise skip it entirely; do not read the file.
 
-Take the labels from `pack.recordLabels` in `{run-dir}/wrap-up-pack.json` (#1930); re-fetch with `gh issue view --json labels` only when the pack file is absent. An `ok: false` field (`gh-absent`, `no-forge`, a failed query) is the same outcome this step already takes when that re-fetch itself fails — the "Otherwise skip it entirely; do not read the file" branch above, exactly as if the live labels didn't carry the grant.
+The grant read above stays a **live** `gh issue view --json labels` fetch, never the fact pack: a Phase 3 snapshot is minutes old by the time this routing decision runs, and a grant revoked in between must not route a merge (#1930). `pack.recordLabels` in `{run-dir}/wrap-up-pack.json` is the console's **audit snapshot** of those same labels only — render it beside the live verdict, never in place of it. When the pack file is absent, or its field is `ok: false` (`gh-absent`, `no-forge`, a failed query), omit the snapshot line entirely; a failure of the *live* read is still the "Otherwise skip it entirely; do not read the file" branch above, exactly as if the live labels didn't carry the grant.
 
 ## Multi-spec defer protocol
 

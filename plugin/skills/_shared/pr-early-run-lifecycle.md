@@ -377,7 +377,12 @@ phase this run actually completed.
    of every branch-touched `skills/_shared/*.md`/`SKILL.md` file — a branch that is green alone
    (`tests/bin-lib/skill-audit/context-cost.test.js` only sees the working tree) can still tip a
    shared file over the 40 KB ceiling once merged with a concurrent sibling's own additions, a
-   failure that today only surfaces inside the merge sequence itself. A non-empty `overflow` never
+   failure that today only surfaces inside the merge sequence itself. When this run already has a
+   `{run-dir}/wrap-up-pack.json`, read `pack.mergeSize` instead of running the two commands above
+   (#1930) — its `value` is this same probe's `{mergedTree, measured, overflow}`, computed against
+   the same `origin/{integration-branch}` ref as of pack time — and fetch-plus-probe only when that
+   pack file is absent. An `ok: false` field is a probe failure and degrades exactly as one does
+   below: log a warning and continue. A non-empty `overflow` never
    blocks this merge — this section invents no new pipeline stop
    (`_shared/auto-mode-contract.md`'s strict rule) — it discloses at **warn** tier in the run
    summary (a visible line, not a silent log entry), one per file: `merge-size-probe: {path}

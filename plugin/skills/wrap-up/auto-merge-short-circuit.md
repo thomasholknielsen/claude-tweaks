@@ -14,7 +14,7 @@ applicability check passes (the `merge-authorization` lever, #715), check the tw
 — the single-record version of `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate,"
 whether or not `/claude-tweaks:dispatch` was involved:
 
-Take the labels from `pack.recordLabels` in `{run-dir}/wrap-up-pack.json` (#1930); re-fetch with `gh issue view --json labels` only when the pack file is absent. An `ok: false` field (`gh-absent`, `no-forge`, a failed query) is the same outcome this step already takes when that re-fetch itself fails — the "Any layer fails" outcome below: proceed to render the console normally, exactly as an `auto:build`-only record would.
+The Authorization layer below always reads **live** labels (`gh issue view --json labels`), never the fact pack: a Phase 3 snapshot is minutes old by the time this gate runs, and a grant that was revoked in between must not authorize a merge (#1930). `pack.recordLabels` in `{run-dir}/wrap-up-pack.json` is the console's **audit snapshot** of those same labels — render it beside the live verdict so a mid-run change is visible, and never substitute it for the live read. When the pack file is absent, or its field is `ok: false` (`gh-absent`, `no-forge`, a failed query), omit the snapshot line entirely; the live fetch is unaffected, and a failure of *that* read is still the "Any layer fails" outcome below: proceed to render the console normally, exactly as an `auto:build`-only record would.
 
 1. **Authorization** — one of three ways to clear:
    - `auto:merge` is already present on the live-fetched labels — clears immediately (`already-mature` by construction).
