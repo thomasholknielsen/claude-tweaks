@@ -38,12 +38,12 @@ Lifecycle: `/claude-tweaks:stories` → **`/claude-tweaks:test`** → `/claude-t
 | `e2e` | End-to-end tests only |
 | `{file or directory path}` | Run tests scoped to that path |
 | `{test name pattern}` | Run tests matching the pattern |
-| `affected` | Run tests affected by uncommitted changes (uses git diff) |
+| `affected` | Run tests affected by this run's changed-file set — `verify.js --changed-files` (committed changes since the last full pass ∪ the working tree; see `verification.md`'s scoping table) |
 | `qa` | QA story validation only — run YAML stories against a running app |
 | `qa tag={tag}` | QA stories filtered by tag (e.g., `qa tag=smoke`) |
 | `qa story={name}` | QA — single story by name (substring match) |
 | `qa retry={path}` | QA — re-run only failed stories from a previous run |
-| `qa affected` | QA — run only stories whose `source_files` overlap with uncommitted changes |
+| `qa affected` | QA — run only stories whose `source_files` overlap the same `--changed-files` set |
 | `qa journey={name}` | QA — run only stories with `journey: {name}` (kebab-case, case-insensitive match against the story's `journey:` field; e.g., `qa journey=profile-settings`) |
 | `qa dir={path}` | QA — override the stories directory (default `stories/`) |
 | `qa priority={level}` | QA — only run stories at or above the priority threshold (`high` > `medium` > `low`; stories without `priority` are treated as `medium`) |
@@ -69,7 +69,7 @@ When running inside a `/claude-tweaks:flow` pipeline, `/test` reads context from
 **Pipeline behavior:**
 
 - `VERIFICATION_PASSED=true` + no stories → skip verification, report "passed in build, no QA stories", set `TEST_PASSED=true`
-- `VERIFICATION_PASSED=true` + stories exist → skip verification, auto-run QA, set `TEST_PASSED=true` on pass
+- `VERIFICATION_PASSED=true` (or a matching runner stamp) + stories exist → skip verification, then **select stories by `source_files` ∩ the changed-file set** (`verify.js --changed-files`, exact repo-relative path match; a story with no `source_files` field is always included): one or more matches → run only those; zero matches on a non-frontend surface (materialized `surface:` not `web`/`mobile`/`desktop`, or zero UI trigger files per `design-wrapper/frontend-detection.md` Layers 2/3) → report `QA: skipped — no affected stories ({n} stories considered, {m} changed files)`, set `TEST_PASSED=true`, and log `AUTO {time} — QA scoped: 0/{n} stories affected by {m} changed file(s); skipped — non-frontend surface. Reversibility: high.`; zero matches on a frontend surface → run the full story set (a new UI story may not carry `source_files` yet — never skip QA there, #808). Every selection logs `AUTO {time} — QA scoped: {k}/{n} stories affected by {m} changed file(s). Reversibility: high.` The Design CLI gate (Step 1.5) still runs on a skip.
 - `VERIFICATION_PASSED=true` + `skip-qa` argument → skip verification AND skip QA, set `TEST_PASSED=true` (used by `/flow`'s polish-phase re-verify gate)
 - No `VERIFICATION_PASSED` + `skip-qa` → run types/lint/tests but skip QA story validation
 - No `VERIFICATION_PASSED` (and no `skip-qa`) + runner stamp matching `HEAD` (`verify.js --stamp-status` → `match: true`, per `verification.md`'s Skip-if-recent artifact branch) → skip verification, report "runner stamp {sha} (full) matches HEAD", run QA if stories exist, set `TEST_PASSED=true`
@@ -88,7 +88,7 @@ When `$ARGUMENTS` specifies a targeted scope, resolve commands from CLAUDE.md (s
 - **By check type** (`types`, `lint`, `unit`, etc.) — run only the specified checks
 - **By path** — scope test commands to the given file or directory
 - **By pattern** — pass the pattern to the test runner's filter flag (e.g., `jest --testNamePattern`, `pytest -k`)
-- **`affected`** — use `git diff --name-only` to identify changed files, then scope tests to those files and their dependents
+- **`affected`** — read the changed-file set with one plain command, `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --changed-files --integration-branch {ref}` (`{ref}` via `_shared/integration-branch.md`; in a pipeline the base is the stamp's `fullSha`, else the integration-branch merge-base; standalone with no stamp, the working tree alone), then scope tests to those files and their dependents. Never hand-roll `git diff --name-only` — it is empty for every committed pipeline diff.
 
 > **Parallel execution:** When running multiple check types (e.g., `/claude-tweaks:test types lint`), run them as parallel Bash calls — they are independent.
 
@@ -107,9 +107,9 @@ Run QA story validation only — types, lint, and tests are skipped.
 
 #### Affected filtering (`qa affected`)
 
-When the `affected` argument is present, filter stories to only those whose `source_files` overlap with uncommitted changes:
+When the `affected` argument is present, filter stories to only those whose `source_files` overlap the changed-file set:
 
-1. Run `git diff --name-only` (unstaged) and `git diff --name-only --cached` (staged) to collect all changed file paths.
+1. Read the changed-file set: `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --changed-files --integration-branch {ref}` — the same `{base, files}` the `affected` argument and the pipeline story filter read, so the three never disagree.
 2. Read each discovered story YAML file and collect the `source_files` array from every story. Stories without a `source_files` field or with an empty array are excluded from affected runs.
 3. Filter to stories where at least one entry in `source_files` appears in the changed files list.
 4. If no stories match, report: "No QA stories affected by current changes." and stop.
