@@ -269,10 +269,19 @@ function renderTable(result) {
 
 // The idempotent re-render: a console.json already carrying `resolved: true`
 // is re-shown verbatim (#1932 I3) — no snapshot is read and nothing is
-// re-resolved, so the stored items ARE the table.
+// re-resolved, so the stored items ARE the table. Two item shapes reach here:
+// this CLI's own ({section, resolution, reason}) and `_shared/console-on-pr.md`'s
+// ({kind, summary, stagedHash, commentId}) once the reconciler has executed a
+// PR-rendered console. Every column falls back per field so the second shape
+// renders as recorded data rather than a row of `undefined`.
 function renderStoredTable(consoleJson) {
   const cj = consoleJson || {};
-  const items = Array.isArray(cj.items) ? cj.items : [];
+  const items = (Array.isArray(cj.items) ? cj.items : []).map((it) => ({
+    id: it.id || it.kind || '—',
+    section: it.section || '—',
+    resolution: it.resolution || 'recorded',
+    reason: it.reason || it.summary || '',
+  }));
   return renderRows({
     items,
     cleanup: SECTION_STANCES[SECTIONS.CLEANUP],

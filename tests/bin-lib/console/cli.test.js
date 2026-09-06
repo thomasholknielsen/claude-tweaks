@@ -136,6 +136,37 @@ test('a console.json rendered on the PR and awaiting a human exits 5 and writes 
   assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8'), decisionsBefore);
 });
 
+test('a PR-rendered console the reconciler already executed is reported, never re-resolved or rendered as undefined (#1932 N3)', async () => {
+  const stored = {
+    resolved: true, prNumber: 42, commentIds: ['IC_kwDO_primary'],
+    items: [{ id: 'staged-5', kind: 'staged', summary: '2 severity:medium findings', stagedHash: 'a1b2c3', commentId: 'IC_kwDO_primary' }],
+  };
+  const fx = mainCheckoutWithRun({ staged: THREE, consoleJson: `${JSON.stringify(stored, null, 2)}\n` });
+  const rawBefore = fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8');
+  const decisionsBefore = fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8');
+  const { d, out } = baseDeps(fx, []);
+  assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'console-auto'], d), 0);
+  assert.match(out(), /rendered on PR #42 and already resolved there/);
+  assert.match(out(), /staged-5/);
+  assert.ok(!/undefined/.test(out()), out());
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8'), rawBefore);
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8'), decisionsBefore);
+});
+
+test('--dry-run against a PR-rendered console warns instead of exiting 5, and still previews (#1932 N4)', async () => {
+  const stored = { prNumber: 42, commentIds: ['IC_kwDO_primary'], items: [{ id: 'staged-5', kind: 'staged', summary: '2 findings' }], mergeCheckVerdict: 'needs-human' };
+  const fx = mainCheckoutWithRun({ staged: THREE, consoleJson: `${JSON.stringify(stored, null, 2)}\n` });
+  const rawBefore = fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8');
+  const decisionsBefore = fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8');
+  const { d, out, err } = baseDeps(fx, []);
+  assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'console-auto', '--dry-run'], d), 0);
+  assert.match(err(), /awaiting a human — refusing to overwrite it/);
+  assert.match(err(), /--dry-run — previewing anyway/);
+  assert.match(out(), /AUTO-RESOLVED/, 'the preview still renders');
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8'), rawBefore);
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8'), decisionsBefore);
+});
+
 test('an unparseable console.json fails closed with exit 5 rather than being clobbered (#1932 I3c)', async () => {
   const fx = mainCheckoutWithRun({ staged: THREE, consoleJson: '{ "resolved": true,' });
   const { d, err } = baseDeps(fx, []);

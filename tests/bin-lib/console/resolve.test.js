@@ -105,7 +105,7 @@ test('a staged item named on a REFUSED line in decisions.md resolves to refused,
 });
 
 test('every ENGINE_ROW_SECTIONS row classifies a staged finding into its own console section (#1932 M9)', () => {
-  const rows = { docs: 'Documentation updates', journeys: 'Journey updates', 'claude-md': 'Configuration updates', 'decision-records': 'Configuration updates' };
+  const rows = { skills: 'Skill updates', docs: 'Documentation updates', journeys: 'Journey updates', 'claude-md': 'Configuration updates', 'decision-records': 'Configuration updates', references: 'Reference repairs' };
   const results = {};
   for (const rowId of Object.keys(rows)) results[rowId] = { result: 'findings', findings: [{ target: `t/${rowId}.md`, action: 'staged' }] };
   const r = resolveAll({ runDir: fixture({ engineState: { results }, headers: [7] }), policy: 'console-auto', deps: deps() });

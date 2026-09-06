@@ -8,8 +8,10 @@
 // the main checkout ([IL-127]), 4 consoleAutoResolve not granted at the
 // resolved ceiling (never resolve a console at supervised/trusted), 5 a
 // console.json this process must not clobber — one already rendered on the PR
-// and awaiting a human, or one that will not parse (fail closed). A console.json
-// already carrying `resolved: true` is not an error: it re-renders and exits 0.
+// and awaiting a human, or one that will not parse (fail closed); never under
+// `--dry-run`, which writes nothing and so has nothing to clobber. A console.json
+// already carrying `resolved: true` is not an error, in either shape: it
+// re-renders and exits 0.
 'use strict';
 
 const fs = require('fs');
@@ -119,28 +121,43 @@ async function run(argv, deps = {}) {
   }
   // Idempotency and no-clobber, before anything is resolved: this run dir's
   // console.json may already hold a resolution (re-run — re-render it, append
-  // nothing) or a console rendered on the PR and still awaiting a human (never
-  // ours to overwrite). An unparseable file fails closed for the same reason.
+  // nothing) or a console rendered on the PR (never ours, in either state).
+  // An unparseable file fails closed for the same reason.
+  //
+  // The PR shape is tested FIRST, because a PR-rendered console the reconciler
+  // has since executed carries `resolved: true` AND `prNumber`/`commentIds` —
+  // reading it as this CLI's own auto-resolve shape would render its
+  // `{id, kind, summary, stagedHash}` items as `undefined` cells.
   const consolePath = path.join(runDir, 'console.json');
   let existingRaw = null;
   try { existingRaw = fs.readFileSync(consolePath, 'utf8'); } catch { existingRaw = null; }
   if (existingRaw !== null) {
-    let existing;
-    try { existing = JSON.parse(existingRaw); } catch { existing = undefined; }
-    if (existing === undefined) {
-      stderr(`console-resolve.js: ${consolePath} exists but does not parse as JSON — refusing to overwrite it; nothing written\n`);
-      return 5;
+    let parsed;
+    try { parsed = JSON.parse(existingRaw); } catch { parsed = undefined; }
+    const existing = parsed && typeof parsed === 'object' ? parsed : null;
+    const onPr = existing !== null
+      && (existing.prNumber !== undefined || existing.commentIds !== undefined || existing.mergeCheckVerdict !== undefined);
+    const pr = onPr && existing.prNumber !== undefined ? `PR #${existing.prNumber}` : 'the PR';
+    if (onPr && existing.resolved === true) {
+      stdout(`console-resolve.js: ${consolePath} is a console rendered on ${pr} and already resolved there — nothing to re-resolve.\n`);
+      stdout(`${renderStoredTable(existing)}\n`);
+      return 0;
     }
-    if (existing && typeof existing === 'object' && existing.resolved === true) {
+    if (!onPr && existing !== null && existing.resolved === true) {
       stdout(`console-resolve.js: ${consolePath} already records a resolved console — re-rendering it; nothing re-resolved.\n`);
       stdout(`${renderStoredTable(existing)}\n`);
       return 0;
     }
-    const onPr = existing && typeof existing === 'object'
-      && (existing.prNumber !== undefined || existing.commentIds !== undefined || existing.mergeCheckVerdict !== undefined);
-    if (onPr) {
-      stderr(`console-resolve.js: ${consolePath} is a console rendered on PR #${existing.prNumber === undefined ? '?' : existing.prNumber} and awaiting a human — refusing to overwrite it; nothing written\n`);
-      return 5;
+    let refusal = null;
+    if (onPr) refusal = `${consolePath} is a console rendered on ${pr} and awaiting a human — refusing to overwrite it; nothing written`;
+    else if (parsed === undefined) refusal = `${consolePath} exists but does not parse as JSON — refusing to overwrite it; nothing written`;
+    if (refusal) {
+      stderr(`console-resolve.js: ${refusal}\n`);
+      // `--dry-run` is preview-always (review-console.md's Dry-run mode) and
+      // writes nothing anyway, so there is nothing here to clobber: the refusal
+      // degrades to a warning rather than denying the operator the preview.
+      if (!o.dryRun) return 5;
+      stderr('console-resolve.js: --dry-run — previewing anyway; nothing is written either way\n');
     }
   }
   const resolverDeps = {
