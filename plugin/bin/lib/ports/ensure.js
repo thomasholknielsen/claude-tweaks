@@ -98,12 +98,14 @@ async function ensure(cwd, {
   }
 
   // Completeness (#1927): a region that existed before this call, lacked the
-  // lease line, and kept its base (no reallocation) has just been completed
+  // lease line, and kept its base (no reallocation, and the registry handed
+  // back the same base the region already carried) has just been completed
   // in place by the registry's write — report it. Belt and braces: if the
   // line is still absent (an env write error left the old region), write the
   // same-base vars once more; never the reallocation path.
+  const portBefore = Array.isArray(regionBefore) ? (regionBefore.find(([k]) => k === 'PORT') || [])[1] : undefined;
   let leaseLineAdded = false;
-  if (regionBefore !== null && !hadLeaseLine && reallocated === null) {
+  if (regionBefore !== null && !hadLeaseLine && reallocated === null && portBefore !== undefined && Number(portBefore) === result.base) {
     let regionAfter = null;
     try { regionAfter = readManagedRegion(fs.readFileSync(path.join(checkoutRoot, '.env.local'), 'utf8')); } catch { regionAfter = null; }
     if (!(Array.isArray(regionAfter) && regionAfter.some(([k]) => k === LEASE_KEY))) {

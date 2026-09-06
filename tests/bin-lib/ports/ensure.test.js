@@ -156,6 +156,26 @@ test('ensure: a non-current region still takes the reallocation path (leaseLineA
   } finally { server.close(); }
 });
 
+// #1927 fix round 1: an orphaned region (no matching registry lease — a
+// fresh registry, or a checkout whose old lease is gone) that lacks the
+// lease line must NOT be reported as completed just because it predates
+// #1927 — the registry hands back whatever base claimFreeBase finds free,
+// not necessarily the base the stale region already carried, so this is a
+// base change, not a same-base completion.
+test('ensure: an orphaned region with no matching registry lease and a different base is not reported as leaseLineAdded', async () => {
+  const home = tmpHome();
+  const checkout = tmpCheckout(home, 'orphaned-region');
+  // Pre-existing region from some other era, with no lease line — but the
+  // registry has never seen this path (fresh home, no ports.json yet), so
+  // it will be claimed as a brand-new lease, not recognized as this one.
+  writeEnvFiles(checkout, serviceVars(['web'], 20005));
+  const result = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout, probe: async () => true });
+  assert.equal(result.reallocated, null);
+  assert.equal(result.leaseLineAdded, false);
+  const region = readManagedRegion(fs.readFileSync(path.join(checkout, '.env.local'), 'utf8'));
+  assert.deepEqual(region[0], [LEASE_KEY, String(result.base)], 'the lease line is first in the freshly-claimed region');
+});
+
 test('isRegionCurrent: false when .env.local is missing, has no region, has the wrong PORT, or a different services list', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ports-region-'));
   assert.equal(isRegionCurrent(dir, 20000, ['web'], ['web']), false, 'no .env.local at all');
