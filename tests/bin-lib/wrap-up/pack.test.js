@@ -124,16 +124,37 @@ test('resolveInputs reads work-backend from the worktree CLAUDE.md, and the forg
   for (const n of ['pr', 'recordLabels', 'unblocked']) assert.strictEqual(pack[n].ok, true, `${n}: ${JSON.stringify(pack[n])}`);
 });
 
-test('resolveInputs: an absent CLAUDE.md falls back to local-files and says so in sources (#1930 review E1)', () => {
-  const inputs = resolveInputs({ runDir: fixtureRunDir(), cwd: '/w/tree', deps: okDeps({ readFile: readFileFake(null) }) });
-  assert.strictEqual(inputs.policy.workBackend, 'local-files');
-  assert.strictEqual(inputs.sources.workBackend, 'default');
+const UNCONFIGURED = 'work-backend unconfigured — no `work-backend:` line in CLAUDE.md';
+
+test('resolveInputs: an absent CLAUDE.md is UNCONFIGURED, and every backend-gated probe refuses rather than reporting a clean empty (#1930 review E3)', async () => {
+  const deps = okDeps({ readFile: readFileFake(null) });
+  const inputs = resolveInputs({ runDir: fixtureRunDir(), cwd: '/w/tree', deps });
+  assert.strictEqual(inputs.policy.workBackend, null);
+  assert.strictEqual(inputs.sources.workBackend, 'unconfigured');
+  const calls = [];
+  const pack = await gatherPack({
+    runDir: fixtureRunDir(),
+    cwd: '/w/tree',
+    deps: okDeps({ readFile: readFileFake(null), execFile: async (cmd, args) => { calls.push(cmd); return okDeps().execFile(cmd, args); } }),
+  });
+  for (const n of ['pr', 'recordLabels', 'unblocked']) {
+    assert.strictEqual(pack[n].ok, false, n);
+    assert.strictEqual(pack[n].error, UNCONFIGURED, n);
+  }
+  assert.ok(!calls.includes('gh'), `no gh call on an unconfigured backend: ${JSON.stringify(calls)}`);
+  assert.strictEqual(pack.claim.ok, true, 'claim is backend-agnostic — the claims-registry read is unaffected');
+  assert.strictEqual(pack.ledger.ok, true);
 });
 
-test('resolveInputs: a CLAUDE.md with no work-backend line falls back to local-files (#1930 review E1)', () => {
-  const inputs = resolveInputs({ runDir: fixtureRunDir(), cwd: '/w/tree', deps: okDeps({ readFile: readFileFake('# Project\n\nwork-types: labels\n') }) });
-  assert.strictEqual(inputs.policy.workBackend, 'local-files');
-  assert.strictEqual(inputs.sources.workBackend, 'default');
+test('resolveInputs: a CLAUDE.md with no work-backend line is UNCONFIGURED too, never no-forge (#1930 review E3)', async () => {
+  const deps = okDeps({ readFile: readFileFake('# Project\n\nwork-types: labels\n') });
+  const inputs = resolveInputs({ runDir: fixtureRunDir(), cwd: '/w/tree', deps });
+  assert.strictEqual(inputs.policy.workBackend, null);
+  assert.strictEqual(inputs.sources.workBackend, 'unconfigured');
+  const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['unblocked'], deps });
+  assert.strictEqual(pack.unblocked.ok, false);
+  assert.strictEqual(pack.unblocked.error, UNCONFIGURED);
+  assert.notStrictEqual(pack.unblocked.error, 'no-forge');
 });
 
 test('resolveInputs (b): records come from the WORKTREE mirror of the run dir when the main-checkout run dir has no headers (#1930 review C1)', () => {

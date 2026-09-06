@@ -102,13 +102,16 @@ function readText(deps, file) {
   try { return deps.readFile(file); } catch { return null; }
 }
 
-// The worktree's CLAUDE.md `## Work records` block -> the work-backend value.
-// `local-files` on an absent file or line: work-record-config.md's key table
-// marks no default for this key, and the driver that needs no forge is the
-// safe read for a project that never declared one.
+// The worktree's CLAUDE.md `## Work records` block -> the work-backend value,
+// or null. work-record-config.md's key table marks no default for this key
+// (its "Values / default" cell lists only the two accepted values), so an
+// absent file or line is UNCONFIGURED, not a driver choice. Defaulting it to
+// `local-files` made a GitHub-backed project with no declaration report an
+// empty `unblocked` list — a clean empty standing in for an unresolved input,
+// the exact shape C2 rejected elsewhere (#1930 review E3).
 function readWorkBackend(deps, worktree) {
   const m = WORK_BACKEND_RE.exec(readText(deps, path.join(worktree, 'CLAUDE.md')) || '');
-  return m ? { value: m[1], source: 'claude-md' } : { value: 'local-files', source: 'default' };
+  return m ? { value: m[1], source: 'claude-md' } : { value: null, source: 'unconfigured' };
 }
 
 function sortedUnique(nums) {
@@ -322,6 +325,16 @@ function buildProbes(inputs, deps) {
   const git = (args) => deps.git(args, { cwd: inputs.worktree });
   const forge = inputs.policy.workBackend === 'github-issues';
   const forgeOrThrow = () => { if (!forge) throw new Error('no-forge'); };
+  // Unconfigured is not a backend. It must never collapse into `no-forge`
+  // (which asserts "this project has no forge") or into a clean empty
+  // (#1930 review E3) — every backend-gated probe says so and fails its own
+  // field. `claim` is deliberately NOT in that set: the claims-registry branch
+  // read is backend-agnostic (neither `_shared/issue-claims.md` nor
+  // bin/lib/issues/claim-store.js mentions work-backend), so it stays gated
+  // on records alone.
+  const backendOrThrow = () => {
+    if (inputs.policy.workBackend === null) throw new Error('work-backend unconfigured — no `work-backend:` line in CLAUDE.md');
+  };
   // A record-scoped probe with no records is not a clean empty result — it is
   // an unresolved input, and must read as one (#1930 review C2).
   const recordsOrThrow = () => {
@@ -359,12 +372,12 @@ function buildProbes(inputs, deps) {
       return JSON.parse(stdout);
     },
     pr: async () => {
-      forgeOrThrow(); if (inputs.pr === null) throw new Error('no PR number in run-state.json');
+      backendOrThrow(); forgeOrThrow(); if (inputs.pr === null) throw new Error('no PR number in run-state.json');
       const { stdout } = await gh(['pr', 'view', String(inputs.pr), '--json', 'state,isDraft,mergeStateStatus,headRefOid,statusCheckRollup,reviewDecision']);
       return JSON.parse(stdout);
     },
     recordLabels: async () => {
-      forgeOrThrow(); recordsOrThrow();
+      backendOrThrow(); forgeOrThrow(); recordsOrThrow();
       const out = {};
       for (const n of inputs.records) {
         const { stdout } = await gh(['issue', 'view', String(n), '--json', 'labels']);
@@ -387,6 +400,7 @@ function buildProbes(inputs, deps) {
       recordsOrThrow();
       const closed = inputs.record;
       if (closed === null) throw new Error('record unresolved');
+      backendOrThrow();
       if (inputs.policy.workBackend === 'local-files') return unblockedLocal(inputs, deps, closed);
       forgeOrThrow();
       const { stdout } = await gh(['issue', 'list', '--state', 'open', '--json', 'number,title,body', '--limit', '200']);
