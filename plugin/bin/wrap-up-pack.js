@@ -1,0 +1,73 @@
+#!/usr/bin/env node
+// plugin/bin/wrap-up-pack.js — one deterministic fact pack for
+// /claude-tweaks:wrap-up's Phases 3-4 (#1930): ten probes, concurrently,
+// one JSON. Read-only. Exit 0 whenever the pack was produced (a failing
+// probe degrades its own field), 2 on a malformed invocation, 3 when --run
+// is not anchored under the main checkout (stage-item's resolveTarget —
+// [IL-127]: a worktree-local shadow run dir must never be written).
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const { gatherPack, PROBE_NAMES } = require('./lib/wrap-up/pack');
+const { resolveTarget } = require('./lib/stage-item/write');
+
+const USAGE = 'usage: wrap-up-pack.js --run <dir> [--json <path>] [--only <probe,...>]';
+
+class UsageError extends Error {}
+
+function parseArgs(argv) {
+  const out = { run: null, json: null, only: null };
+  for (let i = 0; i < argv.length; i++) {
+    const flag = argv[i];
+    const value = argv[i + 1];
+    if (flag === '--run' || flag === '--json' || flag === '--only') {
+      if (value === undefined || value.startsWith('--')) throw new UsageError(`${flag} requires a value`);
+      if (flag === '--only') {
+        const names = value.split(',').map((s) => s.trim()).filter(Boolean);
+        const bad = names.find((n) => !PROBE_NAMES.includes(n));
+        if (bad) throw new UsageError(`unknown probe: ${bad} (known: ${PROBE_NAMES.join(', ')})`);
+        out.only = names;
+      } else {
+        out[flag.slice(2)] = value;
+      }
+      i += 1;
+      continue;
+    }
+    throw new UsageError(`unknown flag: ${flag}`);
+  }
+  if (!out.run) throw new UsageError('--run <dir> is required');
+  return out;
+}
+
+async function run(argv, deps = {}) {
+  const stdout = deps.stdout || ((s) => process.stdout.write(s));
+  const stderr = deps.stderr || ((s) => process.stderr.write(s));
+  const cwd = deps.cwd || (() => process.cwd());
+  let o;
+  try { o = parseArgs(argv); } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    stderr(`wrap-up-pack.js: ${err.message}\n${USAGE}\n`);
+    return 2;
+  }
+  const target = resolveTarget({ runDir: o.run, cwd: cwd(), mainRoot: deps.mainRoot });
+  if (!target.ok) {
+    stderr(`wrap-up-pack.js: --run ${o.run} refused (${target.reason === 'missing' ? 'missing' : 'not anchored under the main checkout'}) — nothing written\n`);
+    return 3;
+  }
+  const pack = await gatherPack({ runDir: target.dir, cwd: cwd(), only: o.only, deps: deps.packDeps || {} });
+  const text = `${JSON.stringify(pack, null, 2)}\n`;
+  const file = o.json ? path.resolve(cwd(), o.json) : path.join(target.dir, 'wrap-up-pack.json');
+  fs.writeFileSync(file, text);
+  stdout(text);
+  return 0;
+}
+
+if (require.main === module) {
+  run(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (err) => {
+    process.stderr.write(`wrap-up-pack.js: ${String((err && err.stack) || err)}\n`);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { run, parseArgs, USAGE };
