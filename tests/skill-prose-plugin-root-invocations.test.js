@@ -28,6 +28,15 @@ function* walk(dir) {
   }
 }
 
+// A `compose-context.js` invocation whose source argument is a repo-relative `plugin/skills/…`
+// path is install-dead the same way a repo-relative `node plugin/bin/…` invocation is (#1170):
+// it resolves only inside a claude-tweaks checkout, so the call fails (and the fallback fires)
+// in every installed consumer. The install-safe form is
+// `"${CLAUDE_PLUGIN_ROOT}/skills/_shared/{file}.md"` (docs/skill-authoring.md's Call-site form).
+function isComposeContextSourceRepoRelative(line) {
+  return line.includes('compose-context.js') && line.includes(' plugin/skills/');
+}
+
 test('no skill prose invokes a bin via a repo-relative `node plugin/bin/` path (install-dead — #1170)', () => {
   const offenders = [];
   for (const file of walk(SKILLS)) {
@@ -42,6 +51,9 @@ test('no skill prose invokes a bin via a repo-relative `node plugin/bin/` path (
       if (isInvokedRepoRelative && !isExempted) {
         offenders.push(`${rel}: ${line.trim().slice(0, 120)}`);
       }
+      if (isComposeContextSourceRepoRelative(line) && !isExempted) {
+        offenders.push(`compose-context source arg is repo-relative: ${rel}: ${line.trim().slice(0, 120)}`);
+      }
     }
   }
   assert.deepStrictEqual(offenders, [], `repo-relative plugin/bin invocations in skill prose:\n${offenders.join('\n')}`);
@@ -52,4 +64,13 @@ test('the exemption list only exempts lines that still exist (no stale exemption
     const text = fs.readFileSync(path.join(SKILLS, rel), 'utf8');
     assert.ok(re.test(text), `stale exemption: ${rel} no longer contains ${re}`);
   }
+});
+
+test('the compose-context source-arg check can actually go red (predicate proof)', () => {
+  const repoRelative = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run x --step y plugin/skills/_shared/a.md';
+  const installSafe = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run x --step y "${CLAUDE_PLUGIN_ROOT}/skills/_shared/a.md"';
+  const offendersRepoRelative = [repoRelative].filter(isComposeContextSourceRepoRelative);
+  const offendersInstallSafe = [installSafe].filter(isComposeContextSourceRepoRelative);
+  assert.equal(offendersRepoRelative.length, 1);
+  assert.equal(offendersInstallSafe.length, 0);
 });

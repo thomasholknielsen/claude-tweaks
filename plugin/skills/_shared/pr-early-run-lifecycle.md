@@ -16,7 +16,6 @@ lifecycle, unchanged.
 
 ## Root cause: MCP PR-body sanitization strips HTML comments on read, not write (#929)
 
-<!-- when: transport=mcp -->
 Confirmed against `github/github-mcp-server`'s own source (`gh api repos/github/github-mcp-server/contents/...`), 2026-08-22:
 
 - **Write path is unsanitized.** `pkg/github/pullrequests.go`'s `CreatePullRequest` and
@@ -45,6 +44,7 @@ deliberate, reasonable defense) — it's to also carry a plain-text companion fo
 looks like an HTML tag to the sanitizer in the first place, so it survives the MCP read path
 unchanged. See "Dual-marker scheme" in Step 3 below.
 
+<!-- when: transport=mcp -->
 **Scope extends to issue reads, not just PR reads (#1700).** The same `bluemonday.StrictPolicy()`
 strips `<!-- ... -->` spans from `mcp__github__list_issues` and `mcp__github__issue_read` results
 too — confirmed live (2026-08-30): fetching a batch of `by:docs-health` issues via both

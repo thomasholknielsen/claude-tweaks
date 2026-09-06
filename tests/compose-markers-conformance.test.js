@@ -14,6 +14,7 @@ const { parseMarkers, MarkerError, KEYS, VOCAB } = require('../plugin/bin/lib/co
 const SKILLS = path.join(__dirname, '..', 'plugin', 'skills');
 const HEADING_RE = /^#{1,6} /;
 const STEP_LABEL_RE = /^\*\*Step \d/;
+const MARKER_SHAPED_RE = /^\s*<!--\s*(when:|\/when\b)/;
 
 function* walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -34,15 +35,24 @@ function checkMarkers(text, file) {
   const lines = text.split('\n');
   const problems = [];
   let depth = 0;
-  tokens.forEach((token, i) => {
+  tokens.forEach((token) => {
     if (token.type === 'open') depth += 1;
     else if (token.type === 'close') depth -= 1;
     else if (depth > 0 && !token.fenced) {
-      const line = lines[i];
+      const line = lines[token.line - 1];
       if (HEADING_RE.test(line)) problems.push(`${file}:${token.line}: heading inside a when: block — "${line.trim()}"`);
       if (STEP_LABEL_RE.test(line)) problems.push(`${file}:${token.line}: Step label inside a when: block — "${line.trim()}"`);
     }
   });
+  // Swallowed-marker check: a marker-shaped line living inside a code fence is parsed as
+  // literal text (never open/close), so it silently never takes effect — count marker-shaped
+  // lines in the raw text and compare against the tokens the parser actually recognized.
+  const markerShapedLineCount = lines.filter((line) => MARKER_SHAPED_RE.test(line)).length;
+  const parsedMarkerCount = tokens.filter((token) => token.type === 'open' || token.type === 'close').length;
+  if (markerShapedLineCount !== parsedMarkerCount) {
+    const n = markerShapedLineCount - parsedMarkerCount;
+    problems.push(`${file}: ${n} marker-shaped line(s) sit inside a code fence and are not parsed as markers`);
+  }
   return problems;
 }
 
@@ -53,14 +63,18 @@ test('vocabulary is the six keys compose.js exports (cited, not restated)', () =
 
 test('every when: marker in plugin/skills/**/*.md is well-formed and no fenced block holds a heading or Step label', () => {
   const problems = [];
-  let markedFiles = 0;
+  const markedFiles = [];
   for (const file of walk(SKILLS)) {
     const text = fs.readFileSync(file, 'utf8');
     if (!/<!--\s*when:/.test(text)) continue;
-    markedFiles += 1;
-    problems.push(...checkMarkers(text, path.relative(SKILLS, file)));
+    const rel = path.relative(SKILLS, file);
+    markedFiles.push(rel);
+    problems.push(...checkMarkers(text, rel));
   }
-  assert.ok(markedFiles >= 2, `expected at least the two #1989 sources to carry markers, saw ${markedFiles}`);
+  assert.ok(markedFiles.length >= 2, `expected at least the two #1989 sources to carry markers, saw ${markedFiles.length}`);
+  for (const expected of ['_shared/pr-first-merge.md', '_shared/pr-early-run-lifecycle.md']) {
+    assert.ok(markedFiles.includes(expected), `expected ${expected} among marked files, saw ${markedFiles.join(', ')}`);
+  }
   assert.deepEqual(problems, []);
 });
 
@@ -74,4 +88,14 @@ test('discrimination: a heading inside a when: block is reported (fixture)', () 
   assert.deepEqual(checkMarkers('<!-- when: mode=auto -->\n```bash\n# comment\n```\n<!-- /when -->\n', 'fixture.md'), []);
   // a malformed marker is reported with its line, never thrown past the check
   assert.match(checkMarkers('<!-- when: mode=auto -->\nx\n', 'fixture.md')[0], /fixture\.md:1: unclosed/);
+});
+
+test('discrimination: a marker pair swallowed inside a code fence is reported (fixture)', () => {
+  const insideFence = '```markdown\n<!-- when: mode=auto -->\nx\n<!-- /when -->\n```\n';
+  const problems = checkMarkers(insideFence, 'fixture.md');
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /fixture\.md: 2 marker-shaped line\(s\) sit inside a code fence and are not parsed as markers/);
+  // the same pair outside a fence is parsed normally and reports nothing
+  const outsideFence = '<!-- when: mode=auto -->\nx\n<!-- /when -->\n';
+  assert.deepEqual(checkMarkers(outsideFence, 'fixture.md'), []);
 });

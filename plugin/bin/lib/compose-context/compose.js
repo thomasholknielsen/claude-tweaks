@@ -58,6 +58,7 @@ function parseMarkers(text, file = null) {
   let fenceChar = null;
   let fenceLen = 0;
   const fail = (message, line) => { throw new MarkerError(message, { file, line }); };
+  // `fenced` lets a consumer (the marker-conformance test) skip code-fence lines with the parser's own fence state instead of a second tracker.
   lines.forEach((raw, i) => {
     const line = i + 1;
     const fenceMatch = raw.match(FENCE_RE);
@@ -67,7 +68,6 @@ function parseMarkers(text, file = null) {
         fenceChar = null;
         fenceLen = 0;
       }
-      // `fenced` lets a consumer (the marker-conformance test) skip code-fence lines with the parser's own fence state instead of a second tracker.
       tokens.push({ type: 'text', line, fenced: true });
       return;
     }
@@ -75,7 +75,6 @@ function parseMarkers(text, file = null) {
       inFence = true;
       fenceChar = fenceMatch[1][0];
       fenceLen = fenceMatch[1].length;
-      // `fenced` lets a consumer (the marker-conformance test) skip code-fence lines with the parser's own fence state instead of a second tracker.
       tokens.push({ type: 'text', line, fenced: true });
       return;
     }
