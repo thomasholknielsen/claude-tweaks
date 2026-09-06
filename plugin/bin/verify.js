@@ -275,11 +275,12 @@ async function main() {
   // internal '*' shorthand scope.js uses — the declared suite list when the
   // declaration says "everything", else the actual --cmd names run when
   // there is no declaration at all to name them.
-  const scopeSuites = sel
-    ? (sel.suites === '*'
+  let scopeSuites = null;
+  if (sel) {
+    scopeSuites = sel.suites === '*'
       ? (decl ? decl.suites : cmds.filter((c) => c.name !== 'types' && c.name !== 'lint').map((c) => c.name))
-      : sel.suites)
-    : null;
+      : sel.suites;
+  }
 
   const report = composeReport({
     checks: results, startedAt, durationMs: Date.now() - startMs, git, testCountRegression,

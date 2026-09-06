@@ -14,7 +14,9 @@
 // fallback); JSON absent -> try the bare file; bare file absent or not a
 // 40-hex SHA -> null. A malformed sha or fullSha inside an otherwise-parsed
 // JSON stamp is treated as absent (null), same posture as the legacy path —
-// fail toward absence, like count-stamp.js.
+// fail toward absence, like count-stamp.js. anchorOf() is the shared "what is
+// this stamp's own anchor" derivation, reused by changed-files.js and
+// scope.js rather than each inlining its own copy.
 'use strict';
 
 const fs = require('fs');
@@ -59,6 +61,17 @@ function writeStamp(gitDir, stamp, deps = {}) {
   return { jsonPath, legacyPath };
 }
 
+// anchorOf(stamp): the canonical sha of the stamp's own anchor — fullSha when
+// it is a string, else the legacy sha — or null when the stamp is missing or
+// its sha isn't a string. Shared by changed-files.js's usableAnchor (which
+// then checks the result is still an ancestor of HEAD) and scope.js's
+// selectScope, so this derivation is written once (review hindsight, ledger
+// item 14, refs #1922).
+function anchorOf(stamp) {
+  if (!stamp || typeof stamp.sha !== 'string') return null;
+  return typeof stamp.fullSha === 'string' ? stamp.fullSha : stamp.sha;
+}
+
 function readStamp(gitDir, fsImpl = fs) {
   const jsonPath = path.join(gitDir, STAMP_JSON_NAME);
   let jsonText = null;
@@ -78,5 +91,5 @@ function readStamp(gitDir, fsImpl = fs) {
 }
 
 module.exports = {
-  composeStamp, writeStamp, readStamp, STAMP_JSON_NAME, STAMP_LEGACY_NAME,
+  composeStamp, writeStamp, readStamp, anchorOf, STAMP_JSON_NAME, STAMP_LEGACY_NAME,
 };

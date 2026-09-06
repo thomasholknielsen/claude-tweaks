@@ -19,6 +19,7 @@
 
 const { execFileSync } = require('child_process');
 const { preferOriginRef } = require('../blast-radius-cli.js');
+const { anchorOf } = require('./stamp');
 
 class ChangedFilesError extends Error {
   constructor(message) { super(message); this.name = 'ChangedFilesError'; }
@@ -33,18 +34,17 @@ function tryGit(execImpl, args) {
 }
 
 // usableAnchor({ stamp, execImpl }): the canonical sha of the stamp's own
-// anchor (fullSha, or sha for a legacy stamp) when — and only when — it is a
-// real ancestor of HEAD, else null. Shared by resolveBase's own anchor-first
-// path below and bin/verify.js's --base-vs-anchor conflict check, so "is
-// this anchor still usable" (a rewritten/rebased history can strand the old
-// anchor even though it still resolves to a real commit) is tested exactly
-// once (#1922 re-review NEW-1: the --base check previously ran a bare
-// rev-parse with no ancestor test, so a stale-but-still-resolvable anchor
-// could reject a legitimate --base after a history rewrite).
+// anchor (stamp.js's anchorOf: fullSha, or sha for a legacy stamp) when — and
+// only when — it is a real ancestor of HEAD, else null. Shared by
+// resolveBase's own anchor-first path below and bin/verify.js's
+// --base-vs-anchor conflict check, so "is this anchor still usable" (a
+// rewritten/rebased history can strand the old anchor even though it still
+// resolves to a real commit) is tested exactly once (#1922 re-review NEW-1:
+// the --base check previously ran a bare rev-parse with no ancestor test, so
+// a stale-but-still-resolvable anchor could reject a legitimate --base after
+// a history rewrite).
 function usableAnchor({ stamp = null, execImpl = execFileSync } = {}) {
-  const anchor = stamp && typeof stamp.sha === 'string'
-    ? (typeof stamp.fullSha === 'string' ? stamp.fullSha : stamp.sha)
-    : null;
+  const anchor = anchorOf(stamp);
   if (!anchor) return null;
   if (tryGit(execImpl, ['merge-base', '--is-ancestor', '--end-of-options', anchor, 'HEAD']) === null) return null;
   const canonical = tryGit(execImpl, ['rev-parse', '--verify', '--end-of-options', `${anchor}^{commit}`]);

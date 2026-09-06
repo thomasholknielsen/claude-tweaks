@@ -8,11 +8,7 @@
 'use strict';
 
 const { globToRegExp } = require('../issues/blast-radius');
-
-function anchorOf(stamp) {
-  if (!stamp || typeof stamp.sha !== 'string') return null;
-  return typeof stamp.fullSha === 'string' ? stamp.fullSha : stamp.sha;
-}
+const { anchorOf } = require('./stamp');
 
 function selectScope({ decl, files, stamp }) {
   const base = anchorOf(stamp);
