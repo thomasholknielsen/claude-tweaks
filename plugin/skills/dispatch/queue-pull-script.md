@@ -1,6 +1,6 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (`#N`/`#N,#M,...` still resolve them normally — a human present, explicitly naming one, is itself the required surfacing); only bare drain's auto-selection (SKILL.md Step 3, reusing the `next`-alias ranking script) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent. It also produces `dispatch-open-pr-excluded.json` (#1224) — every candidate already covered by an open, unmerged PR that will close it (GitHub's own `closedByPullRequestsReferences` connection, a closing keyword in the PR body), each entry naming the linked PR (`{number, pr}[]`) — via `record.js`'s `partitionByOpenLinkedPR`. Unlike the blocked-by check above, this one runs unconditionally, independent of `work-links`, and unlike the cross-PR overlap report below it DOES remove excluded candidates from `dispatch-groups.json` before any selection form reads it — a record with an in-flight PR is not a warning, it is not re-dispatch-eligible at all. SKILL.md Step 3's Blocked-exclusion report reads this file too, under the same non-silent convention.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (`#N`/`#N,#M,...` still resolve them normally — a human present, explicitly naming one, is itself the required surfacing); only bare drain's auto-selection (SKILL.md Step 3, reusing the `next`-alias ranking script) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent. It also produces `dispatch-open-pr-excluded.json` (#1224) — every candidate already covered by an open, unmerged PR that will close it (GitHub's own `closedByPullRequestsReferences` connection, a closing keyword in the PR body), each entry naming the linked PR (`{number, pr}[]`) — via `bin/resolve-linked-prs.js`'s `openPR` field (the same "CLI's own already-processed field, not a record.js partition function" convention the native `work-links` case above uses; `record.js`'s `partitionByOpenLinkedPR` exists and is unit-tested but is not itself called from this script). Unlike the blocked-by check above, this one runs unconditionally, independent of `work-links`, and unlike the cross-PR overlap report below it DOES remove excluded candidates from `dispatch-groups.json` before any selection form reads it — a record with an in-flight PR is not a warning, it is not re-dispatch-eligible at all. SKILL.md Step 3's Open-PR exclusion report (`open-pr-exclusion-report.md`) reads this file, under the same non-silent convention.
 
 ```bash
 eval "$(node -e "
@@ -226,16 +226,15 @@ DISPATCH_GROUP_NUMS=$(node -e "
   console.log(groups.flat().map((i) => i.number).join(','))
 " "$DISPATCH_GROUPS")
 echo '{}' > "$DISPATCH_LINKED_PRS"
+echo '[]' > "$DISPATCH_OPEN_PR_EXCLUDED"
 if [ -n "$DISPATCH_GROUP_NUMS" ]; then
-  if node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-linked-prs.js" "$DISPATCH_GROUP_NUMS" \
+  if ! node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-linked-prs.js" "$DISPATCH_GROUP_NUMS" \
     > "$DISPATCH_LINKED_PRS" 2>"$DISPATCH_LINKED_PRS_ERR"; then
-    :
-  else
     echo "Warning: linked-PR query failed — falling back to no open-PR exclusion this run: $(cat "$DISPATCH_LINKED_PRS_ERR")" >&2
     echo '{}' > "$DISPATCH_LINKED_PRS"
   fi
 fi
-node -e "
+if node -e "
   const fs = require('fs');
   const groups = require(process.argv[1]);
   const linkedPRs = require(process.argv[2]);
@@ -249,7 +248,12 @@ node -e "
     .filter((g) => g.length > 0);
   fs.writeFileSync(process.argv[3], JSON.stringify(excluded));
   console.log(JSON.stringify(finalGroups));
-" "$DISPATCH_GROUPS" "$DISPATCH_LINKED_PRS" "$DISPATCH_OPEN_PR_EXCLUDED" > "${DISPATCH_GROUPS}.tmp" && mv "${DISPATCH_GROUPS}.tmp" "$DISPATCH_GROUPS"
+" "$DISPATCH_GROUPS" "$DISPATCH_LINKED_PRS" "$DISPATCH_OPEN_PR_EXCLUDED" > "${DISPATCH_GROUPS}.tmp" 2>"$DISPATCH_LINKED_PRS_ERR"; then
+  mv "${DISPATCH_GROUPS}.tmp" "$DISPATCH_GROUPS"
+else
+  echo "Warning: open-linked-PR filtering failed — dispatch-groups.json left unfiltered for this exclusion this run: $(cat "$DISPATCH_LINKED_PRS_ERR")" >&2
+  rm -f "${DISPATCH_GROUPS}.tmp"
+fi
 
 # #1579: cross-PR root-cause overlap report. Runs unconditionally (both the
 # cache-hit and cache-miss branches above leave $DISPATCH_GROUPS populated),
