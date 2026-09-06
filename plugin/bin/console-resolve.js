@@ -6,13 +6,16 @@
 // The merge half is computed, never executed — `gh pr merge` stays in the
 // skill's own path. Exit 0 resolved, 2 malformed, 3 --run not anchored under
 // the main checkout ([IL-127]), 4 consoleAutoResolve not granted at the
-// resolved ceiling (never resolve a console at supervised/trusted).
+// resolved ceiling (never resolve a console at supervised/trusted), 5 a
+// console.json this process must not clobber — one already rendered on the PR
+// and awaiting a human, or one that will not parse (fail closed). A console.json
+// already carrying `resolved: true` is not an error: it re-renders and exits 0.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { resolveAll } = require('./lib/console/resolve');
+const { resolveAll, renderStoredTable } = require('./lib/console/resolve');
 const { resolveTarget } = require('./lib/stage-item/write');
 const { appendEntry, formatEntry } = require('./lib/log-decision/append');
 const { resolvePolicyConfig } = require('./lib/policy-schema');
@@ -46,17 +49,20 @@ function defaultExecFile(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024, timeout: 30000, ...opts });
 }
 
-// The ceiling, resolved in-process with the same precedence resolve-policy.js
-// applies (run config over project policy): `resolvePolicyKeys` already folds
-// config.yml over policy.yml, so the single resolved value is what
-// resolveCeiling sees as runConfig.
-function readCeiling({ execFile, cwd, runDir }) {
+// The ceiling AND the veto window, resolved in-process with the same precedence
+// resolve-policy.js applies (run config over project policy): `resolvePolicyKeys`
+// already folds config.yml over policy.yml, so the single resolved value is what
+// resolveCeiling sees as runConfig. One call, both keys — a run that widened
+// `grant-veto-window-hours` must not have evaluateMaturation fall back to its
+// own 24h default the way this CLI's first cut did.
+function readPolicy({ execFile, cwd, runDir }) {
   const git = (args) => execFile('git', args, { cwd });
   const readFile = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } };
-  const { result } = resolvePolicyConfig({ git, readFile, runDir, keys: ['autonomy'] });
-  const entry = result.autonomy;
-  const value = entry && entry.error === undefined ? entry.value : null;
-  return resolveCeiling({ runConfig: value });
+  const { result } = resolvePolicyConfig({ git, readFile, runDir, keys: ['autonomy', 'grant-veto-window-hours'] });
+  const valueOf = (key) => { const entry = result[key]; return entry && entry.error === undefined ? entry.value : null; };
+  const raw = valueOf('grant-veto-window-hours');
+  const veto = raw === null || raw === undefined ? NaN : Number(raw);
+  return { ceiling: resolveCeiling({ runConfig: valueOf('autonomy') }), vetoWindowHours: Number.isFinite(veto) ? veto : undefined };
 }
 
 // Live grants per member — the Authorization read is never a snapshot
@@ -106,16 +112,43 @@ async function run(argv, deps = {}) {
     return 3;
   }
   const runDir = target.dir;
-  const ceiling = readCeiling({ execFile, cwd: cwd(), runDir });
+  const { ceiling, vetoWindowHours } = readPolicy({ execFile, cwd: cwd(), runDir });
   if (!bookkeepingPermissions(ceiling).consoleAutoResolve) {
     stderr(`console-resolve.js: consoleAutoResolve is not granted at ceiling ${ceiling} (unattended only) — nothing written\n`);
     return 4;
+  }
+  // Idempotency and no-clobber, before anything is resolved: this run dir's
+  // console.json may already hold a resolution (re-run — re-render it, append
+  // nothing) or a console rendered on the PR and still awaiting a human (never
+  // ours to overwrite). An unparseable file fails closed for the same reason.
+  const consolePath = path.join(runDir, 'console.json');
+  let existingRaw = null;
+  try { existingRaw = fs.readFileSync(consolePath, 'utf8'); } catch { existingRaw = null; }
+  if (existingRaw !== null) {
+    let existing;
+    try { existing = JSON.parse(existingRaw); } catch { existing = undefined; }
+    if (existing === undefined) {
+      stderr(`console-resolve.js: ${consolePath} exists but does not parse as JSON — refusing to overwrite it; nothing written\n`);
+      return 5;
+    }
+    if (existing && typeof existing === 'object' && existing.resolved === true) {
+      stdout(`console-resolve.js: ${consolePath} already records a resolved console — re-rendering it; nothing re-resolved.\n`);
+      stdout(`${renderStoredTable(existing)}\n`);
+      return 0;
+    }
+    const onPr = existing && typeof existing === 'object'
+      && (existing.prNumber !== undefined || existing.commentIds !== undefined || existing.mergeCheckVerdict !== undefined);
+    if (onPr) {
+      stderr(`console-resolve.js: ${consolePath} is a console rendered on PR #${existing.prNumber === undefined ? '?' : existing.prNumber} and awaiting a human — refusing to overwrite it; nothing written\n`);
+      return 5;
+    }
   }
   const resolverDeps = {
     readFile: (p) => fs.readFileSync(p, 'utf8'),
     readdir: (p) => { try { return fs.readdirSync(p); } catch { return []; } },
     gitApplyCheck: gitApplyCheck(execFile, cwd()),
     readGrants: ghReadGrants(execFile, cwd()),
+    vetoWindowHours,
     now,
     ...(deps.resolverDeps || {}),
   };
@@ -124,9 +157,19 @@ async function run(argv, deps = {}) {
   const at = new Date(now()).toISOString();
   if (!o.dryRun) {
     const header = formatEntry({ status: 'AUTO', now: now(), step: 'Review Console', text: `Console auto-resolved ${result.items.length} item(s) at unattended (console-resolve.js)`, reversibility: 'per item' });
-    const lines = result.items.map((it) => formatEntry({ status: 'AUTO', now: now(), step: 'Review Console', text: `Console item ${it.id} (${it.section}): ${it.resolution} — ${it.reason}`, reversibility: it.resolution === 'keep-staged' || it.resolution === 'pending' ? 'n/a' : it.resolution === 'apply' ? 'medium' : 'high' }));
+    // Reversibility uses _shared/auto-decision-log.md's closed vocabulary
+    // (high | med | low | n/a) — nothing else is a legal value on a schema line.
+    const nothingToRevert = new Set(['stale', 'keep-staged', 'pending', 'refused']);
+    const stagedNames = new Set(snapshot.staged.map((s) => s.name));
+    const lines = result.items.map((it) => formatEntry({
+      status: 'AUTO',
+      now: now(),
+      step: 'Review Console',
+      text: `Console item ${it.id} (${it.section}): ${it.resolution} — ${it.reason}${stagedNames.has(it.id) ? ` (staged/${it.id})` : ''}`,
+      reversibility: nothingToRevert.has(it.resolution) ? 'n/a' : it.resolution === 'apply' ? 'med' : 'high',
+    }));
     appendEntry({ runDir, section: '/wrap-up', entry: [header, ...lines].join('\n') });
-    writeFileAtomic(path.join(runDir, 'console.json'), `${JSON.stringify({ resolved: true, mode: 'auto-resolve', at, ceiling: 'unattended', items: result.items, merge: result.merge }, null, 2)}\n`);
+    writeFileAtomic(consolePath, `${JSON.stringify({ resolved: true, mode: 'auto-resolve', at, ceiling: 'unattended', items: result.items, merge: result.merge }, null, 2)}\n`);
   }
   stdout(o.json ? `${JSON.stringify({ ...publicResult, at, dryRun: o.dryRun }, null, 2)}\n` : `${table}\n`);
   return 0;

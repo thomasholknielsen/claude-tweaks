@@ -9,18 +9,20 @@ const { execFileSync } = require('child_process');
 const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'console-resolve.js');
 const { run } = require(CLI);
 
-function mainCheckoutWithRun({ autonomy = 'unattended', staged = {}, decisions = '' } = {}) {
+function mainCheckoutWithRun({ autonomy = 'unattended', staged = {}, decisions = '', policyExtra = '', writePolicy = true, runConfig = null, consoleJson = null } = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'console-resolve-cli-')));
   const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   git('init', '-q'); git('config', 'user.email', 't@example.invalid'); git('config', 'user.name', 't'); git('commit', '-q', '--allow-empty', '-m', 'init');
   fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), `autonomy: ${autonomy}\n`);
+  if (writePolicy) fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), `autonomy: ${autonomy}\n${policyExtra}`);
   const runDir = path.join(root, '.claude-tweaks', 'pipelines', '2026-09-06T000000-record-7');
   fs.mkdirSync(path.join(runDir, 'staged'), { recursive: true });
   fs.mkdirSync(path.join(runDir, 'work'), { recursive: true });
   fs.writeFileSync(path.join(runDir, 'work', '7-spec.md'), '---\nrecord: 7\n---\n');
   fs.writeFileSync(path.join(runDir, 'decisions.md'), decisions);
   for (const [n, b] of Object.entries(staged)) fs.writeFileSync(path.join(runDir, 'staged', n), b);
+  if (runConfig !== null) fs.writeFileSync(path.join(runDir, 'config.yml'), runConfig);
+  if (consoleJson !== null) fs.writeFileSync(path.join(runDir, 'console.json'), consoleJson);
   return { root, runDir };
 }
 
@@ -64,6 +66,97 @@ test('unattended: exit 0, one decisions block of items+1 lines, console.json res
   assert.deepStrictEqual(cj.merge, { resolution: 'merge', reason: 'every member carries auto:merge or a matured auto:merge-pending; no needs-human verdict' });
   const rows = out().split('\n').filter((l) => /AUTO-RESOLVED/.test(l));
   assert.strictEqual(rows.length, 3 + 1, 'one row per item plus the cleanup row');
+  // #1932 M2: the closed reversibility vocabulary, and the stage path on every
+  // item that is backed by a staged/ file.
+  for (const line of block.slice(1)) assert.match(line, /Reversibility: (high|med|low|n\/a)\.$/, line);
+  assert.ok(block.some((l) => /Console item reflect-1\.md \(Queue writes\): apply — .*\(staged\/reflect-1\.md\)\. Reversibility: med\.$/.test(l)), block.join('\n'));
+});
+
+// grant-veto-window-hours only reaches evaluateMaturation if the CLI resolves
+// it: 30h-old pending grant, matured under the 24h default, still inside a 72h
+// window. Same fixture, two policies, opposite merge halves.
+const PENDING_30H = JSON.stringify({
+  labels: [{ name: 'auto:merge-pending' }],
+  comments: [{ body: 'Grant recorded.\n<!-- grant-mode-audit: date=2026-09-05T06:00:00Z auto-merge=pending -->' }],
+});
+
+function pendingGrantExec(root) {
+  return (cmd, args) => {
+    if (cmd === 'git' && args[0] === 'rev-parse') return `${root}\n`;
+    if (cmd === 'gh' && args[0] === 'issue' && args[1] === 'view') return PENDING_30H;
+    if (cmd === 'git' && args[0] === 'apply') return '';
+    throw new Error(`unexpected exec: ${cmd} ${args.join(' ')}`);
+  };
+}
+
+test('grant-veto-window-hours is resolved and passed to the maturation check, never left at the 24h default (#1932 C2)', async () => {
+  const wide = mainCheckoutWithRun({ staged: THREE, policyExtra: 'grant-veto-window-hours: 72\n' });
+  const a = baseDeps(wide, [], { execFile: pendingGrantExec(wide.root) });
+  assert.strictEqual(await run(['--run', wide.runDir, '--policy', 'console-auto'], a.d), 0);
+  const wideMerge = JSON.parse(fs.readFileSync(path.join(wide.runDir, 'console.json'), 'utf8')).merge;
+  assert.strictEqual(wideMerge.resolution, 'leave-open');
+  assert.match(wideMerge.reason, /veto window is 72h/);
+
+  const dflt = mainCheckoutWithRun({ staged: THREE });
+  const b = baseDeps(dflt, [], { execFile: pendingGrantExec(dflt.root) });
+  assert.strictEqual(await run(['--run', dflt.runDir, '--policy', 'console-auto'], b.d), 0);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dflt.runDir, 'console.json'), 'utf8')).merge.resolution, 'merge');
+});
+
+test('a console.json already recording resolved: true re-renders and appends nothing (#1932 I3a)', async () => {
+  const stored = {
+    resolved: true, mode: 'auto-resolve', at: '2026-09-06T11:00:00.000Z', ceiling: 'unattended',
+    items: [{ id: 'reflect-1.md', section: 'Queue writes', resolution: 'apply', reason: 'pre-checked Apply default (batched-item-drill.md)' }],
+    merge: { resolution: 'merge', reason: 'every member carries auto:merge' },
+  };
+  const fx = mainCheckoutWithRun({ staged: THREE, consoleJson: `${JSON.stringify(stored, null, 2)}\n` });
+  const rawBefore = fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8');
+  const decisionsBefore = fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8');
+  const { d, out } = baseDeps(fx, []);
+  assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'console-auto'], d), 0);
+  assert.match(out(), /already records a resolved console/);
+  assert.match(out(), /reflect-1\.md \| AUTO-RESOLVED: apply/);
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8'), rawBefore, 'console.json is not rewritten');
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8'), decisionsBefore, 'nothing appended to decisions.md');
+});
+
+test('a console.json rendered on the PR and awaiting a human exits 5 and writes nothing (#1932 I3b)', async () => {
+  const stored = {
+    commentIds: ['IC_kwDO_primary'], prNumber: 42,
+    items: [{ id: 'staged-5', kind: 'staged', summary: '2 severity:medium findings', stagedHash: 'a1b2c3' }],
+    mergeCheckVerdict: 'needs-human',
+  };
+  const fx = mainCheckoutWithRun({ staged: THREE, consoleJson: `${JSON.stringify(stored, null, 2)}\n` });
+  const rawBefore = fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8');
+  const decisionsBefore = fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8');
+  const { d, err } = baseDeps(fx, []);
+  assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'console-auto'], d), 5);
+  assert.match(err(), /rendered on PR #42/);
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8'), rawBefore);
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'decisions.md'), 'utf8'), decisionsBefore);
+});
+
+test('an unparseable console.json fails closed with exit 5 rather than being clobbered (#1932 I3c)', async () => {
+  const fx = mainCheckoutWithRun({ staged: THREE, consoleJson: '{ "resolved": true,' });
+  const { d, err } = baseDeps(fx, []);
+  assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'console-auto'], d), 5);
+  assert.match(err(), /does not parse as JSON/);
+  assert.strictEqual(fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8'), '{ "resolved": true,');
+});
+
+test('run config beats project policy: config.yml unattended over policy.yml trusted resolves (#1932 M9)', async () => {
+  const fx = mainCheckoutWithRun({ autonomy: 'trusted', staged: THREE, runConfig: 'autonomy: unattended\n' });
+  const { d } = baseDeps(fx, []);
+  assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'console-auto'], d), 0);
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(fx.runDir, 'console.json'), 'utf8')).ceiling, 'unattended');
+});
+
+test('no policy.yml at all falls to the supervised default: exit 4, nothing written (#1932 M9)', async () => {
+  const fx = mainCheckoutWithRun({ staged: THREE, writePolicy: false });
+  const { d, err } = baseDeps(fx, []);
+  assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'console-auto'], d), 4);
+  assert.match(err(), /consoleAutoResolve/);
+  assert.ok(!fs.existsSync(path.join(fx.runDir, 'console.json')));
 });
 
 test('trusted: exit 4 and nothing written (#1932 AC5)', async () => {
