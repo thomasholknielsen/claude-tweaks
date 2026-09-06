@@ -11,8 +11,8 @@
 // anchored-or-outside rule, #1065/[IL-127] — a path outside any checkout is
 // accepted, a worktree-local shadow is refused) — on every exit-2 case nothing
 // is written and a prior bundle at the output path is left untouched; 1
-// filesystem failure (unreadable source, unwritable output, or a cwd that
-// cannot be read). Same run(argv, deps) seam and require.main guard as
+// filesystem failure (unreadable source, unwritable output, or a cwd or --run
+// dir that cannot be read). Same run(argv, deps) seam and require.main guard as
 // bin/build-review-context.js.
 'use strict';
 const fs = require('fs');
@@ -62,7 +62,9 @@ function run(argv, deps = {}) {
   try { cwd = d.cwd(); } catch (err) { d.stderr(`compose-context.js: ${err && err.message}\n`); return 1; }
   const runDir = path.resolve(cwd, o.run);
   let isDir;
-  try { isDir = d.isDirectory(runDir); } catch (err) { d.stderr(`compose-context.js: ${err && err.message}\n`); return 2; }
+  // A stat that throws (EIO, EACCES on a parent) is a filesystem failure, not a
+  // missing run dir — exit 1, like any other read the CLI cannot complete.
+  try { isDir = d.isDirectory(runDir); } catch (err) { d.stderr(`compose-context.js: ${err && err.message}\n`); return 1; }
   if (!isDir) { d.stderr(`compose-context.js: --run ${o.run} is not a directory\n`); return 2; }
   let rejection;
   try { rejection = d.anchoredOrOutsideMessage(runDir, cwd, '--run'); } catch (err) { d.stderr(`compose-context.js: ${err && err.message}\n`); return 2; }

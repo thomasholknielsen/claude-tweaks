@@ -131,13 +131,13 @@ test('exit 1 on an unreadable source and on an unwritable output path; no JSON o
   assert.equal(streamOf(unwritable, 'out'), '');
 });
 
-test('exit 2 when isDirectory throws: message on stderr, nothing on stdout', () => {
+test('exit 1 when isDirectory throws (a filesystem failure, not a missing run dir): message on stderr, nothing on stdout', () => {
   const f = fixture();
   const out = [];
   const code = run(['--run', f.runDir, '--step', 'x', f.a], deps(f.main, out, {
     isDirectory: () => { throw new Error('EIO: input/output error'); },
   }));
-  assert.equal(code, 2);
+  assert.equal(code, 1);
   assert.match(streamOf(out, 'err'), /EIO: input\/output error/);
   assert.equal(streamOf(out, 'out'), '');
 });
