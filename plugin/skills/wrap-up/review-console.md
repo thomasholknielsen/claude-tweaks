@@ -36,7 +36,7 @@ full — the single-record version of
 `/claude-tweaks:dispatch` was involved. That file routes on `_shared/integration-model.md`'s
 `pr-first`/`local-merge` split. Otherwise skip it entirely; do not read the file.
 
-Take the labels from `pack.recordLabels`, the PR state from `pack.pr`, the merge-size verdict from `pack.mergeSize`, and the release line from `pack.release` in `{run-dir}/wrap-up-pack.json` (#1930); re-fetch with `gh` only when the pack file is absent. An `ok: false` field is the same "could not gather" outcome that field's own probe failure already produces (`gh-absent`/`no-forge` → the MCP/no-forge path; a merge-size probe error → not ceiling-eligible).
+Take the labels from `pack.recordLabels` in `{run-dir}/wrap-up-pack.json` (#1930); re-fetch with `gh issue view --json labels` only when the pack file is absent. An `ok: false` field (`gh-absent`, `no-forge`, a failed query) is the same outcome this step already takes when that re-fetch itself fails — the "Otherwise skip it entirely; do not read the file" branch above, exactly as if the live labels didn't carry the grant.
 
 ## Multi-spec defer protocol
 

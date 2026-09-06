@@ -35,7 +35,6 @@ function defaultDeps(cwd) {
     readFile: (p) => fs.readFileSync(p, 'utf8'),
     readdir: (p) => { try { return fs.readdirSync(p); } catch { return []; } },
     resolvePolicy: (key) => defaultResolvePolicy(key, cwd),
-    readState: require('./state').readState,
     computeBlastRadius: require('../blast-radius-cli').computeBlastRadius,
     computeMergeSizeOverflow: require('../merge-size-probe').computeMergeSizeOverflow,
     readClaimBlob: require('../issues/claim-store').readClaimBlob,
@@ -148,7 +147,11 @@ function buildProbes(inputs, deps, cwd) {
     }
   };
   return {
-    state: () => deps.readState({ cwd: inputs.worktree, since: inputs.base }),
+    state: async () => {
+      if (!inputs.base) throw new Error('base unresolved — no merge-base against the integration branch');
+      const { stdout } = await deps.execFile('node', [path.join(BIN, 'wrap-up-state.js'), '--since', String(inputs.base), '--json'], { cwd: inputs.worktree, maxBuffer: 32 * 1024 * 1024 });
+      return JSON.parse(stdout);
+    },
     blastRadius: () => deps.computeBlastRadius({ base: inputs.base, integrationBranch: inputs.integrationBranch }, { git }),
     mergeSize: () => deps.computeMergeSizeOverflow({ integrationBranch: inputs.integrationBranch, headRef: 'HEAD' }, { git }),
     ledger: () => ledgerProbe(inputs, deps),

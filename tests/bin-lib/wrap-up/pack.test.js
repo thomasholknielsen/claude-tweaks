@@ -25,13 +25,13 @@ function okDeps(overrides = {}) {
     now: () => Date.now(),
     git: (args) => (args[0] === 'merge-base' ? 'abc123\n' : args[0] === 'rev-parse' ? 'refs/remotes/origin/main\n' : ''),
     resolvePolicy: (key) => ({ 'integration-branch': 'main', 'work-backend': 'github-issues', 'work-links': 'native' })[key] || '',
-    readState: () => ({ isRepo: true, branch: 'b' }),
     computeBlastRadius: () => ({ mergeBase: 'abc123', config: {}, summary: { files: 3 } }),
     computeMergeSizeOverflow: () => ({ overflow: false, files: 3 }),
     readClaimBlob: () => ({ content: JSON.stringify({ runId: 'r', sessionId: 's' }), failure: null, absent: false, via: 'git' }),
     classifyClaimBlob: () => ({ state: 'held', reclaimable: false }),
     execFile: async (cmd, args) => {
       if (cmd === 'node' && String(args[0]).endsWith('residue.js')) return { stdout: JSON.stringify({ suite: { ran: false, reason: 'skipped', findings: [] } }), stderr: '' };
+      if (cmd === 'node' && String(args[0]).endsWith('wrap-up-state.js')) return { stdout: JSON.stringify({ state: { isRepo: true, branch: 'b' }, ops: [], since: 'abc123', sinceDate: '2026-09-05T00:00:00Z' }), stderr: '' };
       if (cmd === 'node' && String(args[0]).endsWith('resolve-blockers.js')) return { stdout: JSON.stringify({ 1600: { blockedBy: [1535], openBlocker: false } }), stderr: '' };
       if (cmd === 'gh' && args[0] === 'pr') return { stdout: JSON.stringify({ state: 'OPEN', isDraft: false, mergeStateStatus: 'CLEAN', statusCheckRollup: [], reviewDecision: null }), stderr: '' };
       if (cmd === 'gh' && args[0] === 'issue' && args[1] === 'view') return { stdout: JSON.stringify({ labels: [{ name: 'ready' }, { name: 'auto:merge' }] }), stderr: '' };
@@ -75,6 +75,8 @@ test('gatherPack: every probe ok → ten envelopes with ok:true, plus inputs/gen
   assert.deepStrictEqual(pack.recordLabels.value, { 1535: ['ready', 'auto:merge'] });
   assert.deepStrictEqual(pack.unblocked.value, [{ number: 1600, title: 'Dependent' }]);
   assert.deepStrictEqual(pack.release.value.status, 'pre-merge');
+  assert.ok(Array.isArray(pack.state.value.ops), 'pack.state.value.ops should be an array');
+  assert.strictEqual(typeof pack.state.value.since, 'string', 'pack.state.value.since should be a string');
 });
 
 test('gatherPack: one probe throwing degrades only its field, the pack still resolves (#1930 AC1)', async () => {
@@ -94,7 +96,6 @@ test('gatherPack runs the probes concurrently — ten 200 ms probes finish well 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const slow = okDeps({
     execFile: async (cmd, args) => { await sleep(200); return okDeps().execFile(cmd, args); },
-    readState: async () => { await sleep(200); return { isRepo: true }; },
     computeBlastRadius: async () => { await sleep(200); return { summary: {} }; },
     computeMergeSizeOverflow: async () => { await sleep(200); return { overflow: false }; },
     readClaimBlob: async () => { await sleep(200); return { content: null, failure: null, absent: true }; },
@@ -178,5 +179,17 @@ test('gatherPack: residue probe refuses to run with an unresolved merge-base rat
   const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['residue'], deps });
   assert.strictEqual(pack.residue.ok, false);
   assert.match(pack.residue.error, /base unresolved/);
+  assert.strictEqual(calls.length, 0);
+});
+
+test('gatherPack: state probe refuses to run with an unresolved merge-base rather than passing the literal "null" (#1930 fix)', async () => {
+  const calls = [];
+  const deps = okDeps({
+    git: (args) => { if (args[0] === 'merge-base') throw new Error('no merge base'); return okDeps().git(args); },
+    execFile: async (cmd, args) => { if (String(args[0]).endsWith('wrap-up-state.js')) { calls.push(args); } return okDeps().execFile(cmd, args); },
+  });
+  const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['state'], deps });
+  assert.strictEqual(pack.state.ok, false);
+  assert.match(pack.state.error, /base unresolved/);
   assert.strictEqual(calls.length, 0);
 });

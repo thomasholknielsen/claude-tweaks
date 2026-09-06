@@ -23,7 +23,7 @@ function mainCheckoutWithRun() {
 
 const okProbeDeps = {
   resolvePolicy: (k) => ({ 'integration-branch': 'main', 'work-backend': 'github-issues', 'work-links': 'body-text' })[k] || '',
-  readState: () => ({ isRepo: true }), computeBlastRadius: () => ({ summary: {} }), computeMergeSizeOverflow: () => ({ overflow: false }),
+  computeBlastRadius: () => ({ summary: {} }), computeMergeSizeOverflow: () => ({ overflow: false }),
   readClaimBlob: () => ({ content: null, failure: null, absent: true, via: 'git' }), classifyClaimBlob: () => ({ state: 'absent', reclaimable: true }),
   execFile: async (cmd, args) => (cmd === 'gh' ? { stdout: args[0] === 'pr' ? '{"state":"OPEN"}' : args[1] === 'list' ? '[]' : '{"labels":[]}', stderr: '' } : { stdout: '{"suite":{"ran":false}}', stderr: '' }),
 };
@@ -56,7 +56,7 @@ test('run: --only residue,pr writes only those probe keys plus inputs/generatedA
 
 test('run: every probe failing still exits 0 — the pack was produced (#1930)', async () => {
   const { root, runDir } = mainCheckoutWithRun();
-  const failing = { ...okProbeDeps, execFile: async () => { throw new Error('down'); }, readState: () => { throw new Error('down'); }, computeBlastRadius: () => { throw new Error('down'); }, computeMergeSizeOverflow: () => { throw new Error('down'); }, readClaimBlob: () => { throw new Error('down'); } };
+  const failing = { ...okProbeDeps, execFile: async () => { throw new Error('down'); }, computeBlastRadius: () => { throw new Error('down'); }, computeMergeSizeOverflow: () => { throw new Error('down'); }, readClaimBlob: () => { throw new Error('down'); } };
   let out = '';
   const code = await run(['--run', runDir], { cwd: () => root, mainRoot: root, stdout: (s) => { out += s; }, stderr: () => {}, packDeps: failing });
   assert.strictEqual(code, 0);

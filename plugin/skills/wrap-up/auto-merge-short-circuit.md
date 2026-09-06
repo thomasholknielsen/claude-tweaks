@@ -14,7 +14,7 @@ applicability check passes (the `merge-authorization` lever, #715), check the tw
 — the single-record version of `skills/dispatch/SKILL.md`'s own group-scoped "Auto-merge gate,"
 whether or not `/claude-tweaks:dispatch` was involved:
 
-Take the labels from `pack.recordLabels`, the PR state from `pack.pr`, the merge-size verdict from `pack.mergeSize`, and the release line from `pack.release` in `{run-dir}/wrap-up-pack.json` (#1930); re-fetch with `gh` only when the pack file is absent. An `ok: false` field is the same "could not gather" outcome that field's own probe failure already produces (`gh-absent`/`no-forge` → the MCP/no-forge path; a merge-size probe error → not ceiling-eligible).
+Take the labels from `pack.recordLabels` in `{run-dir}/wrap-up-pack.json` (#1930); re-fetch with `gh issue view --json labels` only when the pack file is absent. An `ok: false` field (`gh-absent`, `no-forge`, a failed query) is the same outcome this step already takes when that re-fetch itself fails — the "Any layer fails" outcome below: proceed to render the console normally, exactly as an `auto:build`-only record would.
 
 1. **Authorization** — one of three ways to clear:
    - `auto:merge` is already present on the live-fetched labels — clears immediately (`already-mature` by construction).
