@@ -140,10 +140,10 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward GitHub writes stage (`conservative` opts down) |
 | Model stance | `default` | No effort shift or Frontier degrade; the resolver's table applies unmodified |
 | Merge verification | derived (`resolve-policy.js --run "$PIPELINE_RUN_DIR" --values merge-verification`) | `_shared/policy-schema-coverage.md`'s coverage-block ladder already encodes the safe answer per repo shape — no hardcoded literal |
-| Merge authorization | `ask` | Never a `policy.yml` default — a live `confirm`/`hybrid` override sets it (`wrap-up/manifesto-authorized-merge.md`'s "Why policy.yml is excluded" section) |
+| Merge authorization | `ask` | Never a `policy.yml` default — only a live `confirm`/`hybrid` override sets it (`wrap-up/manifesto-authorized-merge.md`'s "Why policy.yml is excluded" section) |
 | Design critique | `auto` | Critics run when the project shows design investment (`DESIGN.md`) or the record asks (`Design-intent:`); `full`/`off` opt in/out explicitly |
 
-`ceremony-profile` (lever 9) has no row here — its source is always `header` (folded from each
+`ceremony-profile` (lever 9) has no row here — its source is always `header` (bundle-folded from each
 record's materialized `ceremony:` field), never `arg`/`policy`/`default`: `/claude-tweaks:specify`
 stamps `ceremony:*` on every record, so the header always has a value and there's nothing for a
 default to fill. From `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`'s
