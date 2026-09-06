@@ -63,7 +63,7 @@ function okDeps(overrides = {}) {
     resolvePolicy: policyFake(DEFAULT_POLICY),
     computeBlastRadius: () => ({ mergeBase: 'abc123', config: {}, summary: { files: 3 } }),
     readClaimBlob: () => ({ content: JSON.stringify({ runId: 'r', sessionId: 's' }), failure: null, absent: false, via: 'git' }),
-    classifyClaimBlob: () => ({ state: 'held', reclaimable: false }),
+    classifyClaimBlob: () => ({ state: 'live', reclaimable: false }),
     queryRecords: () => [],
     readRecord: () => ({ facets: { closed: true } }),
     execFile: async (cmd, args) => {
@@ -219,7 +219,7 @@ test('gatherPack: every probe ok → eight envelopes with ok:true, plus inputs/g
   assert.ok(typeof pack.generatedAt === 'string' && typeof pack.durationMs === 'number');
   assert.deepStrictEqual(pack.blastRadius.value, { mergeBase: 'abc123', config: {}, summary: { files: 3 } });
   assert.deepStrictEqual(pack.recordLabels.value, { 1535: ['ready', 'auto:merge'] });
-  assert.deepStrictEqual(pack.claim.value, { 1535: { state: 'held', reclaimable: false, via: 'git' } }, 'claim is keyed per record number');
+  assert.deepStrictEqual(pack.claim.value, { 1535: { state: 'live', reclaimable: false, via: 'git' } }, 'claim is keyed per record number');
   assert.deepStrictEqual(pack.unblocked.value, [{ number: 1600, title: 'Dependent' }]);
   assert.ok(Array.isArray(pack.state.value.ops), 'pack.state.value.ops should be an array');
   assert.strictEqual(typeof pack.state.value.rendered, 'string', 'pack.state.value.rendered carries the verbatim block');
