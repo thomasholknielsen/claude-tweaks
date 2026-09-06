@@ -1,6 +1,6 @@
 // plugin/bin/lib/wrap-up/pack.js — one deterministic fact pack for
 // /claude-tweaks:wrap-up's Phases 3-4 (#1930). The runner owns execution and
-// bounding, the skill owns judgment: nine independent reads run concurrently
+// bounding, the skill owns judgment: eight independent reads run concurrently
 // and come back as one JSON document with a per-probe envelope — a failing
 // probe degrades its own field, never the pack. Read-only by construction:
 // nothing here releases a claim, archives, posts, or appends the shipped
@@ -17,13 +17,13 @@ const { resolvePolicyConfig } = require('../policy-schema');
 const { parseManifestYaml } = require('../flow/manifest');
 const { parseDependencies } = require('../issues/record');
 
-const PROBE_NAMES = ['residue', 'state', 'blastRadius', 'mergeSize', 'pr', 'recordLabels', 'claim', 'ledger', 'unblocked'];
+const PROBE_NAMES = ['residue', 'state', 'blastRadius', 'pr', 'recordLabels', 'claim', 'ledger', 'unblocked'];
 const BIN = path.join(__dirname, '..', '..');
 
 // Every subprocess this module spawns is bounded the same way: a 32 MB stdout
-// ceiling (a `gh issue list --limit 200` of long bodies, or release.js' JSON,
-// overruns Node's 1 MB default and comes back as a truncation error) and a
-// 30 s wall clock, so one hung `gh` can never hold the whole pack open.
+// ceiling (a `gh issue list --limit 200` of long bodies overruns Node's 1 MB
+// default and comes back as a truncation error) and a 30 s wall clock, so one
+// hung `gh` can never hold the whole pack open.
 // Merged with `cwd` at each call site; never mutated.
 const EXEC_OPTS = { maxBuffer: 32 * 1024 * 1024, timeout: 30000 };
 
@@ -47,10 +47,9 @@ const POLICY_KEYS = ['integration-branch', 'work-links'];
 // bin/lib, so this three-line one stays local.
 const WORK_BACKEND_RE = /^work-backend:\s*(\S+)\s*$/m;
 
-// stderr is piped, not discarded: bin/lib/merge-size-probe.js's measureAtTree
-// tests `err.stderr` for git-show's "does not exist in" message to tell a
-// path deleted by the merge (not a ceiling concern) from a real probe failure.
-// Swallowing stderr here collapsed that carve-out into a hard throw.
+// stderr is piped rather than inherited or ignored: a failing git call cannot
+// spray the CLI's own stderr, and its diagnostic still survives on
+// `err.stderr` for any consumer module that classifies a failure by message.
 function defaultGit(args, { cwd } = {}) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
@@ -84,7 +83,6 @@ function defaultDeps(cwd) {
     readdir: (p) => { try { return fs.readdirSync(p); } catch { return []; } },
     resolvePolicy: (keys, policyCwd) => defaultResolvePolicy(keys, policyCwd || cwd),
     computeBlastRadius: require('../blast-radius-cli').computeBlastRadius,
-    computeMergeSizeOverflow: require('../merge-size-probe').computeMergeSizeOverflow,
     readClaimBlob: require('../issues/claim-store').readClaimBlob,
     classifyClaimBlob: require('../issues/claims').classifyClaimBlob,
     gitRunner: require('../issues/claims-git-cas').defaultRunner,
@@ -319,7 +317,7 @@ function unblockedLocal(inputs, deps, closed) {
     .map((d) => ({ number: d.number, title: d.title }));
 }
 
-// The nine probes. Module probes call the exported functions the CLIs already
+// The eight probes. Module probes call the exported functions the CLIs already
 // compute from; subprocess probes go through deps.execFile.
 function buildProbes(inputs, deps) {
   const git = (args) => deps.git(args, { cwd: inputs.worktree });
@@ -353,10 +351,12 @@ function buildProbes(inputs, deps) {
       return JSON.parse(stdout);
     },
     blastRadius: () => deps.computeBlastRadius({ base: inputs.base, integrationBranch: inputs.integrationBranch }, { git }),
-    // Same ref the prose probe measures against (`--integration-branch
-    // origin/{branch}`) whenever the remote-tracking ref resolved, so the
-    // pack's prediction is substitutable for that step's own run.
-    mergeSize: () => deps.computeMergeSizeOverflow({ integrationBranch: inputs.baseRef || inputs.integrationBranch, headRef: 'HEAD' }, { git }),
+    // No mergeSize probe (#1930 fix round 4): its only consumer,
+    // `_shared/pr-early-run-lifecycle.md`'s pre-merge merge-size step, mandates
+    // a `git fetch origin {integration-branch}` immediately before measuring.
+    // The pack is gathered in Phase 3, before that fetch, so a pack-fed value
+    // would be exactly the stale prediction that step's own text forbids —
+    // that step keeps running `bin/merge-size-probe.js` itself.
     ledger: () => { recordsOrThrow(); return ledgerProbe(inputs, deps); },
     // --no-suite: a fact pack never re-runs the project's test suite. Suite
     // state belongs to /claude-tweaks:test's verification stamp, which already

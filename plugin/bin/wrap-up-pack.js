@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // plugin/bin/wrap-up-pack.js — one deterministic fact pack for
-// /claude-tweaks:wrap-up's Phases 3-4 (#1930): nine probes, concurrently,
+// /claude-tweaks:wrap-up's Phases 3-4 (#1930): eight probes, concurrently,
 // one JSON. Read-only. Exit 0 whenever the pack was produced (a failing
 // probe degrades its own field), 2 on a malformed invocation, 3 when --run
 // is not anchored under the main checkout (stage-item's resolveTarget —

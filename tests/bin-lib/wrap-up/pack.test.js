@@ -62,7 +62,6 @@ function okDeps(overrides = {}) {
     git: (args) => (args[0] === 'merge-base' ? 'abc123\n' : args[0] === 'rev-parse' ? 'refs/remotes/origin/main\n' : ''),
     resolvePolicy: policyFake(DEFAULT_POLICY),
     computeBlastRadius: () => ({ mergeBase: 'abc123', config: {}, summary: { files: 3 } }),
-    computeMergeSizeOverflow: () => ({ mergedTree: 'tree123', measured: [{ path: 'plugin/skills/wrap-up/SKILL.md', bytes: 40754 }], overflow: [] }),
     readClaimBlob: () => ({ content: JSON.stringify({ runId: 'r', sessionId: 's' }), failure: null, absent: false, via: 'git' }),
     classifyClaimBlob: () => ({ state: 'held', reclaimable: false }),
     queryRecords: () => [],
@@ -213,19 +212,41 @@ test('resolveInputs: a spec-* subdirectory whose own run-state.json lacks worktr
   assert.deepStrictEqual(inputs.records, [1930]);
 });
 
-test('gatherPack: every probe ok → nine envelopes with ok:true, plus inputs/generatedAt/durationMs (#1930 AC2 shape)', async () => {
+test('gatherPack: every probe ok → eight envelopes with ok:true, plus inputs/generatedAt/durationMs (#1930 AC2 shape)', async () => {
   const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', deps: okDeps() });
   assert.deepStrictEqual(Object.keys(pack).filter((k) => !['inputs', 'generatedAt', 'durationMs'].includes(k)).sort(), [...PROBE_NAMES].sort());
   for (const name of PROBE_NAMES) assert.strictEqual(pack[name].ok, true, `${name} should be ok: ${JSON.stringify(pack[name])}`);
   assert.ok(typeof pack.generatedAt === 'string' && typeof pack.durationMs === 'number');
   assert.deepStrictEqual(pack.blastRadius.value, { mergeBase: 'abc123', config: {}, summary: { files: 3 } });
-  assert.deepStrictEqual(pack.mergeSize.value, { mergedTree: 'tree123', measured: [{ path: 'plugin/skills/wrap-up/SKILL.md', bytes: 40754 }], overflow: [] });
   assert.deepStrictEqual(pack.recordLabels.value, { 1535: ['ready', 'auto:merge'] });
   assert.deepStrictEqual(pack.claim.value, { 1535: { state: 'held', reclaimable: false, via: 'git' } }, 'claim is keyed per record number');
   assert.deepStrictEqual(pack.unblocked.value, [{ number: 1600, title: 'Dependent' }]);
   assert.ok(Array.isArray(pack.state.value.ops), 'pack.state.value.ops should be an array');
   assert.strictEqual(typeof pack.state.value.rendered, 'string', 'pack.state.value.rendered carries the verbatim block');
   assert.ok(!('release' in pack), 'the release probe was removed (#1930 review I5)');
+  assert.ok(!('mergeSize' in pack), 'the mergeSize probe was removed (#1930 fix round 4)');
+});
+
+// The two assertions above compare a probe's value against the fake's own
+// return, so a fake that has drifted from the real module's output shape makes
+// them green against a shape the pack never actually produces. Each fake's key
+// set is therefore cross-checked against the real function's (#1930 fix round 4).
+test('the blastRadius and claim fakes carry exactly the keys their real modules return (#1930 fix round 4)', () => {
+  const { computeBlastRadius } = require(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'blast-radius-cli.js'));
+  const { classifyClaimBlob } = require(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'issues', 'claims.js'));
+
+  const realBlastRadius = computeBlastRadius({ base: 'abc123', integrationBranch: 'main' }, {
+    git: (args) => (args[0] === 'diff' ? '1\t0\tREADME.md\n' : 'abc123\n'),
+    readFile: () => null,
+  });
+  assert.deepStrictEqual(Object.keys(okDeps().computeBlastRadius()).sort(), Object.keys(realBlastRadius).sort());
+
+  // The claim probe spreads classifyClaimBlob's result and adds `via`; the
+  // sample is the live-claim blob `_shared/issue-claims.md` writes.
+  const sampleBlob = JSON.stringify({ runId: 'r', sessionId: 's', claimedAt: new Date(0).toISOString(), ttlHours: 72, host: '' });
+  const realClaimKeys = Object.keys({ ...classifyClaimBlob(sampleBlob, 0), via: 'git' }).sort();
+  assert.deepStrictEqual(realClaimKeys, ['reclaimable', 'state', 'via']);
+  assert.deepStrictEqual(Object.keys({ ...okDeps().classifyClaimBlob(), via: 'git' }).sort(), realClaimKeys);
 });
 
 test('gatherPack: one probe throwing degrades only its field, the pack still resolves (#1930 AC1)', async () => {
@@ -241,12 +262,11 @@ test('gatherPack: --only runs only the named probes and still carries inputs/gen
   assert.deepStrictEqual(Object.keys(pack).sort(), ['durationMs', 'generatedAt', 'inputs', 'pr', 'residue']);
 });
 
-test('gatherPack runs the probes concurrently — nine 200 ms probes finish well under 2 s (#1930 AC4)', async () => {
+test('gatherPack runs the probes concurrently — eight 200 ms probes finish well under 2 s (#1930 AC4)', async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const slow = okDeps({
     execFile: async (cmd, args) => { await sleep(200); return okDeps().execFile(cmd, args); },
     computeBlastRadius: async () => { await sleep(200); return { summary: {} }; },
-    computeMergeSizeOverflow: async () => { await sleep(200); return { mergedTree: null, measured: [], overflow: [] }; },
     readClaimBlob: async () => { await sleep(200); return { content: null, failure: null, absent: true }; },
   });
   const t0 = Date.now();
@@ -372,7 +392,17 @@ test('gatherPack: unblocked refuses a multi-record run dir with "record unresolv
 
 test('the release probe is gone — pre-merge it is a constant and its consumer runs post-merge (#1930 review I5)', () => {
   assert.ok(!PROBE_NAMES.includes('release'));
-  assert.strictEqual(PROBE_NAMES.length, 9);
+  assert.strictEqual(PROBE_NAMES.length, 8);
+});
+
+// The pre-merge merge-size step fetches `origin/{integration-branch}`
+// immediately before measuring; the pack is gathered back in Phase 3, so a
+// pack-fed value would be exactly the stale prediction that step forbids.
+test('the mergeSize probe is gone — its consumer must measure after its own fetch (#1930 fix round 4)', () => {
+  assert.ok(!PROBE_NAMES.includes('mergeSize'));
+  const lifecycle = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'plugin', 'skills', '_shared', 'pr-early-run-lifecycle.md'), 'utf8');
+  assert.ok(!lifecycle.includes('pack.mergeSize'), 'the pre-merge step no longer reads a pack-fed merge size');
+  assert.ok(lifecycle.includes('bin/merge-size-probe.js'), 'it still runs the probe CLI itself');
 });
 
 test('gatherPack: claim probe surfaces a clean error when readClaimBlob falls through to the gh API fallback the pack has none for (#1930 fix)', async () => {

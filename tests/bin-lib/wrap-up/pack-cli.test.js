@@ -26,7 +26,7 @@ function mainCheckoutWithRun() {
 const POLICY = { 'integration-branch': 'main', 'work-backend': 'github-issues', 'work-links': 'body-text' };
 const okProbeDeps = {
   resolvePolicy: (keys) => Object.fromEntries(keys.map((k) => [k, POLICY[k] || ''])),
-  computeBlastRadius: () => ({ summary: {} }), computeMergeSizeOverflow: () => ({ mergedTree: null, measured: [], overflow: [] }),
+  computeBlastRadius: () => ({ summary: {} }),
   readClaimBlob: () => ({ content: null, failure: null, absent: true, via: 'git' }), classifyClaimBlob: () => ({ state: 'absent', reclaimable: true }),
   execFile: async (cmd, args) => (cmd === 'gh' ? { stdout: args[0] === 'pr' ? '{"state":"OPEN"}' : args[1] === 'list' ? '[]' : '{"labels":[]}', stderr: '' } : { stdout: '{"suite":{"ran":false}}', stderr: '' }),
 };
@@ -38,14 +38,14 @@ test('parseArgs: --run is required; --only is a comma list of known probes; unkn
   assert.throws(() => parseArgs(['--run', '/r', '--bogus']), /unknown flag/);
 });
 
-test('run: an anchored run dir → exit 0, the pack on stdout, wrap-up-pack.json written with the nine probe keys (#1930 AC2)', async () => {
+test('run: an anchored run dir → exit 0, the pack on stdout, wrap-up-pack.json written with the eight probe keys (#1930 AC2)', async () => {
   const { root, runDir } = mainCheckoutWithRun();
   let out = '';
   const code = await run(['--run', runDir], { cwd: () => root, mainRoot: root, stdout: (s) => { out += s; }, stderr: () => {}, packDeps: okProbeDeps });
   assert.strictEqual(code, 0);
   const pack = JSON.parse(out);
   const file = JSON.parse(fs.readFileSync(path.join(runDir, 'wrap-up-pack.json'), 'utf8'));
-  assert.deepStrictEqual(Object.keys(pack).sort(), ['blastRadius', 'claim', 'durationMs', 'generatedAt', 'inputs', 'ledger', 'mergeSize', 'pr', 'recordLabels', 'residue', 'state', 'unblocked']);
+  assert.deepStrictEqual(Object.keys(pack).sort(), ['blastRadius', 'claim', 'durationMs', 'generatedAt', 'inputs', 'ledger', 'pr', 'recordLabels', 'residue', 'state', 'unblocked']);
   assert.deepStrictEqual(Object.keys(file).sort(), Object.keys(pack).sort());
 });
 
@@ -79,7 +79,7 @@ test('run: --only residue,pr writes only those probe keys plus inputs/generatedA
 
 test('run: every probe failing still exits 0 — the pack was produced (#1930)', async () => {
   const { root, runDir } = mainCheckoutWithRun();
-  const failing = { ...okProbeDeps, execFile: async () => { throw new Error('down'); }, computeBlastRadius: () => { throw new Error('down'); }, computeMergeSizeOverflow: () => { throw new Error('down'); }, readClaimBlob: () => { throw new Error('down'); } };
+  const failing = { ...okProbeDeps, execFile: async () => { throw new Error('down'); }, computeBlastRadius: () => { throw new Error('down'); }, readClaimBlob: () => { throw new Error('down'); } };
   let out = '';
   const code = await run(['--run', runDir], { cwd: () => root, mainRoot: root, stdout: (s) => { out += s; }, stderr: () => {}, packDeps: failing });
   assert.strictEqual(code, 0);
