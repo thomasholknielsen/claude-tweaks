@@ -232,7 +232,6 @@ just classified as `'tombstone'`/`'stale'`; here the blob's *content* is unreada
 sha is ordinary response metadata from the read**, independent of whether the content parses, so
 it is always available even when `classifyClaimBlob` cannot make sense of what the sha points at.
 
-<!-- when: transport=mcp -->
 1. Read the blob at `claims/issue-<number>.json` on `CLAIMS_BRANCH` (step 1 above) and capture its
    current blob **sha** from the read response. This step never depends on the content parsing.
 2. Confirm the content is genuinely unreadable rather than merely mis-extracted: run it through
@@ -251,7 +250,6 @@ it is always available even when `classifyClaimBlob` cannot make sense of what t
    on the issue). Every other write in this file is a routine claim/release; this one silently
    destroys content that — despite failing to parse — may have carried a real holder's identity,
    so it is the one write here that should never go unlogged.
-<!-- /when -->
 
 ### Group claiming
 
