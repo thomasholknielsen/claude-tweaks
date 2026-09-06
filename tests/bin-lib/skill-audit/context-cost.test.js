@@ -25,6 +25,8 @@ const {
   measureDescriptions,
   overDescriptionCeiling,
   totalDescriptionChars,
+  parseComposeCallLine,
+  findComposeCallSites,
 } = require('../../../plugin/bin/lib/skill-audit/context-cost.js');
 const { listSkillDirs, KNOWN_SKILLS } = require('../../../plugin/bin/lib/skill-audit/skill-catalog.js');
 
@@ -321,4 +323,66 @@ test('the corpus-wide description total stays under budget', () => {
     total <= DESCRIPTION_TOTAL_CEILING_CHARS,
     `description corpus is ${total} chars, over the ${DESCRIPTION_TOTAL_CEILING_CHARS}-char budget (#394)`,
   );
+});
+
+// ── findComposeCallSites (#1990 Task 2). The hard gate moves from "no single
+// file exceeds 40 KB" to "no compose call site's composed bytes exceed the
+// ceiling" — this is the scanner that finds every such call site in the
+// shipped skill prose. Single-line call form only, by construction of this
+// decomposition's call sites (the function's own comment says so).
+
+test('parseComposeCallLine: the production merge call parses to step + two plugin-root sources', () => {
+  // Copied verbatim from plugin/skills/wrap-up/auto-merge-short-circuit.md line 154.
+  const line = '`issue-list` this one record, `summary` the record\'s own title. Read that procedure as one composed bundle: `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step merge "${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-first-merge.md" "${CLAUDE_PLUGIN_ROOT}/skills/_shared/pr-early-run-lifecycle.md"`, then read `$PIPELINE_RUN_DIR/context/merge.md`; if the compose command is unavailable or exits non-zero, read the named source files directly. No checkout is needed — `gh pr';
+  assert.deepStrictEqual(parseComposeCallLine(line, '/r'), {
+    step: 'merge',
+    sources: [
+      '/r/skills/_shared/pr-first-merge.md',
+      '/r/skills/_shared/pr-early-run-lifecycle.md',
+    ],
+  });
+});
+
+test('parseComposeCallLine: a documentation line with a placeholder is not a call site', () => {
+  const line = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step {step} {files}';
+  assert.strictEqual(parseComposeCallLine(line, '/r'), null);
+});
+
+test('parseComposeCallLine: a line without compose-context.js is null', () => {
+  assert.strictEqual(parseComposeCallLine('nothing to see here', '/r'), null);
+});
+
+test('findComposeCallSites: finds both real merge sites in the shipped corpus', () => {
+  const sites = findComposeCallSites(REPO).filter((s) => s.step === 'merge');
+  const files = sites.map((s) => s.file).sort();
+  assert.deepStrictEqual(files, [
+    'wrap-up/auto-merge-short-circuit.md',
+    'wrap-up/review-console.md',
+  ]);
+  for (const site of sites) {
+    assert.strictEqual(site.sources.length, 2);
+    for (const src of site.sources) {
+      assert.ok(path.isAbsolute(src), `expected an absolute path, got: ${src}`);
+      assert.ok(fs.existsSync(src), `expected source to exist: ${src}`);
+    }
+  }
+});
+
+test('findComposeCallSites: a fixture skill file with a call site is found with its line number', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-callsite-'));
+  const skillDir = path.join(root, 'skills', 'demo');
+  fs.mkdirSync(skillDir, { recursive: true });
+  const sharedFile = path.join(root, 'skills', '_shared', 'x.md');
+  fs.mkdirSync(path.dirname(sharedFile), { recursive: true });
+  fs.writeFileSync(sharedFile, 'body\n');
+  const callLine = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step demo "${CLAUDE_PLUGIN_ROOT}/skills/_shared/x.md"';
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `line one\n${callLine}\nline three\n`);
+  assert.deepStrictEqual(findComposeCallSites(root), [
+    {
+      step: 'demo',
+      file: 'demo/SKILL.md',
+      line: 2,
+      sources: [sharedFile],
+    },
+  ]);
 });

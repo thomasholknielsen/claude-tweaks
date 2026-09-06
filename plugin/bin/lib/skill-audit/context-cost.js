@@ -86,24 +86,29 @@ function measureSkills(repoRoot) {
   });
 }
 
+// Every `.md` file under `dir`, recursively — the shared walk shape behind
+// both `measureSubFiles` (below) and `findComposeCallSites` (#1990 Task 2).
+function* walkMarkdown(dir) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) { yield* walkMarkdown(p); continue; }
+    if (e.name.endsWith('.md')) yield p;
+  }
+}
+
 // Sub-files are not free either: a stub that cites one costs the whole file when
 // read, so a sub-file over the ceiling is the same defect one level down. This is
 // the shape that let init/bootstrap-steps.md reach 86 KB behind 18 stubs (IL-70).
 function measureSubFiles(repoRoot) {
   const dir = skillsDir(repoRoot);
   const out = [];
-  const walk = (d, skill) => {
-    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-      const p = path.join(d, e.name);
-      if (e.isDirectory()) { walk(p, skill); continue; }
-      if (!e.name.endsWith('.md') || e.name === 'SKILL.md') continue;
-      out.push({ skill, file: path.relative(dir, p), ...measuredBytes(p) });
-    }
-  };
   for (const name of fs.readdirSync(dir)) {
     const sd = path.join(dir, name);
     if (!fs.statSync(sd).isDirectory()) continue;
-    walk(sd, name);
+    for (const p of walkMarkdown(sd)) {
+      if (path.basename(p) === 'SKILL.md') continue;
+      out.push({ skill: name, file: path.relative(dir, p), ...measuredBytes(p) });
+    }
   }
   return out.sort((a, b) => b.bytes - a.bytes);
 }
@@ -120,6 +125,67 @@ function overCeilingWarnings(entries) {
 
 function totalBytes(entries) {
   return entries.reduce((sum, e) => sum + e.bytes, 0);
+}
+
+const PLUGIN_ROOT_PREFIX = '${CLAUDE_PLUGIN_ROOT}/';
+
+function unquoteToken(tok) {
+  if (tok.length >= 2 && tok.startsWith('"') && tok.endsWith('"')) return tok.slice(1, -1);
+  return tok;
+}
+
+// `${CLAUDE_PLUGIN_ROOT}/x` resolves against `repoRoot` itself (the plugin
+// payload root); anything else is repo-relative to the checkout root (the
+// parent of `repoRoot`).
+function resolveSourcePath(token, repoRoot) {
+  if (token.startsWith(PLUGIN_ROOT_PREFIX)) return path.join(repoRoot, token.slice(PLUGIN_ROOT_PREFIX.length));
+  return path.resolve(repoRoot, '..', token);
+}
+
+// One line of skill prose -> `{ step, sources }`, or `null` when the line is
+// not a real call site. A documentation line quoting the call form with a
+// placeholder (`{step}`, `{files}`) is not a call site — checked on each
+// source token *after* stripping a leading `${CLAUDE_PLUGIN_ROOT}/` (which
+// itself contains `{`/`}` and must not trip this check).
+function parseComposeCallLine(line, repoRoot) {
+  const m = line.match(/compose-context\.js"?\s+([^`\n]*)/);
+  if (!m) return null;
+  const tokens = m[1].match(/"[^"]*"|\S+/g) || [];
+  let step = null;
+  const rawSources = [];
+  for (let i = 0; i < tokens.length; i += 1) {
+    const tok = tokens[i];
+    if (tok === '--run') { i += 1; continue; }
+    if (tok === '--step') { step = unquoteToken(tokens[i + 1] || ''); i += 1; continue; }
+    rawSources.push(unquoteToken(tok));
+  }
+  if (!step || rawSources.length === 0) return null;
+  const isPlaceholder = (src) => {
+    const afterPrefix = src.startsWith(PLUGIN_ROOT_PREFIX) ? src.slice(PLUGIN_ROOT_PREFIX.length) : src;
+    return /[{}<>]/.test(afterPrefix);
+  };
+  if (rawSources.some(isPlaceholder)) return null;
+  return { step, sources: rawSources.map((src) => resolveSourcePath(src, repoRoot)) };
+}
+
+// Every compose call site in the shipped skill prose — the producer set the
+// composed-bytes hard gate (Task 4) runs over. Single-line call form only,
+// by construction of this decomposition's call sites: every call site this
+// decomposition produces sits on one line; a wrapped call is not found.
+function findComposeCallSites(repoRoot) {
+  const dir = skillsDir(repoRoot);
+  const out = [];
+  for (const p of walkMarkdown(dir)) {
+    const content = fs.readFileSync(p, 'utf8');
+    const lines = content.split('\n');
+    lines.forEach((line, i) => {
+      if (!line.includes('compose-context.js')) return;
+      const parsed = parseComposeCallLine(line, repoRoot);
+      if (!parsed) return;
+      out.push({ step: parsed.step, file: path.relative(dir, p), line: i + 1, sources: parsed.sources });
+    });
+  }
+  return out;
 }
 
 // Headroom is the story the raw size does not tell: a file at 39.9 KB is one
@@ -219,6 +285,8 @@ module.exports = {
   measureSubFiles,
   overCeiling,
   overCeilingWarnings,
+  parseComposeCallLine,
+  findComposeCallSites,
   totalBytes,
   headroom,
   nearCeiling,
