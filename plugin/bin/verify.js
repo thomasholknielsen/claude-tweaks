@@ -132,10 +132,17 @@ async function main() {
   let decl = null;
   let priorStamp = null;
   if (parsed.scope) {
+    // Every --scope usage error below shares this exit shape (message, then
+    // USAGE, then exit code 2); pulled into one helper so the five sites
+    // differ only in their message.
+    function scopeUsageExit(message) {
+      process.stderr.write(`${message}\n${USAGE}\n`);
+      process.exitCode = 2;
+    }
+
     const read = readDeclaration(parsed.scope);
     if (!read.ok) {
-      process.stderr.write(`${read.errors.join('\n')}\n${USAGE}\n`);
-      process.exitCode = 2;
+      scopeUsageExit(read.errors.join('\n'));
       return;
     }
     decl = read.decl;
@@ -149,8 +156,7 @@ async function main() {
       const allowed = new Set(['types', 'lint', ...decl.suites]);
       const bad = parsed.cmds.find((c) => !allowed.has(c.name));
       if (bad) {
-        process.stderr.write(`--scope: --cmd "${bad.name}" is not types, lint, or a declared suite (${decl.suites.join(', ')})\n${USAGE}\n`);
-        process.exitCode = 2;
+        scopeUsageExit(`--scope: --cmd "${bad.name}" is not types, lint, or a declared suite (${decl.suites.join(', ')})`);
         return;
       }
     }
@@ -166,8 +172,7 @@ async function main() {
       resolvedBase = resolveBase({ stamp: priorStamp, integrationBranch: parsed.integrationBranch, base: parsed.base });
     } catch (err) {
       if (!(err instanceof ChangedFilesError)) throw err;
-      process.stderr.write(`--scope: ${err.message}\n${USAGE}\n`);
-      process.exitCode = 2;
+      scopeUsageExit(`--scope: ${err.message}`);
       return;
     }
 
@@ -184,8 +189,7 @@ async function main() {
     if (parsed.base) {
       const anchorSha = usableAnchor({ stamp: priorStamp });
       if (anchorSha && resolvedBase !== anchorSha) {
-        process.stderr.write(`--scope: --base ${parsed.base} conflicts with the stamp anchor ${anchorSha.slice(0, 9)}; omit --base (pass --integration-branch instead) or clear the stamp\n${USAGE}\n`);
-        process.exitCode = 2;
+        scopeUsageExit(`--scope: --base ${parsed.base} conflicts with the stamp anchor ${anchorSha.slice(0, 9)}; omit --base (pass --integration-branch instead) or clear the stamp`);
         return;
       }
     }
@@ -216,8 +220,7 @@ async function main() {
       const have = new Set(parsed.cmds.map((c) => c.name));
       const missing = required.filter((n) => !have.has(n));
       if (missing.length) {
-        process.stderr.write(`--scope: mode ${sel.mode} requires --cmd for: ${missing.join(', ')}\n${USAGE}\n`);
-        process.exitCode = 2;
+        scopeUsageExit(`--scope: mode ${sel.mode} requires --cmd for: ${missing.join(', ')}`);
         return;
       }
     }
@@ -322,7 +325,8 @@ async function main() {
   const lines = [];
   if (sel) {
     const suiteList = sel.suites === '*' ? 'all' : (sel.suites.length ? sel.suites.join(', ') : 'none');
-    const sinceClause = `${files.length} changed file(s) since ${String(resolvedBase).slice(0, 9)}`;
+    const shortBase = String(resolvedBase).slice(0, 9);
+    const sinceClause = `${files.length} changed file(s) since ${shortBase}`;
     // L10 (review): decl === null means "no declaration on disk" — name the
     // path so the caller can tell that apart from a genuine full-mode
     // selection outcome, while keeping the same trailing fields.
@@ -334,7 +338,7 @@ async function main() {
       // rather than "nothing to verify".
       lines.push(files.length
         ? `still-verified: bookkeeping-only delta (${files.join(', ')})`
-        : `still-verified: no changes since ${String(resolvedBase).slice(0, 9)}`);
+        : `still-verified: no changes since ${shortBase}`);
     }
     lines.push('');
   }
