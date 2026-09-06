@@ -142,5 +142,9 @@
   "plugin/bin/lib/health-core": {
     "lastSweptMs": 1788578046114,
     "lastHash": "fbec00f1566e5b38fe6e11ec25bb3f66c51dcad3"
+  },
+  "plugin/bin/lib/hooks": {
+    "lastSweptMs": 1788664150920,
+    "lastHash": "4f2a906eae801559242d8dc24a18089c56f33c75"
   }
 }
