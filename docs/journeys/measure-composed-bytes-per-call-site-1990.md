@@ -45,4 +45,4 @@ files:
 
 ## Origin
 - Created during build of #1990 (per-step composed-bytes measurement — Phase 1 of #1987's decomposition, U3); steps 1-4 built in this session.
-- Related specs: #1987 (parent design; promise F4 carries the merge bundle's byte figures), #1988 (the composer these measurements call), #1989 (the first real call site, `merge`), #1997 (retires the remaining per-file pins in `merge-size-probe.js` and `plan-audit/checks.js`), and the follow-up record that brings the merge bundle under the ceiling and removes its exception.
+- Related specs: #1987 (parent design; promise F4 carries the merge bundle's byte figures), #1988 (the composer these measurements call), #1989 (the first real call site, `merge`), #1997 (retires the remaining per-file pins in `merge-size-probe.js` and `plan-audit/checks.js`), and #2002 (brings the merge bundle under the ceiling and removes its exception).

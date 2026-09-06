@@ -333,8 +333,8 @@ function findComposeCallSites(repoRoot) {
 // #1990's authoring time; run the informational test to reconfirm). Either way it's
 // over CEILING_BYTES before this record exists. This record's Non-Goals say
 // it only measures, so the gate cannot demand a restructure it forbids;
-// restructuring the merge bundle is a follow-up record filed at this
-// record's wrap-up. The stale-exception test below removes this entry's
+// restructuring the merge bundle is #2002 (filed at this record's wrap-up).
+// The stale-exception test below removes this entry's
 // reason to exist the moment `merge` fits under CEILING_BYTES on its own.
 const COMPOSED_STEP_EXCEPTIONS = { merge: 59 * 1024 };
 
