@@ -266,6 +266,7 @@ synchronously.
 
 **Any layer fails:** proceed to render the console normally, exactly as an
 `auto:build`-only record would — no different from any other pipeline run.
+When the failing layer is a `merge-check` verdict of `needs-human`, log it first so the Review Console's own short-circuit (`review-console.md`, `console-resolve.js`) honours the carve-out: `AUTO {time} — Auto-merge short-circuit: #{n} assess-agent-autonomy verdict needs-human — Review Console renders normally. Reversibility: n/a.`
 
 This check does not apply to `MULTISPEC_REVIEW_DEFER=1` runs — an `auto:merge`-granted
 record still gets the normal, fully-blocking consolidated Review Console, same as any other spec
