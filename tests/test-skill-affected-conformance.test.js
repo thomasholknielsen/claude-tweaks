@@ -27,7 +27,10 @@ test('test/SKILL.md pipeline behavior carries the QA skip literal and the fronte
   const skill = read('plugin/skills/test/SKILL.md');
   const list = skill.slice(skill.indexOf('**Pipeline behavior:**'), skill.indexOf('## Step 1: Resolve Scope and Execute'));
   assert.ok(list.includes('QA: skipped — no affected stories'));
-  assert.match(list, /zero matches on a frontend surface → run the full story set/);
+  // The surface decides on zero matches: a frontend surface always runs the
+  // full story set (#808); anything else falls to the Layer 3 sniff.
+  assert.match(list, /`web`\/`mobile`\/`desktop` → run the full story set/);
+  assert.match(list, /Layer 3 sniff/);
 });
 
 test('verification.md holds the re-verify scoping table with every site row (#1923 AC1)', () => {
