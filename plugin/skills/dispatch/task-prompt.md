@@ -28,7 +28,22 @@ more here, as literals**, before composing either call:
    | `log-decision.js` | `node "{plugin-root}/bin/log-decision.js" --run "{minted-run-dir}" --status AUTO\|STAGED\|KEPT-PROMPT\|SCANNED\|REFUSED\|SKIP --text "..." [--reversibility high\|med\|low\|n/a]` |
    | `claim-targets.js` | `node "{plugin-root}/bin/claim-targets.js" --run-id "{run-id}" --targets {n}[,{m}...] [--keep-going]` |
    | `materialize.js` | `node "{plugin-root}/bin/materialize.js" <n> --run-dir "{minted-run-dir}" [--multi-record-slug <n>]` |
-   | claims-registry read | `_shared/issue-claims.md`'s "Reading claim state" git-trees path (`claims/issue-{n}.json` on the `claims-registry` branch) — never `gh api ...?ref=` query-string quoting, never `-f ref=` on a GET |
+   | claims-registry read | `{minted-run-dir}/context/claims.md`'s "Reading claim state" git-trees path (`claims/issue-{n}.json` on the `claims-registry` branch) — never `gh api ...?ref=` query-string quoting, never `-f ref=` on a GET (if that bundle is absent, read `_shared/issue-claims.md` directly) |
+
+5. **Composed bundles** — the dispatching session composes, once, before either call, into the
+   minted run directory — on ONE physical line each so the call-site scanner can see them:
+   `node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step claims "{plugin-root}/skills/_shared/issue-claims.md"`
+   and
+   `node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step merge "{plugin-root}/skills/_shared/pr-first-merge.md" "{plugin-root}/skills/_shared/pr-early-run-lifecycle.md"`,
+   producing `{minted-run-dir}/context/claims.md` and `{minted-run-dir}/context/merge.md`. The
+   templates below cite those paths, never the raw `_shared/` sources, in every citation except
+   the fallback sentence itself. The directory needs nothing else to compose into: Step 4 minted
+   it mkdir-only, and `mode` is unresolved at this point (no `config.yml` yet) — both `mode`
+   branches compose cleanly, since neither bundle's sources branch on that key today. Run both
+   compose commands before substituting `{context-pack}` into either call. Should either command
+   be unavailable or exit non-zero, substitute the raw `_shared/` paths back into the templates'
+   citations below so the agent is never sent to a bundle that does not exist:
+   if the compose command is unavailable or exits non-zero, read the named source files directly.
 
 Substitute this whole block, filled in with this firing's actual resolved values, as
 `{context-pack}` immediately after each call's opening `Task scope:` paragraph below. This is
@@ -132,7 +147,7 @@ Handle any HARD-GATE failure per skills/dispatch/settle-and-merge.md's Settle pr
 leave a failed record's claim or label state unresolved. If you reference any of these issue
 numbers in an intermediate commit message, write "refs #N" -- never "closes #N" or "fixes
 #N". The real closing keyword is stamped once, at the end, by wrap-up's carrier commit or the
-merge commit (close-via-merge, `_shared/issue-claims.md`).
+merge commit (close-via-merge, `{minted-run-dir}/context/claims.md` -- if that bundle is absent, read `_shared/issue-claims.md` directly).
 
 On `failed`/`blocked`, Settle's own procedure releases the claim in this call (its step 2,
 unconditional); run-dir archival does not run here — the run stays parked for a human to resume
@@ -164,7 +179,7 @@ already released the claim for those two by the time you reach this paragraph, s
 non-`live` there is expected, not a signal to re-derive the outcome. For the other four values,
 check the record's actual state rather than inferring it from what this call itself did earlier:
 read the claim blob (`claims/issue-{n}.json` on the `claims-registry` branch, not a working-tree
-file -- fetch it the same way `_shared/issue-claims.md` describes) to see whether the claim's
+file -- fetch it the same way `{minted-run-dir}/context/claims.md` describes (if that bundle is absent, read `_shared/issue-claims.md` directly)) to see whether the claim's
 `runId` still matches this run and is `live`; check the record's current labels
 (`bot:in-progress`, `auto:merge`); and read `run-state.json`'s `pr` object for a recorded
 `number`/`url` -- when one is recorded, resolve its live state with
@@ -188,7 +203,8 @@ One line per issue in this group that hit a HARD-GATE or the retry ceiling (omit
 ISSUE #{n}: {failed:{gate} | blocked:retry-ceiling}
 
 **`integration-model: pr-first`** (`_shared/integration-model.md`) — `merged` / `armed` /
-`pending-review` are `_shared/pr-first-merge.md`'s own outcome vocabulary, reported verbatim: you
+`pending-review` are `{minted-run-dir}/context/merge.md`'s own outcome vocabulary (the composed
+`_shared/pr-first-merge.md`; if that bundle is absent, read it directly), reported verbatim: you
 run the merge procedure yourself, in this same call, whichever file's Auto-merge gate you reach
 (`dispatch/settle-and-merge.md` for a bundle, `wrap-up/review-console.md`'s dispatch-claim branch
 for a singleton). `merged` means you also completed claim release and run-dir archival directly
@@ -212,7 +228,8 @@ session completes all three (worktree removal, claim release, run-dir archival) 
 per `settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
 
 `pending-review` also covers what `pr-opened` used to name separately: under pr-first the PR
-already exists from run start (`_shared/pr-early-run-lifecycle.md`), so there is no longer a
+already exists from run start (`{minted-run-dir}/context/merge.md`, which composes
+`_shared/pr-early-run-lifecycle.md`; if that bundle is absent, read it directly), so there is no longer a
 distinct "the branch reached its finish decision, a PR just opened" transition to report — a
 run that reaches the Review Console with nobody answering it is `pending-review` regardless of
 how long the PR has already existed.

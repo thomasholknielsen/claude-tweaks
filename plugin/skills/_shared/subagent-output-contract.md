@@ -23,6 +23,8 @@ A dispatched agent is a clean room. Don't pass the conversation. Pass exactly:
 
 1. **The task scope** — one sentence: "Audit `src/auth.ts` for the OWASP top 10."
 2. **The file/path the agent should read** — explicit paths, not "the relevant code."
+
+   **Cite the run's composed bundle, never a `_shared/` path** — except inside the fallback sentence itself, which is expected to name the underlying source files it falls back to. The dispatcher composes the bundle before dispatch (`bin/compose-context.js`, `{run}/context/{step}.md`) and the prompt cites that path; the prompt states the fallback in the same sentence: if the compose command is unavailable or exits non-zero, read the named source files directly. `dispatch/task-prompt.md`'s Context pack is the reference shape.
 3. **The output template** — literally, inline. Agents only see what's in their prompt; they cannot read sibling files.
 4. **Constraints that prevent overreach** — "Do not modify other files." "Read-only."
 
@@ -71,9 +73,7 @@ During worktree-mode pipeline runs this rule is mechanically enforced — the pl
 
 ## Waiting for Dispatched Agents
 
-The task-notification that arrives when a dispatched agent finishes is the **primary resume signal** — it is what actually wakes the dispatcher, not a per-agent `ScheduleWakeup` park-and-poll loop (a bounded slot-fill poll like `/test`'s QA dispatch is a different, still-valid pattern — see that skill's `qa-prompts.md`). Treat the notification as the default: after dispatching a wave of parallel agents, let their completion notifications drive the next turn.
-
-**Cap parking to one long-delay watchdog per dispatch wave, not one per dispatch.** A `ScheduleWakeup` call for every individual agent in a fan-out is redundant against the notification each one already sends on completion, and it inflates per-wave API-call and context overhead for no additional signal — six scheduled parks buy nothing that the six completion notifications don't already deliver on their own. If a backstop against a hung or unusually slow wave is genuinely needed, schedule at most one long-delay watchdog for the whole wave, not one per agent dispatched into it.
+Read `_shared/dispatch-waiting.md` — the notification-driven resume pattern and the one-watchdog-per-wave cap (extracted for headroom, #1995).
 
 ## Implementer Status Protocol
 
