@@ -37,12 +37,18 @@ const TRIAGE_ITEM3 = '3. **Auto-merged this week**';
 const ITEM4_LABEL = '4. **Merged/closed PRs with local remnants**';
 const PR_BACKED_BULLET = '- **PR-backed items**';
 const ITEM1_LABEL = '1. **PR lookup**';
+// The last sentence of item 9's label paragraph — the discrimination test closes its doctored
+// fence right after it, so it must exist verbatim or the doctoring is a silent no-op.
+const ITEM9_LABEL_PARAGRAPH_END = 'no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.';
 
 test('github-pr-scan.md: ITEM9_BODY_ONLY occurs only inside item 9\'s fenced body in the raw file', () => {
   // grep -c PR_SCAN_UNARMED plugin/skills/_shared/github-pr-scan.md -> 12 matching lines, all
   // between the item-9 fence markers; this pins the fixture choice, not just asserts it once.
+  // (The mcp composition test below is what proves "inside the fence": any occurrence outside a
+  // transport=gh fence would survive into the mcp bundle and fail it.)
   const matchingLines = prScanContent.split('\n').filter((line) => line.includes(ITEM9_BODY_ONLY)).length;
   assert.equal(matchingLines, 12, 'fixture assumption: PR_SCAN_UNARMED matching-line count changed — pick a new item-9-only string');
+  assert.ok(prScanContent.includes(ITEM9_LABEL_PARAGRAPH_END), 'fixture assumption: the discrimination test\'s fence-close anchor is no longer in the file verbatim');
 });
 
 test('github-pr-scan.md under mcp: item 9\'s label survives, its fenced body does not, and the other cited labels survive', () => {
@@ -84,9 +90,10 @@ test('discrimination: re-fencing item 9\'s label under transport=gh goes red und
     `<!-- when: transport=gh -->\n${ITEM9_LABEL}`,
   ).replace(
     // close the fence right after the label's own paragraph, before its (still-fenced) body fence opens
-    'no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.',
-    'no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.\n<!-- /when -->',
+    ITEM9_LABEL_PARAGRAPH_END,
+    `${ITEM9_LABEL_PARAGRAPH_END}\n<!-- /when -->`,
   );
+  assert.notEqual(doctored, prScanContent, 'doctoring was a no-op — an anchor literal drifted');
   const bundle = bundleFor(PR_SCAN_FILE, 'mcp', doctored);
   assert.equal(bundle.includes(ITEM9_LABEL), false, 'the fixture must actually strip item 9\'s label under mcp');
 });
@@ -97,10 +104,13 @@ const GH_CLI_BULLET = '- **gh CLI:**';
 const MCP_BULLET = '- **MCP:**';
 const REPAIR_STEP1 = '1. Read the blob at';
 const ISSUE_COMMENT_CMD = 'gh issue comment "$ISSUE"';
+// The end of repair step 1 — the discrimination test closes its doctored fence right after it.
+const REPAIR_STEP1_END = 'This step never depends on the content parsing.';
 
 test('issue-claims.md: REPAIR_STEP1 and ISSUE_COMMENT_CMD literals exist in the raw file', () => {
   assert.ok(claimsContent.includes(REPAIR_STEP1), 'fixture assumption: "1. Read the blob at" not found verbatim');
   assert.ok(claimsContent.includes(ISSUE_COMMENT_CMD), 'fixture assumption: gh issue comment "$ISSUE" not found verbatim');
+  assert.ok(claimsContent.includes(REPAIR_STEP1_END), 'fixture assumption: the discrimination test\'s fence-close anchor is no longer in the file verbatim');
 });
 
 test('issue-claims.md under gh: gh-only bullets present, mcp-only bullets absent, repair step 1 and the comment command present', () => {
@@ -124,9 +134,10 @@ test('discrimination: re-fencing repair step 1 under transport=mcp goes red unde
     REPAIR_STEP1,
     `<!-- when: transport=mcp -->\n${REPAIR_STEP1}`,
   ).replace(
-    'This step never depends on the content parsing.',
-    'This step never depends on the content parsing.\n<!-- /when -->',
+    REPAIR_STEP1_END,
+    `${REPAIR_STEP1_END}\n<!-- /when -->`,
   );
+  assert.notEqual(doctored, claimsContent, 'doctoring was a no-op — an anchor literal drifted');
   const bundle = bundleFor(CLAIMS_FILE, 'gh', doctored);
   assert.equal(bundle.includes(REPAIR_STEP1), false, 'the fixture must actually strip repair step 1 under gh');
 });
