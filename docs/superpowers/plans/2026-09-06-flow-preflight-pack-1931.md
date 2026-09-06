@@ -383,8 +383,17 @@ async function wrapProbe(name, fn, now) {
   }
 }
 
-function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps }) {
-  const exec = deps.execFileAsync || (async (cmd, args, opts) => deps.execFile(cmd, args, opts));
+// Which subprocess seam to use: an injected async seam wins; an injected
+// SYNC `execFile` fake (the unit tests' usual shape) must not be shadowed by
+// the default async seam, so it is wrapped; only with neither injected does
+// the real async seam run (concurrent by construction).
+function pickExec(overrides, deps) {
+  if (overrides.execFileAsync) return overrides.execFileAsync;
+  if (overrides.execFile) return async (cmd, args, opts) => overrides.execFile(cmd, args, opts);
+  return deps.execFileAsync;
+}
+
+function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, exec }) {
   return {
     freshness: () => {
       const r = deps.checkResumeFreshness(runDirReal, { sessionId: deps.sessionId || null });
@@ -453,7 +462,7 @@ async function gatherPreflight({ runDir, steps = [], cwd = process.cwd(), mainRo
     pack.durationMs = deps.now() - t0;
     return pack;
   }
-  const probes = buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps });
+  const probes = buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, exec: pickExec(overrides, deps) });
   const names = Object.keys(probes);
   const results = await Promise.all(names.map((n) => wrapProbe(n, probes[n], deps.now)));
   names.forEach((n, i) => { pack[n] = results[i]; });
@@ -464,7 +473,7 @@ async function gatherPreflight({ runDir, steps = [], cwd = process.cwd(), mainRo
 module.exports = { ADOPTION_NOTES, LEVER_KEYS, computeAdoption, parseChecklist, gatherPreflight };
 ```
 
-Note for the implementer: `computeAdoption`'s case-4 `anchored` field is `false` in both sub-cases (the `target.reason !== 'missing' && false` expression is a leftover — write it as `anchored: false`). The concurrency test injects `execFileAsync`; `buildProbes` prefers it when present.
+Note for the implementer: `computeAdoption`'s case-4 `anchored` field is `false` in both sub-cases (the `target.reason !== 'missing' && false` expression is a leftover — write it as `anchored: false`). The subprocess seam is chosen by `pickExec(overrides, deps)`: the unit tests inject a sync `execFile` fake, the concurrency test injects `execFileAsync`, the CLI's real path injects neither.
 
 - [ ] **Step 4: Run the tests**
 
@@ -731,10 +740,10 @@ test('steps-and-gates.md calls flow-preflight.js --run exactly once in the adopt
   const next = t.indexOf('### Partial step lists');
   assert.ok(section < call && call < next, 'the call lives in the adoption section');
   const after = t.slice(call, call + 1200);
-  assert.match(after, /freshness\.verdict === 'BLOCKED'/, 'a literal check-and-stop on the freshness verdict follows the call');
+  assert.match(after, /freshness\.value\.verdict === 'BLOCKED'/, 'a literal check-and-stop on the freshness verdict follows the call');
   assert.match(after, /stop/i);
-  assert.match(t, /inventory\.status === 'MISMATCH'/);
-  assert.match(t, /adoption\.note/);
+  assert.match(t, /inventory\.value\.status === 'MISMATCH'/);
+  assert.match(t, /adoption\.value\.note/);
   assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
 });
 
