@@ -58,6 +58,19 @@ test('run: --json inside the anchored target writes there instead of the run dir
   assert.ok(!fs.existsSync(path.join(runDir, 'wrap-up-pack.json')), 'the default destination is not also written');
 });
 
+test('run: a --json through a symlinked directory inside the run dir that points outside the anchor exits 3 and writes nothing (#1930 review lens 3b, [IL-150])', async () => {
+  const { root, runDir } = mainCheckoutWithRun();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'wrap-up-pack-escape-'));
+  fs.symlinkSync(outside, path.join(runDir, 'escape'));
+  const dest = path.join(runDir, 'escape', 'pack.json');
+  let err = '';
+  const code = await run(['--run', runDir, '--json', dest], { cwd: () => root, mainRoot: root, stdout: () => {}, stderr: (s) => { err += s; }, packDeps: okProbeDeps });
+  assert.strictEqual(code, 3);
+  assert.match(err, /--json .* refused/);
+  assert.ok(!fs.existsSync(path.join(outside, 'pack.json')), 'nothing written outside the anchor');
+  assert.ok(!fs.existsSync(path.join(runDir, 'wrap-up-pack.json')), 'the default destination is not written either');
+});
+
 test('run: a --json outside the anchored target exits 3 and writes nothing (#1930 review M3)', async () => {
   const { root, runDir } = mainCheckoutWithRun();
   const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wrap-up-pack-elsewhere-')), 'pack.json');

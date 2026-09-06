@@ -294,7 +294,11 @@ function ledgerProbe(inputs, deps) {
   const files = deps.readdir(dir).filter((f) => f.endsWith('-ledger.md') && inputs.records.some((n) => namesRecord(f, n)));
   const totals = { open: 0, total: 0, byPhase: {}, files: files.map((f) => path.posix.join('docs', 'plans', f)) };
   for (const f of files) {
-    const one = parseLedger(deps.readFile(path.join(dir, f)));
+    // Read-and-catch, like headerRecords: a ledger archived between the
+    // readdir snapshot and this read is skipped, not a whole-probe failure.
+    let text;
+    try { text = deps.readFile(path.join(dir, f)); } catch { continue; }
+    const one = parseLedger(text);
     totals.open += one.open; totals.total += one.total;
     for (const [phase, c] of Object.entries(one.byPhase)) {
       totals.byPhase[phase] = totals.byPhase[phase] || { open: 0, total: 0 };
@@ -317,7 +321,10 @@ function unblockedLocal(inputs, deps, closed) {
   const isResolved = (id) => {
     const file = files.find((f) => f.startsWith(`${id}-`));
     if (!file) return true; // already gone — treat as resolved
-    return deps.readRecord(path.join(dir, file)).facets.closed === true;
+    // The readdir above is a snapshot; a sibling session can prune the file
+    // before this read (#901's race, [IL-146]) — a vanished record is the same
+    // "already gone" outcome, not a probe failure.
+    try { return deps.readRecord(path.join(dir, file)).facets.closed === true; } catch { return true; }
   };
   return dependents
     .filter((d) => d.blockedBy.every((b) => b === closed || isResolved(b)))

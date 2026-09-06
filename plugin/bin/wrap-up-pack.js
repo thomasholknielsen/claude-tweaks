@@ -11,6 +11,7 @@
 const path = require('path');
 const { gatherPack, PROBE_NAMES } = require('./lib/wrap-up/pack');
 const { resolveTarget } = require('./lib/stage-item/write');
+const { safeReal } = require('./lib/hooks/worktree-detect');
 const { writeFileAtomic } = require('./lib/atomic-write');
 
 const USAGE = 'usage: wrap-up-pack.js --run <dir> [--json <path>] [--only <probe,...>]';
@@ -57,18 +58,21 @@ async function run(argv, deps = {}) {
     return 3;
   }
   // --json is the same write, redirected — so it clears the same anchoring bar
-  // as --run: either inside the resolved run dir, or inside a directory that
-  // itself resolves under the main checkout. Anything else is refused before
-  // any probe runs, so an unanchored destination costs nothing and writes
-  // nothing ([IL-127]).
+  // as --run: its parent directory must itself resolve under the main checkout.
+  // The decision is made on the parent's REAL path (symlinks followed) — a
+  // lexical "starts with the run dir" test would let a symlinked subdirectory
+  // planted inside the run dir carry the write outside the anchor ([IL-150]);
+  // an unresolvable parent fails closed. Refused before any probe runs, so an
+  // unanchored destination costs nothing and writes nothing ([IL-127]).
   let file = path.join(target.dir, 'wrap-up-pack.json');
   if (o.json) {
-    file = path.resolve(cwd(), o.json);
-    const underRun = file === target.dir || file.startsWith(target.dir + path.sep);
-    if (!underRun && !resolveTarget({ runDir: path.dirname(file), cwd: cwd(), mainRoot: deps.mainRoot }).ok) {
-      stderr(`wrap-up-pack.js: --json ${o.json} refused (not under the run dir, and not anchored under the main checkout) — nothing written\n`);
+    const requested = path.resolve(cwd(), o.json);
+    const parent = safeReal(path.dirname(requested));
+    if (!parent || !resolveTarget({ runDir: parent, cwd: cwd(), mainRoot: deps.mainRoot }).ok) {
+      stderr(`wrap-up-pack.js: --json ${o.json} refused (its directory does not resolve under the main checkout) — nothing written\n`);
       return 3;
     }
+    file = path.join(parent, path.basename(requested));
   }
   const pack = await gatherPack({ runDir: target.dir, cwd: cwd(), only: o.only, deps: deps.packDeps || {} });
   const text = `${JSON.stringify(pack, null, 2)}\n`;

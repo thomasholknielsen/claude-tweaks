@@ -363,6 +363,54 @@ test('gatherPack: work-backend local-files reads the local store, keeping only r
   assert.deepStrictEqual(pack.unblocked.value, [{ number: 1600, title: 'Dependent' }]);
 });
 
+test('gatherPack: local-files — a dependent\'s blocker file pruned between readdir and read counts as already gone, not a probe failure (#1930 review lens 3c)', async () => {
+  const tree = fs.mkdtempSync(path.join(os.tmpdir(), 'wrap-up-pack-local-race-'));
+  fs.mkdirSync(path.join(tree, 'specs'), { recursive: true });
+  for (const f of ['1600-dependent.md', '8-vanishing-blocker.md']) fs.writeFileSync(path.join(tree, 'specs', f), '# x\n');
+  const store = { 1600: { id: 1600, title: 'Dependent', facets: { blockedBy: [1535, 8], closed: false } } };
+  const deps = okDeps({
+    readFile: readFileFake('work-backend: local-files\n'),
+    resolvePolicy: policyFake({ 'integration-branch': 'main' }),
+    queryRecords: () => [store[1600]],
+    readRecord: (p) => {
+      const id = Number(path.basename(p).split('-')[0]);
+      if (id === 8) { const e = new Error('ENOENT: pruned by a sibling session'); e.code = 'ENOENT'; throw e; }
+      return store[id];
+    },
+    execFile: async () => { throw new Error('local-files must not shell out to gh'); },
+  });
+  const runDir = fixtureRunDir();
+  const state = JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8'));
+  state.worktree = tree;
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify(state));
+  const pack = await gatherPack({ runDir, cwd: tree, only: ['unblocked'], deps });
+  assert.strictEqual(pack.unblocked.ok, true, 'a vanished blocker is the "already gone" outcome');
+  assert.deepStrictEqual(pack.unblocked.value, [{ number: 1600, title: 'Dependent' }]);
+});
+
+test('gatherPack: a ledger file archived between readdir and read is skipped, not a whole-probe failure (#1930 review lens 3c)', async () => {
+  const tree = fs.mkdtempSync(path.join(os.tmpdir(), 'wrap-up-pack-ledger-race-'));
+  fs.mkdirSync(path.join(tree, 'docs', 'plans'), { recursive: true });
+  const kept = '2026-09-05-spec-1535-ledger.md';
+  const gone = '2026-09-04-spec-1535-old-ledger.md';
+  fs.writeFileSync(path.join(tree, 'docs', 'plans', kept), '| # | Phase | Item | Status |\n|---|---|---|---|\n| 1 | review | a | open |\n');
+  fs.writeFileSync(path.join(tree, 'docs', 'plans', gone), '| # | Phase | Item | Status |\n|---|---|---|---|\n| 1 | build | b | open |\n');
+  const base = okDeps();
+  const deps = okDeps({
+    readFile: (p) => {
+      if (p.endsWith(gone)) { const e = new Error('ENOENT: archived by a sibling session'); e.code = 'ENOENT'; throw e; }
+      return base.readFile(p);
+    },
+  });
+  const runDir = fixtureRunDir();
+  const state = JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8'));
+  state.worktree = tree;
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify(state));
+  const pack = await gatherPack({ runDir, cwd: tree, only: ['ledger'], deps });
+  assert.strictEqual(pack.ledger.ok, true, 'one vanished file does not fail the probe');
+  assert.strictEqual(pack.ledger.value.total, 1, 'only the readable ledger is counted');
+});
+
 test('gatherPack: the record-scoped probes refuse an unresolved record set instead of returning a clean empty (#1930 review C2)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wrap-up-pack-norecords-'));
   fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ worktree: '/w/tree', pr: { number: 1901 } }));
