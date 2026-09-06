@@ -1,5 +1,5 @@
 // bin/lib/flow/manifest.js — reads/writes a multi-spec run's manifest.yml
-// (schema documented in skills/flow/multi-spec.md's "Run directory layout")
+// (schema documented in skills/flow/multispec-run-dir-layout.md)
 // and couples every status write to the `## Flow: Running ...` progress
 // banner (#690). This is a targeted parser/serializer for that one fixed
 // shape — `{ multispec: { parent, baseSha?, specs: [{id, status, subdir,
