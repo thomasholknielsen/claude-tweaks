@@ -37,7 +37,15 @@ test('settle-and-merge.md logs the needs-human verdict the resolver reads (#1932
 test('autonomy-ceiling.md names console-resolve.js as consoleAutoResolve\'s execution (#1932)', () => {
   const t = read('plugin/skills/_shared/autonomy-ceiling.md');
   assert.match(t, /console-resolve\.js/);
+  // #1932 I5: the executor sentence is scoped — the reconciler-side caller
+  // keeps bin/lib/reconcile/console-execute.js.
+  assert.match(t, /reconciler-side caller keeps/);
+  assert.match(t, /console-execute\.js/);
   assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+});
+
+test('ceremony-derive.js no longer scopes its derivation to a headless firing (#1932 M1)', () => {
+  assert.ok(!read('plugin/bin/lib/dispatch/ceremony-derive.js').includes('for a headless firing'));
 });
 
 test('wrap-up/SKILL.md did not grow past its pre-#1932 size (#1932 AC7)', () => {
