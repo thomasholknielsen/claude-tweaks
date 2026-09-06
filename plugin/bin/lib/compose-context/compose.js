@@ -10,6 +10,8 @@
 // may hold inner blocks, never deeper); a pair opens and closes in the same
 // source. Every marker in a source is validated before any branch is decided,
 // so a malformed marker inside a branch this run would strip is still an error.
+// Lines inside a fenced code block are literal text, never markers — the way
+// a composed file documents the grammar.
 'use strict';
 
 const KEYS = ['integration-model', 'mode', 'attendance', 'transport', 'worktree-policy', 'work-backend'];
@@ -30,6 +32,10 @@ const MAX_DEPTH = 2; // outer + one nested level
 const CANDIDATE_RE = /^\s*<!--\s*(?:when:|\/when\b)/;
 const OPEN_RE = /^\s*<!--\s*when:\s*([A-Za-z0-9-]+)=([A-Za-z0-9-]+)\s*-->\s*$/;
 const CLOSE_RE = /^\s*<!--\s*\/when\s*-->\s*$/;
+// A line opening or closing a fenced code block (```/~~~, up to 3 leading
+// spaces per CommonMark). While inside a fence every line — marker-shaped or
+// not — is literal text: never a candidate, never validated, never stripped.
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})/;
 
 class MarkerError extends Error {
   constructor(message, { file = null, line }) {
@@ -45,10 +51,16 @@ function parseMarkers(text, file = null) {
   const lines = String(text).split('\n');
   const tokens = [];
   const stack = [];
+  let inFence = false;
   const fail = (message, line) => { throw new MarkerError(message, { file, line }); };
   lines.forEach((raw, i) => {
     const line = i + 1;
-    if (!CANDIDATE_RE.test(raw)) {
+    if (FENCE_RE.test(raw)) {
+      inFence = !inFence;
+      tokens.push({ type: 'text', line });
+      return;
+    }
+    if (inFence || !CANDIDATE_RE.test(raw)) {
       tokens.push({ type: 'text', line });
       return;
     }

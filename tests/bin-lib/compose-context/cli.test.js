@@ -37,7 +37,6 @@ function deps(main, out, extra = {}) {
     cwd: () => main,
     mainRoot: () => main,
     execFileSync: () => 'gh version 2\n',
-    resolveIntegrationModel: () => { throw new Error('pinned — detection must not run'); },
     stdout: (s) => out.push(['out', s]),
     stderr: (s) => out.push(['err', s]),
     ...extra,
@@ -66,11 +65,11 @@ test('unresolved keys are listed in the JSON line and the header, and both branc
   const f = fixture();
   fs.unlinkSync(path.join(f.runDir, 'config.yml'));
   const out = [];
-  const code = run(['--run', f.runDir, '--step', 'x', f.a], deps(f.main, out, { resolveIntegrationModel: () => 'pr-first' }));
+  const code = run(['--run', f.runDir, '--step', 'x', f.a], deps(f.main, out));
   assert.equal(code, 0);
   const parsed = JSON.parse(streamOf(out, 'out'));
-  assert.deepEqual(parsed.unresolved, ['mode']);
-  assert.match(fs.readFileSync(parsed.path, 'utf8'), /mode=unresolved/);
+  assert.deepEqual(parsed.unresolved, ['integration-model', 'mode']);
+  assert.match(fs.readFileSync(parsed.path, 'utf8'), /integration-model=unresolved mode=unresolved/);
 });
 
 test('the bundle is regenerated on every call (a second call with changed conditions overwrites, never reuses)', () => {

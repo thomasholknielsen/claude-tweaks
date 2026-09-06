@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { writeFileAtomic } = require('../atomic-write');
 const {
-  compose, stripMarkers, unresolvedKeys, MarkerError, KEYS, VOCAB, UNRESOLVED,
+  compose, stripMarkers, MarkerError, KEYS, VOCAB, UNRESOLVED,
 } = require('./compose');
 const { resolveConditions } = require('./resolve-conditions');
 
@@ -24,6 +24,8 @@ class SourceReadError extends Error {
 }
 
 const realDeps = {
+  // readFile serves both the source-file reads below and resolve-conditions.js's
+  // policy.yml/config.yml/CLAUDE.md reads — a caller overriding it overrides both.
   readFile: (p, enc) => fs.readFileSync(p, enc),
   mkdir: (dir) => fs.mkdirSync(dir, { recursive: true }),
   writeFileAtomic,
@@ -37,7 +39,7 @@ function composeContext({ runDir, step, sources, repoRoot }, deps = {}) {
     try { content = d.readFile(file, 'utf8'); } catch (err) { throw new SourceReadError(label, err); }
     return { path: label, content };
   });
-  const { conditions } = resolveConditions({ runDir, repoRoot }, d);
+  const { conditions, unresolved } = resolveConditions({ runDir, repoRoot }, d);
   const text = compose(read, conditions); // validates every marker of every source first
   const outDir = path.join(runDir, 'context');
   const outPath = path.join(outDir, `${step}.md`);
@@ -47,7 +49,7 @@ function composeContext({ runDir, step, sources, repoRoot }, deps = {}) {
     path: outPath,
     bytes: Buffer.byteLength(text, 'utf8'),
     sources: sources.map((s) => s.label),
-    unresolved: unresolvedKeys(conditions),
+    unresolved,
   };
 }
 

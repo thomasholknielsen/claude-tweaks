@@ -18,9 +18,11 @@ function fixture({ policy, config, claudeMd } = {}) {
   return { root, runDir };
 }
 
-const ghPresent = () => 'gh version 2.0.0\n';
-const ghAbsent = () => { const e = new Error('spawnSync gh ENOENT'); e.code = 'ENOENT'; throw e; };
-const neverDetect = () => { throw new Error('detection must not run when the run pins integration-model'); };
+const ghPresent = (cmd) => { if (cmd !== 'gh') throw new Error('unexpected ' + cmd); return 'gh version 2.0.0\n'; };
+const ghAbsent = (cmd) => {
+  if (cmd !== 'gh') throw new Error('unexpected ' + cmd);
+  const e = new Error('spawnSync gh ENOENT'); e.code = 'ENOENT'; throw e;
+};
 
 test('fully-resolved run: every key resolves from config.yml/policy.yml/CLAUDE.md and gh presence; unresolved is empty', () => {
   const { root, runDir } = fixture({
@@ -30,8 +32,7 @@ test('fully-resolved run: every key resolves from config.yml/policy.yml/CLAUDE.m
   });
   const calls = [];
   const { conditions, unresolved } = resolveConditions({ runDir, repoRoot: root }, {
-    execFileSync: (cmd, args) => { calls.push([cmd, ...args]); return ghPresent(); },
-    resolveIntegrationModel: neverDetect,
+    execFileSync: (cmd, args) => { calls.push([cmd, ...args]); return ghPresent(cmd); },
   });
   assert.deepEqual(conditions, {
     'integration-model': 'pr-first', mode: 'auto', attendance: 'headless',
@@ -41,55 +42,67 @@ test('fully-resolved run: every key resolves from config.yml/policy.yml/CLAUDE.m
   assert.deepEqual(calls, [['gh', '--version']]);
 });
 
-test('standalone run with no config.yml and no policy.yml: mode/attendance/worktree-policy/work-backend are unresolved, integration-model falls back to detection, transport still resolves', () => {
+test('standalone run with no config.yml and no policy.yml: every policy-derived key is unresolved, transport still resolves', () => {
   const { root, runDir } = fixture();
   const { conditions, unresolved } = resolveConditions({ runDir, repoRoot: root }, {
     execFileSync: ghAbsent,
-    resolveIntegrationModel: (repoRoot) => { assert.equal(repoRoot, root); return 'local-merge'; },
   });
   assert.deepEqual(conditions, {
-    'integration-model': 'local-merge', mode: 'unresolved', attendance: 'unresolved',
+    'integration-model': 'unresolved', mode: 'unresolved', attendance: 'unresolved',
     transport: 'mcp', 'worktree-policy': 'unresolved', 'work-backend': 'unresolved',
   });
-  assert.deepEqual(unresolved, ['mode', 'attendance', 'worktree-policy', 'work-backend']);
+  assert.deepEqual(unresolved, ['integration-model', 'mode', 'attendance', 'worktree-policy', 'work-backend']);
 });
 
 test('config.yml present but with no mode: line resolves mode unresolved; an off-vocabulary mode also resolves unresolved', () => {
   const a = fixture({ config: 'scope-creep: add-to-plan\n' });
-  assert.equal(resolveConditions({ runDir: a.runDir, repoRoot: a.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions.mode, 'unresolved');
+  assert.equal(resolveConditions({ runDir: a.runDir, repoRoot: a.root }, { execFileSync: ghPresent }).conditions.mode, 'unresolved');
   const b = fixture({ config: 'mode: turbo\n' });
-  assert.equal(resolveConditions({ runDir: b.runDir, repoRoot: b.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions.mode, 'unresolved');
+  assert.equal(resolveConditions({ runDir: b.runDir, repoRoot: b.root }, { execFileSync: ghPresent }).conditions.mode, 'unresolved');
 });
 
 test('attendance: autonomy supervised/trusted -> attended, unattended -> headless; policy.yml sets it, config.yml overrides it', () => {
   const p = fixture({ policy: 'autonomy: trusted\n' });
-  assert.equal(resolveConditions({ runDir: p.runDir, repoRoot: p.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions.attendance, 'attended');
+  assert.equal(resolveConditions({ runDir: p.runDir, repoRoot: p.root }, { execFileSync: ghPresent }).conditions.attendance, 'attended');
   const o = fixture({ policy: 'autonomy: trusted\n', config: 'autonomy: unattended\n' });
-  assert.equal(resolveConditions({ runDir: o.runDir, repoRoot: o.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions.attendance, 'headless');
+  assert.equal(resolveConditions({ runDir: o.runDir, repoRoot: o.root }, { execFileSync: ghPresent }).conditions.attendance, 'headless');
 });
 
 test('worktree-policy: worktree-always true -> always, false -> optional, unset -> unresolved', () => {
   const t = fixture({ policy: 'worktree-always: true\n' });
-  assert.equal(resolveConditions({ runDir: t.runDir, repoRoot: t.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions['worktree-policy'], 'always');
+  assert.equal(resolveConditions({ runDir: t.runDir, repoRoot: t.root }, { execFileSync: ghPresent }).conditions['worktree-policy'], 'always');
   const f = fixture({ policy: 'worktree-always: false\n' });
-  assert.equal(resolveConditions({ runDir: f.runDir, repoRoot: f.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions['worktree-policy'], 'optional');
+  assert.equal(resolveConditions({ runDir: f.runDir, repoRoot: f.root }, { execFileSync: ghPresent }).conditions['worktree-policy'], 'optional');
 });
 
-test('integration-model: policy.yml pin wins over detection; detection only when neither config nor policy set it', () => {
+test('integration-model: policy.yml pin resolves without any shell-out beyond gh --version', () => {
   const pinned = fixture({ policy: 'integration-model: local-merge\n' });
-  assert.equal(resolveConditions({ runDir: pinned.runDir, repoRoot: pinned.root }, { execFileSync: ghPresent, resolveIntegrationModel: neverDetect }).conditions['integration-model'], 'local-merge');
+  const calls = [];
+  const result = resolveConditions({ runDir: pinned.runDir, repoRoot: pinned.root }, {
+    execFileSync: (cmd, args) => { calls.push(cmd); return ghPresent(cmd); },
+  });
+  assert.equal(result.conditions['integration-model'], 'local-merge');
+  assert.deepEqual(calls, ['gh']);
+});
+
+test('integration-model: a config.yml pin wins over a policy.yml pin', () => {
+  const { root, runDir } = fixture({
+    policy: 'integration-model: local-merge\n',
+    config: 'integration-model: pr-first\n',
+  });
+  assert.equal(resolveConditions({ runDir, repoRoot: root }, { execFileSync: ghPresent }).conditions['integration-model'], 'pr-first');
 });
 
 test('work-backend reads the CLAUDE.md line at repoRoot (never the run dir), and a missing or off-vocabulary line is unresolved', () => {
   const ok = fixture({ claudeMd: 'work-backend: local-files\n' });
-  assert.equal(resolveConditions({ runDir: ok.runDir, repoRoot: ok.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions['work-backend'], 'local-files');
+  assert.equal(resolveConditions({ runDir: ok.runDir, repoRoot: ok.root }, { execFileSync: ghPresent }).conditions['work-backend'], 'local-files');
   const bad = fixture({ claudeMd: 'work-backend: postgres\n' });
-  assert.equal(resolveConditions({ runDir: bad.runDir, repoRoot: bad.root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions['work-backend'], 'unresolved');
+  assert.equal(resolveConditions({ runDir: bad.runDir, repoRoot: bad.root }, { execFileSync: ghPresent }).conditions['work-backend'], 'unresolved');
 });
 
 test('work-backend is read via parseFlatLines, so a trailing comment on the line still resolves', () => {
   const { root, runDir } = fixture({ claudeMd: 'work-backend: github-issues # default\n' });
-  assert.equal(resolveConditions({ runDir, repoRoot: root }, { execFileSync: ghPresent, resolveIntegrationModel: () => 'pr-first' }).conditions['work-backend'], 'github-issues');
+  assert.equal(resolveConditions({ runDir, repoRoot: root }, { execFileSync: ghPresent }).conditions['work-backend'], 'github-issues');
 });
 
 test('an unreadable-but-present file is a real error surfaced to the caller, not silently read as unresolved', () => {
@@ -103,7 +116,6 @@ test('an unreadable-but-present file is a real error surfaced to the caller, not
     () => resolveConditions({ runDir, repoRoot: root }, {
       readFile,
       execFileSync: ghPresent,
-      resolveIntegrationModel: () => 'pr-first',
     }),
     (err) => err.code === 'EACCES',
   );
@@ -114,7 +126,6 @@ test('transport is the only shell-out and it is the injected execFileSync — no
   const calls = [];
   resolveConditions({ runDir, repoRoot: root }, {
     execFileSync: (cmd, args) => { calls.push(cmd); if (cmd !== 'gh') throw new Error('unexpected ' + cmd); return 'gh version 2\n'; },
-    resolveIntegrationModel: neverDetect,
   });
   assert.deepEqual(calls, ['gh']);
 });

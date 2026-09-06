@@ -103,3 +103,24 @@ test('a conditions object missing a key or carrying an off-vocabulary value is a
   assert.throws(() => compose([{ path: 'a.md', content: 'x\n' }], missing), TypeError);
   assert.throws(() => compose([{ path: 'a.md', content: 'x\n' }], { ...ALL, transport: 'carrier-pigeon' }), TypeError);
 });
+
+test('a fenced example composes verbatim — fence lines and marker lines included — even when the fenced condition does not match', () => {
+  // ALL resolves integration-model=pr-first, so a real (unfenced) local-merge
+  // block here would be stripped entirely. Fenced, it must survive untouched.
+  const content = '```markdown\n<!-- when: integration-model=local-merge -->\nlocal only\n<!-- /when -->\n```\nafter\n';
+  const src = { path: 'a.md', content };
+  assert.equal(compose([src], ALL), `${HEADER}\n${content}`);
+});
+
+test('stripMarkers leaves a marker-shaped line inside a fence untouched', () => {
+  const content = '```\n<!-- when: mode=auto -->\n```\n';
+  assert.equal(stripMarkers(content), content);
+});
+
+test('a marker opened at line 1 whose only close sits inside a fence throws MarkerError "unclosed" with line 1', () => {
+  const content = '<!-- when: mode=auto -->\nx\n```\n<!-- /when -->\n```\n';
+  assert.throws(
+    () => compose([{ path: 'a.md', content }], ALL),
+    (err) => err instanceof MarkerError && /unclosed/.test(err.message) && err.line === 1,
+  );
+});
