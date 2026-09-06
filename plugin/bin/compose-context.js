@@ -11,8 +11,9 @@
 // anchored-or-outside rule, #1065/[IL-127] — a path outside any checkout is
 // accepted, a worktree-local shadow is refused) — on every exit-2 case nothing
 // is written and a prior bundle at the output path is left untouched; 1
-// filesystem failure (unreadable source, unwritable output). Same
-// run(argv, deps) seam and require.main guard as bin/build-review-context.js.
+// filesystem failure (unreadable source, unwritable output, or a cwd that
+// cannot be read). Same run(argv, deps) seam and require.main guard as
+// bin/build-review-context.js.
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -58,9 +59,11 @@ function run(argv, deps = {}) {
   if (o.sources.length === 0) return usageError('at least one <source-file> is required');
 
   let cwd;
-  try { cwd = d.cwd(); } catch (err) { d.stderr(`compose-context.js: ${err && err.message}\n`); return 2; }
+  try { cwd = d.cwd(); } catch (err) { d.stderr(`compose-context.js: ${err && err.message}\n`); return 1; }
   const runDir = path.resolve(cwd, o.run);
-  if (!d.isDirectory(runDir)) { d.stderr(`compose-context.js: --run ${o.run} is not a directory\n`); return 2; }
+  let isDir;
+  try { isDir = d.isDirectory(runDir); } catch (err) { d.stderr(`compose-context.js: ${err && err.message}\n`); return 2; }
+  if (!isDir) { d.stderr(`compose-context.js: --run ${o.run} is not a directory\n`); return 2; }
   let rejection;
   try { rejection = d.anchoredOrOutsideMessage(runDir, cwd, '--run'); } catch (err) { d.stderr(`compose-context.js: ${err && err.message}\n`); return 2; }
   if (rejection) { d.stderr(`compose-context.js: ${rejection}\n`); return 2; }
@@ -85,7 +88,12 @@ function run(argv, deps = {}) {
 }
 
 if (require.main === module) {
-  process.exitCode = run(process.argv.slice(2));
+  try {
+    process.exitCode = run(process.argv.slice(2));
+  } catch (err) {
+    process.stderr.write(`compose-context.js: ${err.message}\n`);
+    process.exitCode = 1;
+  }
 }
 
 module.exports = { run, parseArgs };
