@@ -257,7 +257,8 @@ const ZERO_TOKENS = () => ({ input: 0, output: 0, cacheRead: 0, cacheCreate: 0 }
 // the reader keeps the groups exclusive per row, so sums never double.
 function joinTokens(phases, usageRows) {
   const rows = Array.isArray(usageRows) ? usageRows : [];
-  const spans = (Array.isArray(phases) ? phases : []).map((p) => ({
+  const phaseList = Array.isArray(phases) ? phases : [];
+  const spans = phaseList.map((p) => ({
     phase: p.phase, start: ms(p.start), end: ms(p.end), source: p.source,
   }));
   const acc = new Map();
@@ -284,7 +285,7 @@ function joinTokens(phases, usageRows) {
     }
     add(best ? acc.get(best.phase) : unattributed, r);
   }
-  const outPhases = (Array.isArray(phases) ? phases : []).map((p) => {
+  const outPhases = phaseList.map((p) => {
     const b = acc.get(p.phase);
     return { ...p, tokens: b.tokens, procedureBytes: b.procedureBytes, toolRoundTrips: b.toolRoundTrips };
   });

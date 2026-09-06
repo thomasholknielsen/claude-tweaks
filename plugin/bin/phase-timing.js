@@ -76,6 +76,17 @@ function verifyCell(verify) {
 
 function kb(bytes) { return (bytes / 1024).toFixed(1); }
 
+// A phase, `tokens.unattributed`, or `tokens.totals` all share the same
+// { tokens: {input, output, ...}, procedureBytes, toolRoundTrips } shape —
+// this renders the three trailing token columns for any of them.
+function tokenCols(bucket) {
+  return ` ${bucket.tokens.input}/${bucket.tokens.output} | ${kb(bucket.procedureBytes)} | ${bucket.toolRoundTrips} |`;
+}
+
+function extraCols(bucket, blank) {
+  return blank ? ' — | — | — |' : tokenCols(bucket);
+}
+
 // out: derivePhases result; tokens: joinTokens result or null (no transcript
 // requested); notes: lines printed before the table.
 function renderMarkdown(out, tokens = null, guard = null, notes = []) {
@@ -89,20 +100,15 @@ function renderMarkdown(out, tokens = null, guard = null, notes = []) {
   for (const p of rows) {
     const minutes = p.ownMinutes !== p.minutes ? `${p.minutes} (own ${p.ownMinutes})` : String(p.minutes);
     const verify = p.source === 'unattributed' ? 'unattributed' : verifyCell(p.verify);
-    const extra = !withTokens ? '' : blank
-      ? ' — | — | — |'
-      : ` ${p.tokens.input}/${p.tokens.output} | ${kb(p.procedureBytes)} | ${p.toolRoundTrips} |`;
+    const extra = withTokens ? extraCols(p, blank) : '';
     lines.push(`| ${p.phase} | ${minutes} | ${verify} |${extra}`);
   }
   if (withTokens && tokens.unattributed.rows > 0) {
-    const u = tokens.unattributed;
-    lines.push(`| unattributed | — | — | ${u.tokens.input}/${u.tokens.output} | ${kb(u.procedureBytes)} | ${u.toolRoundTrips} |`);
+    lines.push(`| unattributed | — | — |${tokenCols(tokens.unattributed)}`);
   }
   if (out.totals.minutes > 0 || out.totals.verifyRuns > 0 || (tokens && tokens.totals.rows > 0)) {
     const verifyTot = `${out.totals.verifyRuns} run(s)${out.totals.verifyModes.length ? ` (${out.totals.verifyModes.join(', ')})` : ''}`;
-    const extra = !withTokens ? '' : blank
-      ? ' — | — | — |'
-      : ` ${tokens.totals.tokens.input}/${tokens.totals.tokens.output} | ${kb(tokens.totals.procedureBytes)} | ${tokens.totals.toolRoundTrips} |`;
+    const extra = withTokens ? extraCols(tokens.totals, blank) : '';
     lines.push(`| total | ${out.totals.minutes} | ${verifyTot} |${extra}`);
   }
   if (guard) {
