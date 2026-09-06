@@ -219,11 +219,21 @@ test('--json prints the result object instead of the table (#1932)', async () =>
   assert.ok(!('snapshot' in parsed), 'the snapshot is internal');
 });
 
-test('malformed: a policy other than console-auto, or a --run that is not a directory, exits 2 (#1932 Gotcha)', async () => {
+test('malformed: a policy other than console-auto exits 2 (#1932 Gotcha)', async () => {
   const fx = mainCheckoutWithRun();
   const { d } = baseDeps(fx, []);
   assert.strictEqual(await run(['--run', fx.runDir, '--policy', 'manual'], d), 2);
+});
+
+test('malformed: a --run that is not a directory exits 2 (#1932 Gotcha)', async () => {
+  const fx = mainCheckoutWithRun();
+  const { d } = baseDeps(fx, []);
   assert.strictEqual(await run(['--run', path.join(fx.runDir, 'nope'), '--policy', 'console-auto'], d), 2);
+});
+
+test('malformed: a missing --run exits 2 (#1932 Gotcha)', async () => {
+  const fx = mainCheckoutWithRun();
+  const { d } = baseDeps(fx, []);
   assert.strictEqual(await run(['--policy', 'console-auto'], d), 2);
 });
 
