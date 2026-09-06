@@ -21,9 +21,10 @@ function mainCheckoutWithRun() {
   return { root, runDir };
 }
 
+const POLICY = { 'integration-branch': 'main', 'work-backend': 'github-issues', 'work-links': 'body-text' };
 const okProbeDeps = {
-  resolvePolicy: (k) => ({ 'integration-branch': 'main', 'work-backend': 'github-issues', 'work-links': 'body-text' })[k] || '',
-  computeBlastRadius: () => ({ summary: {} }), computeMergeSizeOverflow: () => ({ overflow: false }),
+  resolvePolicy: (keys) => Object.fromEntries(keys.map((k) => [k, POLICY[k] || ''])),
+  computeBlastRadius: () => ({ summary: {} }), computeMergeSizeOverflow: () => ({ mergedTree: null, measured: [], overflow: [] }),
   readClaimBlob: () => ({ content: null, failure: null, absent: true, via: 'git' }), classifyClaimBlob: () => ({ state: 'absent', reclaimable: true }),
   execFile: async (cmd, args) => (cmd === 'gh' ? { stdout: args[0] === 'pr' ? '{"state":"OPEN"}' : args[1] === 'list' ? '[]' : '{"labels":[]}', stderr: '' } : { stdout: '{"suite":{"ran":false}}', stderr: '' }),
 };
@@ -35,15 +36,35 @@ test('parseArgs: --run is required; --only is a comma list of known probes; unkn
   assert.throws(() => parseArgs(['--run', '/r', '--bogus']), /unknown flag/);
 });
 
-test('run: an anchored run dir → exit 0, the pack on stdout, wrap-up-pack.json written with the ten keys (#1930 AC2)', async () => {
+test('run: an anchored run dir → exit 0, the pack on stdout, wrap-up-pack.json written with the nine probe keys (#1930 AC2)', async () => {
   const { root, runDir } = mainCheckoutWithRun();
   let out = '';
   const code = await run(['--run', runDir], { cwd: () => root, mainRoot: root, stdout: (s) => { out += s; }, stderr: () => {}, packDeps: okProbeDeps });
   assert.strictEqual(code, 0);
   const pack = JSON.parse(out);
   const file = JSON.parse(fs.readFileSync(path.join(runDir, 'wrap-up-pack.json'), 'utf8'));
-  assert.deepStrictEqual(Object.keys(pack).sort(), ['blastRadius', 'claim', 'durationMs', 'generatedAt', 'inputs', 'ledger', 'mergeSize', 'pr', 'recordLabels', 'release', 'residue', 'state', 'unblocked']);
+  assert.deepStrictEqual(Object.keys(pack).sort(), ['blastRadius', 'claim', 'durationMs', 'generatedAt', 'inputs', 'ledger', 'mergeSize', 'pr', 'recordLabels', 'residue', 'state', 'unblocked']);
   assert.deepStrictEqual(Object.keys(file).sort(), Object.keys(pack).sort());
+});
+
+test('run: --json inside the anchored target writes there instead of the run dir (#1930 review M3)', async () => {
+  const { root, runDir } = mainCheckoutWithRun();
+  const dest = path.join(root, 'pack-copy.json');
+  const code = await run(['--run', runDir, '--json', dest], { cwd: () => root, mainRoot: root, stdout: () => {}, stderr: () => {}, packDeps: okProbeDeps });
+  assert.strictEqual(code, 0);
+  assert.ok(fs.existsSync(dest), '--json destination written');
+  assert.ok(!fs.existsSync(path.join(runDir, 'wrap-up-pack.json')), 'the default destination is not also written');
+});
+
+test('run: a --json outside the anchored target exits 3 and writes nothing (#1930 review M3)', async () => {
+  const { root, runDir } = mainCheckoutWithRun();
+  const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wrap-up-pack-elsewhere-')), 'pack.json');
+  let err = '';
+  const code = await run(['--run', runDir, '--json', outside], { cwd: () => root, mainRoot: root, stdout: () => {}, stderr: (s) => { err += s; }, packDeps: okProbeDeps });
+  assert.strictEqual(code, 3);
+  assert.match(err, /--json .* refused/);
+  assert.ok(!fs.existsSync(outside));
+  assert.ok(!fs.existsSync(path.join(runDir, 'wrap-up-pack.json')), 'the refusal happens before any pack is produced');
 });
 
 test('run: --only residue,pr writes only those probe keys plus inputs/generatedAt/durationMs (#1930 AC2)', async () => {

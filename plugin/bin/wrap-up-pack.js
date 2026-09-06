@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 // plugin/bin/wrap-up-pack.js — one deterministic fact pack for
-// /claude-tweaks:wrap-up's Phases 3-4 (#1930): ten probes, concurrently,
+// /claude-tweaks:wrap-up's Phases 3-4 (#1930): nine probes, concurrently,
 // one JSON. Read-only. Exit 0 whenever the pack was produced (a failing
 // probe degrades its own field), 2 on a malformed invocation, 3 when --run
 // is not anchored under the main checkout (stage-item's resolveTarget —
-// [IL-127]: a worktree-local shadow run dir must never be written).
+// [IL-127]: a worktree-local shadow run dir must never be written), and 3
+// likewise when --json would write outside that same anchored target.
 'use strict';
 
-const fs = require('fs');
 const path = require('path');
 const { gatherPack, PROBE_NAMES } = require('./lib/wrap-up/pack');
 const { resolveTarget } = require('./lib/stage-item/write');
+const { writeFileAtomic } = require('./lib/atomic-write');
 
 const USAGE = 'usage: wrap-up-pack.js --run <dir> [--json <path>] [--only <probe,...>]';
 
@@ -55,10 +56,23 @@ async function run(argv, deps = {}) {
     stderr(`wrap-up-pack.js: --run ${o.run} refused (${target.reason === 'missing' ? 'missing' : 'not anchored under the main checkout'}) — nothing written\n`);
     return 3;
   }
+  // --json is the same write, redirected — so it clears the same anchoring bar
+  // as --run: either inside the resolved run dir, or inside a directory that
+  // itself resolves under the main checkout. Anything else is refused before
+  // any probe runs, so an unanchored destination costs nothing and writes
+  // nothing ([IL-127]).
+  let file = path.join(target.dir, 'wrap-up-pack.json');
+  if (o.json) {
+    file = path.resolve(cwd(), o.json);
+    const underRun = file === target.dir || file.startsWith(target.dir + path.sep);
+    if (!underRun && !resolveTarget({ runDir: path.dirname(file), cwd: cwd(), mainRoot: deps.mainRoot }).ok) {
+      stderr(`wrap-up-pack.js: --json ${o.json} refused (not under the run dir, and not anchored under the main checkout) — nothing written\n`);
+      return 3;
+    }
+  }
   const pack = await gatherPack({ runDir: target.dir, cwd: cwd(), only: o.only, deps: deps.packDeps || {} });
   const text = `${JSON.stringify(pack, null, 2)}\n`;
-  const file = o.json ? path.resolve(cwd(), o.json) : path.join(target.dir, 'wrap-up-pack.json');
-  fs.writeFileSync(file, text);
+  writeFileAtomic(file, text);
   stdout(text);
   return 0;
 }
