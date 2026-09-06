@@ -19,7 +19,10 @@ const {
 } = require('./lib/verify/extract');
 const { planRetry, runRetries, flakyCaveatLines } = require('./lib/verify/flaky');
 const { gitInfo, gitDir: resolveGitDir, composeReport } = require('./lib/verify/report');
-const { readStamp: readCountStamp, detectRegression, caveatLine } = require('./lib/verify/count-stamp');
+const {
+  readStamp: readCountStamp, detectRegression, caveatLine,
+  nextFlakyHits, flakyEscalations, escalationCaveatLine,
+} = require('./lib/verify/count-stamp');
 const { writeJsonAtomic } = require('./lib/verify/atomic-write');
 const { composeStamp, writeStamp, readStamp: readVerifyStamp } = require('./lib/verify/stamp');
 const { readDeclaration } = require('./lib/verify/declaration');
@@ -315,13 +318,24 @@ async function main() {
     ? { tests: testsCheck.counts.tests, sha: git.sha, recordedAt: startedAt }
     : null;
   let testCountRegression = null;
+  let flakyEscalation = [];
   // H3 (review): a narrowed run's "tests" count is not comparable to a full
   // run's baseline — comparing it would fire a false CAVEAT, and persisting
   // it would silently corrupt the baseline the next full run reads against.
-  if (countStampPath && (!sel || sel.mode === 'full')) {
+  // The flaky hit map (#1925) is the exception: it moves on any run that
+  // retried, but only ever alongside a still-valid baseline — a non-full run
+  // with no prior stamp has no `tests` to write and persists nothing.
+  if (countStampPath) {
+    const fullMode = !sel || sel.mode === 'full';
     const previousCount = readCountStamp(countStampPath);
-    testCountRegression = detectRegression(previousCount, currentCount);
-    if (currentCount !== null) {
+    if (fullMode) testCountRegression = detectRegression(previousCount, currentCount);
+    const allowlist = decl ? decl.flaky.files : [];
+    const hits = nextFlakyHits(previousCount, retriedFiles, allowlist);
+    flakyEscalation = flakyEscalations(hits);
+    let toWrite = null;
+    if (fullMode && currentCount !== null) toWrite = { ...currentCount, flakyHits: hits };
+    else if (retriedFiles.length > 0 && previousCount !== null) toWrite = { ...previousCount, flakyHits: hits };
+    if (toWrite !== null) {
       // Fail-toward-absence on the write side too (readStamp already does
       // this on read): a stamp-write failure (ENOSPC, EACCES, a
       // --count-stamp path whose parent directory doesn't exist) must never
@@ -331,7 +345,7 @@ async function main() {
       // unguarded: it IS the run's output, so a failure there must surface.
       try {
         fs.mkdirSync(path.dirname(countStampPath), { recursive: true });
-        writeJsonAtomic(countStampPath, currentCount);
+        writeJsonAtomic(countStampPath, toWrite);
       } catch { /* best-effort persistence; next run simply has no baseline */ }
     }
   }
@@ -351,7 +365,7 @@ async function main() {
   const report = composeReport({
     checks: results, startedAt, durationMs: Date.now() - startMs, git, testCountRegression,
     scope: sel ? { mode: sel.mode, suites: scopeSuites, static: sel.static, base: resolvedBase, unmatched: sel.unmatched, changedFiles: files, matched: sel.matched } : null,
-    flakyEscalation: [],
+    flakyEscalation,
   });
   writeJsonAtomic(jsonPath, report);
 
@@ -431,6 +445,7 @@ async function main() {
   }
   if (testCountRegression) lines.push('', caveatLine(testCountRegression));
   for (const line of flakyCaveatLines(results)) lines.push('', line);
+  for (const e of flakyEscalation) lines.push('', escalationCaveatLine(e));
   lines.push('', `report: ${jsonPath}`);
   process.stdout.write(`${lines.join('\n')}\n`);
   process.exitCode = report.pass ? 0 : 1;

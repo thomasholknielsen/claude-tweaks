@@ -1091,3 +1091,36 @@ test('flaky retry: a retried-to-pass suite does not fail-fast-skip the suites be
   assert.ok(fs.existsSync(path.join(r.repo, 'other.marker')), 'other ran after unit was retried to a pass');
   assert.deepStrictEqual(stampOf(r.gitDir).flakyRetried, ['tests/flaky.test.js']);
 });
+
+test('flaky retry: a pre-seeded flakyHits of 4 escalates on the fifth retry — both caveats render, report.flakyEscalation has one entry, the count stamp records 5 (#1925 AC5)', async () => {
+  const r = flakyRepo();
+  const countStampPath = path.join(r.gitDir, 'claude-tweaks-test-count.json');
+  fs.writeFileSync(countStampPath, JSON.stringify({ tests: 1, sha: 'seed', recordedAt: 't', flakyHits: { 'tests/flaky.test.js': 4 } }));
+  const { code, stdout, stderr } = await runCli(r.args, { cwd: r.repo });
+  assert.strictEqual(code, 0, stderr);
+  assert.match(stdout, /^CAVEAT: flaky-retried: tests\/flaky\.test\.js — passed on isolated rerun/m);
+  assert.match(stdout, /^CAVEAT: flaky-allowlist: tests\/flaky\.test\.js retried 5 times — file a fix or remove it from the allowlist$/m);
+  const report = JSON.parse(fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify', 'report.json'), 'utf8'));
+  assert.deepStrictEqual(report.flakyEscalation, [{ file: 'tests/flaky.test.js', hits: 5 }]);
+  const stamp = JSON.parse(fs.readFileSync(countStampPath, 'utf8'));
+  assert.deepStrictEqual(stamp.flakyHits, { 'tests/flaky.test.js': 5 });
+  assert.strictEqual(stamp.tests, 1);
+});
+
+test('flaky retry: hits accumulate across two runs and a file removed from the allowlist is pruned from the map (#1925)', async () => {
+  const r = flakyRepo({ flaky: { files: ['tests/flaky.test.js', 'tests/other.test.js'] } });
+  const countStampPath = path.join(r.gitDir, 'claude-tweaks-test-count.json');
+  fs.writeFileSync(countStampPath, JSON.stringify({ tests: 1, sha: 'seed', recordedAt: 't', flakyHits: { 'tests/other.test.js': 2, 'tests/removed.test.js': 9 } }));
+  const first = await runCli(r.args, { cwd: r.repo });
+  assert.strictEqual(first.code, 0, first.stderr);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(countStampPath, 'utf8')).flakyHits, { 'tests/flaky.test.js': 1, 'tests/other.test.js': 2 });
+  assert.doesNotMatch(first.stdout, /flaky-allowlist/);
+  // Second run at the same HEAD: the prior stamp is full at this sha, so the
+  // scope run is mode none and nothing spawns — the map must be untouched.
+  // run 1's retry marker is fixture scaffolding — an untracked file is a real change to the runner, so clear it before proving the unchanged-HEAD run is mode none
+  fs.unlinkSync(r.marker);
+  const second = await runCli(r.args, { cwd: r.repo });
+  assert.strictEqual(second.code, 0, second.stderr);
+  assert.match(second.stdout, /^Scope: none/m);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(countStampPath, 'utf8')).flakyHits, { 'tests/flaky.test.js': 1, 'tests/other.test.js': 2 });
+});
