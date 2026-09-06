@@ -292,11 +292,11 @@ gh issue comment {issue} --body "Verification Brief posted to PR #{pr-number}: {
 gh issue edit {issue} --add-label demo:pending
 ```
 
-Then post the run's Timing table as the `timing` kind, under the same gate (#1928):
+Then post the run's Timing table as the `timing` kind, under the same gate (#1928); a `tokens: transcript not found (...)` line, when present, is posted verbatim with the table:
 
 ```bash
 printf '<!-- run-comment: timing -->\n\n' > /tmp/pr-timing-{issue}.md
-node "${CLAUDE_PLUGIN_ROOT}/bin/phase-timing.js" --run "$PIPELINE_RUN_DIR" --markdown >> /tmp/pr-timing-{issue}.md
+node "${CLAUDE_PLUGIN_ROOT}/bin/phase-timing.js" --run "$PIPELINE_RUN_DIR" --markdown --auto-transcript >> /tmp/pr-timing-{issue}.md
 # find-or-create per _shared/pr-run-comments.md's post-or-update procedure, kind=timing, against {pr-number}
 ```
 

@@ -48,7 +48,7 @@ test('#1928 AC6: pr-run-comments.md has a timing comment kind with its producer'
 
 test('#1928 AC6: dispatch/SKILL.md prints the per-group timing line from timing.json and stays under the ceiling', () => {
   const t = read('plugin/skills/dispatch/SKILL.md');
-  assert.match(t, /`timing: call-1 \{m\}m · call-2 \{m\}m · verify \{n\} run\(s\) \(\{modes\}\)`/);
+  assert.match(t, /`timing: call-1 \{m\}m · call-2 \{m\}m · verify \{n\} run\(s\) \(\{modes\}\)/, 'the #1929 token-clause extension keeps this literal as a prefix');
   assert.match(t, /timing\.json/);
   assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING, `dispatch/SKILL.md is ${Buffer.byteLength(t, 'utf8')} B`);
 });
@@ -73,4 +73,26 @@ test('#1928: docs name the timing module, the CLI, and the flow/wrap-up table so
   assert.match(flow, /`bin\/phase-timing\.js`/);
   assert.match(wrap, /`bin\/phase-timing\.js`/);
   assert.match(dispatch, /`bin\/phase-timing\.js`/);
+});
+
+test('#1929 AC5: the three summary Timing blocks and the PR timing command pass --auto-transcript after --markdown', () => {
+  for (const f of ['plugin/skills/flow/summary-template.md', 'plugin/skills/wrap-up/summary-template.md', 'plugin/skills/flow/multispec-summary.md', 'plugin/skills/wrap-up/verification-brief.md']) {
+    const t = read(f);
+    assert.match(t, /bin\/phase-timing\.js" --run "(\$PIPELINE_RUN_DIR|\$MULTISPEC_PARENT_DIR)" --markdown --auto-transcript/, f);
+    assert.match(t, /tokens: transcript not found/, `${f} must say the note line renders verbatim`);
+  }
+});
+
+test('#1929 AC5: dispatch/SKILL.md carries the token clause on its timing line and stays under the ceiling', () => {
+  const t = read('plugin/skills/dispatch/SKILL.md');
+  assert.match(t, /`timing: call-1 \{m\}m · call-2 \{m\}m · verify \{n\} run\(s\) \(\{modes\}\) · \{k\} tokens in \/ \{m\} out`/);
+  assert.match(t, /--transcript/, 'dispatch passes both agent transcripts explicitly');
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING, `dispatch/SKILL.md is ${Buffer.byteLength(t, 'utf8')} B`);
+});
+
+test('#1929: docs name the transcript reader, the new flags, and the guard counts', () => {
+  const ps = read('docs/plugin-structure.md');
+  assert.match(ps, /^plugin\/bin\/lib\/timing\/ [^\n]*transcript\.js/m);
+  assert.match(ps, /^node plugin\/bin\/phase-timing\.js --run <dir> \[--json\] \[--markdown\] \[--transcript <path> \.\.\.\] \[--auto-transcript\]/m);
+  assert.match(read('docs/hooks.md'), /timing\.json[^\n]*(gate-denial|guard)/);
 });

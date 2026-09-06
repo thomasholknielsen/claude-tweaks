@@ -150,7 +150,13 @@ async function main(argv) {
   for (const p of paths) {
     try {
       const r = await readUsage(p, { worktree: runState && runState.worktree ? runState.worktree : null });
-      transcripts.push({ path: p, rows: r.length });
+      if (r.length === 0) {
+        const note = `transcript had no usage rows (${p})`;
+        transcripts.push({ path: p, rows: 0, note });
+        notes.push(`tokens: ${note}`);
+      } else {
+        transcripts.push({ path: p, rows: r.length });
+      }
       rows = rows.concat(r);
     } catch (err) {
       const reason = `${err && err.code ? err.code : 'unreadable'}: ${p}`;

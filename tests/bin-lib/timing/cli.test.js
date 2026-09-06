@@ -93,6 +93,16 @@ test('#1929 AC4: a nonexistent --transcript prints the not-found note, blank col
   assert.match(json.transcripts[0].note, /ENOENT/);
 });
 
+test('#1929 review fold-in: an empty transcript file prints the no-usage-rows note, exit 0, six-column header', () => {
+  const dir = tmpRun(true);
+  const empty = path.join(os.tmpdir(), 'ct-empty-transcript.jsonl');
+  fs.writeFileSync(empty, '');
+  const r = run(['--run', dir, '--transcript', empty, '--markdown']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^tokens: transcript had no usage rows \(/m);
+  assert.match(r.stdout, /^\| Phase \| Minutes \| Verify \| Tokens \(in\/out\) \| Proc\. KB \| Tool RTs \|$/m);
+});
+
 test('#1929: without any --transcript the table keeps its #1928 three-column shape', () => {
   const dir = tmpRun(true);
   const r = run(['--run', dir, '--markdown']);
