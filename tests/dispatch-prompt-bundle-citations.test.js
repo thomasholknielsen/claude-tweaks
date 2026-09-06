@@ -38,6 +38,8 @@ function fencedBlocks(text) {
     if (!lines[i].startsWith('```')) continue;
     if (start === -1) { start = i + 1; } else { blocks.push(lines.slice(start, i)); start = -1; }
   }
+  // An unclosed fence would otherwise drop its block from coverage silently; fail loud instead.
+  assert.equal(start, -1, 'unbalanced ``` fences — the last fenced block is unclosed');
   return blocks;
 }
 
@@ -120,16 +122,20 @@ test('the documented gap list is not stale — each gap still occurs on a govern
   }
 });
 
-test('the gap stale-check can detect a fallback-shaped gap (discrimination proof)', () => {
+test('the gap stale-check can detect a fallback-shaped or vanished gap (discrimination proof, every gap)', () => {
   const text = fs.readFileSync(TASK_PROMPT, 'utf8');
-  const gap = GAPS[0];
-  const lines = text.split('\n');
-  const idx = lines.findIndex((l) => l.includes(gap));
-  assert.ok(idx !== -1, `setup: gap citation not found in the file: ${gap}`);
-  assert.equal(gapStatus(text, gap), 'ok', 'setup: gap must not already be stale before doctoring');
-  lines[idx] = `if that bundle is absent, read \`${gap}\` directly`;
-  const doctored = lines.join('\n');
-  assert.equal(gapStatus(doctored, gap), 'fallback-shaped', 'doctored fallback-shaped gap was not caught as stale');
+  for (const gap of GAPS) {
+    const lines = text.split('\n');
+    const idx = lines.findIndex((l) => l.includes(gap));
+    assert.ok(idx !== -1, `setup: gap citation not found in the file: ${gap}`);
+    assert.equal(gapStatus(text, gap), 'ok', `setup: gap must not already be stale before doctoring: ${gap}`);
+    const shaped = lines.slice();
+    shaped[idx] = `if that bundle is absent, read \`${gap}\` directly`;
+    assert.equal(gapStatus(shaped.join('\n'), gap), 'fallback-shaped', `doctored fallback-shaped gap was not caught as stale: ${gap}`);
+    const vanished = lines.slice();
+    vanished[idx] = lines[idx].replace(gap, '{minted-run-dir}/context/gone.md');
+    assert.equal(gapStatus(vanished.join('\n'), gap), 'missing', `doctored vanished gap was not caught as missing: ${gap}`);
+  }
 });
 
 test('review/step3-lens-dispatch.md fenced blocks never cite _shared/ at all', () => {
@@ -183,5 +189,5 @@ test('the _shared/ citation predicate can actually go red (discrimination proof)
   const before = sharedOffenders(governedLines(text), { gaps: GAPS });
   const after = sharedOffenders(governedLines(doctored), { gaps: GAPS });
   assert.deepStrictEqual(before, []);
-  assert.ok(after.length > before.length, 'doctored _shared/ citation (no fallback) was not caught');
+  assert.ok(after.some((line) => line.includes('`_shared/pr-first-merge.md` for the merge procedure')), `doctored _shared/ citation (no fallback) was not caught; offenders: ${after.join(' | ')}`);
 });
