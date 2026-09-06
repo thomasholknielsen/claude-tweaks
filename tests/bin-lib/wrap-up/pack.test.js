@@ -159,3 +159,24 @@ test('gatherPack: body-text work-links finds dependents by a literal Blocked by 
   const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['unblocked'], deps });
   assert.deepStrictEqual(pack.unblocked.value, [{ number: 1600, title: 'Dependent' }]);
 });
+
+test('gatherPack: claim probe surfaces a clean error when readClaimBlob falls through to the gh API fallback the pack has none for (#1930 fix)', async () => {
+  const deps = okDeps({
+    readClaimBlob: (d) => { d.ghApi(); return { content: null, failure: null, absent: true }; },
+  });
+  const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['claim'], deps });
+  assert.strictEqual(pack.claim.ok, false);
+  assert.match(pack.claim.error, /claim: git transport to the claims branch failed and the pack has no gh API fallback/);
+});
+
+test('gatherPack: residue probe refuses to run with an unresolved merge-base rather than passing the literal "null" (#1930 fix)', async () => {
+  const calls = [];
+  const deps = okDeps({
+    git: (args) => { if (args[0] === 'merge-base') throw new Error('no merge base'); return okDeps().git(args); },
+    execFile: async (cmd, args) => { if (String(args[0]).endsWith('residue.js')) { calls.push(args); } return okDeps().execFile(cmd, args); },
+  });
+  const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['residue'], deps });
+  assert.strictEqual(pack.residue.ok, false);
+  assert.match(pack.residue.error, /base unresolved/);
+  assert.strictEqual(calls.length, 0);
+});

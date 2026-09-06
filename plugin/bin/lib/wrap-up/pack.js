@@ -41,6 +41,7 @@ function defaultDeps(cwd) {
     readClaimBlob: require('../issues/claim-store').readClaimBlob,
     classifyClaimBlob: require('../issues/claims').classifyClaimBlob,
     gitRunner: require('../issues/claims-git-cas').defaultRunner,
+    ghApi: () => { throw new Error('claim: git transport to the claims branch failed and the pack has no gh API fallback'); },
   };
 }
 
@@ -152,6 +153,7 @@ function buildProbes(inputs, deps, cwd) {
     mergeSize: () => deps.computeMergeSizeOverflow({ integrationBranch: inputs.integrationBranch, headRef: 'HEAD' }, { git }),
     ledger: () => ledgerProbe(inputs, deps),
     residue: async () => {
+      if (!inputs.base) throw new Error('base unresolved — no merge-base against the integration branch');
       const { stdout } = await deps.execFile('node', [path.join(BIN, 'residue.js'), '--base', String(inputs.base), '--integration-branch', String(inputs.baseRef || inputs.integrationBranch), '--scope', 'blast-radius', '--json'], { cwd: inputs.worktree, maxBuffer: 32 * 1024 * 1024 });
       return JSON.parse(stdout);
     },
@@ -178,7 +180,7 @@ function buildProbes(inputs, deps, cwd) {
     claim: async () => {
       const out = {};
       for (const n of inputs.records) {
-        const blob = await deps.readClaimBlob({ gitRunner: deps.gitRunner }, null, n);
+        const blob = await deps.readClaimBlob({ gitRunner: deps.gitRunner, ghApi: deps.ghApi }, null, n);
         if (blob.failure) throw new Error(`claim read failed: ${blob.failure}`);
         out[n] = { ...deps.classifyClaimBlob(blob.absent ? null : blob.content, deps.now()), via: blob.via || 'git' };
       }
