@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { derivePhases, PHASES, NESTED_PARENT } = require('../../../plugin/bin/lib/timing/derive');
+const { derivePhases, PHASES, NESTED_PARENT, joinTokens, countGuardEvents } = require('../../../plugin/bin/lib/timing/derive');
 const { parseManifestYaml } = require('../../../plugin/bin/lib/flow/manifest');
 
 const FIX = path.join(__dirname, '..', '..', 'fixtures', 'timing', 'record-1535');
@@ -168,4 +168,54 @@ test('#1928 fix round 2: worktree-reaped as terminal clips endOfRun to the last 
   const p = byName(derivePhases({ events }));
   assert.equal(p.build.minutes, 19, `build.minutes ${p.build.minutes}`);
   assert.equal(p['call-1'].minutes, 20, `call-1.minutes ${p['call-1'].minutes}`);
+});
+
+function usageRow(ts, extra = {}) {
+  return { ts, role: 'assistant', inputTokens: 0, outputTokens: 0, cacheRead: 0, cacheCreate: 0, toolRoundTrip: false, procedureBytes: 0, ...extra };
+}
+
+test('#1929 AC3: joinTokens sums rows into the innermost containing phase on [start, end)', () => {
+  const out = derivePhases({ events: fixtureEvents(), manifest: fixtureManifest(), now: new Date('2026-09-05T14:13:00.000Z') });
+  const rows = [
+    usageRow('2026-09-05T12:59:00.000Z', { inputTokens: 1, outputTokens: 1 }),            // before call-1 → unattributed
+    usageRow('2026-09-05T13:50:00.000Z', { inputTokens: 100, outputTokens: 10, cacheRead: 1000 }), // review
+    usageRow('2026-09-05T13:56:00.000Z', { role: 'user', toolRoundTrip: true, procedureBytes: 500 }), // review
+    usageRow('2026-09-05T13:57:00.000Z', { inputTokens: 7 }),                                  // exactly wrap-up's start → wrap-up, not review
+    usageRow('2026-09-05T14:00:00.000Z', { inputTokens: 200, outputTokens: 20, cacheCreate: 50 }), // wrap-up
+    usageRow('2026-09-05T13:30:00.000Z', { inputTokens: 3 }),                                  // call-2 preflight gap → call-2
+    usageRow('2026-09-05T13:10:00.000Z', { inputTokens: 5, outputTokens: 5 }),                  // inside tasks (innermost), not build/call-1
+  ];
+  const joined = joinTokens(out.phases, rows);
+  const p = Object.fromEntries(joined.phases.map((x) => [x.phase, x]));
+  assert.deepEqual(p.review.tokens, { input: 100, output: 10, cacheRead: 1000, cacheCreate: 0 });
+  assert.equal(p.review.procedureBytes, 500);
+  assert.equal(p.review.toolRoundTrips, 1);
+  assert.deepEqual(p['wrap-up'].tokens, { input: 207, output: 20, cacheRead: 0, cacheCreate: 50 });
+  assert.equal(p['call-2'].tokens.input, 3);
+  assert.equal(p.tasks.tokens.input, 5);
+  assert.equal(p.build.tokens.input, 0);
+  assert.equal(p['call-1'].tokens.input, 0);
+  assert.deepEqual(joined.unattributed.tokens, { input: 1, output: 1, cacheRead: 0, cacheCreate: 0 });
+  assert.equal(joined.unattributed.rows, 1);
+  assert.deepEqual(joined.totals.tokens, { input: 316, output: 36, cacheRead: 1000, cacheCreate: 50 });
+  assert.equal(joined.totals.procedureBytes, 500);
+  assert.equal(joined.totals.toolRoundTrips, 1);
+});
+
+test('#1929: joinTokens with no rows leaves zeroed columns and never throws on unattributed phases', () => {
+  const out = derivePhases({ events: [{ ts: '2026-09-05T14:13:00.000Z', type: 'session-end' }] });
+  const joined = joinTokens(out.phases, []);
+  assert.equal(joined.phases.length, PHASES.length);
+  for (const x of joined.phases) assert.deepEqual(x.tokens, { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 });
+  assert.equal(joined.totals.toolRoundTrips, 0);
+});
+
+test('#1929: countGuardEvents counts the three guard event types and ignores the rest', () => {
+  const events = [
+    { ts: 't', type: 'gate-denial' }, { ts: 't', type: 'gate-denial' },
+    { ts: 't', type: 'wd-ambiguous' }, { ts: 't', type: 'wd-deny' }, { ts: 't', type: 'wd-deny' }, { ts: 't', type: 'wd-deny' },
+    { ts: 't', type: 'wd-foreign-session' }, { ts: 't', type: 'commit', action: 'push' },
+  ];
+  assert.deepEqual(countGuardEvents(events), { gateDenial: 2, wdAmbiguous: 1, wdDeny: 3 });
+  assert.deepEqual(countGuardEvents([]), { gateDenial: 0, wdAmbiguous: 0, wdDeny: 0 });
 });

@@ -247,4 +247,65 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
   return { phases, totals };
 }
 
-module.exports = { derivePhases, PHASES, NESTED_PARENT };
+const ZERO_TOKENS = () => ({ input: 0, output: 0, cacheRead: 0, cacheCreate: 0 });
+
+// (phases, usageRows) -> { phases, unattributed, totals } (#1929). Each row
+// joins the innermost phase whose [start, end) contains its ts — the same
+// rule verify events use — so a container's tokens are its exclusive-gap
+// tokens. Rows outside every phase land in `unattributed`. Token fields
+// come from assistant rows, round-trips/procedure bytes from user rows;
+// the reader keeps the groups exclusive per row, so sums never double.
+function joinTokens(phases, usageRows) {
+  const rows = Array.isArray(usageRows) ? usageRows : [];
+  const spans = (Array.isArray(phases) ? phases : []).map((p) => ({
+    phase: p.phase, start: ms(p.start), end: ms(p.end), source: p.source,
+  }));
+  const acc = new Map();
+  const bucket = () => ({ tokens: ZERO_TOKENS(), procedureBytes: 0, toolRoundTrips: 0, rows: 0 });
+  for (const s of spans) acc.set(s.phase, bucket());
+  const unattributed = bucket();
+  const add = (b, r) => {
+    b.tokens.input += Number(r.inputTokens) || 0;
+    b.tokens.output += Number(r.outputTokens) || 0;
+    b.tokens.cacheRead += Number(r.cacheRead) || 0;
+    b.tokens.cacheCreate += Number(r.cacheCreate) || 0;
+    b.procedureBytes += Number(r.procedureBytes) || 0;
+    if (r.toolRoundTrip) b.toolRoundTrips += 1;
+    b.rows += 1;
+  };
+  for (const r of rows) {
+    const t = ms(r && r.ts);
+    if (t === null) continue;
+    let best = null;
+    for (const s of spans) {
+      if (s.start === null || s.end === null || s.source === 'unattributed') continue;
+      if (!(t >= s.start && t < s.end)) continue;
+      if (!best || (s.end - s.start) < (best.end - best.start) || ((s.end - s.start) === (best.end - best.start) && s.start > best.start)) best = s;
+    }
+    add(best ? acc.get(best.phase) : unattributed, r);
+  }
+  const outPhases = (Array.isArray(phases) ? phases : []).map((p) => {
+    const b = acc.get(p.phase);
+    return { ...p, tokens: b.tokens, procedureBytes: b.procedureBytes, toolRoundTrips: b.toolRoundTrips };
+  });
+  const totals = bucket();
+  for (const r of rows) if (ms(r && r.ts) !== null) add(totals, r);
+  delete totals.rows;
+  return { phases: outPhases, unattributed, totals };
+}
+
+const GUARD_TYPES = { 'gate-denial': 'gateDenial', 'wd-ambiguous': 'wdAmbiguous', 'wd-deny': 'wdDeny' };
+
+// (events) -> { gateDenial, wdAmbiguous, wdDeny } (#1929): the per-run cost
+// of the worktree/gate guards, so filed false-positive records can be
+// prioritized by measurement.
+function countGuardEvents(events) {
+  const out = { gateDenial: 0, wdAmbiguous: 0, wdDeny: 0 };
+  for (const e of Array.isArray(events) ? events : []) {
+    const key = e && GUARD_TYPES[e.type];
+    if (key) out[key] += 1;
+  }
+  return out;
+}
+
+module.exports = { derivePhases, PHASES, NESTED_PARENT, joinTokens, countGuardEvents };
