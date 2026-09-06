@@ -31,7 +31,7 @@ Substitute the project's own commands from Step 1, one `--cmd <name>=<command>` 
 
 ### Reading the result
 
-The runner's stdout is already bounded — one table row per check plus at most one ≤100-line failing region per failed check, never raw check output — and it exits 0 iff every non-skipped check passed. It writes `{log-dir}/report.json`: per-check `{command, exitCode, durationMs, logPath, summary, failingRegion}` (plus `counts` where a test summary parses; a skipped check carries `{skipped: "fail-fast"}` in place of an exit code), and top-level `pass`, `startedAt`, `durationMs`, `sha`, and `dirty` (plus `testCountRegression` — see below — when one fired). The recorded `exitCode` is the check command's own — judge each check by it, never by grep side effects. Each check's full output is in its own `{log-dir}/{name}.log` for a recovery read of last resort; read the failing region the runner already extracted, never `cat` the log.
+The runner's stdout is already bounded — one table row per check plus at most one ≤100-line failing region per failed check, never raw check output — and it exits 0 iff every non-skipped check passed. It writes `{log-dir}/report.json`: per-check `{command, exitCode, durationMs, logPath, summary, failingRegion}` — plus, after a flaky retry (#1925), `flakyRetried`/`retryFailed`/`retryAttempts`/`retryDecision` (plus `counts` where a test summary parses; a skipped check carries `{skipped: "fail-fast"}` in place of an exit code), and top-level `pass`, `startedAt`, `durationMs`, `sha`, and `dirty` (plus `testCountRegression` — see below — when one fired), and `flakyEscalation` when an allowlisted file has hit the escalation threshold. The recorded `exitCode` is the check command's own — judge each check by it, never by grep side effects. Each check's full output is in its own `{log-dir}/{name}.log` for a recovery read of last resort; read the failing region the runner already extracted, never `cat` the log.
 
 ### Suite-count regression caveat (#881)
 
@@ -129,7 +129,7 @@ Under a scoped run (the table above), render the runner's `Scope:` line — and 
 | Tests | {pass/fail} | {Xs} | {passed}/{total}, {failed count} failures |
 ```
 
-Source the table from report.json: Status from each check's exitCode (or skipped), Duration from durationMs, Details from summary/counts. Capture VERIFICATION_SHA from report.json's sha — with the dirty caveat: dirty: true means "verified this tree, which is not exactly commit sha". When report.json carries `testCountRegression`, render its `CAVEAT:` line (see "Suite-count regression caveat" above) as its own paragraph directly under the table — never folded into the Tests row, since it is not a pass/fail signal.
+Source the table from report.json: Status from each check's exitCode (or skipped), Duration from durationMs, Details from summary/counts. Capture VERIFICATION_SHA from report.json's sha — with the dirty caveat: dirty: true means "verified this tree, which is not exactly commit sha". When the runner printed any `CAVEAT:` line (`testCountRegression`, `flaky-retried`, `flaky-allowlist`), render each (see "Suite-count regression caveat" above) as its own paragraph directly under the table — never folded into the Tests row, since it is not a pass/fail signal.
 
 ### On failure
 
@@ -142,20 +142,11 @@ Source the table from report.json: Status from each check's exitCode (or skipped
 
 The failure detail here comes from the runner's bounded extraction. Do not re-run the check outside the runner to produce it, and do not paste the raw log — the runner's bounding governs what enters context; this section only governs how it is presented.
 
-### Flake adjudication (tests check only)
+### Flake handling (tests check only)
 
-Run-to-run failure-count variance on byte-identical code often tracks machine load (sibling agents/sessions running concurrently) rather than a regression. Before reporting a `tests` check failure, re-run each failed file in isolation once:
+The runner owns flake retries (#1925). A project lists known-flaky test files — exact repo-relative paths — in `.claude-tweaks/verify-scope.json`'s `flaky.files`, with a per-suite `retry` command template (`{file}` substituted; `flaky.maxRetries` default 1, ceiling 2). On a `tests`-family failure under `--scope`, the runner extracts the failing test files from the log (ANSI stripped) and, only when **every** failing file is allowlisted, re-runs those files serially in log order — each up to `maxRetries` attempts, stopping at a file's first pass, failing the run on the first file that exhausts its attempts (`report.json.checks.{suite}.retryFailed`). A retried pass reads `pass (flaky-retried: {files})` in the table; `report.json` carries `checks.{suite}.flakyRetried` and `retryAttempts` (one `{suite}-retry-{file-slug}-{i}.log` per attempt), the pass stamp carries `flakyRetried`, and a `CAVEAT: flaky-retried: {files} — passed on isolated rerun; see {log}` line renders under the table — present it verbatim in Step 3, never folded into the row, and log `AUTO {time} — Flaky retry: {files} passed on isolated rerun (declared in verify-scope.json). Reversibility: high.` per `_shared/auto-decision-log.md`. The count stamp keeps a per-file `flakyHits` counter; from 5 hits the runner also prints `CAVEAT: flaky-allowlist: {file} retried {n} times — file a fix or remove it from the allowlist` and sets `report.json.flakyEscalation` — `/claude-tweaks:wrap-up`'s leftover routing (`wrap-up/leftover-routing.md`) turns that into a backlog record. An unlisted failing file, a log with no parseable test file, a suite with no `retry` template, or `maxRetries: 0` means an ordinary failure with no retry — `checks.{suite}.retryDecision.reason` says which. `types`/`lint` are deterministic and never retried; a run without `--scope` never retries.
 
-```bash
-node --test path/to/file.test.js
-```
-
-Report the isolated re-run's outcome separately — never collapsed into the original run's bare pass/fail statement:
-
-- **Isolated re-run passes** — report as **flake** (machine load), not a regression.
-- **Isolated re-run still fails** — report as a **regression**.
-
-Only the `tests` check needs this — `types`/`lint` failures are deterministic, not load-sensitive, so there is nothing to re-run in isolation. Check the ledger first: "Pre-existing failures" above covers the distinct case of a failure already tracked before this spec's own changes, and only failures it does not cover get diagnosed and flake-adjudicated here.
+For a failure in an **unlisted** file, "Isolating pre-existing failures by file" above still applies, agent-performed, once: re-run that one file in isolation (`node --test path/to/file.test.js`) and report the outcome separately — isolated pass → **flake** (machine load), isolated fail → **regression**. When it passes, do not add the file to `flaky.files` yourself. Stage a proposal instead — `node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "$PIPELINE_RUN_DIR" --id flaky-allowlist-{slug} --file {proposal-path}` (kind `flaky-allowlist`; `{slug}` is the file path with `/` → `-`); the proposal names the file for `flaky.files` and, when the failing suite has no `retry` template yet, the template to add alongside it — it is incomplete without both — and report the run as **failed pending that decision**, logging `STAGED {time} — Flaky allowlist proposal: {file} passed one isolated rerun. Stage path: staged/flaky-allowlist-{slug}.md. Reversibility: high.` Check the ledger first: "Pre-existing failures" above covers the distinct case of a failure already tracked before this spec's own changes, and only failures it does not cover get diagnosed here.
 
 ### Gate behavior
 
