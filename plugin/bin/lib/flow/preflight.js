@@ -22,6 +22,12 @@ const { resolveTarget } = require('../stage-item/write');
 const BIN = path.join(__dirname, '..', '..');
 const EXEC_OPTS = { maxBuffer: 32 * 1024 * 1024, timeout: 30000 };
 
+// Outer per-probe bound, mirroring bin/lib/wrap-up/pack.js's own
+// withTimeout/PROBE_TIMEOUT_MS (#1930): a hung `gh`/`node verify.js` call
+// must not hold the whole pack open forever. Injectable via
+// deps.probeTimeoutMs for tests.
+const PROBE_TIMEOUT_MS = 60000;
+
 // The Manifesto's lever list (flow/SKILL.md Step 3), minus `mode` (lever 1,
 // read separately from config.yml). ceremony-profile is NOT a policy-schema
 // key — it is written into config.yml by the Manifesto's header fold
@@ -137,6 +143,18 @@ async function wrapProbe(name, fn, now) {
   }
 }
 
+// Timer is cleared on every settle path so a fast probe never holds the
+// event loop open past its own resolution.
+function withTimeout(fn, ms) {
+  return () => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms);
+    Promise.resolve().then(fn).then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 // Which subprocess seam to use: an injected async seam wins; an injected
 // SYNC `execFile` fake (the unit tests' usual shape) must not be shadowed by
 // the default async seam, so it is wrapped; only with neither injected does
@@ -203,6 +221,7 @@ function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, ex
 
 async function gatherPreflight({ runDir, steps = [], cwd = process.cwd(), mainRoot = null, deps: overrides = {} }) {
   const deps = { ...defaultDeps(cwd), ...overrides };
+  const limit = Number.isFinite(deps.probeTimeoutMs) ? deps.probeTimeoutMs : PROBE_TIMEOUT_MS;
   const t0 = deps.now();
   const adoption = computeAdoption({ runDir, mainRoot, cwd, deps });
   const runDirReal = adoption.path && adoption.anchored ? adoption.path : null;
@@ -218,7 +237,7 @@ async function gatherPreflight({ runDir, steps = [], cwd = process.cwd(), mainRo
   }
   const probes = buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, exec: pickExec(overrides, deps) });
   const names = Object.keys(probes);
-  const results = await Promise.all(names.map((n) => wrapProbe(n, probes[n], deps.now)));
+  const results = await Promise.all(names.map((n) => wrapProbe(n, withTimeout(probes[n], limit), deps.now)));
   names.forEach((n, i) => { pack[n] = results[i]; });
   pack.durationMs = deps.now() - t0;
   return pack;

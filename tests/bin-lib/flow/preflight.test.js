@@ -20,12 +20,13 @@ const STAMP = JSON.stringify({ present: true, sha: 'abc', head: 'abc', dirty: fa
 const CHANGED = JSON.stringify({ base: 'abc', files: ['src/a.js'] });
 const PR_BODY = 'intro\n<!-- phases-start -->\n- [x] build\n- [x] test\n- [ ] review\n- [ ] polish\n- [ ] wrap-up\n<!-- phases-end -->\ntail';
 
-function deps(fx, overrides = {}) {
+function deps(fx, overrides = {}, calls = null) {
   return {
     readFile: (p) => fs.readFileSync(p, 'utf8'),
     readdir: (p) => { try { return fs.readdirSync(p); } catch { return []; } },
     git: (args) => (args[0] === 'ls-tree' ? `x/work/7-spec.md\n` : 'feat-branch\n'),
-    execFile: (cmd, args) => {
+    execFile: (cmd, args, opts) => {
+      if (calls) calls.push({ cmd, args, opts });
       if (cmd === 'gh') return JSON.stringify({ state: 'OPEN', isDraft: true, body: PR_BODY });
       if (args.includes('--stamp-status')) return STAMP;
       if (args.includes('--changed-files')) return CHANGED;
@@ -51,7 +52,8 @@ function seedCase1(fx) {
 test('case 1: anchored dir with config.yml → adopt, the case-1 literal, OK freshness/inventory, twelve levers with sources, stamp match, changed files (#1931 AC1)', async () => {
   const fx = mainRoot();
   seedCase1(fx);
-  const pack = await gatherPreflight({ runDir: fx.runDir, steps: ['review', 'polish', 'wrap-up'], cwd: fx.root, mainRoot: fx.root, deps: deps(fx) });
+  const calls = [];
+  const pack = await gatherPreflight({ runDir: fx.runDir, steps: ['review', 'polish', 'wrap-up'], cwd: fx.root, mainRoot: fx.root, deps: deps(fx, {}, calls) });
   assert.deepStrictEqual(pack.steps, ['review', 'polish', 'wrap-up']);
   assert.strictEqual(pack.mode, 'auto');
   assert.strictEqual(pack.adoption.ok, true);
@@ -69,6 +71,12 @@ test('case 1: anchored dir with config.yml → adopt, the case-1 literal, OK fre
   assert.deepStrictEqual(pack.pr.value.checklist, [{ phase: 'build', done: true }, { phase: 'test', done: true }, { phase: 'review', done: false }, { phase: 'polish', done: false }, { phase: 'wrap-up', done: false }]);
   assert.strictEqual(pack.stamp.value.match, true);
   assert.ok(Array.isArray(pack.changedFiles.value.files));
+  const stampCall = calls.find((c) => c.args.includes('--stamp-status'));
+  const changedCall = calls.find((c) => c.args.includes('--changed-files'));
+  const ghCall = calls.find((c) => c.cmd === 'gh');
+  assert.strictEqual(stampCall.opts.cwd, '/w/tree');
+  assert.strictEqual(changedCall.opts.cwd, '/w/tree');
+  assert.strictEqual(ghCall.opts.cwd, fx.root);
 });
 
 test('case 3: decisions.md content but no config.yml → the #1013-recovery literal with the computed backfills; case 2: empty dir → the minted literal (#1931 AC2)', () => {
@@ -156,6 +164,28 @@ test('one probe throwing degrades only its field, and the probes run concurrentl
   assert.match(pack.freshness.error, /probe exploded/);
   assert.strictEqual(pack.pr.ok, true);
   assert.ok(Date.now() - t0 < 450, 'three 150 ms subprocess probes overlap');
+});
+
+test('a probe that never resolves is bounded by probeTimeoutMs, without blocking or leaking a timer for the others (#1931 parity with wrap-up/pack.js)', async () => {
+  const fx = mainRoot();
+  seedCase1(fx);
+  const d = deps(fx, {
+    execFileAsync: async (cmd, args) => {
+      if (args.includes('--stamp-status')) return new Promise(() => {}); // never resolves
+      if (cmd === 'gh') return JSON.stringify({ state: 'OPEN', isDraft: true, body: PR_BODY });
+      if (args.includes('--changed-files')) return CHANGED;
+      throw new Error(`unexpected exec ${cmd} ${args.join(' ')}`);
+    },
+  });
+  const pack = await gatherPreflight({ runDir: fx.runDir, steps: ['review'], cwd: fx.root, mainRoot: fx.root, deps: { ...d, probeTimeoutMs: 25 } });
+  assert.strictEqual(pack.stamp.ok, false);
+  assert.match(pack.stamp.error, /timeout after 25ms/);
+  assert.strictEqual(pack.freshness.ok, true);
+  assert.strictEqual(pack.inventory.ok, true);
+  assert.strictEqual(pack.levers.ok, true);
+  assert.strictEqual(pack.spec.ok, true);
+  assert.strictEqual(pack.pr.ok, true);
+  assert.strictEqual(pack.changedFiles.ok, true);
 });
 
 test('parseChecklist reads the phases span and ignores rows outside it (#1931 decision 7)', () => {
