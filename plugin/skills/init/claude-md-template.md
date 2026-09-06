@@ -42,6 +42,8 @@ Produce CLAUDE.md from scratch following this template:
 {Key package scripts — what developers actually run daily.
 Verify every command exists in package.json / Makefile / scripts before listing.}
 
+When `.claude-tweaks/verify-scope.json` exists, pipeline re-verifies run scoped against the last full pass (`test/verification.md`'s scoping table); `init --update` reports drift between its suites and the workspace.
+
 ## Conventions
 
 {Observed naming, patterns, and rules — max 10 bullets}

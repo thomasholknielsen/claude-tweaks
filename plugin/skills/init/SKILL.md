@@ -116,7 +116,11 @@ Ensure `.worktrees/` exists in the project root for the git-fallback path; leave
 
 ### Step 6.5: Port Isolation
 
-Detects literal dev-server ports across the project's config, offers a reviewable rewrite to env reads (never applied without the gate below, even in `auto`), and queues a `port-services` policy decision through the same deferred-write mechanism `worktree-always` uses (see "Finalizing the worktree-always Decision"). Read `bootstrap/step-06-5-port-isolation.md` for the full procedure.
+Detects literal dev-server ports and offers a reviewable rewrite to env reads (never applied without the gate, even in `auto`); queues the `port-services` policy decision through the same deferred write as `worktree-always`. Read `bootstrap/step-06-5-port-isolation.md`.
+
+### Step 6.6: Verify-Scope Starter
+
+Proposes a starter `.claude-tweaks/verify-scope.json` from the detected workspace (suites per tested package, shared packages → every suite, pipeline bookkeeping → none) and offers to write it — create-if-absent only. Read `bootstrap/step-06-6-verify-scope.md`.
 
 ### Step 7: Browser Integration
 
@@ -158,7 +162,7 @@ Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tie
 
 ### Step 15: Routine Installation (Optional Companion)
 
-Always offered (not gated) — detect which claude-tweaks skills ship a `routine-template.yml` without an existing instantiated record for this project, present them via one multiSelect `AskUserQuestion` call (grouped into ≤4-option questions when there are more than 4 candidates) with their default schedules, and invoke `/claude-tweaks:routine create <skill> --defaults --environment=<id> --source init` for each selected candidate — no per-candidate interactive walkthrough. Also issues (or skips, when none selected) the dedicated-environment offer deferred from Step 14. Idempotent: candidates with an existing record are never re-offered — but Update Mode does audit existing records for drift, relevance, and environment dedication; see `update-mode.md`'s Routine Drift/Relevance/Environment Dedication entries. Read `bootstrap/step-15-routine-installation.md` for the full procedure.
+Always offered (not gated) — detect skills shipping `routine-template.yml` without an instantiated record, present via one multiSelect `AskUserQuestion` (≤4-option groups past 4 candidates) with default schedules, and invoke `/claude-tweaks:routine create <skill> --defaults --environment=<id> --source init` per candidate — no per-candidate walkthrough. Issues (or skips, when none selected) Step 14's deferred dedicated-environment offer. Idempotent: existing-record candidates aren't re-offered — Update Mode audits records for drift, relevance, environment dedication; see `update-mode.md`'s Routine Drift/Relevance/Environment Dedication entries. Read `bootstrap/step-15-routine-installation.md`.
 
 ### Step 16: Non-Default-Branch Issue Tracking (Optional Companion)
 

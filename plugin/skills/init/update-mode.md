@@ -403,6 +403,12 @@ already covers — most commonly a re-added `server.port: 3000` after a merge or
 |---|---|---|
 | A file previously rewritten by Step 6.5 now contains a literal port again, at a location that rewrite table covers | Re-run the same detection list against the six rewrite-row locations only (not the hard-case ones, which were never rewritten) | "Port literal drift" finding naming the file and line, pointing back at Step 6.5 to re-offer the rewrite |
 
+### Verify-Scope Drift
+
+| Signal | Detection | Surfacing |
+|---|---|---|
+| `.claude-tweaks/verify-scope.json`'s suites disagree with the workspace | `node "${CLAUDE_PLUGIN_ROOT}/bin/init-verify-scope.js --root . --json"` → compare `declaration` with the file via `diffAgainstWorkspace` (`plugin/bin/lib/init/verify-scope-starter.js`) | Report-only: "verify-scope: suites `{extra}` not in workspace; packages `{missing}` have no suite" — never rewritten |
+
 ### Routine Relevance
 
 Skip entirely when the Routine Drift check above found no routines (same gate — reuse its
