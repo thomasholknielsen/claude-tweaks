@@ -5,13 +5,19 @@
 // drift for `init --update`. Conservative by construction — a path is its
 // package's own tree, shared, bookkeeping, or unmatched (which the engine
 // fails closed to full; scope.js). Pure: every fs read goes through fsImpl.
-// A `dir/**` glob walks recursively (bounded depth, node_modules/.git/dot-dirs
-// skipped) for every nested package.json, distinct from `dir/*`'s direct
-// children; a `.`/`./` member is always skipped (its tree is the whole repo).
-// detectWorkspace also returns `skipped` — per parse-signal-discipline, a
-// glob that expanded to zero directories, a directory with no or unparseable
-// package.json, or a package.json with no string `name` are distinguishable
-// from "this workspace legitimately has nothing here": they're surfaced, not
+// A `dir/**` glob walks recursively (bounded to MAX_WALK_DEPTH,
+// node_modules/.git/dot-dirs skipped) for every nested package.json, distinct
+// from `dir/*`'s direct children (which skip the same node_modules/.git/dot-
+// dirs); a `.`/`./` member is always skipped (its tree is the whole repo). A
+// glob beginning with `!` is an exclusion pattern the starter does not
+// implement — it is never expanded, only surfaced in `skipped`, except the
+// literal-dir shape (`!packages/legacy`), which is honored by dropping that
+// exact path from the result. detectWorkspace also returns `skipped` — per
+// parse-signal-discipline, a glob that expanded to zero directories, a glob
+// whose recursive walk was cut off by MAX_WALK_DEPTH before it finished, a
+// directory with no or unparseable package.json, a package.json with no
+// string `name`, or an unsupported `!` exclusion are distinguishable from
+// "this workspace legitimately has nothing here": they're surfaced, not
 // silently dropped into the same empty result. A single-package repo with no
 // workspace but a root `test` script still falls back to that script's
 // string form (composeStarter), and diffAgainstWorkspace treats that
@@ -46,6 +52,7 @@ function pnpmGlobs(text) {
   let inList = false;
   for (const line of text.split('\n')) {
     if (/^packages:\s*$/.test(line)) { inList = true; continue; }
+    if (inList && /^\s*(#.*)?$/.test(line)) continue;
     if (inList && /^\S/.test(line)) break;
     if (!inList) continue;
     const m = line.match(/^\s*-\s*(.*?)\s*$/);
@@ -71,16 +78,19 @@ const MAX_WALK_DEPTH = 6;
 
 // Recursively collect every directory (relative to root) that holds a
 // package.json, starting at relDir itself, bounded to MAX_WALK_DEPTH levels
-// below it and skipping node_modules/.git/dot-dirs.
-function walkForPackageDirs(fsImpl, root, relDir, depth, found) {
+// below it and skipping node_modules/.git/dot-dirs. limitHit is a shared
+// mutable {hit} record: set true the moment the walk is cut off by the
+// depth bound, so the caller can report that packages beyond it may exist
+// unscanned rather than reading a shallow result as exhaustive.
+function walkForPackageDirs(fsImpl, root, relDir, depth, found, limitHit) {
   if (exists(fsImpl, path.join(root, relDir, 'package.json'))) found.push(relDir.replace(/\\/g, '/'));
-  if (depth >= MAX_WALK_DEPTH) return;
+  if (depth >= MAX_WALK_DEPTH) { limitHit.hit = true; return; }
   let entries;
   try { entries = fsImpl.readdirSync(path.join(root, relDir), { withFileTypes: true }); } catch { return; }
   for (const e of entries) {
     if (!e.isDirectory()) continue;
     if (e.name === 'node_modules' || e.name === '.git' || e.name.startsWith('.')) continue;
-    walkForPackageDirs(fsImpl, root, `${relDir}/${e.name}`, depth + 1, found);
+    walkForPackageDirs(fsImpl, root, `${relDir}/${e.name}`, depth + 1, found, limitHit);
   }
 }
 
@@ -104,24 +114,29 @@ function isRootGlobMember(glob) {
 // dir/node_modules/.git/dot-dirs skipped). A `.`/`./` member — the repo root
 // itself — is always skipped: its tree is the whole repo, never one member
 // among others. Anything else with a `*` is ignored — the starter proposes,
-// it never guesses.
+// it never guesses. Returns `{dirs, limitHit}`: limitHit is only ever true
+// for a `/**` walk cut off by MAX_WALK_DEPTH.
 function expandGlob(fsImpl, root, glob) {
-  if (isRootGlobMember(glob)) return [];
+  if (isRootGlobMember(glob)) return { dirs: [], limitHit: false };
   const clean = glob.replace(/\/+$/, '');
   if (clean.endsWith('/**')) {
     const parent = clean.slice(0, -3);
     const found = [];
-    walkForPackageDirs(fsImpl, root, parent, 0, found);
-    return found.sort();
+    const limitHit = { hit: false };
+    walkForPackageDirs(fsImpl, root, parent, 0, found, limitHit);
+    return { dirs: found.sort(), limitHit: limitHit.hit };
   }
   if (clean.endsWith('/*')) {
     const parent = clean.slice(0, -2);
     let entries;
-    try { entries = fsImpl.readdirSync(path.join(root, parent), { withFileTypes: true }); } catch { return []; }
-    return entries.filter((e) => e.isDirectory()).map((e) => `${parent}/${e.name}`);
+    try { entries = fsImpl.readdirSync(path.join(root, parent), { withFileTypes: true }); } catch { return { dirs: [], limitHit: false }; }
+    const dirs = entries
+      .filter((e) => e.isDirectory() && e.name !== 'node_modules' && e.name !== '.git' && !e.name.startsWith('.'))
+      .map((e) => `${parent}/${e.name}`);
+    return { dirs, limitHit: false };
   }
-  if (clean.includes('*')) return [];
-  return [clean];
+  if (clean.includes('*')) return { dirs: [], limitHit: false };
+  return { dirs: [clean], limitHit: false };
 }
 
 // Distinguishes "no package.json here" from "package.json exists but is not
@@ -155,11 +170,22 @@ function detectWorkspace({ root, fsImpl = fs }) {
   }
   const packages = [];
   const skipped = [];
+  const exclusions = [];
   for (const glob of globs) {
     if (isRootGlobMember(glob)) continue;
+    if (glob.startsWith('!')) {
+      skipped.push({ glob, reason: 'unsupported exclusion pattern — packages it excludes may still be proposed' });
+      exclusions.push(glob.slice(1));
+      continue;
+    }
     const expanded = expandGlob(fsImpl, root, glob);
-    if (expanded.length === 0) { skipped.push({ glob, reason: 'no packages under glob' }); continue; }
-    for (const rel of expanded) {
+    if (expanded.limitHit) {
+      skipped.push({ glob, reason: `walk depth limit reached (${MAX_WALK_DEPTH}) — deeper packages not scanned` });
+    } else if (expanded.dirs.length === 0) {
+      skipped.push({ glob, reason: 'no packages under glob' });
+      continue;
+    }
+    for (const rel of expanded.dirs) {
       const { pkg, reason } = readPackageAt(fsImpl, root, rel);
       if (reason) { skipped.push({ path: rel.replace(/\\/g, '/'), reason }); continue; }
       const test = pkg.scripts && pkg.scripts.test;
@@ -171,7 +197,11 @@ function detectWorkspace({ root, fsImpl = fs }) {
       });
     }
   }
-  return { tool, packages, skipped };
+  // The literal-dir exclusion shape (`!packages/legacy`) is honored by
+  // dropping that exact path; a wildcard exclusion is surfaced above but
+  // otherwise left alone — the starter proposes, it never guesses.
+  const filtered = exclusions.length ? packages.filter((p) => !exclusions.includes(p.path)) : packages;
+  return { tool, packages: filtered, skipped };
 }
 
 function suiteCommand(tool, pkg) {

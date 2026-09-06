@@ -407,7 +407,7 @@ already covers — most commonly a re-added `server.port: 3000` after a merge or
 
 | Signal | Detection | Surfacing |
 |---|---|---|
-| `.claude-tweaks/verify-scope.json`'s suites disagree with the workspace | `node "${CLAUDE_PLUGIN_ROOT}/bin/init-verify-scope.js" --root . --drift --json` — one JSON line `{declared, missingSuites, extraSuites, skipped}` (the verb reads the FILE through `readDeclaration` and detects the workspace itself; never feed the CLI's proposal to `diffAgainstWorkspace`); `declared: false` → no declaration, nothing to report | Report-only: "verify-scope: suites `{extraSuites}` not in workspace; packages `{missingSuites}` have no suite" plus one line per `skipped` entry (`warning: skipped {glob|path} — {reason}`) — never rewritten |
+| `.claude-tweaks/verify-scope.json`'s suites disagree with the workspace | `node "${CLAUDE_PLUGIN_ROOT}/bin/init-verify-scope.js" --root . --drift --json` — one JSON line `{declared, missingSuites, extraSuites, skipped}` (the verb reads the FILE through `readDeclaration` and detects the workspace itself; never feed the CLI's proposal to `diffAgainstWorkspace`); `declared: false` → no declaration, nothing to report; exit 1 → the declaration itself is invalid (its `readDeclaration` errors are on stderr, stdout is empty) — surface `verify-scope: declaration invalid — {stderr}` as its own finding, never as "no drift" | Report-only: "verify-scope: suites `{extraSuites}` not in workspace; packages `{missingSuites}` have no suite" plus one line per `skipped` entry (`warning: skipped {glob|path} — {reason}`) — never rewritten |
 
 ### Routine Relevance
 

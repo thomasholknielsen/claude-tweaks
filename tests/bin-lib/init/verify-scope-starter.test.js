@@ -159,6 +159,51 @@ test('detectWorkspace reports skipped entries for a glob with no packages and a 
   ]);
 });
 
+test('pnpmGlobs tolerates a column-0 `#` comment and a blank line inside the packages list without ending it (N1)', () => {
+  const files = {
+    '/w/pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n# generated\n\n  - 'packages/*'\n",
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api', scripts: { test: 'jest' } }),
+    '/w/packages/util/package.json': JSON.stringify({ name: 'util', scripts: { test: 'jest' } }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  assert.deepStrictEqual(ws.packages.map((p) => p.name).sort(), ['api', 'util']);
+});
+
+test('a `dir/*` glob skips node_modules/dot-dirs the same way `dir/**` does (N3)', () => {
+  const files = {
+    '/w/package.json': JSON.stringify({ name: 'root', workspaces: ['apps/*'] }),
+    '/w/apps/.turbo/cache.json': '{}',
+    '/w/apps/node_modules/.bin/x': '',
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api', scripts: { test: 'jest' } }),
+    '/w/apps/dist/readme.txt': 'x',
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  assert.deepStrictEqual(ws.packages.map((p) => p.path), ['apps/api']);
+  assert.ok(!ws.skipped.some((s) => s.path === 'apps/.turbo' || s.path === 'apps/node_modules'));
+  assert.deepStrictEqual(ws.skipped, [{ path: 'apps/dist', reason: 'no package.json' }]);
+});
+
+test('a `!` exclusion member is surfaced, not expanded, and its literal-dir shape drops the matching package (N4)', () => {
+  const files = {
+    '/w/package.json': JSON.stringify({ name: 'root', workspaces: ['packages/*', '!packages/legacy'] }),
+    '/w/packages/util/package.json': JSON.stringify({ name: 'util', scripts: { test: 'jest' } }),
+    '/w/packages/legacy/package.json': JSON.stringify({ name: 'legacy', scripts: { test: 'jest' } }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  assert.deepStrictEqual(ws.packages.map((p) => p.name), ['util']);
+  assert.ok(ws.skipped.some((s) => s.glob === '!packages/legacy' && s.reason === 'unsupported exclusion pattern — packages it excludes may still be proposed'));
+});
+
+test('a `dir/**` walk cut off by MAX_WALK_DEPTH reports it in `skipped` (N7)', () => {
+  const files = {
+    '/w/package.json': JSON.stringify({ name: 'root', workspaces: ['deep/**'] }),
+    '/w/deep/a/b/c/d/e/f/g/package.json': JSON.stringify({ name: 'g', scripts: { test: 'jest' } }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  assert.deepStrictEqual(ws.packages, []);
+  assert.deepStrictEqual(ws.skipped, [{ glob: 'deep/**', reason: 'walk depth limit reached (6) — deeper packages not scanned' }]);
+});
+
 test('AC1 literal fixture: packages/shared without a test script — checks.tests is exactly api+web, shared rule stays "*" (A8)', () => {
   const files = {
     '/w/pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - packages/shared\n",
