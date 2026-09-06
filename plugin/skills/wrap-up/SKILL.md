@@ -123,7 +123,7 @@ Read `config.yml`'s `ceremony-profile` from the run directory. Run `/claude-twea
 - **Seed context** — review summary (Key Learnings section), tradeoffs accepted
 - **`--source wrap-up`** — always: reflect's `$PIPELINE_RUN_DIR` signal now resolves the same way on every wrap-up run, so the explicit flag is the stable statement of the same fact — see `/claude-tweaks:reflect`'s Component-Skill Contract
 
-Full mode handles all five reflection lenses (Surprises, Approach, Near-misses, Fresh start, Friction), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`) runs only the Near-misses, Fresh-start, and Friction lenses and skips the tradeoff review — Near-misses and Fresh-start are the lenses that can still produce a Safety regression finding, which is what the ceremony escape hatch below keys on; Friction survives for a different reason — it's orthogonal to code-narrative depth, judging the pipeline's own behavior toward the operator rather than the size of the change. Surprises, Approach, and the tradeoff review are narrative, and pure fixed cost on the small changes `fast-lane` is for. See `/claude-tweaks:reflect` for details on both.
+Full mode handles all five reflection lenses (Surprises, Approach, Near-misses, Fresh start, Friction), the tradeoff review, insight routing, and ledger writes. Light mode (`skills/reflect/light-mode.md`; roster tag `reflect-light-mode`, `_shared/ceremony-profile.md`) runs only the Near-misses, Fresh-start, and Friction lenses and skips the tradeoff review — Near-misses and Fresh-start are the lenses that can still produce a Safety regression finding, which is what the ceremony escape hatch below keys on; Friction survives for a different reason — it's orthogonal to code-narrative depth, judging the pipeline's own behavior toward the operator rather than the size of the change. Surprises, Approach, and the tradeoff review are narrative, and pure fixed cost on the small changes `fast-lane` is for. See `/claude-tweaks:reflect` for details on both.
 
 If any insight is "Implement now", the reflect skill handles it before returning control. Proceed after all insights are resolved. The surviving insight set is Phase 2's input.
 
@@ -146,7 +146,7 @@ Then log:
 AUTO {time} — Ceremony profile downgraded fast-lane → standard: {trigger}. Remaining wrap-up steps run at standard depth.
 ```
 
-Phase 2 passes the (possibly just-downgraded) value to the engine as `--ceremony`, which is the only remaining consumer — no other propagation needed. This never re-runs the reflect pass itself, or any build-side step already completed under the original `fast-lane` value — see the design doc's Escape Hatch section for why this is deliberate, not a gap.
+Phase 2 passes the (possibly just-downgraded) value to the engine as `--ceremony`, which is the only remaining consumer — no other propagation needed. This never re-runs the reflect pass itself, or any build-side skip in `_shared/ceremony-profile.md`'s roster (the SDD whole-branch review and polish skips included) — those have already happened; the downgrade means the record's next run runs `standard`.
 
 ---
 

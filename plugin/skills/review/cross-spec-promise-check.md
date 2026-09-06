@@ -1,6 +1,6 @@
 # Cross-Spec Promise Check — /claude-tweaks:review Step 1.6
 
-Skip entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware Step Selection" above).
+Skip entirely under `ceremony-profile: fast-lane` (roster tag `review-step-1.6`, `_shared/ceremony-profile.md`).
 Otherwise, skip silently when this record has no resolvable parent, or its parent has no
 `## Cross-Spec Promises` section (`_shared/work-record.md`) — most records. This step never blocks
 the review; it only updates the parent record and, when relevant, notes something in the Step 7

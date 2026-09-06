@@ -8,7 +8,8 @@ When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Un
 Steps 1 (Spec Compliance Check), 1.6 (Cross-Spec Promise Check), and 4 (Implementation Hindsight)
 are skipped — each is exact per-record overhead independent of diff size, the same shape of
 fixed-cost wrapper `ceremony-profile: fast-lane` already trims in `/claude-tweaks:build` and
-`/claude-tweaks:wrap-up`. Steps 2, 3 (the actual code-quality read of the diff), and 5 run
+`/claude-tweaks:wrap-up`. The roster of every profile's skips — and of what no profile may skip — is
+`_shared/ceremony-profile.md`; this section keeps only the three step numbers. Steps 2, 3 (the actual code-quality read of the diff), and 5 run
 unchanged regardless of tier — Step 3 is the safety-relevant judgment this whole scheme protects,
 and Step 5 already scopes to `git diff --name-only` only, with no "look beyond the diff" behavior
 to cap. Standalone review (no pipeline run directory) always runs every step, matching
@@ -21,8 +22,8 @@ the runnable invocation lives in that hatch, refs #1376) — unchanged. Full rat
 
 ## Step 1: Spec Compliance Check (spec-based only)
 
-Skip this step entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware Step Selection"
-above) — proceed directly to Step 1.5.
+Skip this step entirely under `ceremony-profile: fast-lane` (roster tag `review-step-1`,
+`_shared/ceremony-profile.md`) — proceed directly to Step 1.5.
 
 If a spec number was provided, read the spec file and verify the implementation meets it:
 
@@ -97,7 +98,7 @@ After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger
 
 ## Step 1.6: Cross-Spec Promise Check (parent-linked records only)
 
-**Skip entirely** under `ceremony-profile: fast-lane`, or silently when this record has no
+**Skip entirely** under `ceremony-profile: fast-lane` (roster tag `review-step-1.6`, `_shared/ceremony-profile.md`), or silently when this record has no
 resolvable parent or its parent has no `## Cross-Spec Promises` section — most records. This step
 never blocks the review.
 
@@ -234,8 +235,8 @@ Routing logic lives entirely in `step3-routing.md` in this skill's directory: se
 
 ## Step 4: Implementation Hindsight (Decision Point)
 
-Skip this step entirely under `ceremony-profile: fast-lane` (see "Ceremony-Aware Step Selection"
-above) — proceed directly to Step 5.
+Skip this step entirely under `ceremony-profile: fast-lane` (roster tag `review-step-4`,
+`_shared/ceremony-profile.md`) — proceed directly to Step 5.
 
 Run `/claude-tweaks:reflect` in **hindsight** mode. Pass:
 - **Scope** — the changes analyzed in Steps 2-3
