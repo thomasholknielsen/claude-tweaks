@@ -1,13 +1,8 @@
 {
-  "computedAt": "2026-09-05T23:46:57.777Z",
+  "computedAt": "2026-09-06T00:24:09.177Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
-      {
-        "number": 1865,
-        "updatedAt": "2026-09-04T19:51:42Z",
-        "state": "OPEN"
-      },
       {
         "number": 1864,
         "updatedAt": "2026-09-05T22:56:47Z",
@@ -96,46 +91,6 @@
     ]
   },
   "groups": [
-    [
-      {
-        "body": "## Current State\n\nTwo committed historical artifacts from #703's continuation (commit range `42a8bbb05..afd33e3e9`) name the post-teardown handler `checkPostTeardownPin` throughout, but the function that actually shipped in `plugin/bin/lib/hooks/post-tool-use.js:578` is `checkPostTeardownReanchor`:\n\n- `.claude-tweaks/pipelines/2026-09-04T095553-record-703/work/703-spec.md` line 89 (Investigation Findings / Task 0 section)\n- `docs/superpowers/plans/2026-09-04-worktree-teardown-pin-backstop.md` lines 7, 29, 128, 172, 208-209, 224, 250, 269 (including a full function signature)\n\nFound by the whole-branch review gating the v6.116.0 release. Low severity — pure name drift in historical audit-trail documents, no functional impact.\n\n## Deliverables\n\n- Update both files to name the handler `checkPostTeardownReanchor` (or, if these are treated as immutable historical spec/plan artifacts per this repo's convention, add a one-line correction note instead of rewriting history).\n\n## Acceptance Criteria\n\n- Grepping either file for the actual shipped symbol name returns a hit.\n\n## Failure scenario this fixes\n\nA future maintainer greps for `checkPostTeardownPin` (per these permanently-committed documents' own text) to find or modify the post-teardown handler, gets zero hits in any `.js` source, and wrongly concludes the feature was never shipped or was silently removed.",
-        "createdAt": "2026-09-04T19:51:42Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          }
-        ],
-        "number": 1865,
-        "state": "OPEN",
-        "title": "Committed #703 spec + implementation plan name the shipped handler checkPostTeardownPin; it shipped as checkPostTeardownReanchor",
-        "updatedAt": "2026-09-04T19:51:42Z",
-        "facets": {
-          "origin": null,
-          "risk": null,
-          "size": null,
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "backlog",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
     [
       {
         "body": "**Doc:** plans/2026-08-29-spec-1296-1336-ledger | **Section:** Open Items — flow run #1296, #1336 | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: ca0f3760fa7ebf6b4fb0c6d0202872800c34ea2d\n\n## Current State\n\nRe-ran `grep -rn \"Reversibility: med\" plugin/skills/` from repo root: it currently returns 3 lines (flow/multispec-freshness.md:16, wrap-up/upstream-feedback.md:19, tidy/step-6-auto.md:68), not the 2 the ledger names. `git blame -L 19,19 plugin/skills/wrap-up/upstream-feedback.md` shows that line was added in commit af409e80 at 2026-08-29 18:16:47+02:00 — 5 minutes before the ledger doc's own creation commit 0aa9b881 at 2026-08-29 18:21:33+02:00 — so the third match already existed when this ledger was written and was simply omitted, not a later drift.\n\n## Deliverables\n\n**Current:**\n```\nalso matches two pre-existing, out-of-scope lines: `tidy/step-6-auto.md`'s illustrative \"Log entries\" example (a format demonstration, not a live policy assertion) and `flow/multispec-freshness.md`'s merge-catchup log line (a different subsystem's own reversibility call, not named in #1296's Deliverables/Key Files).\n```\n\n**Proposed:**\n```\nalso matches three pre-existing, out-of-scope lines: `tidy/step-6-auto.md`'s illustrative \"Log entries\" example (a format demonstration, not a live policy assertion), `flow/multispec-freshness.md`'s merge-catchup log line (a different subsystem's own reversibility call, not named in #1296's Deliverables/Key Files), and `wrap-up/upstream-feedback.md`'s staged-upstream-report log line (same rationale — a different subsystem's own reversibility call, not named in #1296's Deliverables/Key Files).\n```\n\n## Acceptance Criteria\n\nThe ledger's item-1 text states the reversibility grep `grep -rn \"Reversibility: med\" plugin/skills/` matches 'two pre-existing, out-of-scope lines' beyond #1296's own target. Live re-run of that exact command also matches `plugin/skills/wrap-up/upstream-feedback.md:19` ('Reversibility: medium (public issue; stage path: staged/wrap-up-upstream-{N}.md).'), a third pre-existing out-of-scope line the ledger does not name. Update the count and list to name all three matches.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-d981f7b5 -->",
