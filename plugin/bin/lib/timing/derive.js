@@ -78,8 +78,8 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
   const pushes = evs.filter((e) => e.type === 'commit' && e.action === 'push');
   const merges = evs.filter((e) => e.type === 'commit' && e.action === 'merge');
 
-  const wrapUpStart = (() => { const w = topLevel.find((e) => e.skill === `${NS}wrap-up`); return w ? w.t : null; })();
-  const mergeStart = wrapUpStart === null ? null : (pushes.find((e) => e.t > wrapUpStart) || { t: null }).t;
+  const wrapUpStart = topLevel.find((e) => e.skill === `${NS}wrap-up`)?.t ?? null;
+  const mergeStart = wrapUpStart === null ? null : pushes.find((e) => e.t > wrapUpStart)?.t ?? null;
 
   // A top-level span ends at the earliest of: the next top-level event, the
   // merge phase's start, the terminal event (decision 3 in the plan).
@@ -132,7 +132,7 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
 
   // polish: the LAST design-wrapper strictly after review's own first one
   // and before wrap-up's start (review's Step 6.5 always precedes polish's).
-  const reviewStart = (() => { const r = topLevel.find((e) => e.skill === `${NS}review`); return r ? r.t : null; })();
+  const reviewStart = topLevel.find((e) => e.skill === `${NS}review`)?.t ?? null;
   if (reviewStart !== null && wrapUpStart !== null) {
     const dws = skillEvents.filter((e) => e.skill === `${NS}design-wrapper` && e.t > reviewStart && e.t < wrapUpStart);
     if (dws.length >= 2) add('polish', dws[dws.length - 1].t, wrapUpStart, 'skill_invoked');

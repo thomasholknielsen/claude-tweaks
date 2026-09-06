@@ -82,9 +82,9 @@ function main(argv) {
     return 0;
   }
   const runDir = path.resolve(o.run);
-  let stat;
-  try { stat = fs.statSync(runDir); } catch { process.stderr.write(`phase-timing.js: --run ${o.run} is not a directory\n${USAGE}`); return 2; }
-  if (!stat.isDirectory()) { process.stderr.write(`phase-timing.js: --run ${o.run} is not a directory\n${USAGE}`); return 2; }
+  let stat = null;
+  try { stat = fs.statSync(runDir); } catch { /* not a directory, handled below */ }
+  if (!stat || !stat.isDirectory()) { process.stderr.write(`phase-timing.js: --run ${o.run} is not a directory\n${USAGE}`); return 2; }
   const events = readEvents(path.join(runDir, 'events.jsonl'));
   if (!events.ok) { process.stderr.write(`phase-timing.js: events.jsonl unreadable (${events.error})\n`); return 2; }
   const out = derivePhases({ events: events.events, manifest: readManifest(runDir), runState: readJsonOrNull(path.join(runDir, 'run-state.json')) });
