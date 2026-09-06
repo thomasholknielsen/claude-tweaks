@@ -18,7 +18,7 @@ Every skill follows this structure:
 
 Skills do **not** carry a Relationship to Other Skills table. That convention was removed in v6.34.0 — every edge is recorded once in `docs/skill-graph.md` instead.
 
-**Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in CLAUDE.md's `## Don'ts`.
+**Size:** 40 KB per file is a warning tier since #1990 — the hard gate is composed bytes per compose call site (`plugin/bin/lib/skill-audit/context-cost.js`'s `overComposedCeiling`, with `COMPOSED_STEP_EXCEPTIONS` for a step carrying a provisional ceiling) — see the extraction rule in CLAUDE.md's `## Don'ts`.
 
 A sub-file may carry a **tighter per-file pin** than that ceiling when a step reads it on a hot path: `plugin/skills/flow/manifesto.md` (21504 bytes) and `plugin/skills/flow/multi-spec.md` (20480 bytes) each carry their own pin in `tests/run-dir-timestamp-utc.test.js` (#724) — check the live `BUDGETS` map there for current values rather than hardcoding a number here, since a future lever can move either one again. Check `wc -c` and the pinning test before adding to a file that has a budget of its own — 40 KB is the default ceiling, not the only one in force.
 
