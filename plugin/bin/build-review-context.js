@@ -19,10 +19,7 @@ function parseArgs(argv) {
   const o = { command: null, base: null, branch: null, dir: null, run: null, filesFrom: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = () => {
-      const v = argv[++i];
-      return v === undefined ? null : v;
-    };
+    const next = () => argv[++i] ?? null;
     if (a === '--help' || a === '-h') o.help = true;
     else if (a === '--base') o.base = next();
     else if (a === '--branch') o.branch = next();
@@ -73,7 +70,7 @@ function run(argv, deps = realDeps) {
 
 if (require.main === module) {
   try {
-    process.exit(run(process.argv.slice(2)));
+    process.exitCode = run(process.argv.slice(2));
   } catch (err) {
     process.stderr.write(`build-review-context.js: ${err.message}\n`);
     process.exitCode = 1;
