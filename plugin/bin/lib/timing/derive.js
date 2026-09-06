@@ -79,16 +79,26 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
     add(`call-${i + 1}`, f.t, next ? next.t : endOfRun, 'skill_invoked');
   });
 
-  // plan / tasks nest in build.
+  // plan / tasks nest in build. A restarted plan/tasks span (a second
+  // writing-plans or subagent-driven-development entry before the first
+  // one's natural close) must end at the restart, not at whatever bound the
+  // first entry would otherwise reach past it — else two overlapping spans
+  // double-count the same wall-clock minutes (#1928 fix round 1).
   const plans = skillEvents.filter((e) => e.skill === 'superpowers:writing-plans');
   const sdds = skillEvents.filter((e) => e.skill === 'superpowers:subagent-driven-development');
-  plans.forEach((p) => {
+  plans.forEach((p, i) => {
     const sdd = sdds.find((s) => s.t >= p.t);
-    if (sdd) add('plan', p.t, sdd.t, 'skill_invoked');
+    if (!sdd) return;
+    const nextPlan = plans[i + 1];
+    const end = nextPlan ? Math.min(sdd.t, nextPlan.t) : sdd.t;
+    add('plan', p.t, end, 'skill_invoked');
   });
-  sdds.forEach((s) => {
+  sdds.forEach((s, i) => {
     const v = verifies.find((e) => e.t >= s.t);
-    if (v) add('tasks', s.t, v.t, 'verify');
+    if (!v) return;
+    const nextSdd = sdds[i + 1];
+    const end = nextSdd ? Math.min(v.t, nextSdd.t) : v.t;
+    add('tasks', s.t, end, 'verify');
   });
 
   // polish: the LAST design-wrapper strictly after review's own first one
@@ -131,10 +141,32 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
     const start = Math.min(...list.map((s) => s.start));
     const end = Math.max(...list.map((s) => s.end));
     const minutes = list.reduce((sum, s) => sum + minutesBetween(s.start, s.end), 0);
-    const verify = verifies.filter((v) => list.some((s) => v.t >= s.start && v.t <= s.end))
-      .map((v) => ({ mode: v.mode ?? null, suitesRun: Array.isArray(v.suitesRun) ? v.suitesRun : [], durationMs: v.durationMs ?? null, pass: v.pass ?? null, at: v.ts }));
-    return { phase: name, start: iso(start), end: iso(end), minutes, ownMinutes: minutes, source: list[0].source, verify, _list: list };
+    return { phase: name, start: iso(start), end: iso(end), minutes, ownMinutes: minutes, source: list[0].source, verify: [], _list: list };
   });
+
+  // Attribute each verify event to exactly one row: the containing row
+  // (excluding call-N — a call's span always wraps every nested phase
+  // within it, so it never wins) whose containing span is smallest; ties
+  // broken by the later start. A verify event can fall inside more than one
+  // open phase's window at once (e.g. a scoped run during `plan`, before
+  // `tasks` opens) — the innermost, most specific row wins so no event is
+  // ever double-listed (#1928 fix round 1).
+  for (const v of verifies) {
+    let best = null;
+    for (const row of rows) {
+      if (/^call-\d+$/.test(row.phase) || !row._list) continue;
+      const containing = row._list.filter((s) => v.t >= s.start && v.t <= s.end);
+      if (!containing.length) continue;
+      const span = Math.min(...containing.map((s) => s.end - s.start));
+      const start = Math.max(...containing.map((s) => s.start));
+      if (!best || span < best.span || (span === best.span && start > best.start)) {
+        best = { row, span, start };
+      }
+    }
+    if (best) {
+      best.row.verify.push({ mode: v.mode ?? null, suitesRun: Array.isArray(v.suitesRun) ? v.suitesRun : [], durationMs: v.durationMs ?? null, pass: v.pass ?? null, at: v.ts });
+    }
+  }
 
   // Exclusive minutes: build minus plan/tasks; each call minus the top-level
   // phases whose spans fall inside it. Nothing is counted twice in totals.
@@ -151,13 +183,6 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
     }
     call.ownMinutes = Math.max(0, call.minutes - inner);
   }
-  // A verify event belongs to the innermost phase only — drop it from build
-  // when tasks already claims it, so sub-rows are not double-listed.
-  if (byName.build._list && byName.tasks._list) {
-    const taskAts = new Set(byName.tasks.verify.map((v) => v.at));
-    byName.build.verify = byName.build.verify.filter((v) => !taskAts.has(v.at));
-  }
-  for (const call of rows.filter((r) => /^call-\d+$/.test(r.phase))) call.verify = [];
 
   const phases = rows.map(({ _list, ...r }) => r);
   const totals = {

@@ -93,3 +93,38 @@ test('#1928: merge ends at runState.pr.mergedAt under pr-first, else at a merge 
   const local = [...events.slice(0, 3), { action: 'merge', ts: '2026-09-05T13:12:00.000Z', type: 'commit' }, events[3]];
   assert.equal(byName(derivePhases({ events: local })).merge.minutes, 2);
 });
+
+test('#1928 fix round 1: a verify event during `plan` attributes to plan only, not also to build', () => {
+  const events = [
+    { skill: 'claude-tweaks:flow', ts: '2026-09-05T13:00:00.000Z', type: 'skill_invoked' },
+    { skill: 'claude-tweaks:build', ts: '2026-09-05T13:01:00.000Z', type: 'skill_invoked' },
+    { skill: 'superpowers:writing-plans', ts: '2026-09-05T13:02:00.000Z', type: 'skill_invoked' },
+    { mode: 'scoped', ts: '2026-09-05T13:05:00.000Z', type: 'verify' },
+    { skill: 'superpowers:subagent-driven-development', ts: '2026-09-05T13:08:00.000Z', type: 'skill_invoked' },
+    { mode: 'full', ts: '2026-09-05T13:22:00.000Z', type: 'verify' },
+    { skill: 'claude-tweaks:test', ts: '2026-09-05T13:23:00.000Z', type: 'skill_invoked' },
+    { ts: '2026-09-05T13:30:00.000Z', type: 'session-end' },
+  ];
+  const out = derivePhases({ events });
+  const p = byName(out);
+  assert.equal(p.plan.verify.length, 1, `plan.verify ${JSON.stringify(p.plan.verify)}`);
+  assert.equal(p.build.verify.length, 0, `build.verify ${JSON.stringify(p.build.verify)}`);
+  assert.equal(p.tasks.verify.length, 1, `tasks.verify ${JSON.stringify(p.tasks.verify)}`);
+  assert.equal(out.totals.verifyRuns, 2);
+});
+
+test('#1928 fix round 1: two subagent-driven-development starts before one verify do not double-count tasks minutes', () => {
+  const events = [
+    { skill: 'claude-tweaks:flow', ts: '2026-09-05T13:00:00.000Z', type: 'skill_invoked' },
+    { skill: 'claude-tweaks:build', ts: '2026-09-05T13:01:00.000Z', type: 'skill_invoked' },
+    { skill: 'superpowers:writing-plans', ts: '2026-09-05T13:02:00.000Z', type: 'skill_invoked' },
+    { skill: 'superpowers:subagent-driven-development', ts: '2026-09-05T13:08:00.000Z', type: 'skill_invoked' },
+    { skill: 'superpowers:subagent-driven-development', ts: '2026-09-05T13:12:00.000Z', type: 'skill_invoked' },
+    { mode: 'scoped', ts: '2026-09-05T13:22:00.000Z', type: 'verify' },
+    { skill: 'claude-tweaks:test', ts: '2026-09-05T13:23:00.000Z', type: 'skill_invoked' },
+    { ts: '2026-09-05T13:30:00.000Z', type: 'session-end' },
+  ];
+  const p = byName(derivePhases({ events }));
+  assert.equal(p.tasks.minutes, 14, `tasks.minutes ${p.tasks.minutes}`);
+  assert.equal(p.plan.minutes, 6, `plan.minutes ${p.plan.minutes}`);
+});
