@@ -70,16 +70,24 @@ test('#1929: isProcedurePath matches repo skills, installed-plugin skills, and n
 
 test('#1929 AC2: readUsage streams rows, sums procedure bytes for skills Reads only, flags tool round-trips', async () => {
   const rows = await readUsage(FIX, { worktree: '/repo' });
-  assert.equal(rows.length, 7);
+  assert.equal(rows.length, 8);
   const users = rows.filter((r) => r.role === 'user');
   assert.deepEqual(users.map((r) => r.toolRoundTrip), [true, true, true]);
   assert.deepEqual(users.map((r) => r.procedureBytes), [10, 8, 0]);
   assert.equal(rows.reduce((s, r) => s + r.procedureBytes, 0), 18);
   const assistants = rows.filter((r) => r.role === 'assistant');
-  assert.deepEqual(assistants.map((r) => r.toolRoundTrip), [false, false, false, false]);
+  assert.deepEqual(assistants.map((r) => r.toolRoundTrip), [false, false, false, false, false]);
   assert.deepEqual(assistants[0], { ts: '2026-09-05T13:50:00.000Z', role: 'assistant', inputTokens: 10, outputTokens: 20, cacheRead: 300, cacheCreate: 40, toolRoundTrip: false, procedureBytes: 0 });
   assert.equal(assistants[3].inputTokens, 100);
   assert.equal(users[0].inputTokens, 0);
+  // #1929 whole-branch review fix 1: a duplicate message.id (same turn,
+  // repeated across content-block lines) gets its token fields zeroed —
+  // the last row is that duplicate, and the assistant token sums stay at
+  // the pre-duplicate totals.
+  assert.equal(rows[rows.length - 1].inputTokens, 0);
+  assert.equal(rows[rows.length - 1].outputTokens, 0);
+  assert.equal(assistants.reduce((s, r) => s + r.inputTokens, 0), 116);
+  assert.equal(assistants.reduce((s, r) => s + r.outputTokens, 0), 228);
 });
 
 test('#1929: readUsage on a missing file rejects with a code the CLI can name', async () => {

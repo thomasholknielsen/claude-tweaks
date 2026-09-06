@@ -94,14 +94,21 @@ function renderMarkdown(out, tokens = null, guard = null, notes = []) {
       : ` ${p.tokens.input}/${p.tokens.output} | ${kb(p.procedureBytes)} | ${p.toolRoundTrips} |`;
     lines.push(`| ${p.phase} | ${minutes} | ${verify} |${extra}`);
   }
-  if (out.totals.minutes > 0 || out.totals.verifyRuns > 0) {
+  if (withTokens && tokens.unattributed.rows > 0) {
+    const u = tokens.unattributed;
+    lines.push(`| unattributed | — | — | ${u.tokens.input}/${u.tokens.output} | ${kb(u.procedureBytes)} | ${u.toolRoundTrips} |`);
+  }
+  if (out.totals.minutes > 0 || out.totals.verifyRuns > 0 || (tokens && tokens.totals.rows > 0)) {
     const verifyTot = `${out.totals.verifyRuns} run(s)${out.totals.verifyModes.length ? ` (${out.totals.verifyModes.join(', ')})` : ''}`;
     const extra = !withTokens ? '' : blank
       ? ' — | — | — |'
       : ` ${tokens.totals.tokens.input}/${tokens.totals.tokens.output} | ${kb(tokens.totals.procedureBytes)} | ${tokens.totals.toolRoundTrips} |`;
     lines.push(`| total | ${out.totals.minutes} | ${verifyTot} |${extra}`);
   }
-  if (guard) lines.push('', `Guard denials: ${guard.gateDenial} gate · ${guard.wdAmbiguous} wd-ambiguous · ${guard.wdDeny} wd-deny`);
+  if (guard) {
+    lines.push('', `Guard denials: ${guard.gateDenial} gate · ${guard.wdAmbiguous} wd-ambiguous · ${guard.wdDeny} wd-deny`);
+    lines.push('Tokens (in/out) sum the transcript\'s raw input_tokens/output_tokens; cache reads and creation are separate fields in timing.json.');
+  }
   return lines.join('\n') + '\n';
 }
 
@@ -186,5 +193,10 @@ async function main(argv) {
   return 0;
 }
 
-if (require.main === module) main(process.argv.slice(2)).then((code) => { process.exitCode = code; });
+if (require.main === module) {
+  main(process.argv.slice(2)).then((code) => { process.exitCode = code; }).catch((err) => {
+    process.stderr.write(`phase-timing.js: ${err && err.message}\n`);
+    process.exitCode = 2;
+  });
+}
 module.exports = { main, parseArgs, renderMarkdown };

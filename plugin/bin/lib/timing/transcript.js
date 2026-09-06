@@ -84,8 +84,11 @@ function resultBytes(content) {
 // path, { fsImpl?, worktree? } -> Promise<rows>. Streams line by line;
 // malformed lines (bad JSON, no timestamp, no message.role) are skipped.
 // Rejects when the file cannot be opened, with the real stat failure's
-// code (ENOENT/EACCES/...; EUNKNOWN if the error carries none), or with
-// EISDIR when the path resolves but names a directory.
+// code (ENOENT/EACCES/...; EUNKNOWN if the error carries none), with
+// EISDIR when the path resolves but names a directory, or — if `stat`
+// succeeds but the subsequent read fails (e.g. a mode-000 file, or a
+// mid-file I/O error) — with whatever code the stream/readline error
+// carries.
 async function readUsage(filePath, { fsImpl = fs, worktree = null } = {}) {
   await new Promise((resolve, reject) => {
     let st;
@@ -108,10 +111,17 @@ async function readUsage(filePath, { fsImpl = fs, worktree = null } = {}) {
   });
   const rows = [];
   const procedureReads = new Set(); // tool_use ids of Reads on procedure files
+  // Claude Code writes one JSONL line per content block of an assistant
+  // turn, each repeating that turn's single cumulative `usage` under the
+  // same message.id — summing every line would inflate tokens ~3x. Zero
+  // the token fields on every line after the first seen for a given id
+  // (#1929 whole-branch review fix 1).
+  const seenMsgIds = new Set();
   const stream = fsImpl.createReadStream(filePath, { encoding: 'utf8' });
   const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
   await new Promise((resolve, reject) => {
     stream.on('error', reject);
+    rl.on('error', reject);
     rl.on('line', (line) => {
       if (!line.trim()) return;
       let entry;
@@ -128,6 +138,16 @@ async function readUsage(filePath, { fsImpl = fs, worktree = null } = {}) {
         row.cacheCreate = Number(u.cache_creation_input_tokens) || 0;
         for (const b of content) {
           if (b && b.type === 'tool_use' && b.name === 'Read' && b.input && isProcedurePath(b.input.file_path, worktree)) procedureReads.add(b.id);
+        }
+        if (typeof msg.id === 'string') {
+          if (seenMsgIds.has(msg.id)) {
+            row.inputTokens = 0;
+            row.outputTokens = 0;
+            row.cacheRead = 0;
+            row.cacheCreate = 0;
+          } else {
+            seenMsgIds.add(msg.id);
+          }
         }
       } else {
         for (const b of content) {

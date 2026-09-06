@@ -76,8 +76,8 @@ test('#1928: docs name the timing module, the CLI, and the flow/wrap-up table so
 });
 
 test('#1929 AC5: the three summary Timing blocks, the PR timing command, and pr-run-comments.md pass --auto-transcript after --markdown', () => {
-  const noteExempt = new Set(['plugin/skills/_shared/pr-run-comments.md']);
-  for (const f of ['plugin/skills/flow/summary-template.md', 'plugin/skills/wrap-up/summary-template.md', 'plugin/skills/flow/multispec-summary.md', 'plugin/skills/wrap-up/verification-brief.md', 'plugin/skills/_shared/pr-run-comments.md']) {
+  const noteExempt = new Set(['plugin/skills/_shared/pr-run-comments.md', 'docs/journeys/read-where-a-pipeline-run-spent-its-minutes-1928.md', 'docs/journeys/see-which-phase-spent-the-tokens-1929.md']);
+  for (const f of ['plugin/skills/flow/summary-template.md', 'plugin/skills/wrap-up/summary-template.md', 'plugin/skills/flow/multispec-summary.md', 'plugin/skills/wrap-up/verification-brief.md', 'plugin/skills/_shared/pr-run-comments.md', 'docs/journeys/read-where-a-pipeline-run-spent-its-minutes-1928.md', 'docs/journeys/see-which-phase-spent-the-tokens-1929.md']) {
     const t = read(f);
     assert.match(t, /bin\/phase-timing\.js"? --run "(\$PIPELINE_RUN_DIR|\$MULTISPEC_PARENT_DIR)" --markdown --auto-transcript/, f);
     if (!noteExempt.has(f)) assert.match(t, /tokens: transcript not found/, `${f} must say the note line renders verbatim`);

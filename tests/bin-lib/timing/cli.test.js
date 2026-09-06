@@ -73,13 +73,14 @@ test('#1929 AC4: --transcript twice sums both, prints the three columns and the 
   // every fixture transcript row sits in 13:50-13:51 → review; two transcripts double it
   assert.match(r.stdout, /^\| review \| 8 \| — \| 232\/456 \| 0\.0 \| 6 \|$/m);
   assert.match(r.stdout, /^Guard denials: 1 gate · 0 wd-ambiguous · 2 wd-deny$/m);
+  assert.match(r.stdout, /^Tokens \(in\/out\) sum the transcript's raw input_tokens\/output_tokens; cache reads and creation are separate fields in timing\.json\.$/m);
   const json = JSON.parse(fs.readFileSync(path.join(dir, 'timing.json'), 'utf8'));
   assert.deepEqual(json.totals.guard, { gateDenial: 1, wdAmbiguous: 0, wdDeny: 2 });
   assert.deepEqual(json.totals.tokens, { input: 232, output: 456, cacheRead: 620, cacheCreate: 104 });
   assert.equal(json.totals.procedureBytes, 36);
   assert.equal(json.totals.toolRoundTrips, 6);
   assert.equal(json.transcripts.length, 2);
-  assert.equal(json.transcripts[0].rows, 7);
+  assert.equal(json.transcripts[0].rows, 8);
 });
 
 test('#1929 AC4: a nonexistent --transcript prints the not-found note, blank columns, exit 0', () => {
@@ -126,4 +127,44 @@ test('#1929 AC4: --auto-transcript locates the run session transcript from run-s
   const r2 = spawnSync(process.execPath, [CLI, '--run', none, '--markdown', '--auto-transcript'], { encoding: 'utf8', env: { ...process.env, HOME: home } });
   assert.equal(r2.status, 0);
   assert.match(r2.stdout, /^tokens: transcript not found \(no worktree or sessionId in run-state\.json\)$/m);
+});
+
+test('#1929 whole-branch review fix 3: a transcript row timestamped before every phase renders an unattributed row, and total sums visible + unattributed', () => {
+  const dir = tmpRun(true);
+  const early = path.join(os.tmpdir(), 'ct-timing-early-transcript.jsonl');
+  fs.writeFileSync(early, [
+    '{"type":"assistant","timestamp":"2026-09-05T12:00:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"early"}],"usage":{"input_tokens":7,"output_tokens":9,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}',
+    '{"type":"user","timestamp":"2026-09-05T12:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"none","content":"x"}]}}',
+  ].join('\n') + '\n');
+  const r = run(['--run', dir, '--transcript', early, '--markdown']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^\| unattributed \| — \| — \| 7\/9 \| 0\.0 \| 1 \|$/m);
+  const json = JSON.parse(fs.readFileSync(path.join(dir, 'timing.json'), 'utf8'));
+  const visible = json.phases.reduce((acc, p) => ({ input: acc.input + p.tokens.input, output: acc.output + p.tokens.output }), { input: 0, output: 0 });
+  assert.equal(visible.input + json.unattributed.tokens.input, json.totals.tokens.input);
+  assert.equal(visible.output + json.unattributed.tokens.output, json.totals.tokens.output);
+});
+
+test('#1929 whole-branch review fix 8: a run with a transcript but no minutes/verify still prints a total row', () => {
+  const dir = tmpRun(false); // no events.jsonl copied — an empty run
+  const early = path.join(os.tmpdir(), 'ct-timing-notimes-transcript.jsonl');
+  fs.writeFileSync(early, '{"type":"assistant","timestamp":"2026-09-05T12:00:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"x"}],"usage":{"input_tokens":3,"output_tokens":4,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}\n');
+  const r = run(['--run', dir, '--transcript', early, '--markdown']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^\| total \| 0 \| 0 run\(s\) \| 3\/4 \| 0\.0 \| 0 \|$/m);
+});
+
+test('#1929 whole-branch review fix 2: a --transcript file whose stat succeeds but whose read fails (mode 000) degrades to a note, exit 0', { skip: process.getuid && process.getuid() === 0 }, () => {
+  const dir = tmpRun(true);
+  const unreadable = path.join(os.tmpdir(), 'ct-timing-unreadable-transcript.jsonl');
+  fs.writeFileSync(unreadable, '{}\n');
+  fs.chmodSync(unreadable, 0o000);
+  try {
+    const r = run(['--run', dir, '--transcript', unreadable, '--markdown']);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^tokens: transcript not found \(EACCES/m);
+  } finally {
+    fs.chmodSync(unreadable, 0o644);
+    fs.rmSync(unreadable, { force: true });
+  }
 });
