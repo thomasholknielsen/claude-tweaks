@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-06T00:24:09.177Z",
+  "computedAt": "2026-09-06T06:11:15.153Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -21,11 +21,6 @@
       {
         "number": 1818,
         "updatedAt": "2026-09-04T07:51:19Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1804,
-        "updatedAt": "2026-09-04T07:50:39Z",
         "state": "OPEN"
       },
       {
@@ -155,94 +150,6 @@
         "state": "OPEN",
         "title": "Doc staleness: plans/2026-08-29-spec-1296-1336-ledger — Open Items — flow run #1296, #1336",
         "updatedAt": "2026-09-04T07:51:19Z",
-        "facets": {
-          "origin": "docs-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Doc:** plans/2026-08-27-1368-subagent-contract-violation-investigation-ledger | **Section:** Open Items — Investigate subagent contract-line violation observed during #1259's build dispatch | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b47707ca31cc8eae762005f3a365e5dc15e79852\n\n## Current State\n\nRow 1's Item column cites `plugin/bin/lib/hooks/subagent-stop.js:50` as the emission site. Live grep of that file shows the `contract-violation` event is now appended at line 77 (`ctxLib.appendEvent(ownedRun.dir, 'contract-violation', ...)`); line 50 now falls inside an unrelated `tool_use` guard clause added later. A reader following the citation today lands on the wrong code.\n\n## Deliverables\n\n**Current:**\n```\n`plugin/bin/lib/hooks/subagent-stop.js:50`\n```\n\n**Proposed:**\n```\n`plugin/bin/lib/hooks/subagent-stop.js:77` (line at time of this ledger's writing was 50; the event-emission line has since moved due to unrelated comment additions)\n```\n\n## Acceptance Criteria\n\nThe doc's cited source-line reference for the contract-violation event emission should point at the line where that code currently lives.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-b5131791 -->",
-        "createdAt": "2026-09-03T06:06:19Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRqw",
-            "name": "by:docs-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRrA",
-            "name": "docs-health:additive",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACy3OKFA",
-            "name": "auto:merge-pending",
-            "description": "Grant: machine-granted merge trust awaiting its veto window (matures to auto:merge)",
-            "color": "C2E0C6"
-          }
-        ],
-        "number": 1804,
-        "state": "OPEN",
-        "title": "Doc staleness: plans/2026-08-27-1368-subagent-contract-violation-investigation-ledger — Open Items — Investigate subagent contract-line violation observed during #1259's build dispatch",
-        "updatedAt": "2026-09-04T07:50:39Z",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
