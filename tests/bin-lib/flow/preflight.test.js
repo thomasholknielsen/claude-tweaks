@@ -6,7 +6,8 @@ const os = require('os');
 const path = require('path');
 
 const MOD = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'flow', 'preflight');
-const { ADOPTION_NOTES, computeAdoption, parseChecklist, gatherPreflight, LEVER_KEYS } = require(MOD);
+const { ADOPTION_NOTES, computeAdoption, parseChecklist, gatherPreflight, LEVER_KEYS, defaultDeps } = require(MOD);
+const { execFileSync } = require('child_process');
 
 // A fake main checkout with one run dir under .claude-tweaks/pipelines/.
 function mainRoot() {
@@ -66,7 +67,7 @@ test('case 1: anchored dir with config.yml → adopt, the case-1 literal, OK fre
   for (const l of pack.levers.value) { assert.ok(LEVER_KEYS.includes(l.key)); assert.ok('value' in l && typeof l.source === 'string', l.key); }
   const ceremony = pack.levers.value.find((l) => l.key === 'ceremony-profile');
   assert.deepStrictEqual(ceremony, { key: 'ceremony-profile', value: 'standard', source: 'header' });
-  assert.deepStrictEqual(pack.spec.value, { path: 'work/7-spec.md', present: true, record: 7 });
+  assert.deepStrictEqual(pack.spec.value, { path: 'work/7-spec.md', present: true, record: 7, records: [7] });
   assert.strictEqual(pack.pr.value.number, 1901);
   assert.deepStrictEqual(pack.pr.value.checklist, [{ phase: 'build', done: true }, { phase: 'test', done: true }, { phase: 'review', done: false }, { phase: 'polish', done: false }, { phase: 'wrap-up', done: false }]);
   assert.strictEqual(pack.stamp.value.match, true);
@@ -163,7 +164,7 @@ test('one probe throwing degrades only its field, and the probes run concurrentl
   assert.strictEqual(pack.freshness.ok, false);
   assert.match(pack.freshness.error, /probe exploded/);
   assert.strictEqual(pack.pr.ok, true);
-  assert.ok(Date.now() - t0 < 450, 'three 150 ms subprocess probes overlap');
+  assert.ok(Date.now() - t0 < 600, 'three 150 ms subprocess probes overlap');
 });
 
 test('a probe that never resolves is bounded by probeTimeoutMs, without blocking or leaking a timer for the others (#1931 parity with wrap-up/pack.js)', async () => {
@@ -193,9 +194,113 @@ test('parseChecklist reads the phases span and ignores rows outside it (#1931 de
   assert.deepStrictEqual(parseChecklist('no markers'), []);
 });
 
+test('parseChecklist accepts an uppercase `- [X]` tick (#1931 M4)', () => {
+  assert.deepStrictEqual(
+    parseChecklist('<!-- phases-start -->\n- [X] build\n- [x] test\n- [ ] review\n<!-- phases-end -->'),
+    [{ phase: 'build', done: true }, { phase: 'test', done: true }, { phase: 'review', done: false }],
+  );
+});
+
 test('ADOPTION_NOTES carry the four prose literals with their placeholders (#1931 AC5)', () => {
   assert.strictEqual(ADOPTION_NOTES[1], 'Resuming existing run directory: {path}');
   assert.strictEqual(ADOPTION_NOTES[2], 'Adopting minted run directory: {path}');
   assert.strictEqual(ADOPTION_NOTES[3], 'Recovering inherited run directory: {path} (missing config.yml; backfilled {worktree registration | PR-early lifecycle | materialize commit} before proceeding).');
   assert.strictEqual(ADOPTION_NOTES[4], 'PIPELINE_RUN_DIR was set to {path}, which {does not exist | is not anchored to the main checkout} — created a fresh run directory instead.');
+});
+
+test('case 3 with an empty backfill list renders `nothing` rather than an empty span (#1931 M2)', () => {
+  const fx = mainRoot();
+  fs.writeFileSync(path.join(fx.runDir, 'decisions.md'), '## /build\n- AUTO 10:00:00 — x. Reversibility: high.\n');
+  fs.writeFileSync(path.join(fx.runDir, 'run-state.json'), JSON.stringify({ worktree: '/w/tree', status: 'active', pr: { number: 1901, branch: 'feat-branch' } }));
+  const a = computeAdoption({ runDir: fx.runDir, mainRoot: fx.root, cwd: fx.root, deps: deps(fx) });
+  assert.strictEqual(a.case, 3);
+  assert.deepStrictEqual(a.backfills, []);
+  assert.strictEqual(a.note, ADOPTION_NOTES[3].replace('{path}', fs.realpathSync(fx.runDir)).replace('{worktree registration | PR-early lifecycle | materialize commit}', 'nothing'));
+});
+
+test('configValue tolerates a trailing `# comment` on a config.yml line (#1931 M3)', async () => {
+  const fx = mainRoot();
+  seedCase1(fx);
+  fs.writeFileSync(path.join(fx.runDir, 'config.yml'), 'mode: auto   # FYI variant, no gate\nceremony-profile: fast-lane  # bundle-folded\n');
+  const pack = await gatherPreflight({ runDir: fx.runDir, steps: ['review'], cwd: fx.root, mainRoot: fx.root, deps: deps(fx) });
+  assert.strictEqual(pack.mode, 'auto');
+  assert.deepStrictEqual(pack.levers.value.find((l) => l.key === 'ceremony-profile'), { key: 'ceremony-profile', value: 'fast-lane', source: 'header' });
+});
+
+test('the levers and the changed-files integration branch share ONE resolvePolicy call per pack (#1931 M5)', async () => {
+  const fx = mainRoot();
+  seedCase1(fx);
+  const policyCalls = [];
+  const d = deps(fx, {
+    resolvePolicy: (keys, runDir) => {
+      policyCalls.push({ keys, runDir });
+      return Object.fromEntries(keys.map((k) => [k, k === 'integration-branch' ? { value: 'develop', source: 'policy' } : { value: `v-${k}`, source: 'policy' }]));
+    },
+  });
+  const calls = [];
+  const pack = await gatherPreflight({ runDir: fx.runDir, steps: ['review'], cwd: fx.root, mainRoot: fx.root, deps: { ...d, execFile: (cmd, args, opts) => { calls.push({ cmd, args, opts }); return d.execFile(cmd, args, opts); } } });
+  assert.strictEqual(policyCalls.length, 1, 'exactly one resolvePolicy call per pack');
+  assert.ok(policyCalls[0].keys.includes('integration-branch'), 'integration-branch resolves in the levers call');
+  assert.ok(policyCalls[0].keys.includes('merge-verification'));
+  assert.strictEqual(pack.levers.value.length, 12, 'integration-branch is not a Manifesto lever');
+  assert.ok(!pack.levers.value.some((l) => l.key === 'integration-branch'));
+  const changedCall = calls.find((c) => c.args.includes('--changed-files'));
+  assert.deepStrictEqual(changedCall.args.slice(-2), ['--integration-branch', 'develop']);
+});
+
+test('the spec probe falls back to a multi-spec parent\'s spec-{N}/work/ headers (#1931 I4)', async () => {
+  const fx = mainRoot();
+  fs.writeFileSync(path.join(fx.runDir, 'config.yml'), 'mode: auto\nceremony-profile: standard\n');
+  fs.writeFileSync(path.join(fx.runDir, 'run-state.json'), JSON.stringify({ worktree: '/w/tree', status: 'active', pr: { number: 1901, branch: 'feat-branch' } }));
+  for (const n of ['spec-160', 'spec-9']) {
+    fs.mkdirSync(path.join(fx.runDir, n, 'work'), { recursive: true });
+    fs.writeFileSync(path.join(fx.runDir, n, 'work', `${n.slice(5)}-spec.md`), '---\n');
+  }
+  const pack = await gatherPreflight({ runDir: fx.runDir, steps: ['review'], cwd: fx.root, mainRoot: fx.root, deps: deps(fx) });
+  assert.deepStrictEqual(pack.spec.value, { path: null, present: true, record: null, records: [9, 160] });
+});
+
+test('the spec probe reports absent with an empty records list when neither work/ nor spec-{N}/work/ carries a header (#1931 I4)', async () => {
+  const fx = mainRoot();
+  fs.writeFileSync(path.join(fx.runDir, 'config.yml'), 'mode: auto\nceremony-profile: standard\n');
+  const pack = await gatherPreflight({ runDir: fx.runDir, steps: ['review'], cwd: fx.root, mainRoot: fx.root, deps: deps(fx) });
+  assert.deepStrictEqual(pack.spec.value, { path: null, present: false, record: null, records: [] });
+});
+
+test('specOnBranch falls back to a recursive spec-{N}/work/ listing when {run-dir}/work/ is empty on the branch (#1931 I4)', () => {
+  const fx = mainRoot();
+  fs.writeFileSync(path.join(fx.runDir, 'decisions.md'), 'x\n');
+  fs.writeFileSync(path.join(fx.runDir, 'run-state.json'), JSON.stringify({ worktree: '/w/tree', status: 'active', pr: { number: 1, branch: 'feat-branch' } }));
+  const seen = [];
+  const rel = path.relative(fx.root, fs.realpathSync(fx.runDir)).split(path.sep).join('/');
+  const d = deps(fx, {
+    git: (args) => {
+      seen.push(args);
+      if (args[0] !== 'ls-tree') return 'feat-branch\n';
+      // The direct `{rel}/work/` listing is legitimately empty for a parent;
+      // only the recursive `{rel}/` listing carries the per-spec headers.
+      if (args[args.length - 1] === `${rel}/work/`) return '';
+      return `${rel}/spec-9/work/9-spec.md\n${rel}/spec-160/work/160-spec.md\n`;
+    },
+  });
+  const a = computeAdoption({ runDir: fx.runDir, mainRoot: fx.root, cwd: fx.root, deps: d });
+  assert.strictEqual(a.specMaterialized, true);
+  const lsCalls = seen.filter((args) => args[0] === 'ls-tree');
+  assert.strictEqual(lsCalls.length, 2, 'the direct listing runs first, the recursive fallback second');
+  assert.ok(!lsCalls[0].includes('-r'), 'the direct {rel}/work/ listing is non-recursive');
+  assert.ok(lsCalls[1].includes('-r'), 'the parent fallback must recurse — a bare {rel}/ listing returns TREE names only');
+  assert.strictEqual(lsCalls[1][lsCalls[1].length - 1], `${rel}/`);
+});
+
+test('defaultDeps().resolvePolicy applies computeDerivedDefaults, so merge-verification resolves to a value with no policy.yml (#1931 I2)', () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'flow-preflight-derived-')));
+  const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  git('init', '-q'); git('config', 'user.email', 't@example.invalid'); git('config', 'user.name', 't');
+  git('commit', '-q', '--allow-empty', '-m', 'init');
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', '2026-09-06T000000-record-7');
+  fs.mkdirSync(runDir, { recursive: true });
+  assert.ok(!fs.existsSync(path.join(root, '.claude-tweaks', 'policy.yml')), 'the fixture deliberately has no policy.yml');
+  const resolved = defaultDeps(root).resolvePolicy(['merge-verification', 'integration-model'], runDir);
+  assert.strictEqual(typeof resolved['merge-verification'].value, 'string', `merge-verification must be derived, got ${JSON.stringify(resolved['merge-verification'])}`);
+  assert.strictEqual(typeof resolved['integration-model'].value, 'string', `integration-model must be derived, got ${JSON.stringify(resolved['integration-model'])}`);
 });

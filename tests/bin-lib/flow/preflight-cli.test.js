@@ -89,3 +89,18 @@ test('run: --json redirects the write inside the anchored target; a symlinked es
   assert.strictEqual(await run(['--run', fx.runDir, '--steps', 'review', '--json', path.join(fx.runDir, 'escape', 'p.json')], d), 3);
   assert.ok(!fs.existsSync(path.join(outside, 'p.json')));
 });
+
+test('run: a spec header committed on the run\'s recorded branch → specMaterialized true and spec.present true (#1931 M11)', async () => {
+  const fx = mainCheckoutWithRun();
+  const git = (...a) => execFileSync('git', a, { cwd: fx.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  git('checkout', '-q', '-b', 'flow/record-7');
+  git('add', '-f', path.relative(fx.root, path.join(fx.runDir, 'work', '7-spec.md')));
+  git('commit', '-q', '-m', 'materialize 7');
+  fs.writeFileSync(path.join(fx.runDir, 'run-state.json'), JSON.stringify({ worktree: fx.root, status: 'active', pr: { number: 42, branch: 'flow/record-7' } }));
+  const { d } = baseDeps(fx);
+  assert.strictEqual(await run(['--run', fx.runDir, '--steps', 'review'], d), 0);
+  const file = JSON.parse(fs.readFileSync(path.join(fx.runDir, 'preflight.json'), 'utf8'));
+  assert.strictEqual(file.adoption.value.specMaterialized, true, JSON.stringify(file.adoption.value));
+  assert.strictEqual(file.spec.value.present, true);
+  assert.strictEqual(file.spec.value.record, 7);
+});

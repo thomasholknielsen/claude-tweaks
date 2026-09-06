@@ -17,6 +17,7 @@ const { checkResumeFreshness } = require('../hooks/resume-freshness');
 const { checkStagedInventory } = require('../hooks/staged-inventory');
 const { readRunState } = require('../hooks/context');
 const { resolvePolicyConfig } = require('../policy-schema');
+const { computeDerivedDefaults } = require('../policy-derived-defaults');
 const { resolveTarget } = require('../stage-item/write');
 
 const BIN = path.join(__dirname, '..', '..');
@@ -62,7 +63,13 @@ function defaultDeps(cwd) {
     resolvePolicy: (keys, runDir) => {
       const git = (args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
       const readFile = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } };
-      return resolvePolicyConfig({ git, readFile, runDir, keys }).result;
+      // Mirrors bin/resolve-policy.js: `integration-model`/`merge-verification`
+      // have no static schema default, so the flat resolver leaves them null
+      // until computeDerivedDefaults runs. `mcpReachable: false` is what the
+      // CLI passes without its own `--mcp-reachable` flag (#1421).
+      const { root, result } = resolvePolicyConfig({ git, readFile, runDir, keys });
+      computeDerivedDefaults(result, keys, root, { mcpReachable: false });
+      return result;
     },
     resolveTarget,
     now: () => Date.now(),
@@ -75,7 +82,7 @@ function readText(deps, file) {
 }
 
 function configValue(text, key) {
-  const m = new RegExp(`^${key}:\\s*(\\S+)\\s*$`, 'm').exec(text || '');
+  const m = new RegExp(`^${key}:\\s*(\\S+?)\\s*(?:#.*)?$`, 'm').exec(text || '');
   return m ? m[1] : null;
 }
 
@@ -94,10 +101,23 @@ function specOnBranch(deps, { mainRoot, runDirReal, state }) {
   }
   if (!branch) return null;
   const rel = path.relative(mainRoot, runDirReal).split(path.sep).join('/');
-  try {
-    const out = deps.git(['ls-tree', '--name-only', branch, '--', `${rel}/work/`], { cwd: mainRoot });
-    return out.split('\n').some((l) => /\/work\/\d+-spec\.md$/.test(l));
-  } catch { return null; }
+  const ls = (pathspec, recursive) => {
+    const args = ['ls-tree'];
+    if (recursive) args.push('-r');
+    args.push('--name-only', branch, '--', pathspec);
+    try { return deps.git(args, { cwd: mainRoot }); } catch { return null; }
+  };
+  const direct = ls(`${rel}/work/`, false);
+  if (direct === null) return null;
+  if (direct.split('\n').some((l) => /(^|\/)work\/\d+-spec\.md$/.test(l))) return true;
+  // Multi-spec parent (#1931 I4): /dispatch hands both calls the PARENT run
+  // dir, whose spec headers live under `spec-{N}/work/` — a `{rel}/work/`
+  // listing is legitimately empty there. `-r` is required: without it a
+  // `{rel}/` listing returns the `spec-{N}`/`work` TREE names, never a file
+  // path the header regex could match.
+  const nested = ls(`${rel}/`, true);
+  if (nested === null) return null;
+  return nested.split('\n').some((l) => /(^|\/)(spec-\d+\/)?work\/\d+-spec\.md$/.test(l));
 }
 
 function computeAdoption({ runDir, mainRoot, cwd, deps }) {
@@ -118,7 +138,7 @@ function computeAdoption({ runDir, mainRoot, cwd, deps }) {
   if (!state || typeof state.worktree !== 'string') backfills.push('worktree registration');
   if (!state || !state.pr) backfills.push('PR-early lifecycle');
   if (specMaterialized !== true) backfills.push('materialize commit');
-  return { case: 3, note: ADOPTION_NOTES[3].replace('{path}', real).replace(CASE3_PLACEHOLDER, backfills.join(', ')), path: real, anchored: true, hasConfig, hasOtherContent, specMaterialized, backfills };
+  return { case: 3, note: ADOPTION_NOTES[3].replace('{path}', real).replace(CASE3_PLACEHOLDER, backfills.length ? backfills.join(', ') : 'nothing'), path: real, anchored: true, hasConfig, hasOtherContent, specMaterialized, backfills };
 }
 
 function parseChecklist(body) {
@@ -127,8 +147,8 @@ function parseChecklist(body) {
   if (start === -1 || end === -1 || end < start) return [];
   const rows = [];
   for (const line of body.slice(start, end).split('\n')) {
-    const m = /^- \[( |x)\] ([a-z-]+)\s*$/.exec(line.trim());
-    if (m) rows.push({ phase: m[2], done: m[1] === 'x' });
+    const m = /^- \[([ xX])\] ([a-z-]+)\s*$/.exec(line.trim());
+    if (m) rows.push({ phase: m[2], done: m[1].toLowerCase() === 'x' });
   }
   return rows;
 }
@@ -166,6 +186,18 @@ function pickExec(overrides, deps) {
 }
 
 function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, exec }) {
+  // One resolvePolicy call per pack (#1931 M5): the levers and the
+  // changed-files integration branch resolve together, memoized (throws
+  // included, so a failure degrades both fields without a second call).
+  const POLICY_KEYS = [...LEVER_KEYS.filter((k) => !CONFIG_ONLY_LEVERS.has(k)), 'integration-branch'];
+  let policyMemo;
+  const policy = () => {
+    if (policyMemo === undefined) {
+      try { policyMemo = { ok: true, value: deps.resolvePolicy(POLICY_KEYS, runDirReal) || {} }; } catch (err) { policyMemo = { ok: false, err }; }
+    }
+    if (!policyMemo.ok) throw policyMemo.err;
+    return policyMemo.value;
+  };
   return {
     freshness: () => {
       const r = deps.checkResumeFreshness(runDirReal, { sessionId: deps.sessionId || null });
@@ -183,8 +215,7 @@ function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, ex
       return { status, checked: r.checked, missing: r.missing, line };
     },
     levers: () => {
-      const policyKeys = LEVER_KEYS.filter((k) => !CONFIG_ONLY_LEVERS.has(k));
-      const resolved = deps.resolvePolicy(policyKeys, runDirReal) || {};
+      const resolved = policy();
       return LEVER_KEYS.map((key) => {
         if (CONFIG_ONLY_LEVERS.has(key)) {
           const value = configValue(config, key);
@@ -196,9 +227,23 @@ function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, ex
       });
     },
     spec: () => {
-      const names = deps.readdir(path.join(runDirReal, 'work')).filter((n) => /^\d+-spec\.md$/.test(n)).sort();
-      if (!names.length) return { path: null, present: false, record: null };
-      return { path: `work/${names[0]}`, present: true, record: Number(names[0].split('-')[0]) };
+      const headers = (dir) => deps.readdir(dir).filter((n) => /^\d+-spec\.md$/.test(n)).sort();
+      const names = headers(path.join(runDirReal, 'work'));
+      if (names.length) {
+        const record = Number(names[0].split('-')[0]);
+        return { path: `work/${names[0]}`, present: true, record, records: [record] };
+      }
+      // Multi-spec parent (#1931 I4): /dispatch hands both calls the PARENT
+      // run dir; its headers live one level down, under `spec-{N}/work/`
+      // (multi-spec.md). `record`/`path` stay null — a parent has no single
+      // one — and `records` carries every header found.
+      const records = [];
+      for (const sub of deps.readdir(runDirReal).filter((n) => /^spec-\d+$/.test(n))) {
+        for (const n of headers(path.join(runDirReal, sub, 'work'))) records.push(Number(n.split('-')[0]));
+      }
+      records.sort((a, b) => a - b);
+      if (records.length) return { path: null, present: true, record: null, records };
+      return { path: null, present: false, record: null, records: [] };
     },
     pr: async () => {
       if (!state || !state.pr || !state.pr.number) return null;
@@ -212,14 +257,17 @@ function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, ex
     },
     stamp: async () => JSON.parse(await exec('node', [path.join(BIN, 'verify.js'), '--stamp-status'], { cwd: state && typeof state.worktree === 'string' ? state.worktree : cwd })),
     changedFiles: async () => {
-      const ib = (deps.resolvePolicy(['integration-branch'], runDirReal) || {})['integration-branch'];
+      const ib = policy()['integration-branch'];
       const branch = ib && ib.value ? String(ib.value) : 'main';
       return JSON.parse(await exec('node', [path.join(BIN, 'verify.js'), '--changed-files', '--integration-branch', branch], { cwd: state && typeof state.worktree === 'string' ? state.worktree : cwd }));
     },
   };
 }
 
-async function gatherPreflight({ runDir, steps = [], cwd = process.cwd(), mainRoot = null, deps: overrides = {} }) {
+// `mainRoot` has NO default (#1931 M1): an explicit `null` would both disable
+// resolveTarget's own anchoring and throw inside path.relative(); leaving it
+// undefined lets resolveTarget derive the main-checkout anchor from `cwd`.
+async function gatherPreflight({ runDir, steps = [], cwd = process.cwd(), mainRoot, deps: overrides = {} }) {
   const deps = { ...defaultDeps(cwd), ...overrides };
   const limit = Number.isFinite(deps.probeTimeoutMs) ? deps.probeTimeoutMs : PROBE_TIMEOUT_MS;
   const t0 = deps.now();
@@ -243,4 +291,4 @@ async function gatherPreflight({ runDir, steps = [], cwd = process.cwd(), mainRo
   return pack;
 }
 
-module.exports = { ADOPTION_NOTES, LEVER_KEYS, computeAdoption, parseChecklist, gatherPreflight };
+module.exports = { ADOPTION_NOTES, LEVER_KEYS, computeAdoption, parseChecklist, gatherPreflight, defaultDeps };
