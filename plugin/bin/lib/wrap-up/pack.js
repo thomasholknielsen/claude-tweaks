@@ -296,8 +296,8 @@ function ledgerProbe(inputs, deps) {
   for (const f of files) {
     // Read-and-catch, like headerRecords: a ledger archived between the
     // readdir snapshot and this read is skipped, not a whole-probe failure.
-    let text;
-    try { text = deps.readFile(path.join(dir, f)); } catch { continue; }
+    const text = readText(deps, path.join(dir, f));
+    if (text === null) continue;
     const one = parseLedger(text);
     totals.open += one.open; totals.total += one.total;
     for (const [phase, c] of Object.entries(one.byPhase)) {
