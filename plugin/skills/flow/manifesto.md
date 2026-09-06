@@ -49,13 +49,13 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 |---|---|
 | **Overlap** (3) | `/specify` not in the pipeline (always suppressed for `/flow` — specs already exist) |
 | **Design intent** (4) | All records have `design-intent:` locked in their materialized header (or body metadata), OR all records are non-frontend (polish auto-skips regardless) |
-| **Tidy aggressiveness** (8) | Always suppressed by `/flow` — `/tidy` is not an allowed flow step at all (`steps-and-gates.md`'s Allowed Steps table lists it unconditionally under "Not allowed in flow") and can never be added to a step list. Still written to `config.yml` (per the "suppression is a UI affordance" rule below) since a standalone `/tidy` run can independently resolve the same run directory and read this lever's value. Kept in the canonical lever count for stable numbering across all skills that reference these levers. |
+| **Tidy aggressiveness** (8) | Always suppressed by `/flow` — `/tidy` is not an allowed flow step (`steps-and-gates.md`'s Allowed Steps table) and can never be added to a step list. Still written to `config.yml` since a standalone `/tidy` run can independently resolve this run directory. Kept in the canonical lever count for stable numbering. |
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review auto-apply ceiling** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
 | **Merge verification** (11) | `/wrap-up` not in the step list (the merge step never runs, so nothing reads it this run) |
 | **Merge authorization** (13) | `/wrap-up` not in the step list (nothing left to authorize a merge for — same condition as lever 11) |
-| **Design critique** (12) | Every record in the run is non-frontend (materialized `surface:` header is `backend`/`infra` on all of them — the same input Design intent (4) reads; critics never dispatch on a non-frontend diff). Still written to `config.yml` per the "suppression is a UI affordance" rule below |
+| **Design critique** (12) | Every record in the run is non-frontend (materialized `surface:` header is `backend`/`infra` on all — critics never dispatch on a non-frontend diff). Still written to `config.yml` (suppression is a UI affordance) |
 
 Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (9), **Model stance** (10) — they affect every pipeline.
 
@@ -66,6 +66,8 @@ When a lever is suppressed, mention it once in the Suppressed footer below the t
 The template below is the **`confirm` / `hybrid` (approval-gate)** rendering — it ends with the `Approve all / Override / Cancel` `AskUserQuestion` call and waits.
 
 **In default `auto` mode, render the FYI variant instead:** show the same preview + policy-levers tables, but change the heading to `### Pipeline Config (auto)`, drop the approval call entirely, and close with a single line — `→ proceeding (no approval needed) · run with \`confirm\` to review/override`. Then continue to Step 4. Do not wait for input.
+
+**Lever values come from the pack when adopted (#1931).** If `preflight.json` exists for this run, read Recommended values from `preflight.levers` (and lever 1 from `mode`) instead of re-resolving. A fresh run resolves as below.
 
 ```markdown
 ### Pipeline Config Manifesto
@@ -122,6 +124,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | `policy` | From `.claude-tweaks/policy.yml`'s `auto-mode:` key (resolver envelope `source: "policy"`) |
 | `default` | Hardcoded sensible default |
 | `header` | Locked by the materialized header (`materialize.md`) — e.g. `surface:`/`design-intent:`/`ceremony:` — or the record body's `Surface:`/`Design-intent:` metadata lines (e.g., `design-intent:` set on every record in the run) |
+| `preflight.json` | The pack, when adopted (#1931) |
 
 ## Recommendation defaults (when no arg and no policy)
 
