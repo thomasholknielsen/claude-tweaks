@@ -1,5 +1,7 @@
 # Worktree-Isolation-Pin Post-Teardown Backstop Implementation Plan
 
+> **Correction (#1865):** This plan names the new handler `checkPostTeardownPin` throughout (lines 7, 29, 128, 172, 208-209, 224, 250, 269); it shipped as `checkPostTeardownReanchor` (`plugin/bin/lib/hooks/post-tool-use.js:578`). Left as originally written per this repo's historical-plan-artifact convention (`docs/superpowers/plans/` is a permanent historical record, per `docs/incident-log.md`) — substitute the shipped name mentally when reading the body below.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** After a worktree teardown (`ExitWorktree` action:remove, or the sanctioned own-cwd `git worktree remove` Bash call), warn the agent — via a new PostToolUse `additionalContext` nudge — to verify its git context before trusting it, since Claude Code's harness-native worktree-isolation pin can persist past a successful removal and this plugin has no lever to clear it directly. Also harden `skills/feedback/SKILL.md` Step 3's self-reference check so it degrades to a `plugin.json`-derived fallback instead of throwing when git context is broken.
