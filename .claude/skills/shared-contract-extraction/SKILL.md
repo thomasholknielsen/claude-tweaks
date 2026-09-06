@@ -21,11 +21,22 @@ How this repo extracts a recurring cross-skill rule into a new `plugin/skills/_s
 
 ## Extending to a later consumer
 
-The steps above describe a first extraction. The shape this repo now runs more often is the second one: an already-extracted contract gains one more consumer pair, no extraction involved (`_shared/untrusted-record-content.md` went #1275 → #1274 → #1391). Three rules the extraction-time steps do not reach — the Gotchas' "still needs step 4's edge update" bullet is a fourth.
+The steps above describe a first extraction. The shape this repo now runs more often is the second one: an already-extracted contract gains one more consumer pair, no extraction involved (`_shared/untrusted-record-content.md` went #1275 → #1274 → #1391 → #1442). The bullets below are the rules the extraction-time steps do not reach; the Gotchas' "still needs step 4's edge update" bullet is another.
 
 - **The consumer set is the callee's call sites, enumerated at spec time — not the record's file list.** Step 1's derivation has nothing to grep for here: no vocabulary is being retired. Grep the callee's invocation literal instead (`grep -rn 'args: "grant-check' plugin/skills` returns both sites) and give every hit an explicit in-scope-or-deferred verdict before the spec is written. #1391 shipped the obligation to `backlog/refine-headless.md`'s Phase B and left the identical call at `backlog/refine-mode.md`'s Step 3 unwrapped; review found it, not the plan (#1442).
 - **When the callee has 2+ call sites, route the caller-side paragraph through a `_shared/{mode}-invocation.md` file before adding it anywhere.** This is what step 3's headroom measurement should *decide* on a later-consumer run: at the ceiling, slimming is one remedy and a shared invocation file is the better one, because every site after the first then costs a one-line citation or nothing at all. `_shared/ceremony-check-invocation.md` (3,617 B) carries the untrusted-content paragraph once for three call sites, which is why #1274 extended this same contract to ceremony-check without touching `specify/record-creation.md` (40,816 B) and with only a pointer line in `flow/materialize.md` — while #1391, with no `grant-check-invocation.md` to cite, had to defer `refine-mode.md` at 40,933 B of the 40,960 B ceiling.
 - **A caller-side obligation that adds an outcome to a file that logs outcomes by key must name the key.** The caller half of a two-sided contract always states what a missing verdict line does; where the consumer already groups its results by a key (`refine-headless.md`'s `failedKey`, which its Step 4 logs and its Step 5 summary groups by), "skip it and report it" is not yet a deliverable. #1391 reached review before `failedKey: 'grant-check-no-verdict'` was named.
+- **A new outcome added at the caller must be swept through every place that consumer already *enumerates* its outcomes, not
+  only the paragraph that introduces it.** The bullet above is the headless form of this (name the `failedKey`); the
+  human-present form is wider, because a render surface enumerates outcomes in more places than a log does. #1442 added
+  `no verdict rendered` to `refine-mode.md`'s Step 3 paragraph and to the two sites its own author thought of, and left four
+  stale: `refine-lanes.md`'s lane-precedence sentence, its Grant-lane exclusion clause, and its Flag-back example table, plus
+  `refine-closing-summary.md`'s audit-log template. Whole-branch review caught all four (`e971acc4d`), not the plan. Derive the
+  site list mechanically before writing the caller paragraph: grep the consumer's directory for the outcome labels the new one
+  is joining (`grep -rn 'needs scoring' plugin/skills/backlog/` returns all six sites) and give every hit an explicit
+  in-scope-or-not verdict — expect prose false positives (a carve-out saying the label must *not* apply to some record class)
+  and classify them rather than edit them. A two-item enumeration goes wrong silently the moment a third item exists: nothing
+  about adding the third makes the other two go red.
 
 ## Project conventions
 

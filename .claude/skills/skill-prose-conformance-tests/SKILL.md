@@ -164,6 +164,17 @@ A pin's red state can be proven after the fact, with zero tree mutation: `git sh
 
 **`{base}` must be a fixed, independently-verified ancestor SHA — never a moving ref like `HEAD`.** A moving ref is self-defeating once the change lands: `HEAD` at that point already carries the post-change content, so the "red" side of the comparison silently becomes the same as the "green" side. Pair the pin with its own ancestor-precondition test (`git merge-base --is-ancestor {base-sha} HEAD`) so a rebase or history rewrite that invalidates the fixed SHA fails loudly instead of passing vacuously. Record #1488 shipped both the mistake and the fix in one build: one pin used a fixed SHA with only a rationale comment, no precondition test; a sibling pin landed the correct fixed-SHA-plus-precondition-test form.
 
+**Normalize the base haystack exactly as the live one — a line-based baseline check is vacuous for every literal that wraps.**
+The `grep -c -F` form above matches per *line*, and shipped skill prose is hard-wrapped, so a pinned literal that spans a
+line break can never be found in the baseline whatever the base file actually contains: the check returns 0 for the wrong
+reason and certifies a go-red it never exercised. This is `[IL-66]` one level up from the Project Conventions bullet above —
+that bullet collapses the *live* haystack and needle; this one says the baseline needs the same normalizer, not a raw `grep`.
+Run the `git show` output through the suite's own collapse helper and count on the collapsed string.
+`tests/untrusted-record-content-conformance.test.js`'s `baseFileGrepCount` shipped the line-based form
+(`out.split('\n').filter((line) => line.includes(literal))`), survived a dedicated fix round that added five *more* go-red
+checks on top of it, and was corrected only at whole-branch review (`e971acc4d`, #1442). The literal it was vacuous for was
+``from `grant-check.md`'s own rendered Step 3 output only``, which wraps mid-phrase in `plugin/skills/backlog/refine-mode.md`.
+
 ## Bumping the repo-wide Anti-Patterns row-count pin
 
 `tests/bin-lib/skill-audit/anti-patterns.test.js` closes with one cardinality pin over the whole payload — `assert.strictEqual(total, N)`, the total Anti-Patterns table rows across every `plugin/skills/*/SKILL.md`. So *any* change that adds or removes an Anti-Patterns row goes red there rather than in the edited skill's own suite, and the pin is bumped by whoever landed the row. Two rules, both `[IL-99]`, and the running comment above the assertion is the only place the bump history lives — extend it, don't replace it:
