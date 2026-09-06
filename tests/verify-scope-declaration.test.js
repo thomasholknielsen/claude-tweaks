@@ -13,6 +13,7 @@ const REPO_ROOT = path.join(__dirname, '..');
 const DECL = path.join(REPO_ROOT, '.claude-tweaks', 'verify-scope.json');
 const { readDeclaration } = require(path.join(REPO_ROOT, 'plugin', 'bin', 'lib', 'verify', 'declaration.js'));
 const { selectScope } = require(path.join(REPO_ROOT, 'plugin', 'bin', 'lib', 'verify', 'scope.js'));
+const { BOOKKEEPING_RULES } = require(path.join(REPO_ROOT, 'plugin', 'bin', 'lib', 'init', 'verify-scope-starter.js'));
 const STAMP = { sha: 'a'.repeat(40), fullSha: 'a'.repeat(40), scope: 'full' };
 
 test('this repo declares its own verify scope and it passes readDeclaration (#1924 AC5)', () => {
@@ -35,6 +36,15 @@ test('a ledger-row delta resolves to none; a skill-prose delta resolves to full 
   assert.strictEqual(sel(['plugin/bin/verify.js', 'docs/plans/x-ledger.md']).mode, 'full');
   assert.strictEqual(sel(['docs/skill-graph.md']).mode, 'full');
   assert.deepStrictEqual(sel(['docs/skill-graph.md']).unmatched, ['docs/skill-graph.md']);
+});
+
+test('every rule with suites:[] is one of the bookkeeping-only globs — no source tree can ever be mapped to nothing (#1924 A8)', () => {
+  const { decl } = readDeclaration(DECL);
+  for (const rule of decl.rules) {
+    if (Array.isArray(rule.suites) && rule.suites.length === 0) {
+      assert.ok(BOOKKEEPING_RULES.includes(rule.match), `${rule.match} maps to no suite but is not a bookkeeping rule`);
+    }
+  }
 });
 
 test('init/SKILL.md lists Step 6.6 and its sub-file exists (#1924)', () => {

@@ -82,7 +82,7 @@ test('a package with no test script gets no rule unless it is shared; no test sc
 
 test('single-package repo: root test/lint scripts, no types, bookkeeping rules only (AC2)', () => {
   const ws = detectWorkspace({ root: '/w', fsImpl: memFs({ '/w/package.json': JSON.stringify({ name: 'one', scripts: { test: 'vitest run', lint: 'eslint .' } }) }) });
-  assert.deepStrictEqual(ws, { tool: null, packages: [] });
+  assert.deepStrictEqual(ws, { tool: null, packages: [], skipped: [] });
   const decl = composeStarter({ workspace: ws, rootScripts: { test: 'vitest run', lint: 'eslint .' } });
   assert.deepStrictEqual(decl.checks, { lint: 'eslint .', tests: 'vitest run' });
   assert.deepStrictEqual(decl.rules.map((r) => r.match), BOOKKEEPING_RULES);
@@ -99,4 +99,77 @@ test('diffAgainstWorkspace reports extra declared suites and test-bearing packag
 
 test('BOOKKEEPING_RULES is the four pipeline-owned globs in order', () => {
   assert.deepStrictEqual(BOOKKEEPING_RULES, ['docs/plans/*-ledger.md', '.claude-tweaks/pipelines/**', 'docs/superpowers/plans/**', 'docs/superpowers/specs/**']);
+});
+
+test('pnpmGlobs (via detectWorkspace) tolerates a trailing YAML comment, quoted or bare (A1)', () => {
+  const files = {
+    '/w/pnpm-workspace.yaml': "packages:\n  - 'apps/*'   # the apps\n  - packages/* # libs\n",
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api', scripts: { test: 'jest' } }),
+    '/w/packages/util/package.json': JSON.stringify({ name: 'util', scripts: { test: 'jest' } }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  assert.deepStrictEqual(ws.packages.map((p) => p.name).sort(), ['api', 'util']);
+});
+
+test('expandGlob walks `dir/**` recursively for nested package.json, and skips a `.` member entirely (A2)', () => {
+  const files = {
+    '/w/package.json': JSON.stringify({ name: 'root', workspaces: ['packages/**', '.'] }),
+    '/w/packages/a/package.json': JSON.stringify({ name: 'a', scripts: { test: 'jest' } }),
+    '/w/packages/nested/b/package.json': JSON.stringify({ name: 'b', scripts: { test: 'jest' } }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  assert.deepStrictEqual(ws.packages.map((p) => p.path).sort(), ['packages/a', 'packages/nested/b']);
+  // The `.` member contributes no package and no `./**` rule of its own.
+  assert.ok(!ws.packages.some((p) => p.path === '.'));
+  assert.ok(!ws.skipped.some((s) => s.glob === '.' || s.glob === './**'));
+});
+
+test('composeStarter falls back to the root test script when packages exist but none has one (A3)', () => {
+  const files = {
+    '/w/package.json': JSON.stringify({ name: 'root', workspaces: ['apps/*'], scripts: { test: 'turbo test' } }),
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api', scripts: { build: 'x' } }),
+    '/w/apps/web/package.json': JSON.stringify({ name: 'web', scripts: { build: 'x' } }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  const decl = composeStarter({ workspace: ws, rootScripts: { test: 'turbo test' } });
+  assert.strictEqual(decl.checks.tests, 'turbo test');
+  assert.deepStrictEqual(decl.rules.map((r) => r.match), BOOKKEEPING_RULES);
+});
+
+test('diffAgainstWorkspace treats a string-form checks.tests as a sentinel, not an extra suite named "tests" (A4)', () => {
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(PNPM) });
+  const decl = readDeclaration('/x.json', { readFileSync: () => JSON.stringify({ checks: { tests: 'node --test' }, rules: [] }) }).decl;
+  assert.deepStrictEqual(decl.suites, ['tests']);
+  const diff = diffAgainstWorkspace(decl, ws);
+  assert.deepStrictEqual(diff.extraSuites, []);
+  assert.deepStrictEqual(diff.missingSuites.sort(), ['api', 'shared', 'web']);
+});
+
+test('detectWorkspace reports skipped entries for a glob with no packages and a package with no name (A5)', () => {
+  const files = {
+    '/w/pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - 'missing/*'\n",
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api', scripts: { test: 'vitest run' } }),
+    '/w/apps/noname/package.json': JSON.stringify({ scripts: { test: 'vitest run' } }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  assert.deepStrictEqual(ws.packages.map((p) => p.name), ['api']);
+  assert.deepStrictEqual(ws.skipped, [
+    { path: 'apps/noname', reason: 'package.json has no name' },
+    { glob: 'missing/*', reason: 'no packages under glob' },
+  ]);
+});
+
+test('AC1 literal fixture: packages/shared without a test script — checks.tests is exactly api+web, shared rule stays "*" (A8)', () => {
+  const files = {
+    '/w/pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - packages/shared\n",
+    '/w/package.json': JSON.stringify({ name: 'root' }),
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api', scripts: { test: 'vitest run' }, dependencies: { shared: 'workspace:*' } }),
+    '/w/apps/web/package.json': JSON.stringify({ name: 'web', scripts: { test: 'vitest run' }, dependencies: { shared: 'workspace:*' } }),
+    '/w/packages/shared/package.json': JSON.stringify({ name: 'shared' }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
+  const decl = composeStarter({ workspace: ws });
+  assert.deepStrictEqual(decl.checks.tests, { api: 'pnpm --filter api test', web: 'pnpm --filter web test' });
+  const sharedRule = decl.rules.find((r) => r.match === 'packages/shared/**');
+  assert.strictEqual(sharedRule.suites, '*');
 });

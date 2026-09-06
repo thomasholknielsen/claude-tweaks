@@ -5,6 +5,18 @@
 // drift for `init --update`. Conservative by construction — a path is its
 // package's own tree, shared, bookkeeping, or unmatched (which the engine
 // fails closed to full; scope.js). Pure: every fs read goes through fsImpl.
+// A `dir/**` glob walks recursively (bounded depth, node_modules/.git/dot-dirs
+// skipped) for every nested package.json, distinct from `dir/*`'s direct
+// children; a `.`/`./` member is always skipped (its tree is the whole repo).
+// detectWorkspace also returns `skipped` — per parse-signal-discipline, a
+// glob that expanded to zero directories, a directory with no or unparseable
+// package.json, or a package.json with no string `name` are distinguishable
+// from "this workspace legitimately has nothing here": they're surfaced, not
+// silently dropped into the same empty result. A single-package repo with no
+// workspace but a root `test` script still falls back to that script's
+// string form (composeStarter), and diffAgainstWorkspace treats that
+// string-form `suites: ['tests']` sentinel as non-extra when no package is
+// actually named `tests`.
 'use strict';
 
 const fs = require('fs');
@@ -35,17 +47,73 @@ function pnpmGlobs(text) {
   for (const line of text.split('\n')) {
     if (/^packages:\s*$/.test(line)) { inList = true; continue; }
     if (inList && /^\S/.test(line)) break;
-    const m = inList && line.match(/^\s*-\s*['"]?([^'"#]+?)['"]?\s*$/);
-    if (m) globs.push(m[1].trim());
+    if (!inList) continue;
+    const m = line.match(/^\s*-\s*(.*?)\s*$/);
+    if (!m) continue;
+    let value = m[1];
+    const quote = value[0];
+    if (quote === "'" || quote === '"') {
+      // A `#` inside the quoted value is content, not a comment — take
+      // everything between the opening quote and its matching close.
+      const close = value.indexOf(quote, 1);
+      if (close === -1) continue;
+      value = value.slice(1, close);
+    } else {
+      // Unquoted: only a `#` preceded by whitespace is a trailing comment.
+      value = value.replace(/\s+#.*$/, '').trim();
+    }
+    if (value) globs.push(value);
   }
   return globs;
 }
 
-// A literal dir, or one trailing `/*` expanded to its direct children that
-// hold a package.json. Anything else is ignored — the starter proposes, it
-// never guesses.
-function expandGlob(fsImpl, root, glob) {
+const MAX_WALK_DEPTH = 6;
+
+// Recursively collect every directory (relative to root) that holds a
+// package.json, starting at relDir itself, bounded to MAX_WALK_DEPTH levels
+// below it and skipping node_modules/.git/dot-dirs.
+function walkForPackageDirs(fsImpl, root, relDir, depth, found) {
+  if (exists(fsImpl, path.join(root, relDir, 'package.json'))) found.push(relDir.replace(/\\/g, '/'));
+  if (depth >= MAX_WALK_DEPTH) return;
+  let entries;
+  try { entries = fsImpl.readdirSync(path.join(root, relDir), { withFileTypes: true }); } catch { return; }
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    if (e.name === 'node_modules' || e.name === '.git' || e.name.startsWith('.')) continue;
+    walkForPackageDirs(fsImpl, root, `${relDir}/${e.name}`, depth + 1, found);
+  }
+}
+
+// True for a glob whose member is the repo root itself (`.`, `./`, or a
+// `**` rooted at it) — its tree is the whole repo, never one member among
+// others, so it is skipped entirely rather than expanded or diagnosed as
+// "no packages under glob" (that reason is for a glob that legitimately
+// tried and found nothing, not this deliberate no-op).
+function isRootGlobMember(glob) {
   const clean = glob.replace(/\/+$/, '');
+  if (clean === '.' || clean === '') return true;
+  if (clean.endsWith('/**')) {
+    const parent = clean.slice(0, -3);
+    return parent === '.' || parent === '';
+  }
+  return false;
+}
+
+// A literal dir, a trailing `/*` expanded to its direct children, or a
+// trailing `/**` walked recursively for every nested package.json (bounded,
+// dir/node_modules/.git/dot-dirs skipped). A `.`/`./` member — the repo root
+// itself — is always skipped: its tree is the whole repo, never one member
+// among others. Anything else with a `*` is ignored — the starter proposes,
+// it never guesses.
+function expandGlob(fsImpl, root, glob) {
+  if (isRootGlobMember(glob)) return [];
+  const clean = glob.replace(/\/+$/, '');
+  if (clean.endsWith('/**')) {
+    const parent = clean.slice(0, -3);
+    const found = [];
+    walkForPackageDirs(fsImpl, root, parent, 0, found);
+    return found.sort();
+  }
   if (clean.endsWith('/*')) {
     const parent = clean.slice(0, -2);
     let entries;
@@ -54,6 +122,19 @@ function expandGlob(fsImpl, root, glob) {
   }
   if (clean.includes('*')) return [];
   return [clean];
+}
+
+// Distinguishes "no package.json here" from "package.json exists but is not
+// valid JSON" from "valid JSON but no string name" — three different reasons
+// a directory contributes no package, none of which is "this glob correctly
+// has nothing" (parse-signal-discipline: a merged null would hide all three).
+function readPackageAt(fsImpl, root, rel) {
+  let text;
+  try { text = fsImpl.readFileSync(path.join(root, rel, 'package.json'), 'utf8'); } catch { return { reason: 'no package.json' }; }
+  let pkg;
+  try { pkg = JSON.parse(text); } catch { return { reason: 'unparseable package.json' }; }
+  if (!pkg || typeof pkg !== 'object' || Array.isArray(pkg) || typeof pkg.name !== 'string') return { reason: 'package.json has no name' };
+  return { pkg };
 }
 
 function detectWorkspace({ root, fsImpl = fs }) {
@@ -73,10 +154,14 @@ function detectWorkspace({ root, fsImpl = fs }) {
     }
   }
   const packages = [];
+  const skipped = [];
   for (const glob of globs) {
-    for (const rel of expandGlob(fsImpl, root, glob)) {
-      const pkg = readJson(fsImpl, path.join(root, rel, 'package.json'));
-      if (!pkg || typeof pkg.name !== 'string') continue;
+    if (isRootGlobMember(glob)) continue;
+    const expanded = expandGlob(fsImpl, root, glob);
+    if (expanded.length === 0) { skipped.push({ glob, reason: 'no packages under glob' }); continue; }
+    for (const rel of expanded) {
+      const { pkg, reason } = readPackageAt(fsImpl, root, rel);
+      if (reason) { skipped.push({ path: rel.replace(/\\/g, '/'), reason }); continue; }
       const test = pkg.scripts && pkg.scripts.test;
       packages.push({
         name: pkg.name,
@@ -86,7 +171,7 @@ function detectWorkspace({ root, fsImpl = fs }) {
       });
     }
   }
-  return { tool, packages };
+  return { tool, packages, skipped };
 }
 
 function suiteCommand(tool, pkg) {
@@ -105,6 +190,7 @@ function composeStarter({ workspace, rootScripts = {}, bookkeeping = BOOKKEEPING
   if (packages.length > 0) {
     const tested = packages.filter((p) => p.hasTest);
     if (tested.length) checks.tests = Object.fromEntries(tested.map((p) => [p.name, suiteCommand(workspace.tool, p)]));
+    else if (script('test')) checks.tests = script('test');
     const dependedOn = new Set(packages.flatMap((p) => p.dependencies));
     for (const p of packages) {
       if (dependedOn.has(p.name)) rules.push({ match: `${p.path}/**`, suites: '*', static: true });
@@ -118,13 +204,17 @@ function composeStarter({ workspace, rootScripts = {}, bookkeeping = BOOKKEEPING
 }
 
 // decl is readDeclaration's normalized shape (decl.suites). A string-form
-// checks.tests declares the single suite `tests`, which matches no package.
+// checks.tests declares the single suite `tests`, which matches no package —
+// that sentinel is never reported as an extra suite unless some package is
+// actually (confusingly) named `tests`.
 function diffAgainstWorkspace(decl, workspace) {
   const packages = workspace && Array.isArray(workspace.packages) ? workspace.packages : [];
   const names = new Set(packages.map((p) => p.name));
-  const suites = new Set(decl && Array.isArray(decl.suites) ? decl.suites : []);
+  const declSuites = decl && Array.isArray(decl.suites) ? decl.suites : [];
+  const isStringFormSentinel = declSuites.length === 1 && declSuites[0] === 'tests' && !names.has('tests');
+  const suites = new Set(declSuites);
   const missingSuites = packages.filter((p) => p.hasTest && !suites.has(p.name)).map((p) => p.name);
-  const extraSuites = [...suites].filter((s) => !names.has(s) && packages.length > 0);
+  const extraSuites = isStringFormSentinel ? [] : [...suites].filter((s) => !names.has(s) && packages.length > 0);
   return { missingSuites, extraSuites };
 }
 
