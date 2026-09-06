@@ -39,8 +39,20 @@ function mirrorFixture({ records = [1930], runName = '2026-09-06T000000-record-1
   return { main, tree, runDir };
 }
 
-const DEFAULT_POLICY = { 'integration-branch': 'main', 'work-backend': 'github-issues', 'work-links': 'native' };
+const DEFAULT_POLICY = { 'integration-branch': 'main', 'work-links': 'native' };
 const policyFake = (map) => (keys) => Object.fromEntries(keys.map((k) => [k, map[k] || '']));
+
+// work-backend is read from the worktree's CLAUDE.md, not policy.yml (#1930
+// review E1). The fixture worktrees are synthetic paths, so the readFile fake
+// answers CLAUDE.md itself and delegates everything else to the real fs.
+// `null` stands for an absent CLAUDE.md.
+function readFileFake(claudeMd) {
+  return (p) => {
+    if (path.basename(p) !== 'CLAUDE.md') return fs.readFileSync(p, 'utf8');
+    if (claudeMd === null) { const e = new Error('ENOENT: no such file'); e.code = 'ENOENT'; throw e; }
+    return claudeMd;
+  };
+}
 
 // Fake deps: every probe succeeds; `git` answers merge-base; module probes
 // return the real shapes their production counterparts return.
@@ -56,7 +68,10 @@ function okDeps(overrides = {}) {
     queryRecords: () => [],
     readRecord: () => ({ facets: { closed: true } }),
     execFile: async (cmd, args) => {
-      if (cmd === 'node' && String(args[0]).endsWith('residue.js')) return { stdout: JSON.stringify({ suite: { ran: false, reason: 'skipped', findings: [] } }), stderr: '' };
+      if (cmd === 'node' && String(args[0]).endsWith('residue.js')) {
+        assert.ok(args.includes('--no-suite'), 'the pack never re-runs the suite');
+        return { stdout: JSON.stringify({ suite: { ran: false, reason: 'skipped via --no-suite', findings: [] } }), stderr: '' };
+      }
       if (cmd === 'node' && String(args[0]).endsWith('wrap-up-state.js')) return { stdout: JSON.stringify({ state: { isRepo: true, branch: 'b' }, ops: [], since: 'abc123', sinceDate: '2026-09-05T00:00:00Z', rendered: 'Branch b\n' }), stderr: '' };
       if (cmd === 'node' && String(args[0]).endsWith('resolve-blockers.js')) return { stdout: JSON.stringify({ 1600: { blockedBy: [1535], openBlocker: false } }), stderr: '' };
       if (cmd === 'gh' && args[0] === 'pr') return { stdout: JSON.stringify({ state: 'OPEN', isDraft: false, mergeStateStatus: 'CLEAN', headRefOid: 'deadbee', statusCheckRollup: [], reviewDecision: null }), stderr: '' };
@@ -64,7 +79,7 @@ function okDeps(overrides = {}) {
       if (cmd === 'gh' && args[0] === 'issue' && args[1] === 'list') return { stdout: JSON.stringify([{ number: 1600, title: 'Dependent', body: '' }]), stderr: '' };
       throw new Error(`unexpected execFile ${cmd} ${args.join(' ')}`);
     },
-    readFile: (p) => fs.readFileSync(p, 'utf8'),
+    readFile: readFileFake('# Fixture\n\nwork-backend: github-issues\nwork-types: labels\n'),
     readdir: (p) => (fs.existsSync(p) ? fs.readdirSync(p) : []),
     ...overrides,
   };
@@ -80,7 +95,7 @@ test('resolveInputs reads records from the headers, pr and worktree from run-sta
   assert.strictEqual(inputs.integrationBranch, 'main');
   assert.strictEqual(inputs.worktree, '/w/tree');
   assert.deepStrictEqual(inputs.policy, { integrationBranch: 'main', workBackend: 'github-issues', workLinks: 'native' });
-  assert.deepStrictEqual(inputs.sources, { state: 'run-state.json', records: 'headers', pr: 'run-state.json', base: 'merge-base', integrationBranch: 'policy', worktree: 'run-state.json' });
+  assert.deepStrictEqual(inputs.sources, { state: 'run-state.json', records: 'headers', pr: 'run-state.json', workBackend: 'claude-md', base: 'merge-base', integrationBranch: 'policy', worktree: 'run-state.json' });
 });
 
 test('resolveInputs marks a missing source unavailable and still resolves the rest (#1930 Gotchas)', () => {
@@ -98,7 +113,27 @@ test('resolveInputs resolves the policy levers ONCE, not once per probe (#1930 r
   const deps = okDeps({ resolvePolicy: (keys) => { calls.push(keys); return policyFake(DEFAULT_POLICY)(keys); } });
   await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', deps });
   assert.strictEqual(calls.length, 1, `resolvePolicy called ${calls.length} times: ${JSON.stringify(calls)}`);
-  assert.deepStrictEqual(calls[0], ['integration-branch', 'work-backend', 'work-links']);
+  assert.deepStrictEqual(calls[0], ['integration-branch', 'work-links'], 'work-backend is not a policy key and must not be asked for');
+});
+
+test('resolveInputs reads work-backend from the worktree CLAUDE.md, and the forge probes actually run (#1930 review E1)', async () => {
+  const inputs = resolveInputs({ runDir: fixtureRunDir(), cwd: '/w/tree', deps: okDeps() });
+  assert.strictEqual(inputs.policy.workBackend, 'github-issues');
+  assert.strictEqual(inputs.sources.workBackend, 'claude-md');
+  const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['pr', 'recordLabels', 'unblocked'], deps: okDeps() });
+  for (const n of ['pr', 'recordLabels', 'unblocked']) assert.strictEqual(pack[n].ok, true, `${n}: ${JSON.stringify(pack[n])}`);
+});
+
+test('resolveInputs: an absent CLAUDE.md falls back to local-files and says so in sources (#1930 review E1)', () => {
+  const inputs = resolveInputs({ runDir: fixtureRunDir(), cwd: '/w/tree', deps: okDeps({ readFile: readFileFake(null) }) });
+  assert.strictEqual(inputs.policy.workBackend, 'local-files');
+  assert.strictEqual(inputs.sources.workBackend, 'default');
+});
+
+test('resolveInputs: a CLAUDE.md with no work-backend line falls back to local-files (#1930 review E1)', () => {
+  const inputs = resolveInputs({ runDir: fixtureRunDir(), cwd: '/w/tree', deps: okDeps({ readFile: readFileFake('# Project\n\nwork-types: labels\n') }) });
+  assert.strictEqual(inputs.policy.workBackend, 'local-files');
+  assert.strictEqual(inputs.sources.workBackend, 'default');
 });
 
 test('resolveInputs (b): records come from the WORKTREE mirror of the run dir when the main-checkout run dir has no headers (#1930 review C1)', () => {
@@ -248,13 +283,13 @@ test('gatherPack: a missing gh binary degrades pr/recordLabels/unblocked to erro
 });
 
 test('gatherPack: a non-forge project reports pr/recordLabels as no-forge (#1930 Gotchas)', async () => {
-  const deps = okDeps({ resolvePolicy: policyFake({ 'work-backend': 'local-files', 'work-links': 'body-text', 'integration-branch': 'main' }) });
+  const deps = okDeps({ readFile: readFileFake('work-backend: local-files\n'), resolvePolicy: policyFake({ 'work-links': 'body-text', 'integration-branch': 'main' }) });
   const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', deps });
   for (const n of ['pr', 'recordLabels']) { assert.strictEqual(pack[n].ok, false, n); assert.strictEqual(pack[n].error, 'no-forge', n); }
 });
 
 test('gatherPack: a work-backend that is neither github-issues nor local-files makes unblocked no-forge (#1930 review I2)', async () => {
-  const deps = okDeps({ resolvePolicy: policyFake({ 'integration-branch': 'main' }) });
+  const deps = okDeps({ readFile: readFileFake('work-backend: gitlab-issues\n'), resolvePolicy: policyFake({ 'integration-branch': 'main' }) });
   const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['unblocked'], deps });
   assert.strictEqual(pack.unblocked.ok, false);
   assert.strictEqual(pack.unblocked.error, 'no-forge');
@@ -273,7 +308,8 @@ test('gatherPack: work-backend local-files reads the local store, keeping only r
     9: { id: 9, title: 'Open blocker', facets: { blockedBy: [], closed: false } },
   };
   const deps = okDeps({
-    resolvePolicy: policyFake({ 'work-backend': 'local-files', 'integration-branch': 'main' }),
+    readFile: readFileFake('work-backend: local-files\n'),
+    resolvePolicy: policyFake({ 'integration-branch': 'main' }),
     queryRecords: () => [store[1600], store[1601]],
     readRecord: (p) => store[Number(path.basename(p).split('-')[0])],
     execFile: async () => { throw new Error('local-files must not shell out to gh'); },
@@ -340,7 +376,7 @@ test('gatherPack: claim reads the claims branch from the run\'s worktree, not th
 
 test('gatherPack: body-text work-links keeps a dependent only when EVERY other blocker is closed too (#1930 review I1)', async () => {
   const deps = okDeps({
-    resolvePolicy: policyFake({ 'work-backend': 'github-issues', 'work-links': 'body-text', 'integration-branch': 'main' }),
+    resolvePolicy: policyFake({ 'work-links': 'body-text', 'integration-branch': 'main' }),
     execFile: async (cmd, args) => {
       if (String(args[0]).endsWith('resolve-blockers.js')) throw new Error('must not be called under body-text');
       if (cmd === 'gh' && args[0] === 'issue' && args[1] === 'list' && args.includes('open')) {
@@ -366,7 +402,7 @@ test('gatherPack: body-text work-links keeps a dependent only when EVERY other b
 test('gatherPack: body-text work-links skips the second state query entirely when nothing depends on the closed record (#1930 review I1)', async () => {
   const listed = [];
   const deps = okDeps({
-    resolvePolicy: policyFake({ 'work-backend': 'github-issues', 'work-links': 'body-text', 'integration-branch': 'main' }),
+    resolvePolicy: policyFake({ 'work-links': 'body-text', 'integration-branch': 'main' }),
     execFile: async (cmd, args) => {
       if (cmd === 'gh' && args[0] === 'issue' && args[1] === 'list') { listed.push(args); return { stdout: JSON.stringify([{ number: 1602, title: 'Other', body: 'Blocked by #7\n' }]), stderr: '' }; }
       return okDeps().execFile(cmd, args);

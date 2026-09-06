@@ -35,7 +35,17 @@ const PROBE_TIMEOUT_MS = 60000;
 // The policy levers the pack reads, resolved ONCE per run in resolveInputs and
 // stored on inputs.policy — no probe resolves policy for itself (#1930 review
 // I8: three synchronous resolve-policy.js spawns, one of them mid-fan-out).
-const POLICY_KEYS = ['integration-branch', 'work-backend', 'work-links'];
+// work-backend is deliberately NOT here: see WORK_BACKEND_RE below.
+const POLICY_KEYS = ['integration-branch', 'work-links'];
+
+// work-backend does not live in policy.yml. `_shared/work-record-config.md`'s
+// "Where these live" states it is read from CLAUDE.md and is absent from
+// policy-schema.js's POLICY_KEYS — so resolve-policy.js answers
+// `{"error":"unknown-key"}` for it, and the pack's original policy lookup
+// resolved '' on every repo, silently degrading every forge probe to
+// `no-forge` (#1930 review E1). No reader for this key exists anywhere in
+// bin/lib, so this three-line one stays local.
+const WORK_BACKEND_RE = /^work-backend:\s*(\S+)\s*$/m;
 
 // stderr is piped, not discarded: bin/lib/merge-size-probe.js's measureAtTree
 // tests `err.stderr` for git-show's "does not exist in" message to tell a
@@ -90,6 +100,15 @@ function readJson(deps, file) {
 
 function readText(deps, file) {
   try { return deps.readFile(file); } catch { return null; }
+}
+
+// The worktree's CLAUDE.md `## Work records` block -> the work-backend value.
+// `local-files` on an absent file or line: work-record-config.md's key table
+// marks no default for this key, and the driver that needs no forge is the
+// safe read for a project that never declared one.
+function readWorkBackend(deps, worktree) {
+  const m = WORK_BACKEND_RE.exec(readText(deps, path.join(worktree, 'CLAUDE.md')) || '');
+  return m ? { value: m[1], source: 'claude-md' } : { value: 'local-files', source: 'default' };
 }
 
 function sortedUnique(nums) {
@@ -199,9 +218,11 @@ function resolveInputs({ runDir, cwd, deps }) {
   const pr = hasPrNumber(state) ? state.pr.number : null;
   sources.pr = pr === null ? 'unavailable' : 'run-state.json';
   const values = deps.resolvePolicy(POLICY_KEYS, worktree) || {};
+  const backend = readWorkBackend(deps, worktree);
+  sources.workBackend = backend.source;
   const policy = {
     integrationBranch: values['integration-branch'] || '',
-    workBackend: values['work-backend'] || '',
+    workBackend: backend.value,
     workLinks: values['work-links'] || '',
   };
   const integrationBranch = policy.integrationBranch || 'main';
@@ -324,9 +345,17 @@ function buildProbes(inputs, deps) {
     // pack's prediction is substitutable for that step's own run.
     mergeSize: () => deps.computeMergeSizeOverflow({ integrationBranch: inputs.baseRef || inputs.integrationBranch, headRef: 'HEAD' }, { git }),
     ledger: () => { recordsOrThrow(); return ledgerProbe(inputs, deps); },
+    // --no-suite: a fact pack never re-runs the project's test suite. Suite
+    // state belongs to /claude-tweaks:test's verification stamp, which already
+    // holds it by the time wrap-up runs; re-running it here costs minutes (on
+    // this repo residue.js's suite probe exceeds both EXEC_OPTS.timeout and
+    // the per-probe race), so every pack-fed residue carries
+    // `suite: {ran: false, reason: 'skipped via --no-suite'}` by construction
+    // — residue-sweep.md's "Running the sweep" says where the sweep reads
+    // suite state instead (#1930 review E2).
     residue: async () => {
       if (!inputs.base) throw new Error('base unresolved — no merge-base against the integration branch');
-      const { stdout } = await deps.execFile('node', [path.join(BIN, 'residue.js'), '--base', String(inputs.base), '--integration-branch', String(inputs.baseRef || inputs.integrationBranch), '--scope', 'blast-radius', '--json'], { cwd: inputs.worktree, ...EXEC_OPTS });
+      const { stdout } = await deps.execFile('node', [path.join(BIN, 'residue.js'), '--base', String(inputs.base), '--integration-branch', String(inputs.baseRef || inputs.integrationBranch), '--scope', 'blast-radius', '--no-suite', '--json'], { cwd: inputs.worktree, ...EXEC_OPTS });
       return JSON.parse(stdout);
     },
     pr: async () => {

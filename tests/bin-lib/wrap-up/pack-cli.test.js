@@ -14,6 +14,8 @@ function mainCheckoutWithRun() {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wrap-up-pack-cli-')));
   const git = (...a) => execFileSync('git', a, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   git('init', '-q'); git('config', 'user.email', 't@example.invalid'); git('config', 'user.name', 't'); git('commit', '-q', '--allow-empty', '-m', 'init');
+  // work-backend lives in CLAUDE.md, not policy.yml (#1930 review E1).
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# Fixture\n\nwork-backend: github-issues\n');
   const runDir = path.join(root, '.claude-tweaks', 'pipelines', '2026-09-06T000000-record-7');
   fs.mkdirSync(path.join(runDir, 'work'), { recursive: true });
   fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ worktree: root, status: 'active', pr: { number: 42 } }));
