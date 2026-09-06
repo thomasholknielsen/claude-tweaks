@@ -169,7 +169,7 @@ If the user did not specify `worktree`, skip this step.
 
 ### Common Step 1.5: Plan Audit
 
-Audit the plan against the actual repo before dispatching execution, via `node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" {plan-file} [--repo-root {dir}]` — a mechanized CLI (#903), not hand-run greps. Four checks:
+Audit the plan against the actual repo before dispatching execution, via `node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" {plan-file} [--repo-root {dir}] [--count-tasks]` — a mechanized CLI (#903), not hand-run greps. Four checks:
 - **Check A (always):** verify every path in the plan's Files: sections exists (or its parent directory exists for Create/Test).
 - **Check B (conditional):** when the plan declares `Scope keywords:`, an fs-walk sweeps the repo for each keyword and lists any matched files not in the plan.
 - **Check C (always):** pre-run each task's own declared Step 2 `Run:`/`Expected: FAIL` verification command once, read-only, against current repo state before dispatch; stop unconditionally if a command already exhibits a passing signature despite declaring `Expected: FAIL`.

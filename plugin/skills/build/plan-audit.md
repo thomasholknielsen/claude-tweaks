@@ -7,7 +7,7 @@ Audit the plan against the actual repo before dispatching execution work. The fo
 ## Invocation
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" {plan-file} [--repo-root {dir}]
+node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" {plan-file} [--repo-root {dir}] [--count-tasks]
 ```
 
 `--repo-root` defaults to `git rev-parse --show-toplevel` of the cwd (or the cwd itself outside a repo) — pass it explicitly only when the plan's own worktree differs from cwd. Stdout is two lines: a compact JSON envelope (`{checkA, checkB, checkC, headroom}`, each `{ok, ...}`), then a one-line human summary. Exit code is `0` iff every check's `ok` is `true` (`headroom.nearCeiling` entries never fail `ok` — only `headroom.breaches` do). Parse the JSON via `JSON.parse(stdout.split('\n')[0])`.

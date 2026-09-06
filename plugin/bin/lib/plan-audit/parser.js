@@ -122,17 +122,26 @@ function extractVerificationChecks(text) {
     }));
 }
 
+// Strips fenced code blocks (```...```) from text before it is tested for a
+// prose marker — a plan header that quotes another plan's `**Execution:**
+// batched` line inside a fenced example must not itself read as batched.
+function stripFencedCodeBlocks(text) {
+  return text.replace(/```[\s\S]*?```/g, '');
+}
+
 // Task count for /build's single-task fast-lane condition (#1926): the plan
 // file is the authority, never the diff or SDD's own narration. `batched`
 // is true only for the two markers this record defines — the header line
 // `**Execution:** batched` (text before the first "### Task" heading) or a
 // task title carrying `[batch]` — because a batched dispatch bundles work
 // items reviewed together, which the single-task equivalence never covers.
+// The header check strips fenced code blocks first (task titles are single
+// lines and need no such stripping).
 function countTasks(text) {
   const blocks = extractTaskBlocks(text);
   const firstHeading = text.search(/^###\s+Task\s+\d+:/m);
   const header = firstHeading === -1 ? text : text.slice(0, firstHeading);
-  const batched = /^\*\*Execution:\*\*\s*batched\s*$/m.test(header)
+  const batched = /^\*\*Execution:\*\*\s*batched\s*$/m.test(stripFencedCodeBlocks(header))
     || blocks.some((b) => /\[batch\]/i.test(b.title));
   return { tasks: blocks.length, batched };
 }

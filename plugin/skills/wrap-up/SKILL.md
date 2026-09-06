@@ -146,7 +146,7 @@ Then log:
 AUTO {time} — Ceremony profile downgraded fast-lane → standard: {trigger}. Remaining wrap-up steps run at standard depth.
 ```
 
-Phase 2 passes the (possibly just-downgraded) value to the engine as `--ceremony`, which is the only remaining consumer — no other propagation needed. This never re-runs the reflect pass itself, or any build-side skip in `_shared/ceremony-profile.md`'s roster (the SDD whole-branch review and polish skips included) — those have already happened; the downgrade means the record's next run runs `standard`.
+Phase 2 passes the (possibly just-downgraded) value to the engine as `--ceremony`, which is the only remaining consumer — no other propagation needed. This never re-runs a step already skipped (the roster in `_shared/ceremony-profile.md`, the SDD whole-branch review and polish skips included): the downgrade covers only this run's remaining wrap-up steps and never rewrites the record's `ceremony:*` label — a re-run is fast-lane again.
 
 ---
 

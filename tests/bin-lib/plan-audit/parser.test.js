@@ -133,3 +133,8 @@ test('countTasks flags a batched plan by the header marker or a [batch] task tit
   // The marker only counts in the header — a task BODY mentioning it is prose, not a marker.
   assert.deepStrictEqual(countTasks('# Plan\n\n### Task 1: A\n\nSee **Execution:** batched in another plan.\n'), { tasks: 1, batched: false });
 });
+
+test('countTasks ignores an **Execution:** batched line inside a fenced code block in the header (#1926)', () => {
+  const text = '# Plan\n\n```\n**Execution:** batched\n```\n\n### Task 1: A\n';
+  assert.deepStrictEqual(countTasks(text), { tasks: 1, batched: false });
+});

@@ -13,10 +13,10 @@
 | `architecture-alignment` | `fast-lane` | Always under the profile (also: design mode with no spec; a trivial plan) | `build/SKILL.md` Common Step 4.5, `build/architecture-alignment.md` | Alignment compares built-vs-spec prose; a fast-lane diff is small enough for the lens review to see the whole of it |
 | `reflect-light-mode` | `fast-lane` | Always under the profile | `wrap-up/SKILL.md` Reflect, `reflect/light-mode.md` | Surprises, Approach, and the tradeoff review are narrative; Near-misses, Fresh-start, and Friction still run and can still fire the escape hatch |
 | `red-team-persona` | `fast-lane` | Always under the profile (one persona instead of three) | `specify/red-team.md` | The Skeptical Reviewer persona alone covers the framing check; the other two add breadth a fast-lane record's scope does not need |
-| `sdd-whole-branch-review` | `fast-lane` | `--count-tasks` prints `tasks: 1` **and** `batched: false` | `build/dispatch.md` "Whole-branch review model" | With one task the task review's diff *is* the whole branch; every cross-task incident in `[IL-02]`/`[IL-04]`/`[IL-10]`/`[IL-97]`/`[IL-101]` needed two or more tasks (an empirical observation from this codebase's incident history, not a structural proof). Multi-task and batched plans keep the review |
-| `polish` | `fast-lane` | Always under the profile (also: non-frontend spec, `no-polish`, Impeccable absent — any profile) | `flow/steps-and-gates.md` polish row, `flow/SKILL.md` | Polish is Impeccable refinement, not correctness; `/claude-tweaks:test`'s Design CLI gate and `/claude-tweaks:review` Step 6.5's read-only design judgment still run, so a design finding still reaches the escape hatch |
+| `sdd-whole-branch-review` | `fast-lane` | `--count-tasks` prints `tasks: 1` **and** `batched: false` (`batched: false` means no marker present — the batched-plan marker convention lives in `build/plan-authoring-checks.md`) (the SKIP literal is the record's own, pinned by `tests/ceremony-profile-roster.test.js`; it is written through `log-decision.js` like every other SKIP entry) | `build/dispatch.md` "Whole-branch review model" | With one task the task review's diff *is* the whole branch; every cross-task incident in `[IL-02]`/`[IL-04]`/`[IL-10]`/`[IL-97]`/`[IL-101]` needed two or more tasks (an empirical observation from this codebase's incident history, not a structural proof). Multi-task and batched plans keep the review |
+| `polish` | `fast-lane` | Always under the profile (also, any profile: non-frontend spec, `no-polish`, Impeccable absent, design integration disabled, no audit findings and no refinement-set changes) (the SKIP literal is the record's own, pinned by `tests/ceremony-profile-roster.test.js`; it is written through `log-decision.js` like every other SKIP entry) | `flow/steps-and-gates.md` polish row, `flow/SKILL.md` | Polish is Impeccable refinement, not correctness; `/claude-tweaks:test`'s Design CLI gate and `/claude-tweaks:review` Step 6.5's read-only design judgment still run, so a design finding still reaches the escape hatch |
 
-**Escape hatch and the build-side skips.** Every row above except `reflect-light-mode` has already happened by the time `wrap-up/SKILL.md`'s Ceremony escape hatch fires; the downgrade to `standard` means the record's *next* run runs standard — it never re-runs a skipped step in the current run.
+**Escape hatch and the build-side skips.** Every row above has already happened by the time `wrap-up/SKILL.md`'s Ceremony escape hatch fires (light mode included — `reflect/light-mode.md` says a pass is never retroactively widened); the downgrade to `standard` covers only that run's remaining wrap-up steps, never re-runs a skipped step, and never rewrites the record's `ceremony:*` label — a re-run of the same record is fast-lane again unless `/claude-tweaks:specify` re-stamps it.
 
 **The two-call split is kept.** A fast-lane record still runs `/claude-tweaks:build` + `/claude-tweaks:test` and `/claude-tweaks:review` + `/claude-tweaks:wrap-up` as two calls (`dispatch/two-call-gate.md`): collapsing them saves only the second call's preflight and loses the clean-room review (`[IL-07]`, `[IL-130]`) — the last independent judgment a fast-lane record gets.
 
@@ -33,6 +33,8 @@
 | Ceremony escape hatch | `wrap-up/SKILL.md` | The control for `[IL-145]`'s failure class |
 | `[IL-116]` cleanup floor | `wrap-up/cleanup-procedures.md` Section C, step 3.5 | Teardown ordering is a floor `cleanup-only` may never relax |
 | HARD-GATEs | `_shared/auto-mode-contract.md` | Test failures, spec compliance blocks, structural coupling, plan validation stop every mode |
+| `/claude-tweaks:test` Step 1.5 Design CLI gate | `test/design-gate.md` | The polish skip's safety argument leans on it |
+| `/claude-tweaks:review` Step 6.5 Design Quality Pass | `review/code-mode-steps.md` | The polish skip's safety argument leans on it |
 
 ## Mentions that are not skips
 
@@ -45,9 +47,13 @@ Lines that pair `fast-lane` with `skip` without skipping a step. The conformance
 | `review/review-summary-template.md` | `Skipped — ceremony-profile: fast-lane.` | Summary rendering of a row above |
 | `review/review-effort-derivation.md` | `Step 1 is skipped under \`ceremony-profile: fast-lane\`` | An aside explaining why the label read is independent of Step 1 |
 | `wrap-up/SKILL.md` | `Skip entirely when \`config.yml\`'s \`ceremony-profile\` is not \`fast-lane\`` | The escape hatch's own gate |
+| `wrap-up/SKILL.md` | `the downgrade covers only this run's remaining wrap-up steps` | The escape hatch's re-run-is-fast-lane-again truth statement (#1926 I1) |
 | `wrap-up/review-console.md` | `tag: fast-lane` | A merge-tag literal, not a ceremony skip |
 | `wrap-up/ceremony-derivation.md` | `Skip this file.` | Derivation has nothing to do when the profile is already set |
 | `_shared/ceremony-check-invocation.md` | `Skip the call entirely when \`facets.ceremony\`` | The ceremony-check CLI is skipped when a label already exists, at any profile |
 | `_shared/fast-lane-digest.md` | `skips or narrows` | A restatement file that defers to this roster |
-| `flow/steps-and-gates.md` | `a fast-lane run logs the polish SKIP and proceeds to wrap-up` | The polish decision tree's entry line — the skip itself is the tagged `polish` row |
+| `flow/steps-and-gates.md` | `a fast-lane run logs the polish SKIP` | The polish decision tree's entry line — the skip itself is the tagged `polish` row |
+| `flow/steps-and-gates.md` | `when polish is skipped for a structural reason` | The phase-exit paragraph's PR-checklist exemption list — the skip itself is the tagged `polish` row |
+| `flow/polish-execution.md` | `A skipped polish phase` | This file's own load-condition list — the skip itself is the tagged `polish` row |
+| `flow/SKILL.md` | `Treating polish skip as a flow failure` | The anti-pattern table's skip-reason enumeration — the skip itself is the tagged `polish` row |
 | `flow/summary-template.md` | `Skipped — fast-lane` | The Pipeline Summary's rendering of the tagged `polish` row |

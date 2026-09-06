@@ -6,13 +6,9 @@ Loaded by `SKILL.md` in `code` and `full` mode only — `visual`/`journey`/`disc
 
 When a pipeline run directory exists, read `config.yml`'s `ceremony-profile`. Under `fast-lane`,
 Steps 1 (Spec Compliance Check), 1.6 (Cross-Spec Promise Check), and 4 (Implementation Hindsight)
-are skipped — each is exact per-record overhead independent of diff size, the same shape of
-fixed-cost wrapper `ceremony-profile: fast-lane` already trims in `/claude-tweaks:build` and
-`/claude-tweaks:wrap-up`. The roster of every profile's skips — and of what no profile may skip — is
-`_shared/ceremony-profile.md`; this section keeps only the three step numbers. Steps 2, 3 (the actual code-quality read of the diff), and 5 run
-unchanged regardless of tier — Step 3 is the safety-relevant judgment this whole scheme protects,
-and Step 5 already scopes to `git diff --name-only` only, with no "look beyond the diff" behavior
-to cap. Standalone review (no pipeline run directory) always runs every step, matching
+are skipped. The roster of every profile's skips — and of what no profile may skip — is
+`_shared/ceremony-profile.md`; this section keeps only the three step numbers. Standalone review
+(no pipeline run directory) always runs every step, matching
 `/claude-tweaks:reflect`/`/claude-tweaks:wrap-up`'s own standalone-defaults-to-full rule. A Review
 finding at any severity still triggers the existing ceremony escape hatch
 (`/claude-tweaks:wrap-up`'s Phase 1 ceremony escape hatch downgrades `ceremony-profile` to

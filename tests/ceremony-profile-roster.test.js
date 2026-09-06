@@ -47,7 +47,7 @@ test('the roster names the nine expected skip tags and the never-skipped floor (
     'review-step-1', 'review-step-1.6', 'review-step-4', 'plan-audit', 'architecture-alignment',
     'reflect-light-mode', 'red-team-persona', 'sdd-whole-branch-review', 'polish',
   ]);
-  for (const literal of ['review Step 2', 'review Step 3', 'review Step 5', 'review Step 6 rendered-UI check', 'build Common Step 5', 'reflect Near-misses, Fresh-start, Friction', 'Ceremony escape hatch', '`[IL-116]` cleanup floor', 'HARD-GATEs']) {
+  for (const literal of ['review Step 2', 'review Step 3', 'review Step 5', 'review Step 6 rendered-UI check', 'build Common Step 5', 'reflect Near-misses, Fresh-start, Friction', 'Ceremony escape hatch', '`[IL-116]` cleanup floor', 'HARD-GATEs', 'Design CLI gate', 'Step 6.5 Design Quality Pass']) {
     assert.ok(neverRows.some((r) => r.includes(literal)), `never-skipped row missing: ${literal}`);
   }
 });
