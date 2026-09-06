@@ -174,19 +174,22 @@ function detectWorkspace({ root, fsImpl = fs }) {
   const packages = [];
   const skipped = [];
   const exclusions = [];
+  // The root package.json is read exactly once, here, for both its
+  // `workspaces` (below) and its `scripts` (returned as rootScripts for
+  // composeStarter) — same three-way split as readPackageAt: absent,
+  // unparseable, and parseable are different reasons, and only the middle
+  // one is worth a skipped entry.
+  const rootText = readText(fsImpl, path.join(root, 'package.json'));
+  let rootPkg = null;
+  if (rootText !== null) {
+    try { rootPkg = JSON.parse(rootText); } catch { skipped.push({ path: 'package.json', reason: 'unparseable package.json' }); }
+  }
+  const rootScripts = rootPkg && rootPkg.scripts && typeof rootPkg.scripts === 'object' ? rootPkg.scripts : {};
   const pnpmText = readText(fsImpl, path.join(root, 'pnpm-workspace.yaml'));
   if (pnpmText !== null) {
     tool = 'pnpm';
     globs = pnpmGlobs(pnpmText);
   } else {
-    // Same three-way split as readPackageAt: absent, unparseable, and
-    // parseable-without-workspaces are different reasons for "no workspace",
-    // and only the middle one is worth a skipped entry.
-    const rootText = readText(fsImpl, path.join(root, 'package.json'));
-    let rootPkg = null;
-    if (rootText !== null) {
-      try { rootPkg = JSON.parse(rootText); } catch { skipped.push({ path: 'package.json', reason: 'unparseable package.json' }); }
-    }
     const ws = rootPkg && rootPkg.workspaces;
     const list = Array.isArray(ws) ? ws : (ws && Array.isArray(ws.packages) ? ws.packages : null);
     if (list) {
@@ -230,7 +233,7 @@ function detectWorkspace({ root, fsImpl = fs }) {
   // dropping that exact path; a wildcard exclusion is surfaced above but
   // otherwise left alone — the starter proposes, it never guesses.
   const filtered = exclusions.length ? packages.filter((p) => !exclusions.includes(p.path)) : packages;
-  return { tool, packages: filtered, skipped };
+  return { tool, packages: filtered, skipped, rootScripts };
 }
 
 function suiteCommand(tool, pkg) {
@@ -239,7 +242,7 @@ function suiteCommand(tool, pkg) {
   return `pnpm --filter ${pkg.name} test`;
 }
 
-function composeStarter({ workspace, rootScripts = {}, bookkeeping = BOOKKEEPING_RULES }) {
+function composeStarter({ workspace, rootScripts = workspace.rootScripts || {}, bookkeeping = BOOKKEEPING_RULES }) {
   const checks = {};
   const script = (k) => (typeof rootScripts[k] === 'string' && rootScripts[k].trim() !== '' ? rootScripts[k] : null);
   const typecheckScript = script('typecheck');

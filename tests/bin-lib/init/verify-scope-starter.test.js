@@ -41,6 +41,7 @@ test('detectWorkspace reads pnpm-workspace.yaml globs, package names, test scrip
   assert.deepStrictEqual(ws.packages.map((p) => [p.name, p.path, p.hasTest, p.dependencies]), [
     ['api', 'apps/api', true, ['shared']], ['web', 'apps/web', true, ['shared']], ['shared', 'packages/shared', true, []],
   ]);
+  assert.deepStrictEqual(ws.rootScripts, { typecheck: 'tsc -b', lint: 'eslint .' });
 });
 
 test('composeStarter on the pnpm fixture: suites api+web(+shared), shared → "*", per-package rules, four bookkeeping rules, and it passes readDeclaration (AC1)', () => {
@@ -88,8 +89,9 @@ test('a package with no test script gets no rule unless it is shared; no test sc
 
 test('single-package repo: root test/lint scripts, no types, bookkeeping rules only (AC2)', () => {
   const ws = detectWorkspace({ root: '/w', fsImpl: memFs({ '/w/package.json': JSON.stringify({ name: 'one', scripts: { test: 'vitest run', lint: 'eslint .' } }) }) });
-  assert.deepStrictEqual(ws, { tool: null, packages: [], skipped: [] });
-  const decl = composeStarter({ workspace: ws, rootScripts: { test: 'vitest run', lint: 'eslint .' } });
+  assert.deepStrictEqual(ws, { tool: null, packages: [], skipped: [], rootScripts: { test: 'vitest run', lint: 'eslint .' } });
+  // No explicit rootScripts: composeStarter defaults to the ones detectWorkspace read (one root read, not two).
+  const decl = composeStarter({ workspace: ws });
   assert.deepStrictEqual(decl.checks, { lint: 'eslint .', tests: 'vitest run' });
   assert.deepStrictEqual(decl.rules.map((r) => r.match), BOOKKEEPING_RULES);
   assert.strictEqual(readDeclaration('/x.json', { readFileSync: () => JSON.stringify(decl) }).ok, true);

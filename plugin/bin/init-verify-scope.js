@@ -125,11 +125,10 @@ function main() {
     return;
   }
 
-  let rootPkg = null;
-  try { rootPkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')); } catch { /* no root package.json, or unparseable */ }
-  const rootScripts = (rootPkg && rootPkg.scripts) || {};
+  // detectWorkspace reads the root package.json once and returns its scripts
+  // as rootScripts — composeStarter defaults to them (no second read here).
   const workspace = detectWorkspace({ root });
-  const decl = composeStarter({ workspace, rootScripts });
+  const decl = composeStarter({ workspace });
 
   let existed = false;
   try { existed = fs.existsSync(targetPath); } catch { /* treat an unreadable path as not existing */ }
