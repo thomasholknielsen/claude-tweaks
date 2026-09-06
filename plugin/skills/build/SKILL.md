@@ -119,7 +119,7 @@ The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
 
 **Plan-authoring checks:** before finalizing the plan, run every check in `plan-authoring-checks.md` in this skill's directory — return-shape widening, blocking-verification downgrades, deictic-reference re-resolution, verbatim-command run-once verification, degrade-clause convention citation, copied-config re-derivation, renumbering completeness, and gate-over-producers tracing. (Same checks apply in Design Step 3 below.)
 
-**Size-headroom check:** when a plan task appends to a `skills/_shared/*.md` or `SKILL.md` file already within ~10% of the 40 KB ceiling, measure `wc -c` against the ceiling on the merge base and name the split up front in the plan, rather than discovering the overflow at test time. (Same check applies in Design Step 3 below.)
+**Size-headroom check:** when a plan task appends to a `skills/_shared/*.md` or `SKILL.md` file already within ~10% of the 40 KB ceiling, measure `wc -c` against the ceiling on the merge base and name the split up front in the plan — since #1990 the per-file test only warns, and it's the composed-bytes gate (`context-cost.js`'s `overComposedCeiling`) at that file's compose call site(s) that actually fails. (Same check applies in Design Step 3 below.)
 
 Proceed to **Common Step 2**.
 

@@ -172,6 +172,12 @@ test('no measured skill file carries a marker error', () => {
 // file each rendered in one call; a 34.3 KB file truncated. 28 KB sits
 // between those two known points, comfortably above the post-#611-split
 // decomposition-mode.md (~25.6 KB) with headroom for incidental growth.
+// This measures via `measureSubFiles` (CRLF-normalized, marker-stripped
+// `measuredBytes`), a fine proxy today since no /specify sub-file is fenced
+// with `when:` markers — but the concern here is a raw single Read/cat call,
+// which pays the file's *raw* on-disk bytes, markers included. If a
+// /specify sub-file is ever fenced, this ceiling would need raw bytes, not
+// the marker-stripped count.
 const SPECIFY_SUBFILE_CEILING_BYTES = 28 * 1024;
 
 // record-creation.md, shaping-mode.md, and next-mode.md all exceeded this ceiling —
@@ -363,6 +369,21 @@ test('parseComposeCallLine: a line without compose-context.js is null', () => {
   assert.strictEqual(parseComposeCallLine('nothing to see here', '/r'), null);
 });
 
+test('parseComposeCallLine: an unknown flag before --step is unparsed, naming the flag', () => {
+  const line = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run x --out y.md --step merge "${CLAUDE_PLUGIN_ROOT}/skills/_shared/a.md"';
+  const result = parseComposeCallLine(line, '/r');
+  assert.deepStrictEqual(result, { unparsed: true, reason: 'unknown flag --out' });
+});
+
+test('parseComposeCallLine: a bare repo-relative source is unparsed as install-dead', () => {
+  const line = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --step merge plugin/skills/_shared/a.md';
+  const result = parseComposeCallLine(line, '/r');
+  assert.deepStrictEqual(result, {
+    unparsed: true,
+    reason: 'repo-relative source path (install-dead): plugin/skills/_shared/a.md',
+  });
+});
+
 test('findComposeCallSites: finds both real merge sites in the shipped corpus', () => {
   const sites = findComposeCallSites(REPO).filter((s) => s.step === 'merge');
   const files = sites.map((s) => s.file).sort();
@@ -398,6 +419,29 @@ test('findComposeCallSites: a fixture skill file with a call site is found with 
   ]);
 });
 
+test('findComposeCallSites: an unparsed line is emitted as { step: null, unparsed: true, reason }, and fails the composed-bytes gate', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-unparsed-'));
+  const skillDir = path.join(root, 'skills', 'demo');
+  fs.mkdirSync(skillDir, { recursive: true });
+  const callLine = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --step merge plugin/skills/_shared/a.md';
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `line one\n${callLine}\nline three\n`);
+
+  const sites = findComposeCallSites(root);
+  assert.deepStrictEqual(sites, [
+    {
+      step: null,
+      file: 'demo/SKILL.md',
+      line: 2,
+      unparsed: true,
+      reason: 'repo-relative source path (install-dead): plugin/skills/_shared/a.md',
+    },
+  ]);
+
+  const over = overComposedCeiling(composedBytesReport(root));
+  assert.strictEqual(over.length, 1);
+  assert.strictEqual(over[0].error, 'repo-relative source path (install-dead): plugin/skills/_shared/a.md');
+});
+
 // ── measureComposed (#1990 Task 3). Composed bytes at a compose call site,
 // under every combination of the `when:` keys those sources actually branch
 // on — unused keys pinned to `VOCAB[key][0]` (a marker-free key can't change
@@ -425,13 +469,17 @@ test('usedConditionKeys: only the keys the sources use, in canonical order', () 
   assert.deepStrictEqual(usedConditionKeys(sources), ['integration-model', 'transport']);
 });
 
-test('measureComposed: one row per combination of the used keys, bytes differ where a branch is taken', () => {
+test('measureComposed: one row per combination of the used keys, plus the unresolved row, bytes differ where a branch is taken', () => {
   const { root, aFile, bFile } = makeComposeFixture();
   const callSite = { step: 'x', file: 'f', line: 1, sources: [aFile, bFile] };
   const result = measureComposed(root, callSite);
 
   assert.deepStrictEqual(result.keys, ['integration-model', 'transport']);
-  assert.strictEqual(result.combinations.length, 4);
+  // 4 resolved combinations (2x2 over integration-model x transport) plus the
+  // trailing `unresolved` row (#1990) — the standalone-run reading with no
+  // config.yml to resolve either key, which keeps both branches of each and
+  // so is strictly >= every resolved combination.
+  assert.strictEqual(result.combinations.length, 5);
 
   const bySignature = new Map(result.combinations.map((c) => [
     `${c.conditions['integration-model']}|${c.conditions.transport}`,
@@ -439,9 +487,15 @@ test('measureComposed: one row per combination of the used keys, bytes differ wh
   ]));
   const largest = bySignature.get('pr-first|mcp');
   const smallest = bySignature.get('local-merge|gh');
+  const unresolved = result.combinations[result.combinations.length - 1];
   assert.ok(largest, 'expected a pr-first+mcp row');
   assert.ok(smallest, 'expected a local-merge+gh row');
   assert.ok(largest.bytes > smallest.bytes, `expected pr-first+mcp (${largest.bytes}) > local-merge+gh (${smallest.bytes})`);
+  assert.deepStrictEqual(unresolved.conditions, { 'integration-model': 'unresolved', transport: 'unresolved' });
+  assert.ok(
+    unresolved.bytes >= largest.bytes,
+    `expected the unresolved row (${unresolved.bytes}) to be the largest, >= pr-first+mcp (${largest.bytes})`,
+  );
 
   // Recompute every row independently against compose() directly, for that
   // row's full six-key conditions (unused keys pinned to VOCAB[k][0]) — a
@@ -458,6 +512,7 @@ test('measureComposed: one row per combination of the used keys, bytes differ wh
     assert.strictEqual(combo.bytes, expected);
   }
   assert.strictEqual(result.max, Math.max(...result.combinations.map((c) => c.bytes)));
+  assert.strictEqual(result.max, unresolved.bytes, 'the unresolved row should be the max');
 });
 
 test('measureComposed: marker-free sources yield exactly one combination with empty conditions', () => {
@@ -493,6 +548,17 @@ test('measureComposed: a missing source is an error row naming the path', () => 
   const result = measureComposed(root, callSite);
   assert.deepStrictEqual(result.combinations, []);
   assert.ok(result.error.includes(missing), `expected the missing path in: ${result.error}`);
+});
+
+test('measureComposed: a source path that is a directory is an error row (not only ENOENT)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-eisdir-'));
+  const dirAsSource = path.join(root, 'skills', '_shared', 'a-directory.md');
+  fs.mkdirSync(dirAsSource, { recursive: true });
+  const callSite = { step: 'x', file: 'f', line: 1, sources: [dirAsSource] };
+  const result = measureComposed(root, callSite);
+  assert.deepStrictEqual(result.combinations, []);
+  assert.ok(typeof result.error === 'string', 'expected an error string');
+  assert.ok(result.error.includes('EISDIR'), `expected EISDIR in: ${result.error}`);
 });
 
 // ── composedBytesReport / overComposedCeiling (#1990 Task 4). The hard gate:
@@ -552,7 +618,12 @@ test('no compose call site\'s composed bytes exceed its ceiling under any condit
   );
 });
 
-test('COMPOSED_STEP_EXCEPTIONS: every exception is still needed', () => {
+// How much headroom an exception ceiling is allowed above the real corpus's
+// measured max before it's judged loose rather than tight — a wide exception
+// silently turns the gate off for that step, no different from deleting it.
+const COMPOSED_EXCEPTION_SLACK_BYTES = 4 * 1024;
+
+test('COMPOSED_STEP_EXCEPTIONS: every exception is still needed, and stays tight to the measured max', () => {
   const rows = composedBytesReport(REPO);
   for (const [step, ceiling] of Object.entries(COMPOSED_STEP_EXCEPTIONS)) {
     assert.ok(ceiling > CEILING_BYTES, `${step}'s exception ceiling (${ceiling}) must exceed CEILING_BYTES, or it isn't an exception`);
@@ -561,7 +632,23 @@ test('COMPOSED_STEP_EXCEPTIONS: every exception is still needed', () => {
       stepRows.some((r) => r.max > CEILING_BYTES),
       `${step}'s exception is stale — no real row exceeds CEILING_BYTES anymore, remove the entry`,
     );
+    const maxForStep = Math.max(...stepRows.map((r) => r.max));
+    assert.ok(
+      ceiling - maxForStep <= COMPOSED_EXCEPTION_SLACK_BYTES,
+      `${step}'s exception ceiling (${ceiling}) is ${ceiling - maxForStep} B above its measured max (${maxForStep}) — `
+        + 'shrink the exception to the measured max plus slack, or the gate is off for this step',
+    );
   }
+});
+
+test('overComposedCeiling: a step named after an Object.prototype member is not silently treated as exception-free (own-property guard)', () => {
+  const rows = [{
+    step: 'toString', file: 'f', line: 1, combinations: [{ conditions: {}, bytes: 999999 }], max: 999999,
+  }];
+  const over = overComposedCeiling(rows, { exceptions: {} });
+  assert.strictEqual(over.length, 1);
+  assert.strictEqual(over[0].step, 'toString');
+  assert.strictEqual(over[0].ceiling, CEILING_BYTES);
 });
 
 test('reports composed bytes per call site and combination', () => {

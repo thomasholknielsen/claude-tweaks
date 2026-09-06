@@ -24,7 +24,7 @@ const path = require('node:path');
 const { splitFrontmatterFence } = require('../health-core/frontmatter-list');
 const { listSkillDirs } = require('./skill-catalog');
 const {
-  stripMarkers, MarkerError, parseMarkers, compose, KEYS, VOCAB,
+  stripMarkers, MarkerError, parseMarkers, compose, KEYS, VOCAB, UNRESOLVED,
 } = require('../compose-context/compose');
 
 const CEILING_BYTES = 40 * 1024;
@@ -154,17 +154,19 @@ function conditionCombinations(keys) {
 }
 
 // Composed bytes for one compose call site, under every combination of the
-// keys its sources branch on. A missing source or a malformed marker is an
-// error row (`{ error, combinations: [] }`), never a thrown exception —
-// parent #1987 promise F1.
+// keys its sources branch on. A missing source, an unreadable source, a
+// malformed marker, or an unparsed call site is an error row
+// (`{ error, combinations: [] }`), never a thrown exception — parent #1987
+// promise F1.
 function measureComposed(repoRoot, callSite) {
+  if (callSite.unparsed) return { ...callSite, error: callSite.reason, combinations: [] };
   const { step, file, line, sources: sourcePaths } = callSite;
   let sources;
   try {
     sources = sourcePaths.map((p) => ({ path: path.relative(repoRoot, p), content: fs.readFileSync(p, 'utf8') }));
   } catch (err) {
     if (err.code === 'ENOENT') return { step, file, line, error: `missing source: ${err.path}`, combinations: [] };
-    throw err;
+    return { step, file, line, error: `unreadable source ${err.path}: ${err.code || err.message}`, combinations: [] };
   }
   let keys;
   try {
@@ -175,6 +177,10 @@ function measureComposed(repoRoot, callSite) {
     }
     throw err;
   }
+  // compose() cannot throw in this function: usedConditionKeys just parsed
+  // these identical sources successfully, and every conditions object built
+  // below comes from KEYS/VOCAB (plus UNRESOLVED for the row below), so no
+  // condition value or key can be one compose()'s own validation rejects.
   const combinations = conditionCombinations(keys).map((partial) => {
     const conditions = {};
     for (const key of KEYS) {
@@ -182,6 +188,26 @@ function measureComposed(repoRoot, callSite) {
     }
     return { conditions: partial, bytes: Buffer.byteLength(compose(sources, conditions), 'utf8') };
   });
+  // The standalone-run reading (no config.yml to resolve `when:` keys):
+  // compose() renders both branches of every used key. Strictly >= every
+  // resolved combination above, since each of those keeps only one branch
+  // per key. Marker-free sources (`keys` empty) get no such row — an
+  // unconditional source can't have an "unresolved" reading distinct from
+  // its single combination.
+  if (keys.length > 0) {
+    const unresolvedPartial = {};
+    for (const key of keys) unresolvedPartial[key] = UNRESOLVED;
+    const unresolvedConditions = {};
+    for (const key of KEYS) {
+      unresolvedConditions[key] = Object.prototype.hasOwnProperty.call(unresolvedPartial, key)
+        ? unresolvedPartial[key]
+        : VOCAB[key][0];
+    }
+    combinations.push({
+      conditions: unresolvedPartial,
+      bytes: Buffer.byteLength(compose(sources, unresolvedConditions), 'utf8'),
+    });
+  }
   const max = combinations.reduce((m, c) => Math.max(m, c.bytes), 0);
   return {
     step, file, line, sources: sourcePaths, keys, combinations, max,
@@ -200,43 +226,64 @@ function unquoteToken(tok) {
 }
 
 // `${CLAUDE_PLUGIN_ROOT}/x` resolves against `repoRoot` itself (the plugin
-// payload root); anything else is repo-relative to the checkout root (the
-// parent of `repoRoot`).
+// payload root) — the only source-token shape `parseComposeCallLine` ever
+// hands this function; a bare repo-relative token is rejected upstream as
+// install-dead, never resolved here.
 function resolveSourcePath(token, repoRoot) {
-  if (token.startsWith(PLUGIN_ROOT_PREFIX)) return path.join(repoRoot, token.slice(PLUGIN_ROOT_PREFIX.length));
-  return path.resolve(repoRoot, '..', token);
+  return path.join(repoRoot, token.slice(PLUGIN_ROOT_PREFIX.length));
 }
 
-// One line of skill prose -> `{ step, sources }`, or `null` when the line is
-// not a real call site. A documentation line quoting the call form with a
-// placeholder (`{step}`, `{files}`) is not a call site — checked on each
-// source token *after* stripping a leading `${CLAUDE_PLUGIN_ROOT}/` (which
-// itself contains `{`/`}` and must not trip this check).
+// One line of skill prose -> `{ step, sources }` (a real call site),
+// `{ unparsed: true, reason }` (has the invocation form and a `--step`
+// token but doesn't parse), or `null` (documentation: a placeholder
+// `{...}`/`<...>` source, or no `compose-context.js` invocation form at
+// all). Grammar: an optional `--run <value>` may precede `--step`; sources
+// are ONLY the tokens after `--step`'s own value; any other `--flag`
+// anywhere makes the line unparsed rather than silently miscounted.
 function parseComposeCallLine(line, repoRoot) {
   const m = line.match(/compose-context\.js"?\s+([^`\n]*)/);
   if (!m) return null;
-  const tokens = m[1].match(/"[^"]*"|\S+/g) || [];
-  let step = null;
-  const rawSources = [];
-  for (let i = 0; i < tokens.length; i += 1) {
-    const tok = tokens[i];
-    if (tok === '--run') { i += 1; continue; }
-    if (tok === '--step') { step = unquoteToken(tokens[i + 1] || ''); i += 1; continue; }
-    rawSources.push(unquoteToken(tok));
+  const tokens = (m[1].match(/"[^"]*"|\S+/g) || []).map(unquoteToken);
+
+  let i = 0;
+  while (i < tokens.length && tokens[i] !== '--step') {
+    if (tokens[i] === '--run') { i += 2; continue; }
+    if (tokens[i].startsWith('--')) return { unparsed: true, reason: `unknown flag ${tokens[i]}` };
+    return { unparsed: true, reason: `unexpected token before --step: ${tokens[i]}` };
   }
-  if (!step || rawSources.length === 0) return null;
+  if (i >= tokens.length) return { unparsed: true, reason: 'no step value' };
+  const step = tokens[i + 1];
+  if (step === undefined || step.startsWith('--')) return { unparsed: true, reason: 'no step value' };
+  const rawSources = tokens.slice(i + 2);
+  if (rawSources.length === 0) return { unparsed: true, reason: 'no sources' };
+  const unknownFlag = rawSources.find((tok) => tok.startsWith('--'));
+  if (unknownFlag) return { unparsed: true, reason: `unknown flag ${unknownFlag}` };
+
+  // A documentation line quoting the call form with a placeholder (`{step}`,
+  // `{files}`) is not a call site — checked *after* stripping a leading
+  // `${CLAUDE_PLUGIN_ROOT}/` (which itself contains `{`/`}` and must not
+  // trip this check).
   const isPlaceholder = (src) => {
     const afterPrefix = src.startsWith(PLUGIN_ROOT_PREFIX) ? src.slice(PLUGIN_ROOT_PREFIX.length) : src;
     return /[{}<>]/.test(afterPrefix);
   };
   if (rawSources.some(isPlaceholder)) return null;
+
+  // A bare source token (neither `${CLAUDE_PLUGIN_ROOT}/...` nor a
+  // placeholder) is a repo-relative path — install-dead, since a shipped
+  // plugin install has no repo root to resolve it against.
+  const bare = rawSources.find((src) => !src.startsWith(PLUGIN_ROOT_PREFIX));
+  if (bare) return { unparsed: true, reason: `repo-relative source path (install-dead): ${bare}` };
+
   return { step, sources: rawSources.map((src) => resolveSourcePath(src, repoRoot)) };
 }
 
 // Every compose call site in the shipped skill prose — the producer set the
 // composed-bytes hard gate (Task 4) runs over. Single-line call form only,
 // by construction of this decomposition's call sites: every call site this
-// decomposition produces sits on one line; a wrapped call is not found.
+// decomposition produces sits on one line; a wrapped call is not found. A
+// line that has the invocation form but doesn't parse is emitted as an
+// `unparsed` row rather than silently dropped (parse-signal discipline).
 function findComposeCallSites(repoRoot) {
   const dir = skillsDir(repoRoot);
   const out = [];
@@ -247,7 +294,14 @@ function findComposeCallSites(repoRoot) {
       if (!line.includes('compose-context.js')) return;
       const parsed = parseComposeCallLine(line, repoRoot);
       if (!parsed) return;
-      out.push({ step: parsed.step, file: path.relative(dir, p), line: i + 1, sources: parsed.sources });
+      const file = path.relative(dir, p);
+      if (parsed.unparsed) {
+        out.push({
+          step: null, file, line: i + 1, unparsed: true, reason: parsed.reason,
+        });
+        return;
+      }
+      out.push({ step: parsed.step, file, line: i + 1, sources: parsed.sources });
     });
   }
   return out;
@@ -287,7 +341,7 @@ function overComposedCeiling(rows, { exceptions = COMPOSED_STEP_EXCEPTIONS } = {
       });
       continue;
     }
-    const ceiling = exceptions[row.step] ?? CEILING_BYTES;
+    const ceiling = Object.prototype.hasOwnProperty.call(exceptions, row.step) ? exceptions[row.step] : CEILING_BYTES;
     for (const combo of row.combinations) {
       if (combo.bytes > ceiling) {
         out.push({
