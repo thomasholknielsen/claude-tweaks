@@ -21,6 +21,7 @@ const { computeDerivedDefaults } = require('../policy-derived-defaults');
 const { resolveTarget } = require('../stage-item/write');
 
 const BIN = path.join(__dirname, '..', '..');
+const VERIFY_JS = path.join(BIN, 'verify.js');
 const EXEC_OPTS = { maxBuffer: 32 * 1024 * 1024, timeout: 30000 };
 
 // Outer per-probe bound, mirroring bin/lib/wrap-up/pack.js's own
@@ -190,6 +191,7 @@ function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, ex
   // changed-files integration branch resolve together, memoized (throws
   // included, so a failure degrades both fields without a second call).
   const POLICY_KEYS = [...LEVER_KEYS.filter((k) => !CONFIG_ONLY_LEVERS.has(k)), 'integration-branch'];
+  const worktreeCwd = state && typeof state.worktree === 'string' ? state.worktree : cwd;
   let policyMemo;
   const policy = () => {
     if (policyMemo === undefined) {
@@ -255,11 +257,11 @@ function buildProbes({ runDirReal, runId, mainRoot, cwd, config, state, deps, ex
       const view = JSON.parse(raw);
       return { number: state.pr.number, url: state.pr.url || null, branch: state.pr.branch || null, state: view.state, isDraft: view.isDraft, checklist: parseChecklist(view.body) };
     },
-    stamp: async () => JSON.parse(await exec('node', [path.join(BIN, 'verify.js'), '--stamp-status'], { cwd: state && typeof state.worktree === 'string' ? state.worktree : cwd })),
+    stamp: async () => JSON.parse(await exec('node', [VERIFY_JS, '--stamp-status'], { cwd: worktreeCwd })),
     changedFiles: async () => {
       const ib = policy()['integration-branch'];
       const branch = ib && ib.value ? String(ib.value) : 'main';
-      return JSON.parse(await exec('node', [path.join(BIN, 'verify.js'), '--changed-files', '--integration-branch', branch], { cwd: state && typeof state.worktree === 'string' ? state.worktree : cwd }));
+      return JSON.parse(await exec('node', [VERIFY_JS, '--changed-files', '--integration-branch', branch], { cwd: worktreeCwd }));
     },
   };
 }
