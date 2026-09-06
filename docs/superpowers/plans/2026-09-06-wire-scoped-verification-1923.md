@@ -159,6 +159,29 @@ git -C "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees
 
 **Files:**
 - Modify: `plugin/skills/test/verification.md` (Skip-if-recent section at lines 40-55; Step 3 report at lines 89-104)
+- Modify: `tests/bin-lib/verify/snippet-conformance.test.js` (its `extractSnippet()` asserts exactly ONE fenced `bin/verify.js --cmd` block in verification.md; the scoped invocation below adds a second, so the extractor must learn the canonical/scoped split and the scoped snippet gets its own parser pin — found by the Task 2 implementer)
+
+- [ ] **Step 0: Teach the snippet-conformance test the canonical/scoped split**
+
+In `tests/bin-lib/verify/snippet-conformance.test.js`: change `extractSnippet()`'s filter to `blocks.filter((b) => b.includes('bin/verify.js') && b.includes('--cmd') && !b.includes('--scope'))` and its message to `expected exactly one fenced canonical (unscoped) bin/verify.js --cmd invocation, found ${hits.length}`; add `extractScopedSnippet()` — same shape, filter `b.includes('bin/verify.js') && b.includes('--scope')`, message `expected exactly one fenced bin/verify.js --scope invocation, found ${hits.length}`; add two tests after the `--stamp-status` one:
+
+```js
+test('the scoped re-verify invocation parses clean through the real arg parser and names every required flag (#1923)', () => {
+  const argv = snippetArgv(extractScopedSnippet().replace('{ref}', 'main'));
+  const parsed = parseArgs(argv);
+  assert.strictEqual(parsed.scope, '.claude-tweaks/verify-scope.json');
+  assert.strictEqual(parsed.integrationBranch, 'main');
+  assert.ok(parsed.cmds.length >= 1, 'the scoped invocation must still pass the full --cmd set');
+  assert.ok(!extractScopedSnippet().includes('$(git rev-parse'), 'the scoped invocation must not substitute a git dir');
+});
+
+test('the scoped snippet tokenizer can go red on an injected unknown flag (#1923)', () => {
+  const mutated = extractScopedSnippet().replace('{ref}', 'main') + ' --bogus';
+  assert.throws(() => parseArgs(snippetArgv(mutated)), UsageError);
+});
+```
+
+Update the file's header comment to say it pins both the canonical and the scoped invocation.
 
 - [ ] **Step 1: Edit Skip-if-recent**
 
@@ -211,8 +234,8 @@ Run: `node --test "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claud
 - [ ] **Step 4: Commit**
 
 ```bash
-git -C "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees/design-1904-pipeline-ceremony" add plugin/skills/test/verification.md
-git -C "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees/design-1904-pipeline-ceremony" commit -m "verification.md: re-verify scoping table, scoped invocation, standalone-full rule, Scope: line in the report (refs #1923)" -m "Claude-Session: https://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB"
+git -C "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees/design-1904-pipeline-ceremony" add plugin/skills/test/verification.md tests/bin-lib/verify/snippet-conformance.test.js
+git -C "/Users/thomasholknielsen/Code Workspaces/claude-tweaks/.claude/worktrees/design-1904-pipeline-ceremony" commit -m "verification.md: re-verify scoping table, scoped invocation, standalone-full rule, Scope: line in the report; snippet pin learns the canonical/scoped split (refs #1923)" -m "Claude-Session: https://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB"
 ```
 
 ---
