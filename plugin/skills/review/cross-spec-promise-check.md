@@ -33,6 +33,13 @@ step entirely.
    a seeding comment, and — when the assumption concerns a still-open sibling — add the
    corresponding `Blocked by #N: {assumption}` line to this record's own body (a normal body edit,
    same as any other review-driven change to the record under review).
+   - **Exception — the sibling that owns the assumption is downstream of this record.** When that
+     sibling is itself already blocked by the record under review, adding the `Blocked by` line
+     closes a mutual pair, and `plugin/bin/resolve-blockers.js` carries no cycle detection: both
+     records then read as permanently blocked and neither is ever dispatchable. Write the parent
+     row and the seeding comment only, withhold the `Blocked by` line, and say in the row why it
+     was withheld. Observed on #1922, whose forward assumption's owner (#1923) was already blocked
+     by #1922.
 
 Both writes are additive to the parent's body/comments only — never touch a sibling sub-issue's body
 from this step, and never block the review's own PASS/BLOCKED verdict on anything found here — the
