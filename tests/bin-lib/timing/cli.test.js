@@ -61,3 +61,59 @@ test('#1928 fix round 2: --run "" (present but empty — the unset-$PIPELINE_RUN
   assert.equal(r.stdout, '');
   assert.match(r.stderr, /no run directory/);
 });
+
+const TFIX = path.join(__dirname, '..', '..', 'fixtures', 'timing', 'transcript-small.jsonl');
+
+test('#1929 AC4: --transcript twice sums both, prints the three columns and the Guard footer, writes totals.guard', () => {
+  const dir = tmpRun(true);
+  fs.appendFileSync(path.join(dir, 'events.jsonl'), '{"ts":"2026-09-05T13:05:00.000Z","type":"gate-denial"}\n{"ts":"2026-09-05T13:06:00.000Z","type":"wd-deny"}\n{"ts":"2026-09-05T13:07:00.000Z","type":"wd-deny"}\n');
+  const r = run(['--run', dir, '--transcript', TFIX, '--transcript', TFIX, '--markdown']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.split('\n')[0], '| Phase | Minutes | Verify | Tokens (in/out) | Proc. KB | Tool RTs |');
+  // every fixture transcript row sits in 13:50-13:51 → review; two transcripts double it
+  assert.match(r.stdout, /^\| review \| 8 \| — \| 232\/456 \| 0\.0 \| 6 \|$/m);
+  assert.match(r.stdout, /^Guard denials: 1 gate · 0 wd-ambiguous · 2 wd-deny$/m);
+  const json = JSON.parse(fs.readFileSync(path.join(dir, 'timing.json'), 'utf8'));
+  assert.deepEqual(json.totals.guard, { gateDenial: 1, wdAmbiguous: 0, wdDeny: 2 });
+  assert.deepEqual(json.totals.tokens, { input: 232, output: 456, cacheRead: 620, cacheCreate: 104 });
+  assert.equal(json.totals.procedureBytes, 36);
+  assert.equal(json.totals.toolRoundTrips, 6);
+  assert.equal(json.transcripts.length, 2);
+  assert.equal(json.transcripts[0].rows, 7);
+});
+
+test('#1929 AC4: a nonexistent --transcript prints the not-found note, blank columns, exit 0', () => {
+  const dir = tmpRun(true);
+  const r = run(['--run', dir, '--transcript', path.join(os.tmpdir(), 'ct-missing-transcript.jsonl'), '--markdown']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^tokens: transcript not found \(ENOENT/m);
+  assert.match(r.stdout, /^\| review \| 8 \| — \| — \| — \| — \|$/m);
+  const json = JSON.parse(fs.readFileSync(path.join(dir, 'timing.json'), 'utf8'));
+  assert.equal(json.transcripts[0].rows, 0);
+  assert.match(json.transcripts[0].note, /ENOENT/);
+});
+
+test('#1929: without any --transcript the table keeps its #1928 three-column shape', () => {
+  const dir = tmpRun(true);
+  const r = run(['--run', dir, '--markdown']);
+  assert.equal(r.stdout.split('\n')[0], '| Phase | Minutes | Verify |');
+  assert.doesNotMatch(r.stdout, /Guard denials/);
+});
+
+test('#1929 AC4: --auto-transcript locates the run session transcript from run-state.json under a fixture home', () => {
+  const dir = tmpRun(true);
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-timing-home-'));
+  const worktree = '/Users/x/Code/repo/.claude/worktrees/wt';
+  const slugDir = path.join(home, '.claude', 'projects', '-Users-x-Code-repo--claude-worktrees-wt');
+  fs.mkdirSync(slugDir, { recursive: true });
+  fs.copyFileSync(TFIX, path.join(slugDir, 'sess-9.jsonl'));
+  fs.writeFileSync(path.join(dir, 'run-state.json'), JSON.stringify({ worktree, sessionId: 'sess-9', status: 'active' }));
+  const r = spawnSync(process.execPath, [CLI, '--run', dir, '--markdown', '--auto-transcript'], { encoding: 'utf8', env: { ...process.env, HOME: home } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^\| review \| 8 \| — \| 116\/228 \| 0\.0 \| 3 \|$/m);
+  const none = tmpRun(true);
+  fs.writeFileSync(path.join(none, 'run-state.json'), JSON.stringify({ status: 'active' }));
+  const r2 = spawnSync(process.execPath, [CLI, '--run', none, '--markdown', '--auto-transcript'], { encoding: 'utf8', env: { ...process.env, HOME: home } });
+  assert.equal(r2.status, 0);
+  assert.match(r2.stdout, /^tokens: transcript not found \(no worktree or sessionId in run-state\.json\)$/m);
+});
