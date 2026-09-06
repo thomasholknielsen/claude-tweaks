@@ -8,7 +8,7 @@
 const os = require('os');
 const { runGit } = require('../hooks/git-exec');
 const { allocate, release, status } = require('./registry');
-const { serviceVars } = require('./env-file');
+const { serviceVars, leaseVars } = require('./env-file');
 
 const USAGE = 'usage: ports.js <allocate|status|release|env> [--path P] [--services a,b,c]\n';
 const COMMANDS = ['allocate', 'status', 'release', 'env'];
@@ -91,7 +91,7 @@ async function run(argv, deps = realDeps) {
       const entry = Object.entries(reg.leases || {}).find(([, lease]) => lease.path === targetPath);
       if (!entry) return 0; // no lease for this path — nothing to report, not an error
       const [base, lease] = entry;
-      for (const [k, v] of serviceVars(lease.services, Number(base))) deps.stdout(`${k}=${v}\n`);
+      for (const [k, v] of [...leaseVars(Number(base)), ...serviceVars(lease.services, Number(base))]) deps.stdout(`${k}=${v}\n`);
       return 0;
     }
   } catch (err) {
