@@ -74,10 +74,17 @@ function main() {
   const ops = [...historyOps(head), ...historyOps(remote)]
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
+  // `rendered` is the block itself, not a second source for it: a consumer
+  // reading this JSON (the wrap-up fact pack, #1930) pastes that string
+  // verbatim, exactly as a consumer of the non-JSON form does. Composing the
+  // block from the sibling fields instead is what summary-template.md's
+  // "Render VERBATIM from the helper" rule exists to forbid, and --json
+  // silently made it possible.
+  const rendered = renderState({ state, ops, since, sinceDate });
   if (json) {
-    process.stdout.write(`${JSON.stringify({ state, ops, since, sinceDate }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ state, ops, since, sinceDate, rendered }, null, 2)}\n`);
   } else {
-    process.stdout.write(`${renderState({ state, ops, since, sinceDate })}\n`);
+    process.stdout.write(`${rendered}\n`);
   }
 }
 
