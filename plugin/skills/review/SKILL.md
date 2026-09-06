@@ -63,7 +63,8 @@ In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:vis
 ## Code-Mode Procedure (Steps 1-7)
 
 **Fast-lane shortcut.** When a pipeline run directory's `config.yml` already reads
-`ceremony-profile: fast-lane`, read `_shared/fast-lane-digest.md` first — it names every
+`ceremony-profile: fast-lane` (roster tag `review-step-1`, `_shared/ceremony-profile.md`), read
+`_shared/fast-lane-digest.md` first — it names every
 skip/narrow decision below in one place. It never replaces `code-mode-steps.md`'s actual step
 content (Steps 1.5, 2, 2.5, 3-3.6, 5, 6, 6.5, 6.7, 7 still run there); it only saves re-deriving
 the skip list for Steps 1, 1.6, and 4 from that file's own header.

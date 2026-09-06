@@ -7,7 +7,7 @@ Audit the plan against the actual repo before dispatching execution work. The fo
 ## Invocation
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" {plan-file} [--repo-root {dir}]
+node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" {plan-file} [--repo-root {dir}] [--count-tasks]
 ```
 
 `--repo-root` defaults to `git rev-parse --show-toplevel` of the cwd (or the cwd itself outside a repo) — pass it explicitly only when the plan's own worktree differs from cwd. Stdout is two lines: a compact JSON envelope (`{checkA, checkB, checkC, headroom}`, each `{ok, ...}`), then a one-line human summary. Exit code is `0` iff every check's `ok` is `true` (`headroom.nearCeiling` entries never fail `ok` — only `headroom.breaches` do). Parse the JSON via `JSON.parse(stdout.split('\n')[0])`.
@@ -60,4 +60,4 @@ Then call `AskUserQuestion` with:
 - **Check C** — for each task's own `- [ ] **Step 2: …**` sub-step declaring `Run: {command}` / `Expected: FAIL …`, runs `{command}` once, read-only, against current repo state. The only finding: the command already exhibits a passing/success signature (exit code 0, or a success marker with no failure marker) despite the `Expected: FAIL` declaration. A command erroring or cleanly failing pre-dispatch is never a finding — a hard error on a later task in a plan whose tasks build on each other sequentially is common and expected.
 - **Headroom** — for each existing file (`Modify:`/`Delete:`/`Test:`, never `Create:`) under the governed skill-corpus set (`plugin/skills/**/*.md` — the same set `context-cost.js` already measures every `SKILL.md` and sub-file against), its current byte count and headroom against the shared `CEILING_BYTES` constant. v1 reports current bytes + headroom only — it never estimates the size of the plan's own planned insertion (Non-Goals); the plan author judges borderline cases from the reported headroom.
 
-Check A/B/C and the headroom check all share Check A/B's existing skip gate (fewer than 3 file references and no `Scope keywords:` field, or `ceremony-profile: fast-lane`) — none of them introduces a new skip condition of its own.
+Check A/B/C and the headroom check all share Check A/B's existing skip gate (fewer than 3 file references and no `Scope keywords:` field, or `ceremony-profile: fast-lane` — roster tag `plan-audit`, `_shared/ceremony-profile.md`) — none of them introduces a new skip condition of its own.

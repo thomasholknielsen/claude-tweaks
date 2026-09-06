@@ -8,7 +8,7 @@ const net = require('net');
 
 const { ensure, isRegionCurrent } = require('../../../plugin/bin/lib/ports/ensure');
 const { registryPath } = require('../../../plugin/bin/lib/ports/registry');
-const { writeEnvFiles, serviceVars } = require('../../../plugin/bin/lib/ports/env-file');
+const { writeEnvFiles, serviceVars, LEASE_KEY, readManagedRegion, mergeManagedRegion } = require('../../../plugin/bin/lib/ports/env-file');
 
 function tmpHome() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ports-ensure-'));
@@ -50,7 +50,7 @@ test('ensure: fresh registry activates, returns the leased block, writes .env.lo
   const result = await ensure(checkout, { home, policyServices: ['web', 'api'], resolveRoot: () => checkout, probe: async () => true });
   assert.equal(result.active, true);
   assert.equal(result.reallocated, null);
-  assert.deepEqual(result.vars, [['PORT', String(result.base)], ['API_PORT', String(result.base + 1)]]);
+  assert.deepEqual(result.vars, [['CLAUDE_TWEAKS_LEASE', String(result.base)], ['PORT', String(result.base)], ['API_PORT', String(result.base + 1)]]);
   const envLocal = fs.readFileSync(path.join(checkout, '.env.local'), 'utf8');
   assert.match(envLocal, new RegExp(`PORT=${result.base}`));
 });
@@ -106,6 +106,74 @@ test('ensure: a bound port with a region for a DIFFERENT service list reallocate
   } finally {
     server.close();
   }
+});
+
+// #1927 AC2: a region that is current (PORT === base) but predates the lease
+// line is completed in place — same base, no reallocation.
+test('ensure: a current region without CLAUDE_TWEAKS_LEASE is rewritten in place with the same base and reports leaseLineAdded', async () => {
+  const home = tmpHome();
+  const checkout = tmpCheckout(home, 'pre-lease');
+  const first = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout, probe: async () => true });
+  // Strip the lease line to fake a region written before #1927.
+  const envPath = path.join(checkout, '.env.local');
+  const stripped = mergeManagedRegion(fs.readFileSync(envPath, 'utf8'), [['PORT', String(first.base)]]);
+  fs.writeFileSync(envPath, stripped);
+  assert.equal(isRegionCurrent(checkout, first.base, ['web'], ['web']), true, 'currency semantics are unchanged by the missing line');
+  assert.ok(!readManagedRegion(stripped).some(([k]) => k === LEASE_KEY));
+
+  const second = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout, probe: async () => true });
+  assert.equal(second.reallocated, null);
+  assert.equal(second.base, first.base);
+  assert.equal(second.leaseLineAdded, true);
+  const region = readManagedRegion(fs.readFileSync(envPath, 'utf8'));
+  assert.deepEqual(region[0], [LEASE_KEY, String(first.base)], 'the lease line is first');
+  assert.deepEqual(region.find(([k]) => k === 'PORT'), ['PORT', String(first.base)]);
+
+  const mtime = fs.statSync(envPath).mtimeMs;
+  const third = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout, probe: async () => true });
+  assert.equal(third.leaseLineAdded, false);
+  assert.equal(fs.statSync(envPath).mtimeMs, mtime, 'a second run rewrites nothing');
+});
+
+test('ensure: a fresh checkout reports leaseLineAdded false (the line was written with the lease, not added to a prior region)', async () => {
+  const home = tmpHome();
+  const checkout = tmpCheckout(home, 'fresh-lease');
+  const result = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout, probe: async () => true });
+  assert.equal(result.leaseLineAdded, false);
+  assert.deepEqual(result.vars[0], [LEASE_KEY, String(result.base)]);
+});
+
+test('ensure: a non-current region still takes the reallocation path (leaseLineAdded false, reallocated set)', async () => {
+  const home = tmpHome();
+  const checkout = tmpCheckout(home, 'stale-lease');
+  const first = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout, probe: async () => true });
+  fs.unlinkSync(path.join(checkout, '.env.local'));
+  const server = await listenOn(first.base);
+  try {
+    const second = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout });
+    assert.ok(second.reallocated && second.reallocated.from === first.base);
+    assert.equal(second.leaseLineAdded, false);
+  } finally { server.close(); }
+});
+
+// #1927 fix round 1: an orphaned region (no matching registry lease — a
+// fresh registry, or a checkout whose old lease is gone) that lacks the
+// lease line must NOT be reported as completed just because it predates
+// #1927 — the registry hands back whatever base claimFreeBase finds free,
+// not necessarily the base the stale region already carried, so this is a
+// base change, not a same-base completion.
+test('ensure: an orphaned region with no matching registry lease and a different base is not reported as leaseLineAdded', async () => {
+  const home = tmpHome();
+  const checkout = tmpCheckout(home, 'orphaned-region');
+  // Pre-existing region from some other era, with no lease line — but the
+  // registry has never seen this path (fresh home, no ports.json yet), so
+  // it will be claimed as a brand-new lease, not recognized as this one.
+  writeEnvFiles(checkout, serviceVars(['web'], 20005));
+  const result = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout, probe: async () => true });
+  assert.equal(result.reallocated, null);
+  assert.equal(result.leaseLineAdded, false);
+  const region = readManagedRegion(fs.readFileSync(path.join(checkout, '.env.local'), 'utf8'));
+  assert.deepEqual(region[0], [LEASE_KEY, String(result.base)], 'the lease line is first in the freshly-claimed region');
 });
 
 test('isRegionCurrent: false when .env.local is missing, has no region, has the wrong PORT, or a different services list', () => {

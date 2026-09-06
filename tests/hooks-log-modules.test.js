@@ -334,3 +334,13 @@ test('subagent-stop: still logs a contract-violation for a non-exempt agent_type
   assert.match(out.json.systemMessage, /status line/i);
   assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
 });
+
+// #1928 AC5: no agent transcript ⇒ nothing to grade. The parent session's own
+// transcript_path was the fallback that graded orchestrator narration as a
+// subagent reply (2,471 events in the corpus, most of this shape).
+test('#1928 AC5: transcript_path alone appends no contract-violation event', () => {
+  const run = mkRun();
+  const out = substop.run({ input: { transcript_path: transcript('I did some things.') }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' });
+  assert.deepStrictEqual(out, {});
+  assert.strictEqual(fs.existsSync(path.join(run, 'events.jsonl')), false);
+});

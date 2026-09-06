@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { classifyDiffFiles, blastRadiusSummary } = require('../../../plugin/bin/lib/issues/blast-radius');
+const { classifyDiffFiles, blastRadiusSummary, globToRegExp } = require('../../../plugin/bin/lib/issues/blast-radius');
 
 test('classifyDiffFiles marks files under a tests/ directory as isTest', () => {
   const files = [{ path: 'bin/lib/issues/tests/grouping.test.js', additions: 38, deletions: 1 }];
@@ -201,4 +201,13 @@ test('the merge-sensitive-paths shape "src/auth/**" trips on a nested file while
 test('single "*" still does not cross a path segment', () => {
   const result = classifyDiffFiles([{ path: 'skills/backlog/overview-mode.md', additions: 1, deletions: 0 }], ['skills/*']);
   assert.strictEqual(result[0].isSensitive, false);
+});
+
+test('globToRegExp is exported so the verify scope engine can reuse the one matcher (#1922)', () => {
+  assert.strictEqual(typeof globToRegExp, 'function');
+  assert.ok(globToRegExp('docs/**/*.md').test('docs/a/b/c.md'));
+  assert.ok(!globToRegExp('docs/**/*.md').test('src/a.md'));
+  assert.ok(globToRegExp('apps/api/**').test('apps/api'));
+  assert.ok(globToRegExp('apps/api/**').test('apps/api/src/a.ts'));
+  assert.ok(!globToRegExp('apps/*/x.ts').test('apps/a/b/x.ts'));
 });

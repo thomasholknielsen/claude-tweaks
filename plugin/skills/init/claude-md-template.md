@@ -42,6 +42,8 @@ Produce CLAUDE.md from scratch following this template:
 {Key package scripts — what developers actually run daily.
 Verify every command exists in package.json / Makefile / scripts before listing.}
 
+When `.claude-tweaks/verify-scope.json` exists, pipeline re-verifies run scoped against the last full pass (`test/verification.md`'s scoping table); `init --update` reports drift between its suites and the workspace. On a `port-services` checkout, `.env.local`'s managed region also exports `CLAUDE_TWEAKS_LEASE` (the leased block's base) — key a per-checkout test database on it the way ports are keyed: `DATABASE_URL=postgres://localhost:5432/app_test_${CLAUDE_TWEAKS_LEASE}`.
+
 ## Conventions
 
 {Observed naming, patterns, and rules — max 10 bullets}

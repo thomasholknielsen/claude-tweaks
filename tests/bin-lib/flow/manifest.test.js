@@ -184,3 +184,37 @@ test('transitionSpec fails without writing when the manifest is missing, the spe
   // None of the failed calls touched the manifest.
   assert.equal(readManifest(seeded).multispec.specs[0].status, 'pending');
 });
+
+// #1928 AC2: every transition persists the phase and appends to phases[].
+test('#1928: transitionSpec persists phase and appends {phase, status, at} to phases[]', () => {
+  const runDir = tmpRunDir();
+  writeManifest(runDir, parseManifestYaml(LIVE_MANIFEST));
+  const t1 = transitionSpec({ runDir, specId: 690, status: 'running', phase: 'build', now: '2026-09-06T10:00:00.000Z' });
+  assert.equal(t1.ok, true);
+  const t2 = transitionSpec({ runDir, specId: 690, status: 'complete', phase: 'wrap-up', now: '2026-09-06T11:30:00.000Z' });
+  assert.equal(t2.ok, true);
+  const spec = readManifest(runDir).multispec.specs.find((s) => String(s.id) === '690');
+  assert.equal(spec.phase, 'wrap-up');
+  assert.deepEqual(spec.phases, [
+    { phase: 'build', status: 'running', at: '2026-09-06T10:00:00.000Z' },
+    { phase: 'wrap-up', status: 'complete', at: '2026-09-06T11:30:00.000Z' },
+  ]);
+});
+
+test('#1928: phases[] round-trips through serialize → parse byte-for-byte', () => {
+  const m = parseManifestYaml(LIVE_MANIFEST);
+  const spec = m.multispec.specs[0];
+  spec.phase = 'review';
+  spec.phases = [
+    { phase: 'build', status: 'running', at: '2026-09-06T10:00:00.000Z' },
+    { phase: 'review', status: 'running', at: '2026-09-06T10:40:00.000Z' },
+  ];
+  const text = serializeManifestYaml(m);
+  assert.deepEqual(parseManifestYaml(text), m);
+  assert.equal(serializeManifestYaml(parseManifestYaml(text)), text);
+});
+
+test('#1928: a manifest without phases[] still round-trips unchanged', () => {
+  const m = parseManifestYaml(LIVE_MANIFEST);
+  assert.equal(serializeManifestYaml(m), LIVE_MANIFEST.endsWith('\n') ? LIVE_MANIFEST : LIVE_MANIFEST + '\n');
+});

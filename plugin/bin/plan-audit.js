@@ -2,7 +2,9 @@
 // plugin/bin/plan-audit.js — mechanized plan audit (#903): Checks A/B/C plus
 // a size-headroom check, replacing the hand-run prose procedure that used to
 // live entirely in plugin/skills/build/plan-audit.md. Exit 0 iff every check
-// is ok (a `nearCeiling` headroom flag alone does not fail).
+// is ok (a `nearCeiling` headroom flag alone does not fail). `--count-tasks`
+// (#1926) is a read-only verb printing `{tasks, batched}` for /build's
+// single-task fast-lane condition — it never runs the checks.
 'use strict';
 
 const fs = require('node:fs');
@@ -11,7 +13,7 @@ const { execFileSync } = require('node:child_process');
 
 const { parseArgs, UsageError, USAGE } = require('./lib/plan-audit/args');
 const {
-  extractFileEntries, extractScopeKeywords, extractVerificationChecks,
+  extractFileEntries, extractScopeKeywords, extractVerificationChecks, countTasks,
 } = require('./lib/plan-audit/parser');
 const { checkA, checkB, checkC, headroomCheck } = require('./lib/plan-audit/checks');
 
@@ -54,6 +56,17 @@ function main() {
   } catch (err) {
     process.stderr.write(`plan-audit.js: cannot read plan file ${parsed.planFile}: ${err.message}\n`);
     process.exitCode = 2;
+    return;
+  }
+
+  if (parsed.countTasks) {
+    const { tasks, batched } = countTasks(text);
+    if (tasks === 0) {
+      process.stderr.write(`plan-audit.js: ${parsed.planFile} has no parseable tasks (no "### Task N:" heading)\n`);
+      process.exitCode = 2;
+      return;
+    }
+    process.stdout.write(`{"tasks": ${tasks}, "batched": ${batched}}\n`);
     return;
   }
 

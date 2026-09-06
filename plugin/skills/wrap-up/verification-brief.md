@@ -292,6 +292,16 @@ gh issue comment {issue} --body "Verification Brief posted to PR #{pr-number}: {
 gh issue edit {issue} --add-label demo:pending
 ```
 
+Then post the run's Timing table as the `timing` kind, under the same gate (#1928); a `tokens: transcript not found (...)` line, when present, is posted verbatim with the table:
+
+```bash
+printf '<!-- run-comment: timing -->\n\n' > /tmp/pr-timing-{issue}.md
+node "${CLAUDE_PLUGIN_ROOT}/bin/phase-timing.js" --run "$PIPELINE_RUN_DIR" --markdown --auto-transcript >> /tmp/pr-timing-{issue}.md
+# find-or-create per _shared/pr-run-comments.md's post-or-update procedure, kind=timing, against {pr-number}
+```
+
+When wrap-up's cleanup item 8 has already archived the run directory (`cleanup-procedures.md`), pass `$RUN_ROOT/.claude-tweaks/pipelines/archive/{run-id}/` as `--run` instead — the events and manifest travel with the archive.
+
 Post the comment(s) before adding the label — a reader reacting to the label's appearance should
 never see `demo:pending` without a brief (or its pointer) already attached. Acceptance labeling
 stays on the issue either way — only where the full brief's content lives changes.

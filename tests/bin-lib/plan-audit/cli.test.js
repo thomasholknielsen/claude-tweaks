@@ -196,3 +196,52 @@ test('usage error on a missing plan-file argument exits 2', () => {
     assert.match(err.stderr, /usage: plan-audit\.js/);
   }
 });
+
+function runCount(planFile) {
+  try {
+    const stdout = execFileSync('node', [CLI, planFile, '--count-tasks'], { encoding: 'utf8' });
+    return { exitCode: 0, stdout, stderr: '' };
+  } catch (err) {
+    return { exitCode: err.status, stdout: err.stdout || '', stderr: err.stderr || '' };
+  }
+}
+
+test('--count-tasks prints {"tasks": 1, "batched": false} for a one-task plan, 3 for three, batched:true for a batched plan; exit 0 (#1926 AC2)', () => {
+  const repo = makeTmpRepo();
+  try {
+    const one = writePlan(repo, '### Task 1: Only\n**Files:**\n- Modify: `a.js`\n');
+    assert.deepStrictEqual(runCount(one), { exitCode: 0, stdout: '{"tasks": 1, "batched": false}\n', stderr: '' });
+    const three = writePlan(repo, '### Task 1: A\n\n### Task 2: B\n\n### Task 3: C\n');
+    assert.deepStrictEqual(runCount(three), { exitCode: 0, stdout: '{"tasks": 3, "batched": false}\n', stderr: '' });
+    const batched = writePlan(repo, '# P\n\n**Execution:** batched\n\n### Task 1: A\n\n### Task 2: B\n');
+    assert.deepStrictEqual(runCount(batched), { exitCode: 0, stdout: '{"tasks": 2, "batched": true}\n', stderr: '' });
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('--count-tasks exits 2 for a missing plan and for a readable plan with zero tasks (#1926 Gotchas)', () => {
+  const repo = makeTmpRepo();
+  try {
+    const missing = runCount(path.join(repo, 'nope.md'));
+    assert.strictEqual(missing.exitCode, 2);
+    assert.match(missing.stderr, /cannot read plan file/);
+    const empty = writePlan(repo, '# A plan with no tasks\n');
+    const r = runCount(empty);
+    assert.strictEqual(r.exitCode, 2);
+    assert.match(r.stderr, /no parseable tasks/);
+    assert.strictEqual(r.stdout, '');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('--count-tasks never runs Checks A/B/C — a plan naming a missing path still counts and exits 0 (#1926)', () => {
+  const repo = makeTmpRepo();
+  try {
+    const plan = writePlan(repo, '### Task 1: X\n**Files:**\n- Modify: `does/not/exist.js`\n');
+    assert.deepStrictEqual(runCount(plan), { exitCode: 0, stdout: '{"tasks": 1, "batched": false}\n', stderr: '' });
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
