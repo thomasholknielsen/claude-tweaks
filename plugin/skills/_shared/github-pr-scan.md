@@ -13,7 +13,9 @@ Extracted to `_shared/forge-detection.md` (the re-read cut: a consumer needing o
 `forge-detection.md`'s check 2 ("`gh` present → proceed via the `gh` CLI. `gh` absent → a consumer with a documented MCP fallback proceeds via that path instead of stopping") applies to every scope section below, at **item granularity**, not scope granularity — every scope here mixes issue-backed and PR-backed calls, so a scope-wide skip would still throw away the half that has a real fallback:
 
 - **Issue-backed items** (`gh issue list`, `gh issue view`, `gh api .../contents/...` reads of committed blobs) — route through `_shared/github-write-transport.md`'s CRUD mapping (`list_issues` / `issue_read`) when `gh` is absent. These items run exactly as documented, on either transport.
+<!-- when: transport=mcp -->
 - **PR-backed items** (`gh pr list`, `gh pr view`, `gh pr checks`, the review-thread `gh api graphql` query, `gh api repos/.../commits`) — `_shared/github-write-transport.md`'s CRUD mapping covers issues, not pull requests, so there is no MCP fallback for these. When `gh` is absent, that item degrades **individually**: emit its own finding row noting the skip (`{prefix} PR scan skipped (item) / no MCP fallback for PR reads`, using the scope's own Output Contract prefix) and continue with the rest of the scope's items rather than skipping the whole scope. A scope whose items are entirely PR-backed (`current-pr`) therefore still degrades per-item with an explicit, documented message instead of a blanket skip at check 2 — the outcome for that scope's data is the same, but the routing decision is explicit and item-scoped rather than an implicit whole-scope short-circuit.
+<!-- /when -->
 
 This is the same posture `/tidy` Step 4.7 already applies to its own `gh`-absent case (`tidy/scan-procedures.md`) — one shared rule stated once here, not restated per scope below.
 
@@ -31,6 +33,7 @@ Keyed on `updatedAt`. Same scale as /tidy's backlog-record audit:
 
 Deep scan of the current branch's PR only, plus one cheap repo-wide count. Every item below is PR-backed (see Transport above) — on `gh`-absent, this scope has no issue-backed item to fall back to, so it degrades per-item rather than resolving to a blanket "GitHub scan skipped" at check 2: item 1 emits `[pr] PR scan skipped (item) / no MCP fallback for PR reads` and items 2-4 are skipped as a consequence (each depends on item 1's PR number or is the same class of call).
 
+<!-- when: transport=gh -->
 1. **PR lookup** — `gh pr view --json number,title,isDraft,reviewDecision,statusCheckRollup,closingIssuesReferences,url`. Non-zero exit means no PR for the current branch → emit one info row (`No open PR for current branch`), then run item 4 only.
 2. **Unresolved review threads** — resolve `{owner}` and `{repo}` via `gh repo view --json owner,name -q '.owner.login + " " + .name'`, `{number}` from item 1, then run exactly:
 
@@ -40,6 +43,7 @@ Deep scan of the current branch's PR only, plus one cheap repo-wide count. Every
 
 3. **CI checks** — `gh pr checks {number}` → count failing / pending / passing. Exit code 8 means checks are still pending; a non-zero exit that still lists checks is valid output, not a scan failure.
 4. **Repo-wide stale count (maintenance signal only)** — `gh pr list --state open --json number,updatedAt --limit 100` → total open PRs + count stale per the thresholds above. This row is routed to the caller's maintenance-signals rendering, not the Current PR dashboard section.
+<!-- /when -->
 
 Emit `[pr]` rows per the Output Contract.
 
@@ -54,7 +58,9 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 1. **Open PRs** — `gh pr list --state open --json number,title,updatedAt,isDraft,reviewDecision,headRefName,url --limit 100` → classify each per the Staleness Thresholds. A PR that is simultaneously not draft, not yet `Stale` (< 4 weeks since `updatedAt` — spans both the `Fresh` and `Review` bands, since neither currently has its own finding for a PR with nothing wrong), has zero unresolved review threads (item 2 below), and has no failing/pending CI (`gh pr checks`) gets its own finding, carrying a per-PR command rather than landing as summary-only: `[pr] PR #{n}: {title} — awaiting review — last updated {age} ago, CI {status}, 0 unresolved threads — gh pr view {n} --web`. This is informational only — see the Severity mapping and `tidy/SKILL.md`'s Step 6 routing below — but "informational" describes the *severity*, not whether the row carries a command: the trailing `gh pr view {n} --web` is what a human runs to actually look at the PR, and its absence was a confirmed gap (a bare summary sentence with zero per-PR follow-up), not a deliberate no-command finding. A PR with failing/pending CI (`gh pr checks`) or `reviewDecision: CHANGES_REQUESTED` instead gets its own finding, regardless of staleness: `[pr] PR #{n}: {title} — CI failing/pending or changes requested — CI {status}, review {reviewDecision}`. This is `high` severity per the Severity mapping below, not informational — see the Findings and recommendations table below.
 2. **Unresolved threads per open PR** — the same GraphQL query as `current-pr` item 2, once per open PR.
 3. **Code-health issues** — `gh issue list --label by:code-health --state open --json number,title,labels,updatedAt,url --limit 100`.
+<!-- when: transport=gh -->
 4. **Merged/closed PRs with local remnants** — `gh pr list --state merged --limit 50 --json number,headRefName` AND `gh pr list --state closed --limit 50 --json number,headRefName` (GitHub's PR `state` is `OPEN`/`CLOSED`/`MERGED` — mutually exclusive — so `--state closed` never overlaps `--state merged`; both queries are needed to cover "merged or closed without merging"); cross-check each `headRefName` from either result against `git -C "{REPO_ROOT}" branch --list` output.
+<!-- /when -->
 5. **Harness-health issues** — `gh issue list --label by:harness-health --state open --json number,title,labels,updatedAt,url --limit 100`.
 6. **Journey-health issues** — `gh issue list --label by:journey-health --state open --json number,title,updatedAt,url --limit 100`.
 7. **Docs-health issues** — `gh issue list --label by:docs-health --state open --json number,title,labels,updatedAt,url --limit 100`.
@@ -86,6 +92,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
 9. **Unarmed ready PR** — a green, gate-passed, granted or grantable, plugin-created PR whose `--auto` was never armed. "Plugin-created" is detected purely GitHub-side, from the PR body's `<!-- claude-tweaks-run: {run-id} -->` marker (stamped by `_shared/pr-early-run-lifecycle.md`'s PR-open template) or one of the two mechanical-housekeeping markers — `<!-- tidy-housekeeping-pr -->` (stamped by `/claude-tweaks:tidy` Step 7 at creation) or `<!-- wrap-up-residue-pr -->` (stamped by `wrap-up/residue-sweep.md`'s pr-first landing path — the same low-judgment, purely-mechanical shape as a tidy Step-7 commit, gated by the identical `housekeeping-auto-merge` lever) — no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.
 
+<!-- when: transport=gh -->
    Resolve this item's session-scoped temp paths first, per `_shared/session-tmp-root.md`:
 
    ```bash
@@ -172,6 +179,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    ```
 
    Both outcomes share the `[pr-unarmed]` prefix — the row content, not the prefix, distinguishes granted (recommends arming now) from ungranted (recommends granting first). Every row also carries the repo's `allow_auto_merge` state (`ALLOW_AUTO_MERGE`, read once above via `gh api repos/{owner}/{repo} -q .allow_auto_merge`) whenever it's `false`, so a recommendation to "arm" never implies a live `--auto` arm will succeed on a repo where it structurally can't — the degrade path still applies. **The list-time snapshot above is never trusted for the actual write**: grant labels, the `bot:blocked` exclusion (a record parked between the scan and the arm — or one whose labels the classifier's `gh issue view` loop failed to fetch and defaulted to `[]` — must still block the arm), `housekeeping-auto-merge`, and gate status (CI/draft/threads) are all re-read immediately before `gh pr merge --auto` runs, whether that arm happens interactively or via `/claude-tweaks:tidy`'s own Step 6/7 batch approval.
+<!-- /when -->
 
 10. **Unsettled run** — a claimed or `bot:in-progress`-labeled issue whose pipeline shows no evidence of progress since it was claimed, past a threshold. Detected purely GitHub-side, in three fetches:
 
@@ -310,6 +318,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 
 2. **Blocked** — `gh issue list --label bot:blocked --state open --json number --limit 200 -q 'length'`
 
+<!-- when: transport=gh -->
 3. **Auto-merged this week** — `[fast-lane]`-tagged, `[auto-merge]`-tagged, or
    `[manifesto-authorized]`-tagged commits on the *default* branch (never the current worktree's
    own branch — see the note on `worktree-always` below), last 7 days. All three skip the
@@ -329,6 +338,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    ```
 
    The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree-always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
+<!-- /when -->
 
 Render as three lines: `Pending authorization: **{N}** records awaiting your decision` / `Blocked: **{N}** records hit their retry ceiling` / `Auto-merged this week: **{N}** auto-merges` — omit any line whose count is 0.
 
