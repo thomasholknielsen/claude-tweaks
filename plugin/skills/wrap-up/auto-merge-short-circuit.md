@@ -151,7 +151,7 @@ Skip the blocking wait and merge directly — bypass the interactive
 **`integration-model: pr-first` (`_shared/integration-model.md`):** run `_shared/pr-first-merge.md`'s
 procedure now — `tag: {tag}` (see `manifesto-authorized-merge.md`'s Tag selection section) (distinct from dispatch's `auto-merge` tag; `/help`'s
 auto-merged-this-week count keys on all three, `_shared/github-pr-scan.md` `triage-queue` item 3),
-`issue-list` this one record, `summary` the record's own title. No checkout is needed — `gh pr
+`issue-list` this one record, `summary` the record's own title. Read that procedure as one composed bundle: `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step merge plugin/skills/_shared/pr-first-merge.md plugin/skills/_shared/pr-early-run-lifecycle.md`, then read `$PIPELINE_RUN_DIR/context/merge.md`; if the compose command is unavailable or exits non-zero, read the named source files directly. No checkout is needed — `gh pr
 merge` runs directly, which is what retires this section's pre-#411 `git -C "$RUN_DIR"`
 worktree/branch resolution (#299: that resolution anchored against the run dir, not the worktree —
 a defect that simply cannot recur once there is no checkout resolution step to get wrong; see the

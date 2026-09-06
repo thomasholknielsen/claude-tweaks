@@ -110,7 +110,7 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    here too would re-ask a decision already made — the same improvised-third-stop pattern
    `_shared/auto-mode-contract.md` forbids, mirroring the split `flow/worktree-merge.md` and
    `flow/multispec-review-console.md`'s Shared teardown already state. Proceed to step 4 with
-   whichever outcome the Review Console's merge step produced.
+   whichever outcome the Review Console's merge step produced. To read that procedure as one bundle: `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step merge plugin/skills/_shared/pr-first-merge.md plugin/skills/_shared/pr-early-run-lifecycle.md`, then read `$PIPELINE_RUN_DIR/context/merge.md`; if the compose command is unavailable or exits non-zero, read the named source files directly.
 
    **`integration-model: local-merge`:** verify the feature branch reached an outcome (merged, PR
    created, discarded, or explicitly kept as-is) via `/superpowers:finishing-a-development-branch`:
