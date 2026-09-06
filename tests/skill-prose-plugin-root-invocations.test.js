@@ -101,4 +101,10 @@ test('a compose-context invocation wrapped across lines is still caught when its
   assert.equal(offendersIn(wrappedSpan).length, 1);
   assert.equal(offendersIn(wrappedFence).length, 1);
   assert.equal(offendersIn(wrappedInstallSafe).length, 0);
+  // Negative control for the span anchor: a fence that names compose-context.js on one line and an
+  // unrelated plugin/skills/ path on another, with no continuation, must stay two lines — a span
+  // regex not anchored on `node ` would take the ``` opener as its delimiter, collapse the block,
+  // and report a false offender.
+  const fenceNoContinuation = '```bash\nnode "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step merge "${CLAUDE_PLUGIN_ROOT}/skills/_shared/a.md"\nls plugin/skills/_shared/\n```';
+  assert.equal(offendersIn(fenceNoContinuation).length, 0);
 });
