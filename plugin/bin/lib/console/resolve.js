@@ -26,6 +26,7 @@ const SECTIONS = {
   QUEUE: 'Queue writes',
   MEMORY: 'Memory updates',
   UPSTREAM: 'Upstream feedback',
+  REFUSED: 'Refused — no defer reason',
 };
 
 // Ordered: first match wins. Keyed on the staged file's id prefix — the
@@ -33,8 +34,15 @@ const SECTIONS = {
 // Verified against every `staged/…` prefix the skill corpus names (#1932
 // plan, decision 6). An unknown prefix is NOT in this table on purpose:
 // classifyStagedItem maps it to Pending review with reason 'unmapped-prefix'
-// so a new producer can never slip past the console.
+// so a new producer can never slip past the console. A row's optional third
+// element is a classification reason: a matched item carrying one resolves to
+// `pending` regardless of its section's stance.
 const SECTION_MAP = [
+  // A sweep-shadow collision copy — `bin/lib/hooks/sweep-shadow.js` names them
+  // `{preferred}.shadow-dup` / `{preferred}.shadow-dup-{n}` — is a duplicate of
+  // some other staged file, not a proposal of its own. First row so it wins over
+  // whatever prefix the copied name still carries; never auto-applied.
+  [/\.shadow-dup(-\d+)?$/, SECTIONS.PENDING, 'shadow-dup-collision'],
   [/^review-unconfirmed-/, SECTIONS.LOW],
   [/^review-(contested|debate)-/, SECTIONS.CONTESTED],
   [/\.patch$/, SECTIONS.PENDING],
@@ -42,7 +50,6 @@ const SECTION_MAP = [
   [/^wrap-up-skill(-|\b)/, SECTIONS.SKILL],
   [/^(wrap-up-doc|release-backfill|tidy-doc)-/, SECTIONS.DOC],
   [/^(wrap-up-journey|journeys)(-|\b)/, SECTIONS.JOURNEY],
-  [/^tidy-claude-md-rule-/, SECTIONS.CONFIG],
   [/^(reflect|digest-promotion|leftover|ledger-record|upstream-unfiled|red-team|specify-overlap|specify-redteam|flaky-allowlist|tidy|plan-retention|feedback-drafts)(-|\b)/, SECTIONS.QUEUE],
   [/^wrap-up-memory-/, SECTIONS.MEMORY],
   [/^wrap-up-upstream-/, SECTIONS.UPSTREAM],
@@ -71,12 +78,13 @@ const SECTION_STANCES = {
   [SECTIONS.QUEUE]: { resolution: 'apply', reason: 'pre-checked Apply default (batched-item-drill.md)' },
   [SECTIONS.MEMORY]: { resolution: 'apply', reason: 'pre-checked Apply default (batched-item-drill.md)' },
   [SECTIONS.UPSTREAM]: { resolution: 'filed', reason: 'unattended files upstream feedback like M#/Q# (#347)' },
+  [SECTIONS.REFUSED]: { resolution: 'refused', reason: 'no default; excluded from Approve all and from consoleAutoResolve (refused-proposals.md)' },
 };
 
 const ENGINE_ROW_SECTIONS = { skills: SECTIONS.SKILL, docs: SECTIONS.DOC, journeys: SECTIONS.JOURNEY, 'claude-md': SECTIONS.CONFIG, 'decision-records': SECTIONS.CONFIG, references: SECTIONS.REF };
 
 function classifyStagedItem(filename) {
-  for (const [re, section] of SECTION_MAP) if (re.test(filename)) return { section };
+  for (const [re, section, reason] of SECTION_MAP) if (re.test(filename)) return reason ? { section, reason } : { section };
   return { section: SECTIONS.PENDING, reason: 'unmapped-prefix' };
 }
 
@@ -136,7 +144,21 @@ function readSnapshot({ runDir, deps }) {
 }
 
 function decisionLines(decisions) {
-  return decisions.split('\n').filter((l) => /^- (AUTO|STAGED|SKIP|KEPT-PROMPT|SCANNED|FAILED) /.test(l));
+  return decisions.split('\n').filter((l) => /^- (AUTO|STAGED|SKIP|KEPT-PROMPT|SCANNED|REFUSED|FAILED) /.test(l));
+}
+
+// `refused-proposals.md`'s refused row, logged as
+// `REFUSED {time} — Queue write {Q#}: no valid Defer-reason on {staged path};
+// kept staged.` — the staged path it names IS the item. Extension-anchored the
+// same way coordinationItems is, so trailing punctuation never joins the name.
+function refusedStagedNames(decisions) {
+  const out = new Set();
+  for (const line of decisionLines(decisions)) {
+    if (!/^- REFUSED /.test(line)) continue;
+    const m = /staged\/([A-Za-z0-9_-]+\.(?:md|patch))/.exec(line);
+    if (m) out.add(m[1]);
+  }
+  return out;
 }
 
 function needsHumanVerdict(decisions) {
@@ -164,7 +186,11 @@ function mergeResolution(snapshot, deps) {
 }
 
 function stagedItems(snapshot) {
+  // Refusal is a decisions.md fact about the item, not a fact about its name —
+  // so it is decided before SECTION_MAP ever runs and outranks every stance.
+  const refused = refusedStagedNames(snapshot.decisions);
   return snapshot.staged.map((s) => {
+    if (refused.has(s.name)) return { id: s.name, section: SECTIONS.REFUSED, ...SECTION_STANCES[SECTIONS.REFUSED] };
     const { section, reason } = classifyStagedItem(s.name);
     if (reason) return { id: s.name, section, resolution: 'pending', reason };
     const stance = SECTION_STANCES[section];
@@ -222,13 +248,37 @@ function coordinationItems(snapshot, stagedIds) {
   return out;
 }
 
+// Every cell is escaped, ids included: a staged filename is producer-supplied
+// text, so an unescaped `|` in one silently splits the row.
+function cell(value) {
+  return String(value).replace(/\|/g, '\\|');
+}
+
+function renderRows({ items, cleanup, merge, intro }) {
+  const lines = ['### Wrap-Up Review Console (auto-resolved at unattended)', '', intro, '', '| # | Section | Item | Resolution | Reason |', '|---|---|---|---|---|'];
+  items.forEach((it, i) => lines.push(`| ${i + 1} | ${cell(it.section)} | ${cell(it.id)} | AUTO-RESOLVED: ${cell(it.resolution)} | ${cell(it.reason)} |`));
+  lines.push(`| ${items.length + 1} | Cleanup actions | cleanup-procedures.md items | AUTO-RESOLVED: ${cell(cleanup.resolution)} | ${cell(cleanup.reason)} |`);
+  lines.push('', `Merge: **${merge.resolution}** — ${merge.reason}`);
+  return lines.join('\n');
+}
+
 function renderTable(result) {
   const autoCount = decisionLines(result.snapshot.decisions).filter((l) => /^- AUTO /.test(l)).length;
-  const lines = ['### Wrap-Up Review Console (auto-resolved at unattended)', '', `Auto-applied entries in decisions.md: ${autoCount} (already in commits — override = revert).`, '', '| # | Section | Item | Resolution | Reason |', '|---|---|---|---|---|'];
-  result.items.forEach((it, i) => lines.push(`| ${i + 1} | ${it.section} | ${it.id} | AUTO-RESOLVED: ${it.resolution} | ${it.reason.replace(/\|/g, '\\|')} |`));
-  lines.push(`| ${result.items.length + 1} | Cleanup actions | cleanup-procedures.md items | AUTO-RESOLVED: ${result.sections.cleanup.resolution} | ${result.sections.cleanup.reason} |`);
-  lines.push('', `Merge: **${result.merge.resolution}** — ${result.merge.reason}`);
-  return lines.join('\n');
+  return renderRows({ items: result.items, cleanup: result.sections.cleanup, merge: result.merge, intro: `Auto-applied entries in decisions.md: ${autoCount} (already in commits — override = revert).` });
+}
+
+// The idempotent re-render: a console.json already carrying `resolved: true`
+// is re-shown verbatim (#1932 I3) — no snapshot is read and nothing is
+// re-resolved, so the stored items ARE the table.
+function renderStoredTable(consoleJson) {
+  const cj = consoleJson || {};
+  const items = Array.isArray(cj.items) ? cj.items : [];
+  return renderRows({
+    items,
+    cleanup: SECTION_STANCES[SECTIONS.CLEANUP],
+    merge: cj.merge || { resolution: 'unknown', reason: 'not recorded in console.json' },
+    intro: `Already resolved at ${cj.at || 'an unrecorded time'} — re-rendered from console.json; nothing re-resolved.`,
+  });
 }
 
 function resolveAll({ runDir, policy, deps }) {
@@ -243,4 +293,4 @@ function resolveAll({ runDir, policy, deps }) {
   return result;
 }
 
-module.exports = { SECTIONS, SECTION_MAP, SECTION_STANCES, classifyStagedItem, readSnapshot, resolveAll, renderTable };
+module.exports = { SECTIONS, SECTION_MAP, SECTION_STANCES, classifyStagedItem, readSnapshot, resolveAll, renderTable, renderStoredTable };

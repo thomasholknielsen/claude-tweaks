@@ -56,7 +56,7 @@ test('classifyStagedItem maps every known prefix to its console section and unkn
     'wrap-up-skill-1.md': 'Skill updates', 'wrap-up-skill-new-auth.md': 'Skill updates', 'wrap-up-skill-restructure.md': 'Skill updates',
     'wrap-up-doc-1.md': 'Documentation updates', 'release-backfill-v6.md': 'Documentation updates', 'tidy-doc-1.md': 'Documentation updates',
     'wrap-up-journey-1.md': 'Journey updates', 'journeys-convention.md': 'Journey updates',
-    'tidy-claude-md-rule-1.md': 'Configuration updates',
+    'tidy-claude-md-rule-1.md': 'Queue writes',
     'reflect-1.md': 'Queue writes', 'digest-promotion-1.md': 'Queue writes', 'leftover-add-oauth.md': 'Queue writes', 'ledger-record-1.md': 'Queue writes',
     'upstream-unfiled-1.md': 'Queue writes', 'red-team-1.md': 'Queue writes', 'specify-overlap-1.md': 'Queue writes', 'flaky-allowlist-x.md': 'Queue writes',
     'tidy-parked-1.md': 'Queue writes', 'plan-retention-1.md': 'Queue writes', 'feedback-drafts.md': 'Queue writes',
@@ -67,6 +67,8 @@ test('classifyStagedItem maps every known prefix to its console section and unkn
     assert.strictEqual(classifyStagedItem(name).reason, undefined, `${name} is mapped`);
   }
   assert.deepStrictEqual(classifyStagedItem('mystery-9.md'), { section: 'Pending review', reason: 'unmapped-prefix' });
+  assert.deepStrictEqual(classifyStagedItem('wrap-up-memory-1.md.shadow-dup'), { section: 'Pending review', reason: 'shadow-dup-collision' }, 'a sweep-shadow copy is never its original\'s section');
+  assert.deepStrictEqual(classifyStagedItem('review-2.patch.shadow-dup-2'), { section: 'Pending review', reason: 'shadow-dup-collision' });
   assert.ok(Array.isArray(SECTION_MAP) && SECTION_MAP.length > 10);
 });
 
@@ -81,7 +83,7 @@ test('resolveAll resolves one item per section per the short-circuit stances and
   assert.strictEqual(by['wrap-up-skill-1.md'].resolution, 'approve');
   assert.strictEqual(by['wrap-up-doc-1.md'].resolution, 'approve');
   assert.strictEqual(by['wrap-up-journey-1.md'].resolution, 'approve');
-  assert.strictEqual(by['tidy-claude-md-rule-1.md'].resolution, 'approve');
+  assert.strictEqual(by['tidy-claude-md-rule-1.md'].resolution, 'apply');
   assert.strictEqual(by['reflect-1.md'].resolution, 'apply');
   assert.strictEqual(by['wrap-up-memory-1.md'].resolution, 'apply');
   assert.strictEqual(by['wrap-up-upstream-1.md'].resolution, 'filed');
@@ -90,6 +92,35 @@ test('resolveAll resolves one item per section per the short-circuit stances and
   assert.deepStrictEqual(r.merge, { resolution: 'merge', reason: 'every member carries auto:merge or a matured auto:merge-pending; no needs-human verdict' });
   assert.strictEqual(r.items.length, Object.keys(EVERY_SECTION).length);
   assert.strictEqual(r.ceiling, 'unattended');
+});
+
+test('a staged item named on a REFUSED line in decisions.md resolves to refused, never its section stance (#1932 I2)', () => {
+  const decisions = '## /wrap-up\n- REFUSED 10:00:00 — Queue write Q1: no valid Defer-reason on staged/leftover-x.md; kept staged.\n';
+  const r = resolveAll({ runDir: fixture({ decisions, staged: { 'leftover-x.md': 'x', 'leftover-y.md': 'y' }, headers: [7] }), policy: 'console-auto', deps: deps() });
+  const by = Object.fromEntries(r.items.map((i) => [i.id, i]));
+  assert.strictEqual(by['leftover-x.md'].section, 'Refused — no defer reason');
+  assert.strictEqual(by['leftover-x.md'].resolution, 'refused');
+  assert.match(by['leftover-x.md'].reason, /excluded from Approve all and from consoleAutoResolve/);
+  assert.strictEqual(by['leftover-y.md'].resolution, 'apply', 'an unrefused sibling keeps its Queue writes stance');
+});
+
+test('every ENGINE_ROW_SECTIONS row classifies a staged finding into its own console section (#1932 M9)', () => {
+  const rows = { docs: 'Documentation updates', journeys: 'Journey updates', 'claude-md': 'Configuration updates', 'decision-records': 'Configuration updates' };
+  const results = {};
+  for (const rowId of Object.keys(rows)) results[rowId] = { result: 'findings', findings: [{ target: `t/${rowId}.md`, action: 'staged' }] };
+  const r = resolveAll({ runDir: fixture({ engineState: { results }, headers: [7] }), policy: 'console-auto', deps: deps() });
+  for (const [rowId, section] of Object.entries(rows)) {
+    const item = r.items.find((i) => i.id === `${rowId}:t/${rowId}.md`);
+    assert.ok(item, `${rowId} produced an item`);
+    assert.strictEqual(item.section, section, rowId);
+    assert.strictEqual(item.resolution, SECTION_STANCES[section].resolution, rowId);
+  }
+  assert.strictEqual(r.items.length, Object.keys(rows).length);
+});
+
+test('renderTable escapes a pipe in the item id, not only in the reason (#1932 M6)', () => {
+  const r = resolveAll({ runDir: fixture({ staged: { 'reflect-a|b.md': 'x' }, headers: [7] }), policy: 'console-auto', deps: deps() });
+  assert.match(r.table, /reflect-a\\\|b\.md/);
 });
 
 test('a needs-human merge-check verdict in decisions.md resolves the merge half to leave-open (#1932 AC3)', () => {
@@ -165,7 +196,7 @@ test('policy other than console-auto throws RangeError (#1932)', () => {
 });
 
 test('SECTION_STANCES names a stance for every section the console renders (#1932)', () => {
-  for (const s of ['Auto-applied', 'Pending review', 'Low-confidence findings', 'Contested findings', 'Skill updates', 'Documentation updates', 'Journey updates', 'Configuration updates', 'Reference repairs', 'Cleanup actions', 'Queue writes', 'Memory updates', 'Upstream feedback']) {
+  for (const s of ['Auto-applied', 'Pending review', 'Low-confidence findings', 'Contested findings', 'Skill updates', 'Documentation updates', 'Journey updates', 'Configuration updates', 'Reference repairs', 'Cleanup actions', 'Queue writes', 'Memory updates', 'Upstream feedback', 'Refused — no defer reason']) {
     assert.ok(SECTION_STANCES[s] && typeof SECTION_STANCES[s].resolution === 'string', s);
   }
 });
