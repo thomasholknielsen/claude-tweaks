@@ -63,6 +63,7 @@ function parseArgs(argv) {
   if (stampStatus && cmds.length) throw new UsageError('--stamp-status takes no --cmd');
   if (changedFiles && cmds.length) throw new UsageError('--changed-files takes no --cmd');
   if (changedFiles && scope !== null) throw new UsageError('--changed-files takes no --scope');
+  if (changedFiles && gitDir !== null) throw new UsageError('--changed-files takes no --git-dir');
   if (changedFiles && stampStatus) throw new UsageError('--changed-files and --stamp-status are separate modes');
   // L12 (review, #1922): --base/--integration-branch only mean anything
   // alongside --scope, and --stamp-status is a read-only mode that takes

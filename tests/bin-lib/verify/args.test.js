@@ -152,6 +152,7 @@ test('--changed-files is a read-only mode: no --cmd, no --scope, not with --stam
   assert.strictEqual(parseArgs(['--cmd', 'tests=x']).changedFiles, false);
   assert.throws(() => parseArgs(['--changed-files', '--cmd', 'tests=x']), UsageError);
   assert.throws(() => parseArgs(['--changed-files', '--scope', 's.json']), UsageError);
+  assert.throws(() => parseArgs(['--changed-files', '--git-dir', '/g']), UsageError);
   assert.throws(() => parseArgs(['--changed-files', '--stamp-status']), UsageError);
   assert.ok(USAGE.includes('--changed-files'));
 });

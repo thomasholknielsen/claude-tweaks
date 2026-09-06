@@ -253,6 +253,7 @@ test('--stamp-status reports match/mismatch/absent as data with exit 0 (#1921 AC
   const a = JSON.parse(absent.stdout);
   assert.strictEqual(a.present, false);
   assert.strictEqual(a.match, false);
+  assert.strictEqual(a.verifiedHead, false);
 
   await runCli(['--cmd', 'tests=node -e 0'], { cwd: repo });
   const matched = await runCli(['--stamp-status'], { cwd: repo });
@@ -260,6 +261,7 @@ test('--stamp-status reports match/mismatch/absent as data with exit 0 (#1921 AC
   const m = JSON.parse(matched.stdout);
   assert.strictEqual(m.present, true);
   assert.strictEqual(m.match, true);
+  assert.strictEqual(m.verifiedHead, true, '#1923: a full pass answers verifiedHead true, same as match');
   assert.strictEqual(m.sha, git('rev-parse', 'HEAD').trim());
   assert.strictEqual(m.head, m.sha);
   assert.strictEqual(m.dirty, false);
@@ -273,6 +275,7 @@ test('--stamp-status reports match/mismatch/absent as data with exit 0 (#1921 AC
   const v = JSON.parse(moved.stdout);
   assert.strictEqual(v.present, true);
   assert.strictEqual(v.match, false);
+  assert.strictEqual(v.verifiedHead, false, '#1923: a moved HEAD is never verified, even for a full-scope stamp');
   assert.notStrictEqual(v.head, v.sha);
   assert.ok(fs.existsSync(path.join(gitDir, 'claude-tweaks-verify-pass.json')));
 });
@@ -287,6 +290,7 @@ test('--stamp-status recomputes dirty from the live tree — a dirty edit with n
   assert.strictEqual(s.present, true);
   assert.strictEqual(s.dirty, true);
   assert.strictEqual(s.match, false);
+  assert.strictEqual(s.verifiedHead, false, '#1923: a dirty tree is never verified');
 });
 
 test('--stamp-status honors --git-dir and reads a legacy bare-SHA stamp as scope full (#1921)', async () => {
@@ -299,6 +303,7 @@ test('--stamp-status honors --git-dir and reads a legacy bare-SHA stamp as scope
   assert.strictEqual(s.legacy, true);
   assert.strictEqual(s.scope, 'full');
   assert.strictEqual(s.match, true);
+  assert.strictEqual(s.verifiedHead, true);
   assert.strictEqual(s.reportPath, null);
 });
 
@@ -317,6 +322,7 @@ test('--stamp-status --git-dir pointing at a foreign checkout never matches (#19
   const s = JSON.parse(stdout);
   assert.strictEqual(s.present, true);
   assert.strictEqual(s.match, false);
+  assert.strictEqual(s.verifiedHead, false, '#1923: a foreign --git-dir is never verifiedHead either');
 });
 
 test('--stamp-status outside any checkout prints present:false and exits 0 (#1921 Gotchas)', async () => {
@@ -325,6 +331,7 @@ test('--stamp-status outside any checkout prints present:false and exits 0 (#192
   const s = JSON.parse(stdout);
   assert.strictEqual(s.present, false);
   assert.strictEqual(s.match, false);
+  assert.strictEqual(s.verifiedHead, false, '#1923: verifiedHead exists (false) even absent a checkout');
   assert.strictEqual(s.head, null);
 });
 
@@ -370,6 +377,7 @@ test('a passing full-set run on a DIRTY tree still writes both stamp files, and 
   assert.strictEqual(s.present, true);
   assert.strictEqual(s.dirty, true);
   assert.strictEqual(s.match, false);
+  assert.strictEqual(s.verifiedHead, false, '#1923: a dirty tree is never verified even for a full-scope stamp');
 });
 
 // Review fix round 1, finding 2 (superseded by the #1921 final review, finding
@@ -691,7 +699,74 @@ test('a --scope run at an unchanged HEAD never downgrades the prior full stamp (
   );
 
   const status = await runCli(['--stamp-status'], { cwd: r.repo });
-  assert.strictEqual(JSON.parse(status.stdout).match, true);
+  const s = JSON.parse(status.stdout);
+  assert.strictEqual(s.match, true);
+  assert.strictEqual(s.verifiedHead, true);
+});
+
+// #1923 A1: --stamp-status's own "is HEAD verified" answer for a passing
+// scoped run — match stays strictly full-pass (false here), but
+// verifiedHead is true because the scoped run's fullSha anchor is still an
+// ancestor of HEAD. A repeat of the identical scoped invocation must not
+// loop: it still exits 0 and verifiedHead stays true.
+test('--stamp-status: verifiedHead is true after a passing scoped run, and a repeat scoped invocation does not loop (#1923)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['unit'], static: true }]);
+  const fullArgs = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
+  const run1 = await runCli(fullArgs, { cwd: r.repo });
+  assert.strictEqual(run1.code, 0, run1.stderr);
+  fs.unlinkSync(r.marker); // untracked; must not linger as an uncommitted change.
+
+  commitFile(r, 'src/a.js', 'module.exports = 1;');
+  const scopedArgs = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`];
+  const run2 = await runCli(scopedArgs, { cwd: r.repo });
+  assert.strictEqual(run2.code, 0, run2.stderr);
+  assert.match(run2.stdout, /^Scope: scoped/m);
+  fs.unlinkSync(r.marker); // untracked; must not linger for the next diff.
+
+  const status1 = await runCli(['--stamp-status'], { cwd: r.repo });
+  assert.strictEqual(status1.code, 0);
+  const s1 = JSON.parse(status1.stdout);
+  assert.strictEqual(s1.scope, 'scoped');
+  assert.strictEqual(s1.match, false);
+  assert.strictEqual(s1.verifiedHead, true);
+
+  // Re-running the identical scoped invocation must not loop: HEAD hasn't
+  // moved since run2, so this exits 0 and verifiedHead is still true
+  // afterward (whether this second pass itself lands as 'scoped' or 'none').
+  const run3 = await runCli(scopedArgs, { cwd: r.repo });
+  assert.strictEqual(run3.code, 0, run3.stderr);
+  if (fs.existsSync(r.marker)) fs.unlinkSync(r.marker); // untracked; a leftover marker would read as a dirty tree.
+  const status2 = await runCli(['--stamp-status'], { cwd: r.repo });
+  assert.strictEqual(status2.code, 0);
+  assert.strictEqual(JSON.parse(status2.stdout).verifiedHead, true);
+});
+
+// #1923 A1: a history rewrite on top of a scoped stamp moves HEAD out from
+// under the stamp's own sha, so the runner can no longer call HEAD verified
+// — mirrors the full-run history-rewrite coverage above (#1922 re-review),
+// but for a stamp whose scope is 'scoped' rather than 'full'.
+test('--stamp-status: an amend on top of a scoped stamp makes verifiedHead false (#1923)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['unit'], static: true }]);
+  const fullArgs = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
+  const run1 = await runCli(fullArgs, { cwd: r.repo });
+  assert.strictEqual(run1.code, 0, run1.stderr);
+  fs.unlinkSync(r.marker); // untracked; must not linger as an uncommitted change.
+
+  commitFile(r, 'src/a.js', 'module.exports = 1;');
+  const scopedArgs = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`];
+  const run2 = await runCli(scopedArgs, { cwd: r.repo });
+  assert.strictEqual(run2.code, 0, run2.stderr);
+  fs.unlinkSync(r.marker); // untracked; must not linger for the next diff.
+
+  const before = await runCli(['--stamp-status'], { cwd: r.repo });
+  assert.strictEqual(JSON.parse(before.stdout).verifiedHead, true);
+
+  r.git('commit', '--amend', '--allow-empty', '-q', '-m', 'rewritten');
+  const after = await runCli(['--stamp-status'], { cwd: r.repo });
+  assert.strictEqual(after.code, 0);
+  const s = JSON.parse(after.stdout);
+  assert.strictEqual(s.match, false);
+  assert.strictEqual(s.verifiedHead, false, 'the anchor is no longer an ancestor of the rewritten HEAD');
 });
 
 // Review fix H3: a tool-scoped run's "tests" count is not comparable to a

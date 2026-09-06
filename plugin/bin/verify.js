@@ -76,6 +76,16 @@ function stampStatus(parsed) {
   const resolvedOwnGitDir = ownGitDir ? realpathOrNull(ownGitDir) : null;
   const foreignGitDir = Boolean(parsed.gitDir)
     && (requestedGitDir === null || resolvedOwnGitDir === null || requestedGitDir !== resolvedOwnGitDir);
+  const match = !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false && scope === 'full';
+  // verifiedHead (#1923): "HEAD is verified" for the re-verify sites — a
+  // clean HEAD covered either by a full pass (match) or by a passing
+  // scoped/none/static-only/tool-scoped run whose fullSha anchor is still an
+  // ancestor of HEAD (the scoped run verified exactly the delta since that
+  // anchor). Never true for a foreign --git-dir, a dirty tree, or a stamp
+  // whose anchor a history rewrite stranded. `match` keeps its strict
+  // full-pass meaning; Skip-if-recent and /review Step 1.5 read this field.
+  const verifiedHead = !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false
+    && (scope === 'full' || usableAnchor({ stamp }) !== null);
   const status = {
     present,
     sha: present ? stamp.sha : null,
@@ -83,7 +93,8 @@ function stampStatus(parsed) {
     dirty: git.dirty,
     scope,
     fullSha: present ? (stamp.fullSha === undefined ? stamp.sha : stamp.fullSha) : null,
-    match: !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false && scope === 'full',
+    match,
+    verifiedHead,
     reportPath: present && typeof stamp.reportPath === 'string' ? stamp.reportPath : null,
     legacy: present ? stamp.legacy === true : false,
   };
