@@ -8,7 +8,8 @@ const { detectWorkspace, composeStarter, diffAgainstWorkspace, BOOKKEEPING_RULES
 const { readDeclaration } = require(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'declaration.js'));
 
 // An in-memory fs keyed by absolute path; directories are listed from the file map.
-function memFs(files) {
+// `symlinks` names entries that list as symbolic links (never as directories).
+function memFs(files, symlinks = []) {
   const has = (p) => Object.prototype.hasOwnProperty.call(files, p);
   return {
     readFileSync: (p) => { if (!has(p)) { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; } return files[p]; },
@@ -16,7 +17,12 @@ function memFs(files) {
     readdirSync: (p, opts) => {
       const names = new Set();
       for (const f of Object.keys(files)) if (f.startsWith(`${p}/`)) names.add(f.slice(p.length + 1).split('/')[0]);
-      return [...names].map((name) => (opts && opts.withFileTypes ? { name, isDirectory: () => Object.keys(files).some((f) => f.startsWith(`${p}/${name}/`)) } : name));
+      for (const s of symlinks) if (path.posix.dirname(s) === p) names.add(path.posix.basename(s));
+      return [...names].map((name) => (opts && opts.withFileTypes ? {
+        name,
+        isSymbolicLink: () => symlinks.includes(`${p}/${name}`),
+        isDirectory: () => !symlinks.includes(`${p}/${name}`) && Object.keys(files).some((f) => f.startsWith(`${p}/${name}/`)),
+      } : name));
     },
   };
 }
@@ -202,6 +208,54 @@ test('a `dir/**` walk cut off by MAX_WALK_DEPTH reports it in `skipped` (N7)', (
   const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files) });
   assert.deepStrictEqual(ws.packages, []);
   assert.deepStrictEqual(ws.skipped, [{ glob: 'deep/**', reason: 'walk depth limit reached (6) — deeper packages not scanned' }]);
+});
+
+test('a pnpm-workspace.yaml that exists but cannot be read is treated as absent, never thrown (review 3c)', () => {
+  const base = memFs({
+    '/w/package.json': JSON.stringify({ name: 'root', workspaces: ['apps/*'] }),
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api', scripts: { test: 'vitest run' } }),
+  });
+  const fsImpl = {
+    ...base,
+    existsSync: (p) => p === '/w/pnpm-workspace.yaml' || base.existsSync(p),
+    readFileSync: (p) => { if (p === '/w/pnpm-workspace.yaml') { const e = new Error('EACCES'); e.code = 'EACCES'; throw e; } return base.readFileSync(p); },
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl });
+  assert.strictEqual(ws.tool, 'npm');
+  assert.deepStrictEqual(ws.packages.map((p) => p.name), ['api']);
+});
+
+test('an unparseable root package.json is surfaced in skipped, not merged with "no workspace" (review 3c)', () => {
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs({ '/w/package.json': '{ not json' }) });
+  assert.strictEqual(ws.tool, null);
+  assert.deepStrictEqual(ws.skipped, [{ path: 'package.json', reason: 'unparseable package.json' }]);
+});
+
+test('a package whose name or path is not shell-safe is skipped with a reason and never becomes a suite (review 3b)', () => {
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs({
+    '/w/pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - packages/shared\n",
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api; touch /tmp/pwned', scripts: { test: 'vitest run' } }),
+    '/w/apps/web/package.json': JSON.stringify({ name: '@scope/web', scripts: { test: 'vitest run' } }),
+    '/w/packages/shared/package.json': JSON.stringify({ name: 'shared' }),
+  }) });
+  assert.deepStrictEqual(ws.packages.map((p) => p.name), ['@scope/web', 'shared']);
+  assert.deepStrictEqual(ws.skipped, [{ path: 'apps/api', reason: 'package name or path is not shell-safe — not proposed as a suite' }]);
+  const decl = composeStarter({ workspace: ws });
+  assert.deepStrictEqual(Object.keys(decl.checks.tests), ['@scope/web']);
+});
+
+test('a symlinked workspace entry is reported in skipped rather than silently dropped, for `dir/*` and `dir/**` alike (review 3b)', () => {
+  const files = {
+    '/w/pnpm-workspace.yaml': "packages:\n  - 'apps/*'\n  - 'libs/**'\n",
+    '/w/apps/api/package.json': JSON.stringify({ name: 'api', scripts: { test: 'vitest run' } }),
+    '/w/libs/core/package.json': JSON.stringify({ name: 'core', scripts: { test: 'vitest run' } }),
+  };
+  const ws = detectWorkspace({ root: '/w', fsImpl: memFs(files, ['/w/apps/linked', '/w/libs/vendored']) });
+  assert.deepStrictEqual(ws.packages.map((p) => p.name), ['api', 'core']);
+  assert.deepStrictEqual(ws.skipped, [
+    { path: 'apps/linked', reason: 'symlinked entry not followed' },
+    { path: 'libs/vendored', reason: 'symlinked entry not followed' },
+  ]);
 });
 
 test('AC1 literal fixture: packages/shared without a test script — checks.tests is exactly api+web, shared rule stays "*" (A8)', () => {

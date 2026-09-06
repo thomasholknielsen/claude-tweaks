@@ -15,10 +15,11 @@
 // exact path from the result. detectWorkspace also returns `skipped` — per
 // parse-signal-discipline, a glob that expanded to zero directories, a glob
 // whose recursive walk was cut off by MAX_WALK_DEPTH before it finished, a
-// directory with no or unparseable package.json, a package.json with no
-// string `name`, or an unsupported `!` exclusion are distinguishable from
-// "this workspace legitimately has nothing here": they're surfaced, not
-// silently dropped into the same empty result. A single-package repo with no
+// directory with no or unparseable package.json (the root's included), a
+// package.json with no string `name`, a name or path that is not shell-safe,
+// a symlinked entry (never followed), or an unsupported `!` exclusion are
+// distinguishable from "this workspace legitimately has nothing here":
+// they're surfaced, not silently dropped into the same empty result. A single-package repo with no
 // workspace but a root `test` script still falls back to that script's
 // string form (composeStarter), and diffAgainstWorkspace treats that
 // string-form `suites: ['tests']` sentinel as non-extra when no package is
@@ -37,9 +38,18 @@ const BOOKKEEPING_RULES = [
   'docs/superpowers/specs/**',
 ];
 
-function readJson(fsImpl, file) {
-  try { return JSON.parse(fsImpl.readFileSync(file, 'utf8')); } catch { return null; }
+// Read-and-catch, never exists-then-read: a file that vanishes or loses
+// permission between the two calls is "absent" here, not an uncaught throw
+// (docs/donts.md's TOCTOU rule; sibling sessions prune concurrently).
+function readText(fsImpl, file) {
+  try { return String(fsImpl.readFileSync(file, 'utf8')); } catch { return null; }
 }
+
+// A package name outside npm's own grammar, or a member path with anything
+// beyond path characters, is never interpolated into a suite command —
+// suiteCommand's output runs through a shell verbatim (verify/run.js).
+const SAFE_PACKAGE_NAME = /^(@[a-z0-9~][a-z0-9._~-]*\/)?[a-z0-9~][a-z0-9._~-]*$/i;
+const SAFE_PACKAGE_PATH = /^[A-Za-z0-9@._-]+(\/[A-Za-z0-9@._-]+)*$/;
 
 function exists(fsImpl, file) {
   try { return fsImpl.existsSync(file); } catch { return false; }
@@ -82,15 +92,16 @@ const MAX_WALK_DEPTH = 6;
 // mutable {hit} record: set true the moment the walk is cut off by the
 // depth bound, so the caller can report that packages beyond it may exist
 // unscanned rather than reading a shallow result as exhaustive.
-function walkForPackageDirs(fsImpl, root, relDir, depth, found, limitHit) {
+function walkForPackageDirs(fsImpl, root, relDir, depth, found, limitHit, symlinks) {
   if (exists(fsImpl, path.join(root, relDir, 'package.json'))) found.push(relDir.replace(/\\/g, '/'));
   if (depth >= MAX_WALK_DEPTH) { limitHit.hit = true; return; }
   let entries;
   try { entries = fsImpl.readdirSync(path.join(root, relDir), { withFileTypes: true }); } catch { return; }
   for (const e of entries) {
+    if (e.isSymbolicLink()) { symlinks.push(`${relDir}/${e.name}`); continue; }
     if (!e.isDirectory()) continue;
     if (e.name === 'node_modules' || e.name === '.git' || e.name.startsWith('.')) continue;
-    walkForPackageDirs(fsImpl, root, `${relDir}/${e.name}`, depth + 1, found, limitHit);
+    walkForPackageDirs(fsImpl, root, `${relDir}/${e.name}`, depth + 1, found, limitHit, symlinks);
   }
 }
 
@@ -114,29 +125,34 @@ function isRootGlobMember(glob) {
 // dir/node_modules/.git/dot-dirs skipped). A `.`/`./` member — the repo root
 // itself — is always skipped: its tree is the whole repo, never one member
 // among others. Anything else with a `*` is ignored — the starter proposes,
-// it never guesses. Returns `{dirs, limitHit}`: limitHit is only ever true
-// for a `/**` walk cut off by MAX_WALK_DEPTH.
+// it never guesses. Returns `{dirs, limitHit, symlinks}`: limitHit is only
+// ever true for a `/**` walk cut off by MAX_WALK_DEPTH; symlinks lists the
+// entries neither shape follows (a symlinked member is surfaced, not
+// silently dropped — the walk never leaves the tree it was given).
 function expandGlob(fsImpl, root, glob) {
-  if (isRootGlobMember(glob)) return { dirs: [], limitHit: false };
+  const none = { dirs: [], limitHit: false, symlinks: [] };
+  if (isRootGlobMember(glob)) return none;
   const clean = glob.replace(/\/+$/, '');
   if (clean.endsWith('/**')) {
     const parent = clean.slice(0, -3);
     const found = [];
+    const symlinks = [];
     const limitHit = { hit: false };
-    walkForPackageDirs(fsImpl, root, parent, 0, found, limitHit);
-    return { dirs: found.sort(), limitHit: limitHit.hit };
+    walkForPackageDirs(fsImpl, root, parent, 0, found, limitHit, symlinks);
+    return { dirs: found.sort(), limitHit: limitHit.hit, symlinks };
   }
   if (clean.endsWith('/*')) {
     const parent = clean.slice(0, -2);
     let entries;
-    try { entries = fsImpl.readdirSync(path.join(root, parent), { withFileTypes: true }); } catch { return { dirs: [], limitHit: false }; }
+    try { entries = fsImpl.readdirSync(path.join(root, parent), { withFileTypes: true }); } catch { return none; }
+    const symlinks = entries.filter((e) => e.isSymbolicLink()).map((e) => `${parent}/${e.name}`);
     const dirs = entries
-      .filter((e) => e.isDirectory() && e.name !== 'node_modules' && e.name !== '.git' && !e.name.startsWith('.'))
+      .filter((e) => !e.isSymbolicLink() && e.isDirectory() && e.name !== 'node_modules' && e.name !== '.git' && !e.name.startsWith('.'))
       .map((e) => `${parent}/${e.name}`);
-    return { dirs, limitHit: false };
+    return { dirs, limitHit: false, symlinks };
   }
-  if (clean.includes('*')) return { dirs: [], limitHit: false };
-  return { dirs: [clean], limitHit: false };
+  if (clean.includes('*')) return none;
+  return { dirs: [clean], limitHit: false, symlinks: [] };
 }
 
 // Distinguishes "no package.json here" from "package.json exists but is not
@@ -155,12 +171,22 @@ function readPackageAt(fsImpl, root, rel) {
 function detectWorkspace({ root, fsImpl = fs }) {
   let tool = null;
   let globs = [];
-  const pnpmFile = path.join(root, 'pnpm-workspace.yaml');
-  if (exists(fsImpl, pnpmFile)) {
+  const packages = [];
+  const skipped = [];
+  const exclusions = [];
+  const pnpmText = readText(fsImpl, path.join(root, 'pnpm-workspace.yaml'));
+  if (pnpmText !== null) {
     tool = 'pnpm';
-    globs = pnpmGlobs(String(fsImpl.readFileSync(pnpmFile, 'utf8')));
+    globs = pnpmGlobs(pnpmText);
   } else {
-    const rootPkg = readJson(fsImpl, path.join(root, 'package.json'));
+    // Same three-way split as readPackageAt: absent, unparseable, and
+    // parseable-without-workspaces are different reasons for "no workspace",
+    // and only the middle one is worth a skipped entry.
+    const rootText = readText(fsImpl, path.join(root, 'package.json'));
+    let rootPkg = null;
+    if (rootText !== null) {
+      try { rootPkg = JSON.parse(rootText); } catch { skipped.push({ path: 'package.json', reason: 'unparseable package.json' }); }
+    }
     const ws = rootPkg && rootPkg.workspaces;
     const list = Array.isArray(ws) ? ws : (ws && Array.isArray(ws.packages) ? ws.packages : null);
     if (list) {
@@ -168,9 +194,6 @@ function detectWorkspace({ root, fsImpl = fs }) {
       globs = list;
     }
   }
-  const packages = [];
-  const skipped = [];
-  const exclusions = [];
   for (const glob of globs) {
     if (isRootGlobMember(glob)) continue;
     if (glob.startsWith('!')) {
@@ -179,6 +202,7 @@ function detectWorkspace({ root, fsImpl = fs }) {
       continue;
     }
     const expanded = expandGlob(fsImpl, root, glob);
+    for (const link of expanded.symlinks) skipped.push({ path: link, reason: 'symlinked entry not followed' });
     if (expanded.limitHit) {
       skipped.push({ glob, reason: `walk depth limit reached (${MAX_WALK_DEPTH}) — deeper packages not scanned` });
     } else if (expanded.dirs.length === 0) {
@@ -187,11 +211,16 @@ function detectWorkspace({ root, fsImpl = fs }) {
     }
     for (const rel of expanded.dirs) {
       const { pkg, reason } = readPackageAt(fsImpl, root, rel);
-      if (reason) { skipped.push({ path: rel.replace(/\\/g, '/'), reason }); continue; }
+      const relPath = rel.replace(/\\/g, '/');
+      if (reason) { skipped.push({ path: relPath, reason }); continue; }
+      if (!SAFE_PACKAGE_NAME.test(pkg.name) || !SAFE_PACKAGE_PATH.test(relPath)) {
+        skipped.push({ path: relPath, reason: 'package name or path is not shell-safe — not proposed as a suite' });
+        continue;
+      }
       const test = pkg.scripts && pkg.scripts.test;
       packages.push({
         name: pkg.name,
-        path: rel.replace(/\\/g, '/'),
+        path: relPath,
         hasTest: typeof test === 'string' && test.trim() !== '',
         dependencies: Object.keys(pkg.dependencies || {}),
       });
