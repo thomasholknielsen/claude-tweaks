@@ -284,7 +284,15 @@ function parseComposeCallLine(line, repoRoot) {
   // a read outside the corpus (docs/donts.md's path-decision rule, #1678).
   const root = path.resolve(repoRoot);
   const sources = rawSources.map((src) => path.resolve(root, src.slice(PLUGIN_ROOT_PREFIX.length)));
-  const escaped = sources.find((p) => { const rel = path.relative(root, p); return rel === '' || rel.startsWith('..') || path.isAbsolute(rel); });
+  // Contained means strictly beneath `root`, and `path.relative` names the
+  // three ways out: `''` (the token resolved to `root` itself — a bare
+  // `${CLAUDE_PLUGIN_ROOT}/`), a `..` walk up out of it, and (win32,
+  // cross-drive) an absolute rel, i.e. no relative path back at all.
+  const escapesRoot = (source) => {
+    const rel = path.relative(root, source);
+    return rel === '' || rel.startsWith('..') || path.isAbsolute(rel);
+  };
+  const escaped = sources.find(escapesRoot);
   if (escaped) return { unparsed: true, reason: `source path escapes the plugin root: ${escaped}` };
   return { step, sources };
 }
