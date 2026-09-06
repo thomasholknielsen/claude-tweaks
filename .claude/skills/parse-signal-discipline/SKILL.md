@@ -67,6 +67,17 @@ When mechanizing a prose heuristic into a deterministic check:
    looks for at all (e.g. no Step 2 heading whatsoever). The risk is specifically when the input
    has *some* of the expected shape but not enough to parse confidently — that's the case that
    needs its own signal.
+4. **An optional declaration file that was never read is the same collapse, one level up.** The rule
+   is not confined to a parser's return value: any check whose allowlist, threshold, or exclusion
+   set comes from an *optional* config file owes the same distinction between "no declaration was
+   read at all" and "the declaration was read and lists none". `plugin/bin/verify.js`'s count-stamp
+   block (#1925) passes `decl ? decl.flaky.files : null` into `nextFlakyHits` and says why in a
+   comment beside it — an `[]` there would have meant "the allowlist is empty", so a run without
+   `--scope` (or with `--scope` pointing at a missing file) silently wiped every accumulated
+   `flakyHits` count instead of carrying them forward untouched. That defect shipped, and the
+   whole-branch review caught it by running the CLI twice — once with a declaration, once without —
+   and diffing the stamp. Pass `null`, or another shape the callee branches on explicitly; never the
+   same empty collection the populated-but-empty case produces.
 
 ## When to use
 
