@@ -36,6 +36,9 @@ test('manifesto.md renders the auto FYI table from preflight.levers and lists th
   const t = read('plugin/skills/flow/manifesto.md');
   assert.match(t, /preflight\.levers/);
   assert.match(t, /preflight\.json/);
+  assert.match(t, /run-config/);
+  assert.match(t, /`header`/);
+  assert.match(t, /unresolved/);
   assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
 });
 

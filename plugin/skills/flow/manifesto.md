@@ -59,7 +59,7 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 
 Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (9), **Model stance** (10) — they affect every pipeline.
 
-When a lever is suppressed, mention it once in the Suppressed footer below the table so the user knows it was considered and dropped.
+When suppressed, mention it once in the Suppressed footer so the user knows it was considered and dropped.
 
 ## Present the Manifesto
 
@@ -67,7 +67,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 
 **In default `auto` mode, render the FYI variant instead:** show the same preview + policy-levers tables, but change the heading to `### Pipeline Config (auto)`, drop the approval call entirely, and close with a single line — `→ proceeding (no approval needed) · run with \`confirm\` to review/override`. Then continue to Step 4. Do not wait for input.
 
-**Lever values come from the pack when adopted (#1931).** If `preflight.json` exists for this run, read Recommended values from `preflight.levers` (and lever 1 from `mode`) instead of re-resolving. A fresh run resolves as below.
+**Lever values come from the pack (#1931).** When `{run-dir}/preflight.json` exists for this run (an adopted run directory — `steps-and-gates.md`'s adoption section ran `flow-preflight.js`), fill the policy-levers table's Recommended column from `preflight.levers` (`value`) and the log line's source from its `source` (`run-config` | `policy` | `default`; `ceremony-profile`'s source is `header`), and lever 1 from the pack's `mode`; do not re-resolve any lever with `resolve-policy.js`. A lever entry carrying `error` renders its Recommended cell as `unresolved` and is logged, never guessed. A fresh run (no pack — case 5 created the directory) resolves the levers as this file already describes.
 
 ```markdown
 ### Pipeline Config Manifesto
@@ -131,24 +131,23 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | Lever | Default | Why |
 |---|---|---|
 | Mode | `auto` | User invoked `/flow auto`; only here if they did |
-| Scope-creep | `add-to-plan` | Safest: never silently drop work the user mentioned |
+| Scope-creep | `add-to-plan` | Never silently drops mentioned work |
 | Overlap | `companion` | Safest: never overwrite or silently extend; create a new spec |
 | Design intent | `none` | No creative direction unless user opts in |
-| Leftover routing | `defer` | Reversible; user reviews at Wrap-Up Review Console |
-| Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic test failures need judgment |
-| Review auto-apply ceiling | ceiling-conditional: `medium` when the resolved `autonomy` ceiling is `unattended`, `low` otherwise (`_shared/autonomy-ceiling.md`) | Auto LOW (nits), stage MED, prompt HIGH — but an unattended run has nobody present to answer staged MED items, so the ceiling raises the default there. Computing it here, not only in `step3-routing.md`, is load-bearing: the Manifesto writes this lever into `config.yml`, which resolves as `source: run-config` downstream — a flat `low` written here would make step3's own ceiling-conditional branch (which fires only on `source: default`) unreachable on exactly the runs it was designed for |
-| Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward-facing GitHub writes still stage (`conservative` is the opt-down) |
-| Model stance | `default` | No effort shift, no Frontier degrade; the resolver's own table rows apply unmodified |
-| Merge verification | derived (`resolve-policy.js --run "$PIPELINE_RUN_DIR" --values merge-verification`) | The ladder in `_shared/policy-schema-coverage.md`'s coverage block already encodes the safe answer per repo shape; no hardcoded literal |
-| Merge authorization | `ask` | Never a `policy.yml` default — only a live `confirm`/`hybrid` override sets it; why: `wrap-up/manifesto-authorized-merge.md`'s "Why policy.yml is excluded" section |
-| Design critique | `auto` | Critics run when the project shows design investment (`DESIGN.md`) or the record asks (`Design-intent:`); `full`/`off` are explicit opt-in/opt-out |
+| Leftover routing | `defer` | Reversible at the Review Console |
+| Auto-fix threshold | `lint+type` | Mechanical fixes only; semantic failures need judgment |
+| Review auto-apply ceiling | ceiling-conditional: `medium` when the resolved `autonomy` ceiling is `unattended`, `low` otherwise (`_shared/autonomy-ceiling.md`) | Auto LOW, stage MED, prompt HIGH; an unattended run has nobody to answer staged MED, so the default raises there. Computed here, not only in `step3-routing.md` — writing it to `config.yml` resolves as `source: run-config` downstream, and a flat `low` here would make step3's ceiling branch (fires only on `source: default`) unreachable for the runs it targets |
+| Tidy aggressiveness | `moderate` | Reversible git-tracked cleanups auto-apply; outward GitHub writes stage (`conservative` opts down) |
+| Model stance | `default` | No effort shift or Frontier degrade; the resolver's table applies unmodified |
+| Merge verification | derived (`resolve-policy.js --run "$PIPELINE_RUN_DIR" --values merge-verification`) | `_shared/policy-schema-coverage.md`'s coverage-block ladder already encodes the safe answer per repo shape — no hardcoded literal |
+| Merge authorization | `ask` | Never a `policy.yml` default — a live `confirm`/`hybrid` override sets it (`wrap-up/manifesto-authorized-merge.md`'s "Why policy.yml is excluded" section) |
+| Design critique | `auto` | Critics run when the project shows design investment (`DESIGN.md`) or the record asks (`Design-intent:`); `full`/`off` opt in/out explicitly |
 
-`ceremony-profile` (lever 9) has no row here — its source is always `header` (the bundle-folded
-`ceremony:` value from each record's materialized header), never `arg`/`policy`/`default`. That is
-what "always-present label" buys: `/claude-tweaks:specify` stamps `ceremony:*` on every record it
-shapes, so the header always carries a value and there is nothing for a default to fill in. Was
-`docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`'s "Promoting `ceremony:`
-to an explicit, always-present label" — deleted `70849915`.
+`ceremony-profile` (lever 9) has no row here — its source is always `header` (folded from each
+record's materialized `ceremony:` field), never `arg`/`policy`/`default`: `/claude-tweaks:specify`
+stamps `ceremony:*` on every record, so the header always has a value and there's nothing for a
+default to fill. From `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tiering-design.md`'s
+"Promoting `ceremony:` to an explicit, always-present label" — deleted `70849915`.
 
 ## Approval flow
 
@@ -176,7 +175,7 @@ spec: 42
 created: 2026-05-15T143207
 ```
 
-Suppressed levers are still written to `config.yml` with their default values — suppression is a UI affordance, not a semantic skip. Downstream skills always have a value to read.
+Suppressed levers still write to `config.yml` with default values — suppression is a UI affordance, not a semantic skip; downstream skills always have a value to read.
 
 Initialize `decisions.md` in the same directory with the config snapshot header (see `_shared/auto-decision-log.md`). Create the `staged/` subdirectory.
 
@@ -187,18 +186,17 @@ Initialize `decisions.md` in the same directory with the config snapshot header 
 - Run directory: `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` — created via
   `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "{spec-slug}" --create`
   (`_shared/pipeline-run-dir.md`'s Anchoring section), **never** by composing `$RUN_ROOT` from the
-  current directory. This is not optional bookkeeping: `/claude-tweaks:dispatch` Step 5 enters a group's worktree *before*
-  dispatching this Manifesto step, so a bare relative path here would
-  create the run directory inside that worktree — exactly the state the Anchoring section
-  exists to prevent, since a worktree removal later would then permanently destroy
-  `config.yml`/`decisions.md`/`staged/` with no git history to recover from (`[IL-46]`'s shape).
-  Call the command once, before creating anything else, and build every later path in this
-  section from its printed output — `cd`-ing into the run directory afterward for convenience is
-  fine, resolving the *path* relative to cwd is not.
-- `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` in UTC (no colons; portable across filesystems) — per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule (`date -u`), which mint sites cite rather than restate
-- `spec-slug` uses a single `spec-` prefix on numeric IDs to disambiguate from timestamp digits: `spec-42` (single spec), `spec-42-45-48` (multi-spec, dash-joined), or a non-numeric topic slug like `meal-planning` (no prefix needed). See `_shared/pipeline-run-dir.md` for the canonical SPEC_SLUG conventions.
-- Collisions never happen — multiple parallel agents in the same checkout each get their own run directory
-- The run directory and its path are exposed to downstream skills via the `PIPELINE_RUN_DIR` env var (set in the skill chain)
+  current directory: `/claude-tweaks:dispatch` Step 5 enters a group's worktree *before*
+  dispatching this Manifesto step, so a bare relative path here would create the run directory
+  inside that worktree, destroying `config.yml`/`decisions.md`/`staged/` on a later worktree
+  removal with no git history to recover (`[IL-46]`'s shape). Call the command once, before
+  creating anything else, and build every later path in this section from its printed output —
+  `cd`-ing into the run directory afterward for convenience is fine, resolving the *path* relative
+  to cwd is not.
+- `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` in UTC (no colons; portable across filesystems) — per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule (`date -u`), cited rather than restated by mint sites
+- `spec-slug` uses a single `spec-` prefix on numeric IDs to disambiguate from timestamp digits: `spec-42` (single spec), `spec-42-45-48` (multi-spec, dash-joined), or a non-numeric topic slug like `meal-planning` (no prefix needed). See `_shared/pipeline-run-dir.md` for SPEC_SLUG conventions.
+- Collisions never happen — each parallel agent in the same checkout gets its own run directory
+- The run directory is exposed to downstream skills via `PIPELINE_RUN_DIR` (set in the skill chain)
 - After successful pipeline closure, `/wrap-up` moves the directory to `.claude-tweaks/pipelines/archive/`
 
-**Manifesto is the only mid-pipeline policy stop.** After this, no skill asks the user about scope-creep, overlap, design-intent, etc. They read `config.yml` and apply.
+**Manifesto is the only mid-pipeline policy stop.** After this, no skill re-asks about scope-creep, overlap, design-intent, etc. — they read `config.yml` and apply.
