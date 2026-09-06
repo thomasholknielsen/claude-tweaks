@@ -1,6 +1,6 @@
 // plugin/bin/lib/wrap-up/pack.js — one deterministic fact pack for
 // /claude-tweaks:wrap-up's Phases 3-4 (#1930). The runner owns execution and
-// bounding, the skill owns judgment: ten independent reads run concurrently
+// bounding, the skill owns judgment: nine independent reads run concurrently
 // and come back as one JSON document with a per-probe envelope — a failing
 // probe degrades its own field, never the pack. Read-only by construction:
 // nothing here releases a claim, archives, posts, or appends the shipped
@@ -13,18 +13,56 @@ const fs = require('fs');
 const path = require('path');
 const { execFile: execFileCb, execFileSync } = require('child_process');
 const { promisify } = require('util');
+const { resolvePolicyConfig } = require('../policy-schema');
+const { parseManifestYaml } = require('../flow/manifest');
+const { parseDependencies } = require('../issues/record');
 
-const PROBE_NAMES = ['residue', 'state', 'blastRadius', 'mergeSize', 'pr', 'recordLabels', 'release', 'claim', 'ledger', 'unblocked'];
+const PROBE_NAMES = ['residue', 'state', 'blastRadius', 'mergeSize', 'pr', 'recordLabels', 'claim', 'ledger', 'unblocked'];
 const BIN = path.join(__dirname, '..', '..');
 
+// Every subprocess this module spawns is bounded the same way: a 32 MB stdout
+// ceiling (a `gh issue list --limit 200` of long bodies, or release.js' JSON,
+// overruns Node's 1 MB default and comes back as a truncation error) and a
+// 30 s wall clock, so one hung `gh` can never hold the whole pack open.
+// Merged with `cwd` at each call site; never mutated.
+const EXEC_OPTS = { maxBuffer: 32 * 1024 * 1024, timeout: 30000 };
+
+// The per-probe outer bound, one level above EXEC_OPTS: a probe that makes no
+// subprocess call at all (a module probe spinning, an fs read on a dead mount)
+// is still bounded. Injectable via deps.probeTimeoutMs for tests.
+const PROBE_TIMEOUT_MS = 60000;
+
+// The policy levers the pack reads, resolved ONCE per run in resolveInputs and
+// stored on inputs.policy — no probe resolves policy for itself (#1930 review
+// I8: three synchronous resolve-policy.js spawns, one of them mid-fan-out).
+const POLICY_KEYS = ['integration-branch', 'work-backend', 'work-links'];
+
+// stderr is piped, not discarded: bin/lib/merge-size-probe.js's measureAtTree
+// tests `err.stderr` for git-show's "does not exist in" message to tell a
+// path deleted by the merge (not a ceiling concern) from a real probe failure.
+// Swallowing stderr here collapsed that carve-out into a hard throw.
 function defaultGit(args, { cwd } = {}) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
-function defaultResolvePolicy(key, cwd) {
+// In-process replacement for `node resolve-policy.js --values <key>` (#1930
+// review I8). Same scalar semantics as that CLI's --values mode: an unknown
+// key, an error entry, or a null/absent value all read as ''. One call
+// resolves every key the pack needs.
+function defaultResolvePolicy(keys, cwd) {
+  const out = {};
+  const git = (args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const readFile = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch { return null; } };
   try {
-    return execFileSync('node', [path.join(BIN, 'resolve-policy.js'), '--values', key], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch { return ''; }
+    const { result } = resolvePolicyConfig({ git, readFile, keys });
+    for (const key of keys) {
+      const entry = result[key];
+      out[key] = !entry || entry.error !== undefined || entry.value === null || entry.value === undefined ? '' : String(entry.value);
+    }
+  } catch {
+    for (const key of keys) out[key] = '';
+  }
+  return out;
 }
 
 function defaultDeps(cwd) {
@@ -34,12 +72,14 @@ function defaultDeps(cwd) {
     execFile: promisify(execFileCb),
     readFile: (p) => fs.readFileSync(p, 'utf8'),
     readdir: (p) => { try { return fs.readdirSync(p); } catch { return []; } },
-    resolvePolicy: (key) => defaultResolvePolicy(key, cwd),
+    resolvePolicy: (keys, policyCwd) => defaultResolvePolicy(keys, policyCwd || cwd),
     computeBlastRadius: require('../blast-radius-cli').computeBlastRadius,
     computeMergeSizeOverflow: require('../merge-size-probe').computeMergeSizeOverflow,
     readClaimBlob: require('../issues/claim-store').readClaimBlob,
     classifyClaimBlob: require('../issues/claims').classifyClaimBlob,
     gitRunner: require('../issues/claims-git-cas').defaultRunner,
+    queryRecords: require('../issues/local-store').queryRecords,
+    readRecord: require('../issues/local-store').readRecord,
     ghApi: () => { throw new Error('claim: git transport to the claims branch failed and the pack has no gh API fallback'); },
   };
 }
@@ -48,9 +88,17 @@ function readJson(deps, file) {
   try { return JSON.parse(deps.readFile(file)); } catch { return null; }
 }
 
-// Materialized headers: work/{n}-spec.md, one per record of the run.
-function headerRecords(deps, runDir) {
-  const dir = path.join(runDir, 'work');
+function readText(deps, file) {
+  try { return deps.readFile(file); } catch { return null; }
+}
+
+function sortedUnique(nums) {
+  return [...new Set(nums)].sort((a, b) => a - b);
+}
+
+// One directory of materialized headers: work/{n}-spec.md, one per record.
+// The frontmatter `record:` line wins over the filename when both exist.
+function headerRecords(deps, dir) {
   const nums = [];
   for (const name of deps.readdir(dir)) {
     const m = /^(\d+)-spec\.md$/.exec(name);
@@ -60,7 +108,70 @@ function headerRecords(deps, runDir) {
     const rec = /^record:\s*(\d+)\s*$/m.exec(text);
     nums.push(Number(rec ? rec[1] : m[1]));
   }
-  return nums.sort((a, b) => a - b);
+  return sortedUnique(nums);
+}
+
+// The worktree's own mirror of a run dir: everything from the
+// `.claude-tweaks/pipelines` segment onward, re-rooted under the worktree.
+// Materialized headers are committed on the feature branch, so on a real
+// pr-first run they exist only here — never in the main-checkout run dir the
+// CLI anchors --run to (#1930 review C1).
+function worktreeMirror(runDir, worktree) {
+  const parts = path.resolve(runDir).split(path.sep);
+  const i = parts.lastIndexOf('.claude-tweaks');
+  if (i === -1 || parts[i + 1] !== 'pipelines') return null;
+  return path.join(worktree, ...parts.slice(i));
+}
+
+// The record-resolution ladder, in order, reporting which rung won:
+// (a) the run dir's own materialized headers; (b) the worktree's mirror of the
+// same run dir; (c) a parent multi-spec run's manifest.yml ids plus any
+// spec-*/work/ headers; else none.
+function resolveRecords(deps, runDir, worktree) {
+  const own = headerRecords(deps, path.join(runDir, 'work'));
+  if (own.length) return { records: own, source: 'headers' };
+
+  const mirror = worktreeMirror(runDir, worktree);
+  if (mirror && path.resolve(mirror) !== path.resolve(runDir)) {
+    const mirrored = headerRecords(deps, path.join(mirror, 'work'));
+    if (mirrored.length) return { records: mirrored, source: 'worktree-headers' };
+  }
+
+  const nums = [];
+  const manifest = parseManifestYaml(readText(deps, path.join(runDir, 'manifest.yml')));
+  const specs = manifest && manifest.multispec && Array.isArray(manifest.multispec.specs) ? manifest.multispec.specs : [];
+  for (const spec of specs) {
+    const n = Number(spec && spec.id);
+    if (Number.isInteger(n)) nums.push(n);
+  }
+  for (const name of deps.readdir(runDir)) {
+    if (!/^spec-/.test(name)) continue;
+    nums.push(...headerRecords(deps, path.join(runDir, name, 'work')));
+  }
+  if (nums.length) return { records: sortedUnique(nums), source: 'manifest' };
+
+  return { records: [], source: 'unavailable' };
+}
+
+function hasPrNumber(state) {
+  return Boolean(state && state.pr && Number.isInteger(state.pr.number));
+}
+
+// run-state.json, with the parent fallback a per-spec subdirectory needs: a
+// `spec-*/` run dir carries its own status but not the run's worktree or PR —
+// those live one level up, on the parent run's state (#1930 review C1).
+function resolveState(deps, runDir) {
+  const own = readJson(deps, path.join(runDir, 'run-state.json'));
+  const complete = own && typeof own.worktree === 'string' && hasPrNumber(own);
+  if (!/^spec-/.test(path.basename(runDir)) || complete) {
+    return { state: own, source: own ? 'run-state.json' : 'unavailable' };
+  }
+  const parent = readJson(deps, path.join(path.dirname(runDir), 'run-state.json'));
+  if (!parent) return { state: own, source: own ? 'run-state.json' : 'unavailable' };
+  const merged = { ...(own || {}) };
+  if (typeof merged.worktree !== 'string' && typeof parent.worktree === 'string') merged.worktree = parent.worktree;
+  if (!hasPrNumber(merged) && hasPrNumber(parent)) merged.pr = parent.pr;
+  return { state: merged, source: 'parent' };
 }
 
 function mergeBase(deps, cwd, integrationBranch) {
@@ -73,25 +184,35 @@ function mergeBase(deps, cwd, integrationBranch) {
   return { base: null, ref: null };
 }
 
-// Resolved once, reported with sources: records ← headers; pr/worktree ←
-// run-state.json; integrationBranch ← policy (default main); base ←
-// merge-base against origin/{branch}, then the local branch.
+// Resolved once, reported with sources: state ← run-state.json (or the parent
+// run's, for a spec-* subdirectory); records ← the resolveRecords ladder;
+// pr/worktree ← that state; policy ← one resolvePolicyConfig call;
+// base ← merge-base against origin/{branch}, then the local branch.
 function resolveInputs({ runDir, cwd, deps }) {
   const sources = {};
-  const state = readJson(deps, path.join(runDir, 'run-state.json'));
-  const records = headerRecords(deps, runDir);
-  sources.records = records.length ? 'header' : 'unavailable';
-  const pr = state && state.pr && Number.isInteger(state.pr.number) ? state.pr.number : null;
-  sources.pr = pr === null ? 'unavailable' : 'run-state.json';
+  const { state, source: stateSource } = resolveState(deps, runDir);
+  sources.state = stateSource;
   const worktree = state && typeof state.worktree === 'string' ? state.worktree : cwd;
   sources.worktree = state && typeof state.worktree === 'string' ? 'run-state.json' : 'cwd';
-  const policyBranch = deps.resolvePolicy('integration-branch');
-  const integrationBranch = policyBranch || 'main';
-  sources.integrationBranch = policyBranch ? 'policy' : 'default';
+  const { records, source: recordSource } = resolveRecords(deps, runDir, worktree);
+  sources.records = recordSource;
+  const pr = hasPrNumber(state) ? state.pr.number : null;
+  sources.pr = pr === null ? 'unavailable' : 'run-state.json';
+  const values = deps.resolvePolicy(POLICY_KEYS, worktree) || {};
+  const policy = {
+    integrationBranch: values['integration-branch'] || '',
+    workBackend: values['work-backend'] || '',
+    workLinks: values['work-links'] || '',
+  };
+  const integrationBranch = policy.integrationBranch || 'main';
+  sources.integrationBranch = policy.integrationBranch ? 'policy' : 'default';
   const mb = mergeBase(deps, worktree, integrationBranch);
   sources.base = mb.base ? 'merge-base' : 'unavailable';
-  const merge = state && state.merge && typeof state.merge.sha === 'string' ? state.merge.sha : null;
-  return { records, record: records[0] || null, pr, base: mb.base, baseRef: mb.ref, integrationBranch, worktree, mergeSha: merge, sources };
+  // One record is a record; several are a parent multi-spec run, whose
+  // record-scoped questions ("what did closing it unblock?") have no single
+  // answer — null rather than a silently-picked first element.
+  const record = records.length === 1 ? records[0] : null;
+  return { records, record, pr, base: mb.base, baseRef: mb.ref, integrationBranch, worktree, policy, sources };
 }
 
 async function wrapProbe(name, fn, now) {
@@ -102,6 +223,18 @@ async function wrapProbe(name, fn, now) {
   } catch (err) {
     return { ok: false, durationMs: now() - t0, error: String((err && err.message) || err) };
   }
+}
+
+// Outer per-probe bound. The timer is cleared on every settle path so a fast
+// probe never holds the event loop open past its own resolution.
+function withTimeout(fn, ms) {
+  return () => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms);
+    Promise.resolve().then(fn).then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
 }
 
 function parseLedger(text) {
@@ -119,9 +252,17 @@ function parseLedger(text) {
   return { open, total: rows.length, byPhase };
 }
 
+// A ledger filename names record {n} only at a `-{n}-` or `-{n}.` boundary. A
+// bare substring test let the date prefix answer for a record number
+// (`#26` matching `2026-09-05-…`), silently folding a stranger's ledger into
+// this run's counts (#1930 review M5).
+function namesRecord(file, n) {
+  return file.includes(`-${n}-`) || file.includes(`-${n}.`);
+}
+
 function ledgerProbe(inputs, deps) {
   const dir = path.join(inputs.worktree, 'docs', 'plans');
-  const files = deps.readdir(dir).filter((f) => f.endsWith('-ledger.md') && inputs.records.some((n) => f.includes(String(n))));
+  const files = deps.readdir(dir).filter((f) => f.endsWith('-ledger.md') && inputs.records.some((n) => namesRecord(f, n)));
   const totals = { open: 0, total: 0, byPhase: {}, files: files.map((f) => path.posix.join('docs', 'plans', f)) };
   for (const f of files) {
     const one = parseLedger(deps.readFile(path.join(dir, f)));
@@ -134,14 +275,39 @@ function ledgerProbe(inputs, deps) {
   return totals;
 }
 
-// The ten probes. Module probes call the exported functions the CLIs already
-// compute from; subprocess probes go through deps.execFile (Task 2).
-function buildProbes(inputs, deps, cwd) {
+// work-backend: local-files — the same two-pass predicate
+// wrap-up/unblocked-records.md's local branch runs: dependents whose declared
+// blockers are all either the record that just closed or an already-closed
+// record.
+function unblockedLocal(inputs, deps, closed) {
+  const dir = path.join(inputs.worktree, 'specs');
+  const files = deps.readdir(dir).filter((f) => /^\d+-.*\.md$/.test(f));
+  const dependents = deps.queryRecords(dir, {})
+    .map((r) => ({ number: r.id, title: r.title, blockedBy: (r.facets && r.facets.blockedBy) || [] }))
+    .filter((r) => r.blockedBy.includes(closed));
+  const isResolved = (id) => {
+    const file = files.find((f) => f.startsWith(`${id}-`));
+    if (!file) return true; // already gone — treat as resolved
+    return deps.readRecord(path.join(dir, file)).facets.closed === true;
+  };
+  return dependents
+    .filter((d) => d.blockedBy.every((b) => b === closed || isResolved(b)))
+    .map((d) => ({ number: d.number, title: d.title }));
+}
+
+// The nine probes. Module probes call the exported functions the CLIs already
+// compute from; subprocess probes go through deps.execFile.
+function buildProbes(inputs, deps) {
   const git = (args) => deps.git(args, { cwd: inputs.worktree });
-  const forge = deps.resolvePolicy('work-backend') === 'github-issues';
+  const forge = inputs.policy.workBackend === 'github-issues';
   const forgeOrThrow = () => { if (!forge) throw new Error('no-forge'); };
+  // A record-scoped probe with no records is not a clean empty result — it is
+  // an unresolved input, and must read as one (#1930 review C2).
+  const recordsOrThrow = () => {
+    if (inputs.records.length === 0) throw new Error('records unresolved — no materialized header or manifest found');
+  };
   const gh = async (args) => {
-    try { return await deps.execFile('gh', args, { cwd: inputs.worktree }); } catch (err) {
+    try { return await deps.execFile('gh', args, { cwd: inputs.worktree, ...EXEC_OPTS }); } catch (err) {
       if (err && err.code === 'ENOENT') throw new Error('gh-absent');
       throw err;
     }
@@ -149,24 +315,27 @@ function buildProbes(inputs, deps, cwd) {
   return {
     state: async () => {
       if (!inputs.base) throw new Error('base unresolved — no merge-base against the integration branch');
-      const { stdout } = await deps.execFile('node', [path.join(BIN, 'wrap-up-state.js'), '--since', String(inputs.base), '--json'], { cwd: inputs.worktree, maxBuffer: 32 * 1024 * 1024 });
+      const { stdout } = await deps.execFile('node', [path.join(BIN, 'wrap-up-state.js'), '--since', String(inputs.base), '--json'], { cwd: inputs.worktree, ...EXEC_OPTS });
       return JSON.parse(stdout);
     },
     blastRadius: () => deps.computeBlastRadius({ base: inputs.base, integrationBranch: inputs.integrationBranch }, { git }),
-    mergeSize: () => deps.computeMergeSizeOverflow({ integrationBranch: inputs.integrationBranch, headRef: 'HEAD' }, { git }),
-    ledger: () => ledgerProbe(inputs, deps),
+    // Same ref the prose probe measures against (`--integration-branch
+    // origin/{branch}`) whenever the remote-tracking ref resolved, so the
+    // pack's prediction is substitutable for that step's own run.
+    mergeSize: () => deps.computeMergeSizeOverflow({ integrationBranch: inputs.baseRef || inputs.integrationBranch, headRef: 'HEAD' }, { git }),
+    ledger: () => { recordsOrThrow(); return ledgerProbe(inputs, deps); },
     residue: async () => {
       if (!inputs.base) throw new Error('base unresolved — no merge-base against the integration branch');
-      const { stdout } = await deps.execFile('node', [path.join(BIN, 'residue.js'), '--base', String(inputs.base), '--integration-branch', String(inputs.baseRef || inputs.integrationBranch), '--scope', 'blast-radius', '--json'], { cwd: inputs.worktree, maxBuffer: 32 * 1024 * 1024 });
+      const { stdout } = await deps.execFile('node', [path.join(BIN, 'residue.js'), '--base', String(inputs.base), '--integration-branch', String(inputs.baseRef || inputs.integrationBranch), '--scope', 'blast-radius', '--json'], { cwd: inputs.worktree, ...EXEC_OPTS });
       return JSON.parse(stdout);
     },
     pr: async () => {
       forgeOrThrow(); if (inputs.pr === null) throw new Error('no PR number in run-state.json');
-      const { stdout } = await gh(['pr', 'view', String(inputs.pr), '--json', 'state,isDraft,mergeStateStatus,statusCheckRollup,reviewDecision']);
+      const { stdout } = await gh(['pr', 'view', String(inputs.pr), '--json', 'state,isDraft,mergeStateStatus,headRefOid,statusCheckRollup,reviewDecision']);
       return JSON.parse(stdout);
     },
     recordLabels: async () => {
-      forgeOrThrow();
+      forgeOrThrow(); recordsOrThrow();
       const out = {};
       for (const n of inputs.records) {
         const { stdout } = await gh(['issue', 'view', String(n), '--json', 'labels']);
@@ -174,44 +343,56 @@ function buildProbes(inputs, deps, cwd) {
       }
       return out;
     },
-    release: async () => {
-      forgeOrThrow();
-      if (!inputs.mergeSha) return { status: 'pre-merge', line: 'not yet merged — release status resolves at pr-first-merge Step 4.1' };
-      const { stdout } = await deps.execFile('node', [path.join(BIN, 'release.js'), 'status', '--merge', inputs.mergeSha, '--records', inputs.records.join(','), '--ref', `origin/${inputs.integrationBranch}`, '--json'], { cwd: inputs.worktree });
-      return JSON.parse(stdout);
-    },
     claim: async () => {
+      recordsOrThrow();
       const out = {};
+      const gitRunner = (args, opts = {}) => deps.gitRunner(args, { cwd: inputs.worktree, ...opts });
       for (const n of inputs.records) {
-        const blob = await deps.readClaimBlob({ gitRunner: deps.gitRunner, ghApi: deps.ghApi }, null, n);
+        const blob = await deps.readClaimBlob({ gitRunner, ghApi: deps.ghApi }, null, n);
         if (blob.failure) throw new Error(`claim read failed: ${blob.failure}`);
         out[n] = { ...deps.classifyClaimBlob(blob.absent ? null : blob.content, deps.now()), via: blob.via || 'git' };
       }
       return out;
     },
     unblocked: async () => {
+      recordsOrThrow();
       const closed = inputs.record;
+      if (closed === null) throw new Error('record unresolved');
+      if (inputs.policy.workBackend === 'local-files') return unblockedLocal(inputs, deps, closed);
+      forgeOrThrow();
       const { stdout } = await gh(['issue', 'list', '--state', 'open', '--json', 'number,title,body', '--limit', '200']);
       const records = JSON.parse(stdout);
-      if (deps.resolvePolicy('work-links') === 'native') {
+      if (inputs.policy.workLinks === 'native') {
         if (!records.length) return [];
-        const res = await deps.execFile('node', [path.join(BIN, 'resolve-blockers.js'), records.map((r) => r.number).join(',')], { cwd: inputs.worktree });
+        const res = await deps.execFile('node', [path.join(BIN, 'resolve-blockers.js'), records.map((r) => r.number).join(',')], { cwd: inputs.worktree, ...EXEC_OPTS });
         const byNumber = JSON.parse(res.stdout.trim());
         return records.filter((r) => byNumber[r.number] && byNumber[r.number].blockedBy.includes(closed) && !byNumber[r.number].openBlocker).map((r) => ({ number: r.number, title: r.title }));
       }
-      const re = new RegExp(`^\\s*Blocked by #${closed}\\b`, 'mi');
-      return records.filter((r) => re.test(r.body || '')).map((r) => ({ number: r.number, title: r.title }));
+      // work-links: body-text — the same two passes unblocked-records.md runs.
+      // Pass 1 is `parseDependencies` (the canonical line-anchored `Blocked by
+      // #N` parse), pass 2 checks every OTHER blocker is closed too: a
+      // dependent still held by a second open blocker is not unblocked.
+      const dependents = records
+        .map((r) => ({ number: r.number, title: r.title, blockedBy: parseDependencies(r.body || '') }))
+        .filter((r) => r.blockedBy.includes(closed));
+      if (!dependents.length) return [];
+      const states = await gh(['issue', 'list', '--state', 'all', '--json', 'number,state', '--limit', '200']);
+      const stateOf = new Map(JSON.parse(states.stdout).map((i) => [i.number, i.state]));
+      return dependents
+        .filter((d) => d.blockedBy.every((b) => b === closed || stateOf.get(b) === 'CLOSED'))
+        .map((d) => ({ number: d.number, title: d.title }));
     },
   };
 }
 
 async function gatherPack({ runDir, cwd = process.cwd(), only = null, deps: overrides = {} } = {}) {
   const deps = { ...defaultDeps(cwd), ...overrides };
+  const limit = Number.isFinite(deps.probeTimeoutMs) ? deps.probeTimeoutMs : PROBE_TIMEOUT_MS;
   const t0 = deps.now();
   const inputs = resolveInputs({ runDir, cwd, deps });
-  const probes = buildProbes(inputs, deps, cwd);
+  const probes = buildProbes(inputs, deps);
   const names = PROBE_NAMES.filter((n) => !only || only.includes(n));
-  const settled = await Promise.all(names.map((n) => wrapProbe(n, probes[n] || (() => { throw new Error(`probe ${n} not implemented`); }), deps.now)));
+  const settled = await Promise.all(names.map((n) => wrapProbe(n, withTimeout(probes[n] || (() => { throw new Error(`probe ${n} not implemented`); }), limit), deps.now)));
   const pack = { generatedAt: new Date().toISOString(), durationMs: 0, inputs };
   names.forEach((n, i) => { pack[n] = settled[i]; });
   pack.durationMs = deps.now() - t0;
