@@ -177,17 +177,21 @@ function measureComposed(repoRoot, callSite) {
     }
     throw err;
   }
-  // compose() cannot throw in this function: usedConditionKeys just parsed
-  // these identical sources successfully, and every conditions object built
-  // below comes from KEYS/VOCAB (plus UNRESOLVED for the row below), so no
-  // condition value or key can be one compose()'s own validation rejects.
-  const combinations = conditionCombinations(keys).map((partial) => {
+  // A row's `conditions` are partial — only the keys the sources branch on —
+  // but compose() wants all of KEYS, so the rest are pinned to VOCAB[key][0].
+  // The pin cannot change the output: those keys are marker-free here.
+  // compose() cannot throw in this function either: usedConditionKeys just
+  // parsed these identical sources successfully, and every conditions object
+  // comes from KEYS/VOCAB (plus UNRESOLVED for the row below), so no condition
+  // key or value can be one compose()'s own validation rejects.
+  const measureRow = (partial) => {
     const conditions = {};
     for (const key of KEYS) {
       conditions[key] = Object.prototype.hasOwnProperty.call(partial, key) ? partial[key] : VOCAB[key][0];
     }
     return { conditions: partial, bytes: Buffer.byteLength(compose(sources, conditions), 'utf8') };
-  });
+  };
+  const combinations = conditionCombinations(keys).map(measureRow);
   // The standalone-run reading (no config.yml to resolve `when:` keys):
   // compose() renders both branches of every used key. Strictly >= every
   // resolved combination above, since each of those keeps only one branch
@@ -195,18 +199,7 @@ function measureComposed(repoRoot, callSite) {
   // unconditional source can't have an "unresolved" reading distinct from
   // its single combination.
   if (keys.length > 0) {
-    const unresolvedPartial = {};
-    for (const key of keys) unresolvedPartial[key] = UNRESOLVED;
-    const unresolvedConditions = {};
-    for (const key of KEYS) {
-      unresolvedConditions[key] = Object.prototype.hasOwnProperty.call(unresolvedPartial, key)
-        ? unresolvedPartial[key]
-        : VOCAB[key][0];
-    }
-    combinations.push({
-      conditions: unresolvedPartial,
-      bytes: Buffer.byteLength(compose(sources, unresolvedConditions), 'utf8'),
-    });
+    combinations.push(measureRow(Object.fromEntries(keys.map((key) => [key, UNRESOLVED]))));
   }
   const max = combinations.reduce((m, c) => Math.max(m, c.bytes), 0);
   return {
@@ -223,14 +216,6 @@ const PLUGIN_ROOT_PREFIX = '${CLAUDE_PLUGIN_ROOT}/';
 function unquoteToken(tok) {
   if (tok.length >= 2 && tok.startsWith('"') && tok.endsWith('"')) return tok.slice(1, -1);
   return tok;
-}
-
-// `${CLAUDE_PLUGIN_ROOT}/x` resolves against `repoRoot` itself (the plugin
-// payload root) — the only source-token shape `parseComposeCallLine` ever
-// hands this function; a bare repo-relative token is rejected upstream as
-// install-dead, never resolved here.
-function resolveSourcePath(token, repoRoot) {
-  return path.join(repoRoot, token.slice(PLUGIN_ROOT_PREFIX.length));
 }
 
 // One line of skill prose -> `{ step, sources }` (a real call site),
@@ -275,7 +260,9 @@ function parseComposeCallLine(line, repoRoot) {
   const bare = rawSources.find((src) => !src.startsWith(PLUGIN_ROOT_PREFIX));
   if (bare) return { unparsed: true, reason: `repo-relative source path (install-dead): ${bare}` };
 
-  return { step, sources: rawSources.map((src) => resolveSourcePath(src, repoRoot)) };
+  // Every surviving source is `${CLAUDE_PLUGIN_ROOT}/x`, which resolves
+  // against `repoRoot` itself — the plugin payload root.
+  return { step, sources: rawSources.map((src) => path.join(repoRoot, src.slice(PLUGIN_ROOT_PREFIX.length))) };
 }
 
 // Every compose call site in the shipped skill prose — the producer set the
@@ -288,21 +275,20 @@ function findComposeCallSites(repoRoot) {
   const dir = skillsDir(repoRoot);
   const out = [];
   for (const p of walkMarkdown(dir)) {
-    const content = fs.readFileSync(p, 'utf8');
-    const lines = content.split('\n');
-    lines.forEach((line, i) => {
-      if (!line.includes('compose-context.js')) return;
+    const file = path.relative(dir, p);
+    const lines = fs.readFileSync(p, 'utf8').split('\n');
+    for (const [i, line] of lines.entries()) {
+      if (!line.includes('compose-context.js')) continue;
       const parsed = parseComposeCallLine(line, repoRoot);
-      if (!parsed) return;
-      const file = path.relative(dir, p);
+      if (!parsed) continue;
       if (parsed.unparsed) {
         out.push({
           step: null, file, line: i + 1, unparsed: true, reason: parsed.reason,
         });
-        return;
+        continue;
       }
       out.push({ step: parsed.step, file, line: i + 1, sources: parsed.sources });
-    });
+    }
   }
   return out;
 }

@@ -54,6 +54,20 @@ function makeFixtureRepo(skillName, descriptionLine) {
   return root;
 }
 
+// A fresh scratch corpus root for the #1990 measurement tests.
+function tmpRoot(slug) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), `context-cost-${slug}-`));
+}
+
+// The same, with `skills/_shared/` already created — where nearly every
+// compose fixture below puts its source files.
+function tmpCorpus(slug) {
+  const root = tmpRoot(slug);
+  const sharedDir = path.join(root, 'skills', '_shared');
+  fs.mkdirSync(sharedDir, { recursive: true });
+  return { root, sharedDir };
+}
+
 test('measureSkills finds every shipped skill', () => {
   const skills = measureSkills(REPO);
   // Directory-derived, not a hard-coded `33` -- see skill-catalog.js.
@@ -94,7 +108,7 @@ test('nearCeiling flags only the half-open [90%, 100%) band', () => {
 // never thrown out of a measurement pass (parent #1987 promise F1).
 
 test('measuredBytes: a CRLF file measures the same marker-stripped byte count as its LF twin (#1880)', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-crlf-'));
+  const root = tmpRoot('crlf');
   const aFile = path.join(root, 'a.md');
   const bFile = path.join(root, 'b.md');
   fs.writeFileSync(aFile, 'line one\r\nline two\r\n');
@@ -104,14 +118,14 @@ test('measuredBytes: a CRLF file measures the same marker-stripped byte count as
 });
 
 test('measuredBytes: marker lines are not counted', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-markers-'));
+  const root = tmpRoot('markers');
   const file = path.join(root, 'x.md');
   fs.writeFileSync(file, 'x\n<!-- when: mode=auto -->\ny\n<!-- /when -->\nz\n');
   assert.strictEqual(measuredBytes(file).bytes, 6);
 });
 
 test('measuredBytes: a malformed marker is reported, never thrown (F1)', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-malformed-'));
+  const root = tmpRoot('malformed');
   const file = path.join(root, 'bad.md');
   const content = '<!-- when: mode=auto -->\n';
   fs.writeFileSync(file, content);
@@ -126,7 +140,7 @@ test('measuredBytes: a malformed marker is reported, never thrown (F1)', () => {
 // that's now reported, never failed.
 
 test('overCeilingWarnings: a synthetic SKILL.md over 40 KB is warned about, not failed', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-overceiling-'));
+  const root = tmpRoot('overceiling');
   const skillDir = path.join(root, 'skills', 'huge-skill');
   fs.mkdirSync(skillDir, { recursive: true });
   fs.writeFileSync(path.join(skillDir, 'SKILL.md'), 'x'.repeat(CEILING_BYTES + 100));
@@ -401,11 +415,10 @@ test('findComposeCallSites: finds both real merge sites in the shipped corpus', 
 });
 
 test('findComposeCallSites: a fixture skill file with a call site is found with its line number', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-callsite-'));
+  const { root, sharedDir } = tmpCorpus('callsite');
   const skillDir = path.join(root, 'skills', 'demo');
   fs.mkdirSync(skillDir, { recursive: true });
-  const sharedFile = path.join(root, 'skills', '_shared', 'x.md');
-  fs.mkdirSync(path.dirname(sharedFile), { recursive: true });
+  const sharedFile = path.join(sharedDir, 'x.md');
   fs.writeFileSync(sharedFile, 'body\n');
   const callLine = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step demo "${CLAUDE_PLUGIN_ROOT}/skills/_shared/x.md"';
   fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `line one\n${callLine}\nline three\n`);
@@ -420,7 +433,7 @@ test('findComposeCallSites: a fixture skill file with a call site is found with 
 });
 
 test('findComposeCallSites: an unparsed line is emitted as { step: null, unparsed: true, reason }, and fails the composed-bytes gate', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-unparsed-'));
+  const root = tmpRoot('unparsed');
   const skillDir = path.join(root, 'skills', 'demo');
   fs.mkdirSync(skillDir, { recursive: true });
   const callLine = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --step merge plugin/skills/_shared/a.md';
@@ -449,9 +462,7 @@ test('findComposeCallSites: an unparsed line is emitted as { step: null, unparse
 // both-branches read the per-file warnings already show.
 
 function makeComposeFixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-'));
-  const sharedDir = path.join(root, 'skills', '_shared');
-  fs.mkdirSync(sharedDir, { recursive: true });
+  const { root, sharedDir } = tmpCorpus('composed');
   const aFile = path.join(sharedDir, 'a.md');
   const bFile = path.join(sharedDir, 'b.md');
   fs.writeFileSync(
@@ -516,9 +527,7 @@ test('measureComposed: one row per combination of the used keys, plus the unreso
 });
 
 test('measureComposed: marker-free sources yield exactly one combination with empty conditions', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-plain-'));
-  const sharedDir = path.join(root, 'skills', '_shared');
-  fs.mkdirSync(sharedDir, { recursive: true });
+  const { root, sharedDir } = tmpCorpus('composed-plain');
   const file = path.join(sharedDir, 'plain.md');
   fs.writeFileSync(file, '# Plain\nno markers here\n');
   const callSite = { step: 'x', file: 'f', line: 1, sources: [file] };
@@ -529,9 +538,7 @@ test('measureComposed: marker-free sources yield exactly one combination with em
 });
 
 test('measureComposed: a malformed source is reported on the row, never thrown (F1)', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-malformed-'));
-  const sharedDir = path.join(root, 'skills', '_shared');
-  fs.mkdirSync(sharedDir, { recursive: true });
+  const { root, sharedDir } = tmpCorpus('composed-malformed');
   const badFile = path.join(sharedDir, 'bad.md');
   fs.writeFileSync(badFile, '<!-- when: mode=auto -->\nbody\n');
   const callSite = { step: 'x', file: 'f', line: 1, sources: [badFile] };
@@ -542,7 +549,7 @@ test('measureComposed: a malformed source is reported on the row, never thrown (
 });
 
 test('measureComposed: a missing source is an error row naming the path', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-missing-'));
+  const root = tmpRoot('composed-missing');
   const missing = path.join(root, 'skills', '_shared', 'missing.md');
   const callSite = { step: 'x', file: 'f', line: 1, sources: [missing] };
   const result = measureComposed(root, callSite);
@@ -551,7 +558,7 @@ test('measureComposed: a missing source is an error row naming the path', () => 
 });
 
 test('measureComposed: a source path that is a directory is an error row (not only ENOENT)', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-eisdir-'));
+  const root = tmpRoot('composed-eisdir');
   const dirAsSource = path.join(root, 'skills', '_shared', 'a-directory.md');
   fs.mkdirSync(dirAsSource, { recursive: true });
   const callSite = { step: 'x', file: 'f', line: 1, sources: [dirAsSource] };
@@ -580,9 +587,7 @@ function fmtOverComposed(e) {
 }
 
 test('overComposedCeiling: a synthetic call site whose composed bytes exceed 40 KB fails the gate (AC2)', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-overceiling-big-'));
-  const sharedDir = path.join(root, 'skills', '_shared');
-  fs.mkdirSync(sharedDir, { recursive: true });
+  const { root, sharedDir } = tmpCorpus('overceiling-big');
   fs.writeFileSync(path.join(sharedDir, 'big.md'), 'x'.repeat(CEILING_BYTES + 100));
   writeComposeCallSite(root, 'demo', 'bigstep', 'skills/_shared/big.md');
 
@@ -595,9 +600,7 @@ test('overComposedCeiling: a synthetic call site whose composed bytes exceed 40 
 });
 
 test('overComposedCeiling: a per-step exception raises that step\'s ceiling only', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-overceiling-exception-'));
-  const sharedDir = path.join(root, 'skills', '_shared');
-  fs.mkdirSync(sharedDir, { recursive: true });
+  const { root, sharedDir } = tmpCorpus('overceiling-exception');
   fs.writeFileSync(path.join(sharedDir, 'big.md'), 'x'.repeat(CEILING_BYTES + 100));
   writeComposeCallSite(root, 'demo-a', 'bigstep', 'skills/_shared/big.md');
   writeComposeCallSite(root, 'demo-b', 'otherbig', 'skills/_shared/big.md');
