@@ -90,7 +90,7 @@ function looksPassing(exitCode, output) {
   return success.test(output) && !failure.test(output);
 }
 
-function checkC(verificationChecks, repoRoot, deps = {}) {
+function checkC(verificationChecks, repoRoot, deps = {}, unparseableStep2s = []) {
   const run = deps.run || ((command, cwd) => {
     try {
       const output = execFileSync(command, { cwd, shell: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -111,7 +111,11 @@ function checkC(verificationChecks, repoRoot, deps = {}) {
       });
     }
   }
-  return { ok: findings.length === 0, findings };
+  // #1594: tasks whose Step 2 is present but unparseable (a wording/
+  // formatting drift the parser couldn't extract a Run:/Expected: pair
+  // from) — informational only, never a finding, never affects `ok`.
+  const warnings = unparseableStep2s.map(({ taskNumber, title, raw }) => ({ task: taskNumber, title, raw }));
+  return { ok: findings.length === 0, findings, warnings };
 }
 
 // ── Headroom — near-ceiling / breaching files the plan adds prose to ───────
