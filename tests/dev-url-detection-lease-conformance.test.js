@@ -80,10 +80,9 @@ test('the Output section is unchanged: APP_URL and SERVER_STARTED, exact table',
 });
 
 // AC6
-test('dev-url-detection.md stays under the 40 KB per-invocation ceiling', () => {
-  const bytes = Buffer.byteLength(read(DOC), 'utf8');
-  assert.ok(bytes < 40 * 1024, `dev-url-detection.md is ${bytes} bytes, over the 40 KB ceiling`);
-});
+// Per-file 40 KB pin on dev-url-detection.md retired by #1997 — the
+// per-file tier is a warning since #1990 and this file has no compose call
+// site; removal condition in docs/incident-log.md [IL-153].
 
 // AC4
 test("wrap-up cleanup-procedures-execution.md Section D qualifies the lsof fallback as no-lease-only", () => {

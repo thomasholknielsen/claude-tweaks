@@ -23,6 +23,11 @@ files:
   - plugin/skills/_shared/subagent-output-contract.md
   - plugin/skills/_shared/dispatch-waiting.md
   - tests/dispatch-prompt-bundle-citations.test.js
+  - plugin/bin/lib/plan-audit/checks.js
+  - plugin/bin/plan-audit.js
+  - docs/donts.md
+  - tests/sweep-backstop.test.js
+  - tests/run-dir-timestamp-utc.test.js
 ---
 
 # Compose a Per-Run Context Bundle From Fenced Skill Sources
@@ -104,6 +109,13 @@ files:
 - **Should understand:** The clean room is the contract's founding premise: an agent only sees its prompt, so a prompt citing `_shared/pr-first-merge.md` sends it to read both integration models, and a prompt citing the composed `merge.md` sends it to the one it is running under whenever `.claude-tweaks/policy.yml` pins `integration-model` (the resolver never infers it from the forge, and the group's `config.yml` does not exist yet at dispatch time — on an unpinned repo the bundle keeps both branches, and context-pack item 3's resolved value is what the agent acts on). The compose command's own fallback ("if the compose command is unavailable or exits non-zero, read the named source files directly") belongs to whoever runs the command — the dispatcher — so the agent's fallback is phrased for what the agent can observe: the bundle file being absent. `tests/dispatch-prompt-bundle-citations.test.js` pins every fenced template `_shared/`-free except those two shapes and the named gaps, and fails if a listed gap disappears, so the list cannot rot. The lens prompts in `review/step3-lens-dispatch.md` were already clean — their fenced block is byte-pinned to the calibration fragment and carries no path at all.
 - **Red flags:** a `_shared/` path inside a fenced template without a fallback shape or a gap entry; a compose line in the Context pack that still reads `${CLAUDE_PLUGIN_ROOT}` instead of the substituted `{plugin-root}` literal (the agent's shell cannot expand it); `_shared/subagent-output-contract.md` within a sentence of its 40,960 B raw gate again (it sat at 252 B before #1995 extracted `_shared/dispatch-waiting.md`).
 
+### 11. Ask the gate, not the file — terminal
+- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" <plan.md>` on a plan that lists `Modify: plugin/skills/_shared/issue-claims.md`, then `grep -rn "40960\|40 \* 1024" tests`.
+- **Action:** Read the JSON envelope's `headroom.composed` rows — one per compose call site whose sources the plan touches, with `max`, `ceiling`, and `over` — and then the grep, which now returns only `context-cost.test.js` and the plan-audit suite.
+- **Should feel:** The number that can fail the suite is the one a reader pays at a call site. The raw per-file number still prints — as a warning band, as the merge-time probe's disclosure, and as the headroom check's per-file rows — but nothing in `npm test` pins a file's raw bytes any more except the composed gate and its own tests.
+- **Should understand:** Thirteen ad-hoc `<= 40960` pins guarded files that no call site composes; #1990's warning-tier decision had already made them redundant, and #1997 deleted them with a removal condition (`[IL-153]`: reintroduce a per-file pin only for a file that has crossed the ceiling, has no composed gate covering it, and shows a measured per-invocation regression). The one pin whose file is a compose source (`github-pr-scan.md`) and the `manifesto.md` budget now assert the composed gate instead. `docs/donts.md`'s three ceiling rules say the same: markers or a call site, not another sub-file. What that leaves open, on purpose, is whether invocation-unit files (every `SKILL.md`, read whole every time) deserve one central hard ceiling — `dispatch/SKILL.md` sits 12 B under with only a warning behind it — and that is a human's call, staged for the console rather than decided here.
+- **Red flags:** a `40960` literal reappearing in a test outside `context-cost.test.js` and the plan-audit suite; a `headroom.composed` row with `over > 0` that `plan-audit` reports as passing; an `[IL-nn]` tag missing from a rewritten `docs/donts.md` rule; `merge-size-probe.js` described anywhere as a blocking gate (it discloses).
+
 ## Origin
 - Created during build of #1988 (per-run skill-context composer CLI — Phase 1 of #1987's decomposition); steps 1-5 built in this session.
 - Step 6 added during build of #1989 (merge-path markers — the first production consumer: `pr-first-merge.md` and `pr-early-run-lifecycle.md` fenced, `/wrap-up`'s two merge sites reading the composed `merge` bundle).
@@ -111,4 +123,5 @@ files:
 - Step 8 added during build of #1992 (transport markers on `issue-claims.md` and `github-pr-scan.md`; the single-source `claims` and `pr-scan` bundles at tidy's claim sweep and PR scan and flow's MCP claim path; the transport probe exercised with `gh` removed from PATH).
 - Step 9 added during build of #1993 (the `worktree-setup` bundle at `build/SKILL.md` Common Step 1 — a two-source bundle with zero fences, after a survey found no worktree-policy prose in either file).
 - Step 10 added during build of #1995 (dispatch task prompts cite the `claims` and `merge` bundles the dispatcher composes before dispatch; the contract's cite-the-bundle rule; `_shared/dispatch-waiting.md` extracted for headroom).
+- Step 11 added during build of #1997 (the per-file 40 KB pins retired — two retargeted to composed gates, thirteen deleted under `[IL-153]`; `plan-audit`'s headroom check measures composed bytes per touched call site; `docs/donts.md`'s ceiling rules state the composition rule).
 - Related specs: #1987 (parent design), #1990 (composed-bytes measurement, imports `stripMarkers`/`compose`; carries the merge bundle's byte budget), #1991-#1994 (the remaining records that fence real `_shared/*.md` files), #1995-#1997.

@@ -9,6 +9,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { composedBytesReport, overComposedCeiling } = require('../plugin/bin/lib/skill-audit/context-cost.js');
 
 const REPO_ROOT = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf8');
@@ -72,21 +73,25 @@ test('flow SKILL.md defers the manifesto.md read until Step 2.8 passes (#724)', 
   assert.match(read('plugin/skills/flow/SKILL.md'), /read `manifesto\.md`[^.]*after Step 2\.8 passes|after Step 2\.8 passes[^.]*read `manifesto\.md`/i);
 });
 
-test('manifesto.md and multi-spec.md each fit the ~20KB read budget (#724)', () => {
-  // manifesto.md's ceiling was bumped 20480 -> 21504 in #715: a 13th Manifesto
-  // lever (merge-authorization) costs ~600 irreducible structural bytes (table
-  // row, suppression row, Recommendation defaults row, canonical numbering
-  // entry) even at parity terseness with sibling levers 11/12 — there was no
-  // slack left to absorb it under the 12-lever budget.
-  // 21504 -> 21760, #1991: four `when:` marker pairs (~170 B of marker lines)
-  // fence the per-mode bullets and the auto-FYI paragraph; the pin stays a
-  // raw-bytes single-Read budget because `flow/SKILL.md`'s fallback path
-  // still reads this file directly — #1997 retires it.
-  const BUDGETS = { 'plugin/skills/flow/manifesto.md': 21760, 'plugin/skills/flow/multi-spec.md': 20480 };
+test('multi-spec.md fits the ~20KB read budget (#724)', () => {
+  // multi-spec.md is a lazy sub-file's single-read budget (the multi-spec
+  // branch only), not a 40 KB compose-source pin — #1997 leaves it as-is.
+  const BUDGETS = { 'plugin/skills/flow/multi-spec.md': 20480 };
   for (const [p, budget] of Object.entries(BUDGETS)) {
     const bytes = fs.statSync(path.join(REPO_ROOT, p)).size;
     assert.ok(bytes < budget, `${p} is ${bytes} bytes — must stay under ${budget}`);
   }
+});
+
+// manifesto.md's raw-bytes budget (formerly 21760, #1991) is retired by #1997:
+// manifesto.md is a compose source (`flow/SKILL.md`'s `manifesto` step,
+// #1991), so the hard gate is the composed bundle at that call site,
+// not the raw file. `context-cost.test.js` measures the `manifesto` bundle
+// under every mode; this test only confirms it carries no over-ceiling row.
+test('manifesto.md has no over-ceiling composed-bytes row (#1997)', () => {
+  const PLUGIN_ROOT = path.join(REPO_ROOT, 'plugin');
+  const manifestoRows = overComposedCeiling(composedBytesReport(PLUGIN_ROOT)).filter((r) => r.step === 'manifesto');
+  assert.deepStrictEqual(manifestoRows, [], `manifesto composed bundle over ceiling: ${JSON.stringify(manifestoRows)}`);
 });
 
 test('extracted override table and summary template live in their sub-files (#724)', () => {

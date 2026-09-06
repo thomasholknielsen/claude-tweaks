@@ -7,7 +7,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { CEILING_BYTES } = require('../skill-audit/context-cost');
+const {
+  CEILING_BYTES, composedBytesReport, COMPOSED_STEP_EXCEPTIONS,
+} = require('../skill-audit/context-cost');
 
 const WALK_EXCLUDES = new Set(['.git', 'node_modules', '.claude', '.claude-tweaks']);
 
@@ -126,15 +128,58 @@ function isGovernedMdPath(relPath) {
   return /^plugin\/skills\/.+\.md$/.test(norm);
 }
 
+// Composed rows — the multi-spec pre-flight [IL-140] lacked: a per-file
+// ceiling never caught two specs each adding a *little* prose to two
+// different sources of the same compose call site, where the composed bundle
+// (not either file alone) is what crosses the ceiling. For every compose
+// call site under `<repoRoot>/plugin` whose `sources` intersect this plan's
+// touched governed entries, report the composed max across every combination
+// the sources branch on, alongside `ceiling` (honoring
+// `COMPOSED_STEP_EXCEPTIONS`) and `over` — regardless of which spec in a
+// multi-spec run happens to touch which source first, since the intersection
+// test is against the call site's full source list, not just the one entry
+// that triggered it. A missing `plugin/` dir, an unreadable corpus, or an
+// error/unparsed call-site row (no `sources` to intersect against) never
+// throws — they simply contribute no composed rows.
+function composedHeadroom(governedPaths, repoRoot) {
+  const composed = [];
+  const composedNearCeiling = [];
+  const pluginRoot = path.join(repoRoot, 'plugin');
+  if (!fs.existsSync(pluginRoot)) return { composed, composedNearCeiling };
+  let rows;
+  try {
+    rows = composedBytesReport(pluginRoot);
+  } catch {
+    return { composed, composedNearCeiling };
+  }
+  for (const row of rows) {
+    if (!row.sources) continue; // error/unparsed call site — nothing to intersect
+    const relSources = row.sources.map((s) => path.relative(repoRoot, s).split(path.sep).join('/'));
+    if (!relSources.some((s) => governedPaths.has(s))) continue;
+    const ceiling = Object.prototype.hasOwnProperty.call(COMPOSED_STEP_EXCEPTIONS, row.step)
+      ? COMPOSED_STEP_EXCEPTIONS[row.step]
+      : CEILING_BYTES;
+    const over = Math.max(0, row.max - ceiling);
+    const entry = {
+      step: row.step, file: row.file, line: row.line, max: row.max, ceiling, over,
+    };
+    composed.push(entry);
+    if (over === 0 && row.max >= ceiling * 0.9) composedNearCeiling.push(entry);
+  }
+  return { composed, composedNearCeiling };
+}
+
 function headroomCheck(entries, repoRoot) {
   const nearCeiling = [];
   const breaches = [];
   const seen = new Set();
+  const governedPaths = new Set();
   for (const { type, path: relPath } of entries) {
     if (type === 'Create') continue;
     if (!isGovernedMdPath(relPath)) continue;
     if (seen.has(relPath)) continue;
     seen.add(relPath);
+    governedPaths.add(relPath.split(path.sep).join('/'));
     const abs = path.resolve(repoRoot, relPath);
     let bytes;
     try {
@@ -148,7 +193,11 @@ function headroomCheck(entries, repoRoot) {
       nearCeiling.push({ file: relPath, bytes, headroom: CEILING_BYTES - bytes });
     }
   }
-  return { ok: breaches.length === 0, nearCeiling, breaches };
+  const { composed, composedNearCeiling } = composedHeadroom(governedPaths, repoRoot);
+  const ok = breaches.length === 0 && composed.every((c) => c.over === 0);
+  return {
+    ok, nearCeiling, breaches, composed, composedNearCeiling,
+  };
 }
 
 module.exports = { checkA, checkB, checkC, headroomCheck, looksPassing, isGovernedMdPath };

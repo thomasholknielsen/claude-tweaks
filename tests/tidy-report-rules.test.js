@@ -134,13 +134,16 @@ test('step-6-interactive.md: template mirrors the fenced shape and still cites s
 
 const TIDY_SKILL = read('plugin', 'skills', 'tidy', 'SKILL.md');
 
-test('tidy/SKILL.md: Next Actions derives one option per Yours group and stays under the 40 KB ceiling', () => {
+// The ceiling assertion this test used to carry alongside these four content
+// assertions is retired by #1997 — the per-file tier is a warning since
+// #1990 and tidy/SKILL.md has no compose call site; removal condition in
+// docs/incident-log.md [IL-153].
+test('tidy/SKILL.md: Next Actions derives one option per Yours group', () => {
   const na = section(TIDY_SKILL, '## Next Actions', '## Component-Skill Contract');
   assert.match(na, /Then take Yours \*\*groups\*\* \(`step-6-auto\.md`'s Yours grouping\)/);
   assert.match(na, /the group's batch command verbatim, or a paste-block group's first line verbatim/);
   assert.match(na, /\{Yours group's batch command, first paste line, or ref-less line\}/);
   assert.doesNotMatch(na, /one per Yours item/);
-  assert.ok(Buffer.byteLength(TIDY_SKILL, 'utf8') <= 40 * 1024, `tidy/SKILL.md is ${Buffer.byteLength(TIDY_SKILL, 'utf8')} bytes — over the 40 KB ceiling`);
 });
 
 // --- Task 5: journey doc pins the new shape ---
