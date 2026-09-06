@@ -65,9 +65,10 @@ The runner owns execution and scope (`verify.js --scope`, #1922); this table own
 | Review-fix re-verify (`/claude-tweaks:review` Step 3 Routing) | scoped |
 | Multi-spec spec-N `test` step (`/claude-tweaks:flow` multi-spec) | scoped (`none` on a bookkeeping-only delta) |
 | Standalone `/claude-tweaks:test` | full |
+| `/claude-tweaks:review` Step 1.5 standalone auto-trigger | scoped when it passes `--source review`, else full |
 | `/claude-tweaks:test affected` | the shared changed-file set (`verify.js --changed-files`) |
 
-**Scoped invocation.** A "scoped" site runs Step 2's command with the declaration and the integration branch added — one plain command:
+**Scoped invocation.** A "scoped" site runs Step 2's command with the declaration and the integration branch added — one plain command (shown for a declaration whose `checks.tests` is a single command string; when it maps suites, replace `--cmd tests=` with one `--cmd {suite}=` per declared suite):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --scope .claude-tweaks/verify-scope.json --integration-branch {ref} --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
@@ -77,7 +78,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --scope .claude-tweaks/verify-scope.j
 
 **Standalone is always full.** A site is scoped-eligible only when `$PIPELINE_RUN_DIR` is set (or a parent passed `--source {parent}`, the fallback signal for a caller with no run dir — `/claude-tweaks:flow` sets the run dir and never passes `--source`); with neither signal the invocation is standalone — a human asked for the suite and gets the suite; never pass `--scope` there.
 
-**Report and log.** Step 3 logs one `AUTO` decision per `_shared/auto-decision-log.md`: `AUTO {time} — Verification scoped: {mode} — {n} changed file(s) since {base-short}: {path → rule, …}; suites: {list|none}. Reversibility: high.` (the `{path → rule}` pairs come straight from `report.json`'s `scope.matched` — each entry's `rule` is the index of the declaration rule that matched, rendered as that rule's `match` glob, or `null` rendered as `unmatched (fail-closed)`). `matched` is empty on a full run forced by an absent declaration or a stale anchor — render `n/a (full run)` rather than an empty list.
+**Report and log.** Step 3 logs one `AUTO` decision per `_shared/auto-decision-log.md`: `AUTO {time} — Verification scoped: {mode} — {n} changed file(s) since {base-short}: {path → rule, …}; suites: {list|none}. Reversibility: high.` (the `{path → rule}` pairs come straight from `report.json`'s `scope.matched` — each entry's `rule` is the index of the declaration rule that matched, rendered as that rule's `match` glob, or `null` rendered as `unmatched (fail-closed)`). `matched` is empty whenever no file was classified — a full run forced by an absent declaration or a stale anchor, or a delta of zero files — render `n/a (full run)` / `n/a (no changes)` rather than an empty list.
 
 ### Pre-existing failures (multi-spec batches)
 

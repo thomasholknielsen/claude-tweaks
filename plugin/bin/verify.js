@@ -25,6 +25,8 @@ const {
 } = require('./lib/verify/changed-files');
 const { selectScope } = require('./lib/verify/scope');
 
+const KNOWN_SCOPES = new Set(['full', 'scoped', 'none', 'static-only', 'tool-scoped']);
+
 function enrich(result) {
   if (result.skipped) return result;
   let text = '';
@@ -84,8 +86,9 @@ function stampStatus(parsed) {
   // anchor). Never true for a foreign --git-dir, a dirty tree, or a stamp
   // whose anchor a history rewrite stranded. `match` keeps its strict
   // full-pass meaning; Skip-if-recent and /review Step 1.5 read this field.
+  // a stamp with no scope (corrupt/hand-edited) is unknown coverage, never verified
   const verifiedHead = !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false
-    && (scope === 'full' || usableAnchor({ stamp }) !== null);
+    && (scope === 'full' || (KNOWN_SCOPES.has(scope) && usableAnchor({ stamp }) !== null));
   const status = {
     present,
     sha: present ? stamp.sha : null,

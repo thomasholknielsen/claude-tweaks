@@ -307,6 +307,19 @@ test('--stamp-status honors --git-dir and reads a legacy bare-SHA stamp as scope
   assert.strictEqual(s.reportPath, null);
 });
 
+test('--stamp-status: a hand-written stamp with no scope is present but never verified (re-review N1)', async () => {
+  const { repo, git, gitDir } = tmpGitRepo();
+  const head = git('rev-parse', 'HEAD').trim();
+  fs.writeFileSync(path.join(gitDir, 'claude-tweaks-verify-pass.json'), JSON.stringify({ sha: head, dirty: false }));
+  const { code, stdout } = await runCli(['--stamp-status'], { cwd: repo });
+  assert.strictEqual(code, 0);
+  const s = JSON.parse(stdout);
+  assert.strictEqual(s.present, true);
+  assert.strictEqual(s.scope, null);
+  assert.strictEqual(s.match, false);
+  assert.strictEqual(s.verifiedHead, false, 'a stamp with no scope is unknown coverage, never verified');
+});
+
 // Review fix round 2, finding A: --stamp-status --git-dir <dir> read the
 // stamp from <dir> but computed head/dirty from the invoking cwd's own
 // git dir via gitInfo() -- a sibling checkout sitting at the same commit

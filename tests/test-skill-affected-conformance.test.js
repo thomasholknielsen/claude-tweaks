@@ -31,6 +31,21 @@ test('test/SKILL.md pipeline behavior carries the QA skip literal and the fronte
   // full story set (#808); anything else falls to the Layer 3 sniff.
   assert.match(list, /`web`\/`mobile`\/`desktop` → run the full story set/);
   assert.match(list, /Layer 3 sniff/);
+  // Discriminate inversion (re-review N2): the frontend arm must run
+  // unconditionally — never gated behind a "Layer 3 sniff"/"unless"
+  // qualifier that would make it fall through like the non-frontend arm.
+  // (Bare "skip" is excluded from the qualifier check: the frontend arm's
+  // own parenthetical legitimately reads "never skip QA there" (#808).)
+  const frontendArm = list.slice(
+    list.indexOf('`web`/`mobile`/`desktop` → run the full story set'),
+    list.indexOf('any other surface'),
+  );
+  assert.ok(frontendArm.length > 0);
+  assert.ok(!/unless|Layer 3/i.test(frontendArm), 'the frontend arm carries no qualifier');
+  assert.ok(
+    list.indexOf('`web`/`mobile`/`desktop` → run the full story set') < list.indexOf('any other surface'),
+    'the frontend arm is decided before the non-frontend fallback',
+  );
 });
 
 test('verification.md holds the re-verify scoping table with every site row (#1923 AC1)', () => {
