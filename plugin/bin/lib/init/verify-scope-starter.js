@@ -191,7 +191,9 @@ function detectWorkspace({ root, fsImpl = fs }) {
     globs = pnpmGlobs(pnpmText);
   } else {
     const ws = rootPkg && rootPkg.workspaces;
-    const list = Array.isArray(ws) ? ws : (ws && Array.isArray(ws.packages) ? ws.packages : null);
+    let list = null;
+    if (Array.isArray(ws)) list = ws;
+    else if (ws && Array.isArray(ws.packages)) list = ws.packages;
     if (list) {
       tool = exists(fsImpl, path.join(root, 'yarn.lock')) ? 'yarn' : 'npm';
       globs = list;
