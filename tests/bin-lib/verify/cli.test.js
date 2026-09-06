@@ -1146,3 +1146,47 @@ test('flaky retry: hits accumulate across two runs and a file removed from the a
   assert.match(second.stdout, /^Scope: none/m);
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(countStampPath, 'utf8')).flakyHits, { 'tests/flaky.test.js': 1, 'tests/other.test.js': 2 });
 });
+
+// #1928 AC1: the runner is the mechanical source of the verify event.
+function anchoredRunDir(repo) {
+  const dir = path.join(repo, '.claude-tweaks', 'pipelines', '2026-09-06T100000-record-7');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+test('#1928 AC1: --run appends exactly one verify event with the report fields', async () => {
+  const { repo } = tmpGitRepo();
+  const runDir = anchoredRunDir(repo);
+  const { code, stderr } = await runCli(['--run', runDir, '--no-stamp', '--cmd', 'tests=node -e 0'], { cwd: repo });
+  assert.strictEqual(code, 0, stderr);
+  const lines = fs.readFileSync(path.join(runDir, 'events.jsonl'), 'utf8').trim().split('\n');
+  assert.strictEqual(lines.length, 1);
+  const ev = JSON.parse(lines[0]);
+  assert.strictEqual(ev.type, 'verify');
+  assert.strictEqual(ev.pass, true);
+  assert.strictEqual(typeof ev.durationMs, 'number');
+  assert.strictEqual(ev.mode, 'full');
+  assert.deepStrictEqual(ev.suitesRun, ['tests']);
+  assert.match(ev.sha, /^[0-9a-f]{40}$/);
+  assert.deepStrictEqual(ev.flakyRetried, []);
+  assert.ok(ev.reportPath.endsWith('report.json'));
+  assert.strictEqual(typeof ev.ts, 'string');
+  assert.strictEqual('attribution' in ev, false);
+});
+
+test('#1928 AC1: without --run (or with --run "") the events file is untouched', async () => {
+  const { repo } = tmpGitRepo();
+  const runDir = anchoredRunDir(repo);
+  await runCli(['--no-stamp', '--cmd', 'tests=node -e 0'], { cwd: repo });
+  await runCli(['--run', '', '--no-stamp', '--cmd', 'tests=node -e 0'], { cwd: repo });
+  assert.strictEqual(fs.existsSync(path.join(runDir, 'events.jsonl')), false);
+});
+
+test('#1928 AC1: a run dir outside the main checkout is refused on stderr and nothing is appended', async () => {
+  const { repo } = tmpGitRepo();
+  const foreign = tmpDir(); // no git root above it → not anchored
+  const { code, stderr } = await runCli(['--run', foreign, '--no-stamp', '--cmd', 'tests=node -e 0'], { cwd: repo });
+  assert.strictEqual(code, 0, 'a refused --run never fails the verification run itself');
+  assert.match(stderr, /--run .* refused/);
+  assert.strictEqual(fs.existsSync(path.join(foreign, 'events.jsonl')), false);
+});

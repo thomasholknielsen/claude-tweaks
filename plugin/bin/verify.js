@@ -30,6 +30,8 @@ const {
   changedFiles, resolveBase, usableAnchor, ChangedFilesError,
 } = require('./lib/verify/changed-files');
 const { selectScope } = require('./lib/verify/scope');
+const { resolveTarget } = require('./lib/stage-item/write');
+const { appendEvent } = require('./lib/hooks/context');
 
 const KNOWN_SCOPES = new Set(['full', 'scoped', 'none', 'static-only', 'tool-scoped']);
 
@@ -380,6 +382,30 @@ async function main() {
     flakyEscalation,
   });
   writeJsonAtomic(jsonPath, report);
+
+  // Verify event (#1928): the runner is the mechanical source for the
+  // tasks→test phase boundary (bin/lib/timing/derive.js). Written only when
+  // the caller named a run dir; the canonical skill snippet passes
+  // --run "$PIPELINE_RUN_DIR" unconditionally, so an unset variable arrives
+  // as "" and means "no run". A path that is not anchored under the main
+  // checkout's pipelines tree (a worktree-local shadow, [IL-127]) is refused
+  // aloud — never written silently, never fatal to the run.
+  if (parsed.run) {
+    const target = resolveTarget({ runDir: parsed.run });
+    if (!target.ok) {
+      process.stderr.write(`verify.js: --run ${parsed.run} refused (${target.reason}) — not an anchored run directory under the main checkout ([IL-127]); no verify event written\n`);
+    } else {
+      appendEvent(target.dir, 'verify', {
+        mode: report.scope ? report.scope.mode : 'full',
+        suitesRun: report.scope ? (report.scope.suites || []) : results.map((c) => c.name),
+        durationMs: report.durationMs,
+        pass: report.pass,
+        sha: git.sha,
+        flakyRetried: results.filter((c) => Array.isArray(c.flakyRetried) && c.flakyRetried.length).map((c) => c.name),
+        reportPath: jsonPath,
+      });
+    }
+  }
 
   // Verification pass stamp (#1921): the runner is the ONLY writer, and only
   // for a passing run of the full resolved set — every --cmd check ran, none

@@ -31,6 +31,7 @@ test('parses repeatable --cmd plus --json, --log-dir, and --count-stamp', () => 
     base: null,
     integrationBranch: null,
     changedFiles: false,
+    run: null,
   });
 });
 
@@ -155,4 +156,15 @@ test('--changed-files is a read-only mode: no --cmd, no --scope, not with --stam
   assert.throws(() => parseArgs(['--changed-files', '--git-dir', '/g']), UsageError);
   assert.throws(() => parseArgs(['--changed-files', '--stamp-status']), UsageError);
   assert.ok(USAGE.includes('--changed-files'));
+});
+
+test('#1928: --run is parsed as a value flag and defaults to null', () => {
+  assert.strictEqual(parseArgs(['--cmd', 'tests=node -e 0']).run, null);
+  assert.strictEqual(parseArgs(['--run', '/tmp/run-x', '--cmd', 'tests=node -e 0']).run, '/tmp/run-x');
+  assert.strictEqual(parseArgs(['--run', '', '--cmd', 'tests=node -e 0']).run, '');
+});
+
+test('#1928: --run is a usage error with --stamp-status or --changed-files', () => {
+  assert.throws(() => parseArgs(['--stamp-status', '--run', '/tmp/run-x']), UsageError);
+  assert.throws(() => parseArgs(['--changed-files', '--run', '/tmp/run-x']), UsageError);
 });
