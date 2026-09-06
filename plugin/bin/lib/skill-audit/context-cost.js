@@ -23,7 +23,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { splitFrontmatterFence } = require('../health-core/frontmatter-list');
 const { listSkillDirs } = require('./skill-catalog');
-const { stripMarkers, MarkerError } = require('../compose-context/compose');
+const {
+  stripMarkers, MarkerError, parseMarkers, compose, KEYS, VOCAB,
+} = require('../compose-context/compose');
 
 const CEILING_BYTES = 40 * 1024;
 
@@ -121,6 +123,69 @@ function overCeiling(entries) {
 // composed bytes per compose call site (`overComposedCeiling`, Task 4).
 function overCeilingWarnings(entries) {
   return overCeiling(entries).map((e) => `${e.name || e.file} ${(e.bytes / 1024).toFixed(1)} KB`);
+}
+
+// The `when:` keys a set of sources actually branch on, in `KEYS` canonical
+// order — a marker-free key can't change the composed output, so pinning it
+// to a combination would only add noise. Throws `MarkerError` on a malformed
+// marker in any source (the caller reports it on the row, never lets it
+// escape — parent #1987 promise F1).
+function usedConditionKeys(sources) {
+  const used = new Set();
+  for (const source of sources) {
+    for (const token of parseMarkers(source.content, source.path)) {
+      if (token.type === 'open') used.add(token.key);
+    }
+  }
+  return KEYS.filter((key) => used.has(key));
+}
+
+// Cartesian product of `VOCAB[key]` over `keys`, as partial condition objects
+// keyed only by the keys given — `[{}]` when `keys` is empty (marker-free
+// sources: exactly one, unconditional combination).
+function conditionCombinations(keys) {
+  return keys.reduce((acc, key) => {
+    const out = [];
+    for (const partial of acc) {
+      for (const value of VOCAB[key]) out.push({ ...partial, [key]: value });
+    }
+    return out;
+  }, [{}]);
+}
+
+// Composed bytes for one compose call site, under every combination of the
+// keys its sources branch on. A missing source or a malformed marker is an
+// error row (`{ error, combinations: [] }`), never a thrown exception —
+// parent #1987 promise F1.
+function measureComposed(repoRoot, callSite) {
+  const { step, file, line, sources: sourcePaths } = callSite;
+  let sources;
+  try {
+    sources = sourcePaths.map((p) => ({ path: path.relative(repoRoot, p), content: fs.readFileSync(p, 'utf8') }));
+  } catch (err) {
+    if (err.code === 'ENOENT') return { step, file, line, error: `missing source: ${err.path}`, combinations: [] };
+    throw err;
+  }
+  let keys;
+  try {
+    keys = usedConditionKeys(sources);
+  } catch (err) {
+    if (err instanceof MarkerError) {
+      return { step, file, line, error: `${err.file}:${err.line}: ${err.message}`, combinations: [] };
+    }
+    throw err;
+  }
+  const combinations = conditionCombinations(keys).map((partial) => {
+    const conditions = {};
+    for (const key of KEYS) {
+      conditions[key] = Object.prototype.hasOwnProperty.call(partial, key) ? partial[key] : VOCAB[key][0];
+    }
+    return { conditions: partial, bytes: Buffer.byteLength(compose(sources, conditions), 'utf8') };
+  });
+  const max = combinations.reduce((m, c) => Math.max(m, c.bytes), 0);
+  return {
+    step, file, line, sources: sourcePaths, keys, combinations, max,
+  };
 }
 
 function totalBytes(entries) {
@@ -287,6 +352,9 @@ module.exports = {
   overCeilingWarnings,
   parseComposeCallLine,
   findComposeCallSites,
+  usedConditionKeys,
+  conditionCombinations,
+  measureComposed,
   totalBytes,
   headroom,
   nearCeiling,

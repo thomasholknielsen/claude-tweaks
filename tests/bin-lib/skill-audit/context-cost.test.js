@@ -27,8 +27,11 @@ const {
   totalDescriptionChars,
   parseComposeCallLine,
   findComposeCallSites,
+  usedConditionKeys,
+  measureComposed,
 } = require('../../../plugin/bin/lib/skill-audit/context-cost.js');
 const { listSkillDirs, KNOWN_SKILLS } = require('../../../plugin/bin/lib/skill-audit/skill-catalog.js');
+const { compose, KEYS, VOCAB } = require('../../../plugin/bin/lib/compose-context/compose.js');
 
 // The corpus root these measurements take is the plugin payload root — the one
 // with `skills/` directly beneath it — which is `plugin/`, not the repo root.
@@ -385,4 +388,101 @@ test('findComposeCallSites: a fixture skill file with a call site is found with 
       sources: [sharedFile],
     },
   ]);
+});
+
+// ── measureComposed (#1990 Task 3). Composed bytes at a compose call site,
+// under every combination of the `when:` keys those sources actually branch
+// on — unused keys pinned to `VOCAB[key][0]` (a marker-free key can't change
+// the output). `unresolved` is not a combination — it is the standalone-run
+// both-branches read the per-file warnings already show.
+
+function makeComposeFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-'));
+  const sharedDir = path.join(root, 'skills', '_shared');
+  fs.mkdirSync(sharedDir, { recursive: true });
+  const aFile = path.join(sharedDir, 'a.md');
+  const bFile = path.join(sharedDir, 'b.md');
+  fs.writeFileSync(
+    aFile,
+    `# A\n<!-- when: integration-model=pr-first -->\n${'p'.repeat(100)}\n<!-- /when -->\n`
+      + `<!-- when: transport=mcp -->\n${'m'.repeat(50)}\n<!-- /when -->\n`,
+  );
+  fs.writeFileSync(bFile, '# B\nbody\n');
+  return { root, aFile, bFile };
+}
+
+test('usedConditionKeys: only the keys the sources use, in canonical order', () => {
+  const { aFile, bFile } = makeComposeFixture();
+  const sources = [aFile, bFile].map((p) => ({ path: p, content: fs.readFileSync(p, 'utf8') }));
+  assert.deepStrictEqual(usedConditionKeys(sources), ['integration-model', 'transport']);
+});
+
+test('measureComposed: one row per combination of the used keys, bytes differ where a branch is taken', () => {
+  const { root, aFile, bFile } = makeComposeFixture();
+  const callSite = { step: 'x', file: 'f', line: 1, sources: [aFile, bFile] };
+  const result = measureComposed(root, callSite);
+
+  assert.deepStrictEqual(result.keys, ['integration-model', 'transport']);
+  assert.strictEqual(result.combinations.length, 4);
+
+  const bySignature = new Map(result.combinations.map((c) => [
+    `${c.conditions['integration-model']}|${c.conditions.transport}`,
+    c,
+  ]));
+  const largest = bySignature.get('pr-first|mcp');
+  const smallest = bySignature.get('local-merge|gh');
+  assert.ok(largest, 'expected a pr-first+mcp row');
+  assert.ok(smallest, 'expected a local-merge+gh row');
+  assert.ok(largest.bytes > smallest.bytes, `expected pr-first+mcp (${largest.bytes}) > local-merge+gh (${smallest.bytes})`);
+
+  // Recompute every row independently against compose() directly, for that
+  // row's full six-key conditions (unused keys pinned to VOCAB[k][0]) — a
+  // composition proof, not trust in the module's own math.
+  const sources = [aFile, bFile].map((p) => ({ path: p, content: fs.readFileSync(p, 'utf8') }));
+  for (const combo of result.combinations) {
+    const conditions = {};
+    for (const key of KEYS) {
+      conditions[key] = Object.prototype.hasOwnProperty.call(combo.conditions, key)
+        ? combo.conditions[key]
+        : VOCAB[key][0];
+    }
+    const expected = Buffer.byteLength(compose(sources, conditions), 'utf8');
+    assert.strictEqual(combo.bytes, expected);
+  }
+  assert.strictEqual(result.max, Math.max(...result.combinations.map((c) => c.bytes)));
+});
+
+test('measureComposed: marker-free sources yield exactly one combination with empty conditions', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-plain-'));
+  const sharedDir = path.join(root, 'skills', '_shared');
+  fs.mkdirSync(sharedDir, { recursive: true });
+  const file = path.join(sharedDir, 'plain.md');
+  fs.writeFileSync(file, '# Plain\nno markers here\n');
+  const callSite = { step: 'x', file: 'f', line: 1, sources: [file] };
+  const result = measureComposed(root, callSite);
+  assert.deepStrictEqual(result.keys, []);
+  assert.strictEqual(result.combinations.length, 1);
+  assert.deepStrictEqual(result.combinations[0].conditions, {});
+});
+
+test('measureComposed: a malformed source is reported on the row, never thrown (F1)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-malformed-'));
+  const sharedDir = path.join(root, 'skills', '_shared');
+  fs.mkdirSync(sharedDir, { recursive: true });
+  const badFile = path.join(sharedDir, 'bad.md');
+  fs.writeFileSync(badFile, '<!-- when: mode=auto -->\nbody\n');
+  const callSite = { step: 'x', file: 'f', line: 1, sources: [badFile] };
+  const result = measureComposed(root, callSite);
+  assert.deepStrictEqual(result.combinations, []);
+  assert.ok(typeof result.error === 'string', 'expected an error string');
+  assert.ok(/:1: /.test(result.error), `expected the error to name line 1, got: ${result.error}`);
+});
+
+test('measureComposed: a missing source is an error row naming the path', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-composed-missing-'));
+  const missing = path.join(root, 'skills', '_shared', 'missing.md');
+  const callSite = { step: 'x', file: 'f', line: 1, sources: [missing] };
+  const result = measureComposed(root, callSite);
+  assert.deepStrictEqual(result.combinations, []);
+  assert.ok(result.error.includes(missing), `expected the missing path in: ${result.error}`);
 });
