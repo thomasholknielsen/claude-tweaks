@@ -8,7 +8,8 @@
 // for another reason (EACCES, EISDIR, ...), which is ok: false instead so it
 // is never silently treated as "not declared" (review finding, refs #1922).
 // Every invalid field is reported, not just the first, so a project fixes
-// its declaration in one pass.
+// its declaration in one pass. A declaration with no `checks.tests` declares
+// zero suites — valid, its rules may only use `'*'` or `[]` (#1924).
 'use strict';
 
 const fs = require('fs');
@@ -46,7 +47,10 @@ function readDeclaration(filePath, fsImpl = fs) {
     for (const key of ['types', 'lint']) {
       if (checks[key] !== undefined && typeof checks[key] !== 'string') errors.push(`checks.${key}: must be a string when present`);
     }
-    if (typeof checks.tests === 'string' && checks.tests.trim() !== '') {
+    if (checks.tests === undefined) {
+      tests = null;
+      suites = [];
+    } else if (typeof checks.tests === 'string' && checks.tests.trim() !== '') {
       tests = checks.tests;
       suites = ['tests'];
       toolScoped = checks.tests.includes('{base}');
@@ -62,8 +66,9 @@ function readDeclaration(filePath, fsImpl = fs) {
       // A present but wrong-typed value (array, number, boolean, null, ...)
       // is a distinct mistake from leaving it out entirely — name the actual
       // type rather than reusing the "required" message (review finding,
-      // refs #1922). Undefined and empty string/object fall through below,
-      // keeping the existing "required" message.
+      // refs #1922). Undefined is handled above (valid, zero suites); empty
+      // string/object still fall through below, keeping the existing
+      // "required" message.
       errors.push(`checks.tests: must be a command string or a map of suite name to command, got ${typeof checks.tests}`);
     } else {
       errors.push('checks.tests: required — a command string or a map of suite name to command');

@@ -104,8 +104,8 @@ test('every invalid field is named, including the rule index and the unknown sui
   assert.ok(r.errors.length >= 8, `expected every invalid field named, got ${r.errors.length}`);
 });
 
-test('missing checks.tests, a non-object checks, and a non-array rules are errors', () => {
-  assert.strictEqual(readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: {}, rules: [] }) })).ok, false);
+test('an empty checks.tests, a non-object checks, and a non-array rules are errors', () => {
+  assert.strictEqual(readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: '' }, rules: [] }) })).ok, false);
   assert.strictEqual(readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: 'x', rules: [] }) })).ok, false);
   assert.strictEqual(readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: 'x' } }) })).ok, false);
 });
@@ -129,9 +129,8 @@ test('a present but wrong-typed checks.tests names its actual type, distinct fro
   assert.strictEqual(num.ok, false);
   assert.match(num.errors.join('\n'), /checks\.tests: must be a command string or a map of suite name to command, got number/);
 
-  // undefined and empty string/object still keep the existing "required" message.
-  const missing = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: {}, rules: [] }) }));
-  assert.match(missing.errors.join('\n'), /checks\.tests: required/);
+  // empty string/object still keep the existing "required" message; undefined
+  // is now valid (zero suites, #1924) — covered by the dedicated test below.
   const emptyStr = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: '' }, rules: [] }) }));
   assert.match(emptyStr.errors.join('\n'), /checks\.tests: required/);
   const emptyObj = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: {} }, rules: [] }) }));
@@ -148,4 +147,17 @@ test('a non-string rules[i].suites entry names its type, not "unknown suite" (#1
   assert.strictEqual(r.ok, false);
   assert.match(r.errors.join('\n'), /rules\[0\]\.suites: entries must be strings, got number/);
   assert.ok(!r.errors.join('\n').includes('unknown suite'), 'a wrong-typed entry must not also fire the unknown-suite message');
+});
+
+test('a declaration with no checks.tests is valid — bookkeeping-only rules, zero suites (#1924)', () => {
+  const r = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { lint: 'eslint .' }, rules: [{ match: 'docs/plans/*-ledger.md', suites: [], static: false }, { match: 'src/**', suites: '*', static: true }] }) }));
+  assert.strictEqual(r.ok, true, JSON.stringify(r.errors));
+  assert.strictEqual(r.decl.checks.tests, null);
+  assert.deepStrictEqual(r.decl.suites, []);
+  assert.strictEqual(r.decl.toolScoped, false);
+  const named = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: {}, rules: [{ match: 'src/**', suites: ['api'], static: true }] }) }));
+  assert.strictEqual(named.ok, false);
+  assert.match(named.errors.join('\n'), /rules\[0\].*api/);
+  const empty = readDeclaration('/d.json', fakeFs({ '/d.json': JSON.stringify({ checks: { tests: '' }, rules: [] }) }));
+  assert.strictEqual(empty.ok, false);
 });
