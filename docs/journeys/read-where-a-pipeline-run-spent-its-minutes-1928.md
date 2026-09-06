@@ -41,7 +41,7 @@ files:
 - **Red flags:** A hand-edited `manifest.yml` with the list at the wrong indentation parses as no list at all — the writer is `spec-status`, nothing else.
 
 ### 3. Derive the table
-- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/phase-timing.js" --run "$PIPELINE_RUN_DIR" --markdown`
+- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/phase-timing.js" --run "$PIPELINE_RUN_DIR" --markdown --auto-transcript`
 - **Action:** Run it once at summary time (the Pipeline Summary, the wrap-up summary, and the PR `timing` comment all paste its output verbatim).
 - **Should feel:** One command, exit 0, a table headed `| Phase | Minutes | Verify |`; `timing.json` written beside the events.
 - **Should understand:** `Minutes` is the phase's span; a container (`build`, `call-1`, `call-2`) also shows `(own N)`, the minutes not already counted by a nested phase — `total` sums only those. A phase with no event reads `unattributed` rather than a guessed number; a typed slash command leaves no `skill_invoked` event, so that phase is `unattributed` by design. Exit 2 only means the invocation itself was malformed (no `--run`, not a directory, an unreadable events file).
