@@ -13,7 +13,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ```
 /claude-tweaks:capture → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:design-wrapper polish → /claude-tweaks:wrap-up
                                                                                      ╰────────────────────────────────────── [ /claude-tweaks:flow ] automates this stretch ──────────────────────────────╯
-                                                                                     ^^^^ YOU ARE HERE ^^^^   (polish + re-verify run only when frontend)
+                                                                                     ^^^^ YOU ARE HERE ^^^^   (polish + re-verify: frontend and not fast-lane)
 ```
 
 ## When to Use
@@ -175,7 +175,7 @@ For each step in order:
      - **No browser backend (`agent-browser` not installed):** `/visual-review` reports the detection failure with install instructions. Review falls back to code mode. Flow notes: "Visual review skipped — no browser backend available."
      - **No reachable app and no dev command to start one:** `/visual-review` logs the gap and falls back to code mode. Flow notes: "Visual review skipped — no dev server and no start command."
      - The ephemeral server (if started) stays up for the rest of the run and is torn down by `/wrap-up` cleanup (Section D) — or, in multi-spec runs, once at the end by `/flow`.
-   - `review` → `polish` (when `no-polish` not set) — invoke `/claude-tweaks:design-wrapper polish <spec>` via the Skill tool. See "Polish phase execution" below for the dispatch logic.
+   - `review` → `polish` (when `no-polish` not set and `ceremony-profile` is not `fast-lane` — roster tag `polish`, `_shared/ceremony-profile.md`) — invoke `/claude-tweaks:design-wrapper polish <spec>` via the Skill tool. See "Polish phase execution" below for the dispatch logic.
    - `polish` → `re-verify` (only when polish modified code) — invoke `/claude-tweaks:test skip-qa`. See "Re-verify execution" below.
    - `polish` (or `re-verify`) → `wrap-up` receives the review summary, polish results, and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's Skills curation row.
 5. **Ledger carries forward** — each step reads and appends to the open items ledger (see `/claude-tweaks:ledger` for all operations). Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.

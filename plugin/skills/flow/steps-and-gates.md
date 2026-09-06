@@ -12,7 +12,7 @@ Only automatable skills can be included in the pipeline:
 | `stories` | `/claude-tweaks:stories` | Autonomous — browses app, generates YAML stories. Auto-triggered when build produces UI file changes (unless `no-stories`). |
 | `test` | `/claude-tweaks:test` | Mechanical pass/fail gate — types, lint, tests, QA story validation. Sets `TEST_PASSED=true` on pass. |
 | `review` | `/claude-tweaks:review` | Code review, simplification, visual browser review with idea generation (when browser available) — produces a verdict. Gates on `TEST_PASSED`. |
-| `polish` | `/claude-tweaks:design-wrapper polish <spec>` | Invokes Impeccable polish + clarify + harden (the refinement set) plus suggestion-driven commands, each dispatched when an audit finding's own `suggestion` names it. Modifies code. Followed by re-verify (`/test skip-qa`) only when polish modified code — see the polish-phase decision tree below. Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection). |
+| `polish` | `/claude-tweaks:design-wrapper polish <spec>` | Invokes Impeccable polish + clarify + harden (the refinement set) plus suggestion-driven commands, each dispatched when an audit finding's own `suggestion` names it. Modifies code. Followed by re-verify (`/test skip-qa`) only when polish modified code — see the polish-phase decision tree below. Gates on review verdict PASS. Skipped on non-frontend specs (wrapper detection) and, since #1926, under `ceremony-profile: fast-lane` — read from the run's `config.yml` before invoking the wrapper, logged `SKIP {time} — polish skipped: fast-lane. Reversibility: n/a.` (roster tag `polish`, `_shared/ceremony-profile.md`; `/claude-tweaks:test`'s Design CLI gate and `/claude-tweaks:review` Step 6.5 still run). |
 | `wrap-up` | `/claude-tweaks:wrap-up` | Reflection, cleanup, knowledge routing — produces actionable summary |
 
 **Not allowed in flow:** `capture`, `specify`, `init`, `tidy`, `help`, `browse` — these require interactive decision-making or are utility skills.
@@ -163,7 +163,7 @@ Each step has a gate that determines whether to proceed to the next step.
 This is the canonical rendering of the polish-phase branch logic. The gate-behavior row for `polish` (above) and the Step 4 polish-execution prose in SKILL.md both point here.
 
 ```
-Polish phase entry (after review PASS, no-polish not set)
+Polish phase entry (after review PASS, no-polish not set, ceremony-profile not fast-lane — a fast-lane run logs the polish SKIP and proceeds to wrap-up)
     │
     ▼
 Invoke /claude-tweaks:design-wrapper polish <spec>

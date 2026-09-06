@@ -17,7 +17,7 @@ On successful completion of all steps (`wrap-up` in the step list):
 | stories | {Generated N stories | Skipped — no UI changes | Skipped — no-stories} |
 | test | {Passed (types + lint + tests) | Passed (QA: N stories) | Passed (verification skipped — passed in build, QA: N stories)} |
 | review | Verdict: PASS {(code + visual) | (code only — no browser)} |
-| polish | {Invoked N commands ({list}); re-verify passed | Skipped — non-frontend | Skipped — no-polish | Skipped — Impeccable not installed | No changes to apply | re-verify failed (see failure card)} |
+| polish | {Invoked N commands ({list}); re-verify passed | Skipped — non-frontend | Skipped — no-polish | Skipped — fast-lane | Skipped — Impeccable not installed | No changes to apply | re-verify failed (see failure card)} |
 | wrap-up | Learnings captured, artifacts cleaned, ledger resolved |
 
 **Release status:** {the one-line human form from `_shared/pr-first-merge-post-merge.md` Step 4.1, verbatim — `not yet in a release — bump pending` | `already carried by vX.Y.Z — CHANGELOG backfill needed: #A, #B` | `already carried by vX.Y.Z — CHANGELOG has no vX.Y.Z entry; backfill needed: #A, #B` | `already carried by vX.Y.Z — every record named in CHANGELOG` | `n/a — no plugin manifest at {ref}` | `release status unavailable — {reason}` | `n/a — not merged in this run (outcome: {armed | pending-review})`}
