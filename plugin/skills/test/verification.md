@@ -49,9 +49,35 @@ When running inside a `/claude-tweaks:flow` pipeline and the previous step alrea
 node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --stamp-status
 ```
 
-  It prints one JSON object — `{present, sha, head, dirty, scope, fullSha, match, reportPath, legacy}` — and exits 0 in every case (status is data, not failure). `match: true` (the stamp's `sha` equals `HEAD`, the live tree is clean, `scope` is `full`) → skip with the note `Verification skipped — runner stamp {sha} (full) matches HEAD; report: {reportPath}` and log an `AUTO` decision per `_shared/auto-decision-log.md` (`--step "Skip-if-recent (runner stamp)"`). Any other state — absent, mismatched, dirty, non-`full` scope — → run the full procedure below and note why (`Verification re-run — runner stamp {absent | {sha} ≠ HEAD {head} | dirty tree | scope {scope}}`). The conversation signal keeps precedence when present; the stamp is the path for a caller that has none. Fail-open: a missing or stale stamp is never a reason to trust a skip, only a matching one is.
+  It prints one JSON object — `{present, sha, head, dirty, scope, fullSha, match, reportPath, legacy}` — and exits 0 in every case (status is data, not failure). `match: true` (the stamp's `sha` equals `HEAD`, the live tree is clean, `scope` is `full`) → skip with the note `Verification skipped — runner stamp {sha} (full) matches HEAD; report: {reportPath}` and log an `AUTO` decision per `_shared/auto-decision-log.md` (`--step "Skip-if-recent (runner stamp)"`). Any other state → consult the scoping table below: with a declaration and a usable anchor the re-verify sites run scoped; otherwise run the full procedure and note why (`Verification re-run — runner stamp {absent | {sha} ≠ HEAD {head} | dirty tree | scope {scope}}`). The conversation signal keeps precedence when present; the stamp is the path for a caller that has none. Fail-open: a missing or stale stamp is never a reason to trust a skip, only a matching one is.
 
 **Note:** Skipping verification does not skip QA. When `/claude-tweaks:test` skips this procedure — by conversation signal or by a matching runner stamp — and QA stories exist, it still runs QA story validation separately.
+
+### Re-verify scoping (#1923)
+
+The runner owns execution and scope (`verify.js --scope`, #1922); this table owns *when* a site asks for scope. Every site below cites this table — none restates it.
+
+| Site | Mode |
+|------|------|
+| Build Common Step 5 (`/claude-tweaks:build`) | always full |
+| Second call's auto-inserted `test` (`/claude-tweaks:flow`) | scoped against `fullSha` |
+| Polish re-verify (`/claude-tweaks:test skip-qa`, `/claude-tweaks:flow`) | scoped |
+| Review-fix re-verify (`/claude-tweaks:review` Step 3 Routing) | scoped |
+| Multi-spec spec-N `test` step (`/claude-tweaks:flow` multi-spec) | scoped (`none` on a bookkeeping-only delta) |
+| Standalone `/claude-tweaks:test` | full |
+| `/claude-tweaks:test affected` | the shared changed-file set (`verify.js --changed-files`) |
+
+**Scoped invocation.** A "scoped" site runs Step 2's command with the declaration and the integration branch added — one plain command:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --scope .claude-tweaks/verify-scope.json --integration-branch {ref} --cmd types="tsc --noEmit" --cmd lint="eslint ." --cmd tests="npm test"
+```
+
+`{ref}` resolves via `_shared/integration-branch.md`'s ladder (the runner has no `origin/HEAD` fallback and exits 2 without it when no usable stamp anchor exists). The `--cmd` set is the same full set Step 1 resolved — pass every declared suite (`--cmd api=…`, `--cmd web=…` when the declaration maps suites); the runner filters it to what the selected mode needs and refuses a set missing a required check (exit 2 naming it). No declaration file → the runner reports `Scope: full — no declaration at …` and the run is today's full run; a stamp whose anchor is no longer an ancestor of HEAD (rebase, force-push) → the runner forces `full` — the same fail-closed posture unmatched paths get. A scoped stamp never satisfies Skip-if-recent or `/claude-tweaks:review` Step 1.5 (`--stamp-status` matches only `scope: full`) — that is by design: the cheap re-run is the scoped run itself.
+
+**Standalone is always full.** Any invocation without `$PIPELINE_RUN_DIR` *or* without `--source` is standalone — a human asked for the suite and gets the suite; never pass `--scope` there.
+
+**Report and log.** Step 3 renders the runner's `Scope:` line, and any `still-verified: bookkeeping-only delta (…)` / `still-verified: no changes since …` line, verbatim above the results table, and logs one `AUTO` decision per `_shared/auto-decision-log.md`: `AUTO {time} — Verification scoped: {mode} — {n} changed file(s) since {base-short}: {path → rule, …}; suites: {list|none}. Reversibility: high.` (the `{path → rule}` pairs come from `report.json`'s `scope` object: `changedFiles` against the declaration's rule order, `unmatched` paths as `→ unmatched (fail-closed)`).
 
 ### Pre-existing failures (multi-spec batches)
 
@@ -89,6 +115,8 @@ Rules:
 ## Step 3: Report
 
 Present results in a consistent format:
+
+Under a scoped run (the table above), render the runner's `Scope:` line — and any `still-verified:` line — verbatim as the first line(s) above this table.
 
 ```markdown
 ## Verification Results

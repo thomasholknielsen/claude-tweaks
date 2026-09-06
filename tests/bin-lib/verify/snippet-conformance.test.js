@@ -1,6 +1,8 @@
 // tests/bin-lib/verify/snippet-conformance.test.js
-// Pins verification.md's embedded verify.js invocation to the CLI's real arg
-// parser (#892 AC8): a flag drift in either direction turns this red.
+// Pins verification.md's embedded verify.js invocations — both the canonical
+// (unscoped) invocation and the scoped re-verify invocation — to the CLI's
+// real arg parser (#892 AC8, #1923): a flag drift in either direction turns
+// this red.
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -13,13 +15,25 @@ const DOC = fs.readFileSync(
 const { parseArgs, UsageError } = require(
   path.join(ROOT, 'plugin', 'bin', 'lib', 'verify', 'args.js'));
 
-// The one fenced bash block that RUNS bin/verify.js (carries --cmd); the
-// --stamp-status read block is pinned separately below.
+// The one fenced bash block that RUNS bin/verify.js with the canonical
+// (unscoped) --cmd set; the scoped re-verify invocation is pinned separately
+// by extractScopedSnippet() below, and the --stamp-status read block by
+// extractStampStatusSnippet().
 function extractSnippet() {
   const blocks = [...DOC.matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]);
-  const hits = blocks.filter((b) => b.includes('bin/verify.js') && b.includes('--cmd'));
+  const hits = blocks.filter((b) => b.includes('bin/verify.js') && b.includes('--cmd') && !b.includes('--scope'));
   assert.strictEqual(hits.length, 1,
-    `expected exactly one fenced bin/verify.js --cmd invocation, found ${hits.length}`);
+    `expected exactly one fenced canonical (unscoped) bin/verify.js --cmd invocation, found ${hits.length}`);
+  return hits[0].trim();
+}
+
+// The one fenced bash block that runs bin/verify.js with --scope (#1923's
+// scoped re-verify invocation).
+function extractScopedSnippet() {
+  const blocks = [...DOC.matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]);
+  const hits = blocks.filter((b) => b.includes('bin/verify.js') && b.includes('--scope'));
+  assert.strictEqual(hits.length, 1,
+    `expected exactly one fenced bin/verify.js --scope invocation, found ${hits.length}`);
   return hits[0].trim();
 }
 
@@ -74,6 +88,20 @@ test('the --stamp-status read block parses clean through the real arg parser (#1
   const argv = snippetArgv(extractStampStatusSnippet());
   const parsed = parseArgs(argv);
   assert.strictEqual(parsed.stampStatus, true);
+});
+
+test('the scoped re-verify invocation parses clean through the real arg parser and names every required flag (#1923)', () => {
+  const argv = snippetArgv(extractScopedSnippet().replace('{ref}', 'main'));
+  const parsed = parseArgs(argv);
+  assert.strictEqual(parsed.scope, '.claude-tweaks/verify-scope.json');
+  assert.strictEqual(parsed.integrationBranch, 'main');
+  assert.ok(parsed.cmds.length >= 1, 'the scoped invocation must still pass the full --cmd set');
+  assert.ok(!extractScopedSnippet().includes('$(git rev-parse'), 'the scoped invocation must not substitute a git dir');
+});
+
+test('the scoped snippet tokenizer can go red on an injected unknown flag (#1923)', () => {
+  const mutated = extractScopedSnippet().replace('{ref}', 'main') + ' --bogus';
+  assert.throws(() => parseArgs(snippetArgv(mutated)), UsageError);
 });
 
 test('agents never write the stamp: no redirect into claude-tweaks-verify-pass remains, and the foreground rule is stated (#1921 AC6)', () => {
