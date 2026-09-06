@@ -24,6 +24,32 @@ A sub-file may carry a **tighter per-file pin** than that ceiling when a step re
 
 **Extracting to a sub-file under budget pressure.** When a file nearing its ceiling needs new content, extract the least-structural part — rationale paragraphs, "why" explanations, edge-case walkthroughs — into a cited sub-file rather than trimming inline prose to the point of losing clarity. This repo has done it repeatedly: `console-template.md`, `manifesto-overrides.md`, and `manifesto-authorized-merge.md` (extracted from `flow/manifesto.md` to clear its own #724 pin), and `journey-health/deep-tier.md` and `specify/next-actions.md` (extracted from their respective `SKILL.md`s, #1806) are worked examples.
 
+## Conditional blocks and the composer
+
+A `plugin/skills/_shared/*.md` contract or a skill sub-file may fence a passage that applies only under one resolved run condition, so a step reads one composed bundle instead of every branch of every file:
+
+```markdown
+<!-- when: integration-model=pr-first -->
+… the pr-first branch …
+<!-- /when -->
+```
+
+**Marker grammar.** `<!-- when: {key}={value} -->` opens a block and `<!-- /when -->` closes it, each on its own line; exactly one `key=value` per marker; a pair opens and closes in the same file; nesting depth at most 1 — an inner block is kept only when both its own condition and the enclosing block's hold. Six keys, in this canonical order: `integration-model` (`pr-first`|`local-merge`), `mode` (`auto`|`confirm`|`interactive`|`hybrid`), `attendance` (`headless`|`attended`), `transport` (`gh`|`mcp`), `worktree-policy` (`always`|`optional`), `work-backend` (`github-issues`|`local-files`). A malformed marker (unclosed, unknown key or value, nesting deeper than 1, a close with no open) is a compose error — the composer exits 2 naming the file and line and writes nothing; it never silently keeps or drops a branch.
+
+**Call-site form.** A step that reads several fenced sources composes them once per step:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step {step} {files}
+```
+
+then reads `{run}/context/{step}.md` — the sources in argv order, untaken blocks removed, marker lines stripped, opening with a `<!-- resolved: … -->` line naming every key's value. A key the run cannot resolve (no `config.yml` on a standalone run, no policy file) keeps **both** branches and is listed as `unresolved` in that line and in the CLI's JSON output — a branch is never dropped on a guess. The bundle is regenerated on every call, never cached, since the Manifesto can re-answer a lever mid-run.
+
+**Every call site carries this fallback sentence verbatim:** *if the compose command is unavailable or exits non-zero, read the named source files directly.*
+
+**A fenced block never holds the only copy of a heading, Step label, or anchor another file cites** — every citation must resolve in every composition, so headings and anchors stay outside the fences and only the condition-specific prose goes inside.
+
+**Composition over fragmentation.** When a file nears its ceiling, the standing response is to fence the condition-specific passages and let the composer trim them per run — not to split the file again. Per-file byte ceilings measure what a run *could* load; composed bytes per step measure what it *does*.
+
 ## Inline `_shared` contract vs a new component skill
 
 When a new capability needs a canonical, citable procedure, choose between two shapes:
