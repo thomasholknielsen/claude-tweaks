@@ -177,7 +177,7 @@ Audit the plan against the actual repo before dispatching execution, via `node "
 
 **Auto mode** (including a standalone `auto` invocation with no pipeline run dir): apply the `scope-creep` policy, resolved per the standard precedence (default `add-to-plan`). **Interactive mode:** call `AskUserQuestion` with three options: "Add to plan and continue" (Recommended), "Continue without", "Stop".
 
-**Skip this step entirely when** the plan has fewer than 3 file references (trivial plans don't benefit from audit) AND no `Scope keywords:` field is present, **or** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — a `ceremony-check` verdict of `fast-lane` is itself a judgment that this record's plan doesn't need auditing against scope creep. Standalone `/build` (no `config.yml`) always falls back to the size-based condition alone. This is the full gate — deciding skip-vs-run never requires loading `plan-audit.md` itself.
+**Skip this step entirely when** the plan has fewer than 3 file references (trivial plans don't benefit from audit) AND no `Scope keywords:` field is present, **or** when `config.yml`'s `ceremony-profile` is `fast-lane` (read fresh from the run directory) — roster tag `plan-audit`, `_shared/ceremony-profile.md`, which holds the rationale. Standalone `/build` (no `config.yml`) always falls back to the size-based condition alone. This is the full gate — deciding skip-vs-run never requires loading `plan-audit.md` itself.
 
 > **Project setting:** When `.claude-tweaks/policy.yml` declares `scope-keywords-required: true`, plans without a `Scope keywords:` field are treated as failed audits (require the field, not just optional). See `plan-audit.md` for the policy table.
 
@@ -246,7 +246,7 @@ Compare what was actually built to what the spec or design doc said. For the ful
 
 Architecture-alignment learnings that outlive this project route via `skills/_shared/learning-routing.md` rather than defaulting to a ledger entry.
 
-**Skip this step if:** design mode with no formal spec, the plan was trivial (< 3 tasks, single-file changes), or `config.yml`'s `ceremony-profile` is `fast-lane` — see `architecture-alignment.md`'s own Skip section for the full rationale (why fast-lane skip is deliberate, not an oversight, and what the safety net is). **On skip** (one of the three conditions fires — never for a normal run finding zero deviations), write a `SKIP` entry per the degrade-trace rule; standalone: list in the handoff.
+**Skip this step if:** design mode with no formal spec, the plan was trivial (< 3 tasks, single-file changes), or `config.yml`'s `ceremony-profile` is `fast-lane` — roster tag `architecture-alignment`, `_shared/ceremony-profile.md` (the rationale and the safety net live there; `architecture-alignment.md`'s own Skip section keeps only the three conditions). **On skip** (one of the three conditions fires — never for a normal run finding zero deviations), write a `SKIP` entry per the degrade-trace rule; standalone: list in the handoff.
 
 When a mismatch is an architectural deviation at module level — a boundary in the wrong place, an interface nearly as complex as what it wraps — route it to `/claude-tweaks:deepen` for a dedicated module-depth pass rather than to Common Step 3's `/claude-tweaks:simplify`, whose scope is line-level cleanup.
 
