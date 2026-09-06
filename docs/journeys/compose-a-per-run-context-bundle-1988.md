@@ -16,6 +16,9 @@ files:
   - plugin/skills/_shared/github-pr-scan.md
   - plugin/skills/tidy/scan-procedures.md
   - plugin/skills/flow/claim-targets.md
+  - plugin/skills/build/SKILL.md
+  - plugin/skills/_shared/worktree-setup.md
+  - plugin/skills/build/worktree-setup.md
 ---
 
 # Compose a Per-Run Context Bundle From Fenced Skill Sources
@@ -83,9 +86,17 @@ files:
 - **Should understand:** With `gh` present the header says `transport=gh`, the paired `- **gh CLI:**` bullets under "The lock" are present and the `- **MCP:**` bullets and the MCP list-all-claims bullet are gone; without `gh` the header says `transport=mcp` and the reverse holds — the bundle a cloud Routine reads is the procedure it can actually run. The manual repair steps stay in both, because the unconditional CLI paragraph above them says "steps 1-4 below": a fence may only hide prose that nothing outside the fence points the reader at (`docs/skill-authoring.md`'s every-citation-resolves rule — the whole-branch review caught four pointers that broke it). The same shape gives `tidy` Step 4.8 a `pr-scan` bundle from `github-pr-scan.md` in which an MCP run drops the two PR-backed procedure bodies whose labels nothing cites by number into the fence (item 9's body, `triage-queue` item 3 with its unconditional "omit the line" instruction), while `repo-wide` items 1, 2, and 4 and the `current-pr` items stay — they are cited by number, or pointed at from another item — and degrade per the Transport section. Neither bundle joins the other: three files of claim and scan prose total 118 KB, and the composed-bytes gate rejects any call site over 40 KB — each source composes alone, at 37 KB and 40 KB. `github-pr-scan-acceptance.md` has no transport branch at all (its scopes hard-skip without `gh`) and stays a raw read.
 - **Red flags:** `transport=unresolved` in any header; a `- **MCP:**` bullet present under `gh` or a `gh api --method PUT` line under `mcp`; item 9's label, `repo-wide` item 4, or the `- **PR-backed items**` bullet missing under either transport (cited by number or by "see Transport above"); the repair steps missing under `gh` ("steps 1-4 below" promises them); a `claims-scan` step in `composedBytesReport`'s table; a compose sentence in `dispatch/SKILL.md` (it does not claim, and sits 12 B under its raw gate).
 
+### 9. Compose a bundle that has nothing to strip — terminal
+- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step worktree-setup "${CLAUDE_PLUGIN_ROOT}/skills/_shared/worktree-setup.md" "${CLAUDE_PLUGIN_ROOT}/skills/build/worktree-setup.md"` — `build/SKILL.md` Common Step 1's read since #1993.
+- **Action:** Run it under any policy, read the header line, and `wc -c` the bundle against the two sources.
+- **Should feel:** Nothing was decided. The header still names every resolved condition, but the bundle is the two files end to end, because neither file carries a line that branches on `worktree-policy`.
+- **Should understand:** The record that added this call site assumed the files held always-vs-optional prose; a plan-time survey measured 0 B on both, so no markers were added and the switch ships on its other rationale — one read of one bundle instead of a read of the build file plus section-by-section reads of the shared contract. What that costs: the bundle is ~36.8 KB against a 40,960 B composed ceiling, so the two files' growth budgets are now coupled at this call site, and `context-cost.test.js`'s composed gate is what says so first. A zero-fence bundle is the composer working as designed, not a failure of it — but it buys only the read-once shape, never bytes.
+- **Red flags:** any `when:` marker in either source (the survey said none belongs); a header naming `worktree-policy=unresolved` on a project whose `policy.yml` sets `worktree-always` (the resolver reads that key); a composed-gate failure at this call site after an unrelated edit to either file; a standalone `/build` attempting the compose — it reaches Common Step 1 before Spec Step 1's materialize mints its run directory, so the call site composes only under a `/flow` parent that already exported `$PIPELINE_RUN_DIR`, and a standalone build reads the two files directly rather than exercising the exit-2 fallback every time.
+
 ## Origin
 - Created during build of #1988 (per-run skill-context composer CLI — Phase 1 of #1987's decomposition); steps 1-5 built in this session.
 - Step 6 added during build of #1989 (merge-path markers — the first production consumer: `pr-first-merge.md` and `pr-early-run-lifecycle.md` fenced, `/wrap-up`'s two merge sites reading the composed `merge` bundle).
 - Step 7 added during build of #1991 (mode markers on `manifesto.md`; `flow/SKILL.md`'s Step 3 reads the composed `manifesto` bundle; the other three named sources measured as carrying no prose on this axis).
 - Step 8 added during build of #1992 (transport markers on `issue-claims.md` and `github-pr-scan.md`; the single-source `claims` and `pr-scan` bundles at tidy's claim sweep and PR scan and flow's MCP claim path; the transport probe exercised with `gh` removed from PATH).
+- Step 9 added during build of #1993 (the `worktree-setup` bundle at `build/SKILL.md` Common Step 1 — a two-source bundle with zero fences, after a survey found no worktree-policy prose in either file).
 - Related specs: #1987 (parent design), #1990 (composed-bytes measurement, imports `stripMarkers`/`compose`; carries the merge bundle's byte budget), #1991-#1994 (the remaining records that fence real `_shared/*.md` files), #1995-#1997.
