@@ -138,13 +138,11 @@ async function run(argv, deps = {}) {
     const onPr = existing !== null
       && (existing.prNumber !== undefined || existing.commentIds !== undefined || existing.mergeCheckVerdict !== undefined);
     const pr = onPr && existing.prNumber !== undefined ? `PR #${existing.prNumber}` : 'the PR';
-    if (onPr && existing.resolved === true) {
-      stdout(`console-resolve.js: ${consolePath} is a console rendered on ${pr} and already resolved there — nothing to re-resolve.\n`);
-      stdout(`${renderStoredTable(existing)}\n`);
-      return 0;
-    }
-    if (!onPr && existing !== null && existing.resolved === true) {
-      stdout(`console-resolve.js: ${consolePath} already records a resolved console — re-rendering it; nothing re-resolved.\n`);
+    if (existing !== null && existing.resolved === true) {
+      const notice = onPr
+        ? `${consolePath} is a console rendered on ${pr} and already resolved there — nothing to re-resolve.`
+        : `${consolePath} already records a resolved console — re-rendering it; nothing re-resolved.`;
+      stdout(`console-resolve.js: ${notice}\n`);
       stdout(`${renderStoredTable(existing)}\n`);
       return 0;
     }
@@ -177,13 +175,17 @@ async function run(argv, deps = {}) {
     // Reversibility uses _shared/auto-decision-log.md's closed vocabulary
     // (high | med | low | n/a) — nothing else is a legal value on a schema line.
     const nothingToRevert = new Set(['stale', 'keep-staged', 'pending', 'refused']);
+    const reversibilityFor = (resolution) => {
+      if (nothingToRevert.has(resolution)) return 'n/a';
+      return resolution === 'apply' ? 'med' : 'high';
+    };
     const stagedNames = new Set(snapshot.staged.map((s) => s.name));
     const lines = result.items.map((it) => formatEntry({
       status: 'AUTO',
       now: now(),
       step: 'Review Console',
       text: `Console item ${it.id} (${it.section}): ${it.resolution} — ${it.reason}${stagedNames.has(it.id) ? ` (staged/${it.id})` : ''}`,
-      reversibility: nothingToRevert.has(it.resolution) ? 'n/a' : it.resolution === 'apply' ? 'med' : 'high',
+      reversibility: reversibilityFor(it.resolution),
     }));
     appendEntry({ runDir, section: '/wrap-up', entry: [header, ...lines].join('\n') });
     writeFileAtomic(consolePath, `${JSON.stringify({ resolved: true, mode: 'auto-resolve', at, ceiling: 'unattended', items: result.items, merge: result.merge }, null, 2)}\n`);

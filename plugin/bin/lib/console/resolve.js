@@ -239,11 +239,10 @@ function coordinationItems(snapshot, stagedIds) {
     // filename — `.` is deliberately excluded from the body class.
     const named = /staged\/([A-Za-z0-9_-]+\.(?:md|patch))/.exec(line);
     if (named && stagedIds.has(named[1])) continue;
-    if (/low-confidence|not directly verified|unconfirmed/i.test(line)) {
-      out.push({ id: `decision:${line.slice(2, 60)}`, section: SECTIONS.LOW, resolution: 'keep-staged', reason: SECTION_STANCES[SECTIONS.LOW].reason });
-    } else if (/contested|debate/i.test(line)) {
-      out.push({ id: `decision:${line.slice(2, 60)}`, section: SECTIONS.CONTESTED, resolution: 'keep-staged', reason: SECTION_STANCES[SECTIONS.CONTESTED].reason });
-    }
+    let section = null;
+    if (/low-confidence|not directly verified|unconfirmed/i.test(line)) section = SECTIONS.LOW;
+    else if (/contested|debate/i.test(line)) section = SECTIONS.CONTESTED;
+    if (section) out.push({ id: `decision:${line.slice(2, 60)}`, section, resolution: 'keep-staged', reason: SECTION_STANCES[section].reason });
   }
   return out;
 }
