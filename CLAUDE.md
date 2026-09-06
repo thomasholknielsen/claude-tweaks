@@ -43,8 +43,7 @@ Invocation: `node plugin/bin/release.js <minor|patch> "<summary>"` from clean `m
 ### Cross-references
 
 - Every relationship between skills is stated **once**, in `docs/skill-graph.md`. Adding or changing a skill means adding or updating its edges there. Do not restate an edge inside a `SKILL.md`: the bidirectional convention this replaces required each edge in two places, and the two copies drifted
-- Workflow diagrams in `/help` must list all skills
-- The artifact lifecycle diagram in `/help` and `README.md` must stay in sync
+- `/help`'s workflow diagrams must list all skills, and its artifact lifecycle diagram must stay in sync with `README.md`'s
 - Prefer describing a list's size by reference ("see the table below") over restating it as a literal count — see the cardinality rule in `## Don'ts`
 - A skill reference inside actionable instruction text (a `## Step N` body, a `## Next Actions` block) MUST use the fully-qualified `/claude-tweaks:{skill}` form — the `Skill` tool requires it, and a bare `/{skill}` there fails with "Unknown skill" at invocation time. Bare short-form references (`/{skill}`) are reserved for descriptive prose and Relationship-to-Other-Skills tables, where they're never passed to a tool call.
 
@@ -112,7 +111,7 @@ claude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Conf
 
 **Strict rule:** skills MUST NOT invent new mid-flow stops in `auto` mode. If a decision is decision-worthy, stage it (log it, don't act) and surface at the Review Console. Mid-flow stops are reserved for HARD-GATEs (test failures, spec compliance, structural coupling, plan validation) and the explicit "not silenced" list in the contract.
 
-**Per-pipeline run directory** (collision-safe across parallel agents): `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` contains `config.yml` (Manifesto answers), `decisions.md` (audit log), and `staged/` (proposals awaiting Review Console). Resolve it — and `PIPELINE_RUN_DIR`, adoptable only once it resolves under `$RUN_ROOT` — per `plugin/skills/_shared/pipeline-run-dir.md`: `$RUN_ROOT` is the main checkout, never the cwd worktree, and a bare relative path silently shadows it `[IL-127]`. **Project policy** lives in `.claude-tweaks/policy.yml` — the only config home since 6.48.0 — read as defaults by the Manifesto, overridable per-run.
+**Per-pipeline run directory** (collision-safe across parallel agents): `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/` holds the run's config, audit log, staged proposals, and the hook- and CLI-written run artifacts alongside them — do not restate the layout here; it grows every release (`preflight.json`, `timing.json`, `console.json` all landed in one run) and a copy in an always-loaded file goes stale unwatched. Resolve it — and `PIPELINE_RUN_DIR`, adoptable only once it resolves under `$RUN_ROOT` — per `plugin/skills/_shared/pipeline-run-dir.md`: `$RUN_ROOT` is the main checkout, never the cwd worktree, and a bare relative path silently shadows it `[IL-127]`. **Project policy** lives in `.claude-tweaks/policy.yml` — the only config home since 6.48.0 — read as defaults by the Manifesto, overridable per-run.
 
 ## Design integration
 
