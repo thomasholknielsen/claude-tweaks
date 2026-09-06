@@ -19,6 +19,8 @@ run, where "this work" and "the whole run" are the same thing.
 
 ## Running the sweep
 
+Read `pack.residue` from `{run-dir}/wrap-up-pack.json` first (#1930) — its `value` is exactly this command's `--json` output; run the command below only when the pack file is absent. An `ok: false` field (or a missing key) renders this sweep's existing `unknown` outcome, never a clean sweep.
+
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {base} --integration-branch {ref} --scope blast-radius
 ```

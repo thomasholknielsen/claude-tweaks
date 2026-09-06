@@ -10,6 +10,8 @@ WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-li
 gh issue list --state open --json number,title,body --limit 200 > "$WRAPUP_OPEN_RECORDS"
 ```
 
+Read `pack.unblocked` from `{run-dir}/wrap-up-pack.json` first (#1930) — its `value` is the `[{number, title}]` list both branches below compute; write it to `$WRAPUP_UNBLOCKED` and skip the queries. Run the branches only when the pack file is absent; an `ok: false` field (`gh-absent`, a failed query) is this step's existing "skip the newly-unblocked check this run" warning, never an empty list read as "nothing unblocked".
+
 `work-links: body-text` — dependents are found via literal `Blocked by #N` body-text lines. Re-resolve this fence's session-scoped paths (`_shared/session-tmp-root.md`; a fresh bash invocation does not inherit the prior fence's shell variable):
 
 ```bash

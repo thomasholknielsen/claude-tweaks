@@ -25,6 +25,8 @@ landed" from memory.}
 
 Render VERBATIM from the helper — do not compose these facts from memory:
 
+The State block's inputs are `pack.state` in `{run-dir}/wrap-up-pack.json` (#1930) — the same object `wrap-up-state.js --json` prints; run the command only when the pack file is absent, and render an `ok: false` field as the block's existing "not a repository / unavailable" rows.
+
     node "${CLAUDE_PLUGIN_ROOT}/bin/wrap-up-state.js" --since {base}
 
 If the helper exits non-zero, `{base}` was not a resolvable commit-ish —
