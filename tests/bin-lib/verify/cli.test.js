@@ -827,3 +827,39 @@ test('--changed-files honors --base and never writes a stamp or report (#1923)',
   assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json')));
   assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify', 'report.json')));
 });
+
+test('#1801 shape: a ledger-row commit after a full pass resolves to none — still-verified line, no tests spawned (#1923 AC5)', async () => {
+  const r = tmpGitRepo();
+  const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
+  const marker = path.join(r.repo, 'tests-ran.marker');
+  const decl = {
+    checks: { tests: 'placeholder' },
+    rules: [
+      { match: 'docs/plans/*-ledger.md', suites: [], static: false },
+      { match: 'src/**', suites: ['tests'], static: true },
+    ],
+  };
+  fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
+  r.git('add', '.claude-tweaks/verify-scope.json');
+  r.git('commit', '-q', '-m', 'declare verify scope');
+  // Single-quoted -e with a double-quoted JSON.stringify path inside (per
+  // the scopedRepo() unitCmd comment above): spawn's shell:true runs this
+  // through /bin/sh -c, and the brief's original double-quoted -e nested
+  // JSON.stringify's own double quotes, which the shell closed early —
+  // corrupting the path into a bareword node then misread as a regex
+  // literal ("Invalid regular expression flags").
+  const testsCmd = `node -e 'require("fs").writeFileSync(${JSON.stringify(marker)}, "ran")'`;
+  const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', branch, '--cmd', `tests=${testsCmd}`];
+  const full = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(full.code, 0, full.stderr);
+  assert.ok(fs.existsSync(marker));
+  fs.unlinkSync(marker);
+  commitFile(r, 'docs/plans/2026-09-06-spec-1-ledger.md', '| 1 | test | row | open | — |\n');
+  const run = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run.code, 0, run.stderr);
+  assert.match(run.stdout, /^Scope: none/m);
+  assert.ok(run.stdout.includes('still-verified: bookkeeping-only delta (docs/plans/2026-09-06-spec-1-ledger.md)'));
+  assert.ok(!fs.existsSync(marker), 'no tests check may spawn on a bookkeeping-only delta');
+  assert.strictEqual(stampOf(r.gitDir).scope, 'none');
+});
