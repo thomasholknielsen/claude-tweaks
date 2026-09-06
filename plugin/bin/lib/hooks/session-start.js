@@ -412,7 +412,10 @@ async function run(ctx) {
             const result = await portsEnsure.ensure(ctx.cwd, { policyServices: services });
             if (result.active) {
               const range = `${result.base}-${result.base + result.ports.length - 1}`;
-              const vars = result.vars.map(([k, v]) => `${k}=${v}`).join(' ');
+              // #1927: CLAUDE_TWEAKS_LEASE rides in vars for the env file, not in this line (#1792 AC3's shape).
+              const vars = result.vars
+                .filter(([k]) => k === 'PORT' || k.endsWith('_PORT'))
+                .map(([k, v]) => `${k}=${v}`).join(' ');
               // Reallocation moves URLs — this line must never be silent
               // (see #1792's Gotchas: "never make the reallocation silent").
               parts.push(result.reallocated
