@@ -180,3 +180,10 @@ test('code-health/routine-template.yml: parameterless template has no focus fiel
     "the parameterless template's kickoff must stay exactly this — no focus= suffix",
   );
 });
+
+test('instantiated record schema documents webhook_triggers as an optional field', () => {
+  const schema = fs.readFileSync(path.join(SKILLS_DIR, '_shared', 'routine-template-schema.md'), 'utf8');
+  assert.match(schema, /\|\s*`webhook_triggers`\s*\|\s*array of objects\s*\|\s*no\s*\|/);
+  assert.match(schema, /webhook_trigger_id/);
+  assert.match(schema, /RemoteTrigger.*create_webhook_trigger|create_webhook_trigger.*RemoteTrigger/);
+});
