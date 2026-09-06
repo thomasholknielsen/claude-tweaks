@@ -103,16 +103,24 @@ async function ensure(cwd, {
   // in place by the registry's write — report it. Belt and braces: if the
   // line is still absent (an env write error left the old region), write the
   // same-base vars once more; never the reallocation path. A failed fallback
-  // write reports `false` (the line is not there).
+  // write reports `false` (the line is not there) and its message in
+  // `envWriteError`, the same field the registry's own write failure uses.
   const portBefore = Array.isArray(regionBefore) ? (regionBefore.find(([k]) => k === 'PORT') || [])[1] : undefined;
   let leaseLineAdded = false;
+  let envWriteError = result.envWriteError;
   if (regionBefore !== null && !hadLeaseLine && reallocated === null && portBefore !== undefined && Number(portBefore) === result.base) {
     let regionAfter = null;
     try { regionAfter = readManagedRegion(fs.readFileSync(path.join(checkoutRoot, '.env.local'), 'utf8')); } catch { regionAfter = null; }
     if (Array.isArray(regionAfter) && regionAfter.some(([k]) => k === LEASE_KEY)) {
       leaseLineAdded = true;
     } else {
-      try { writeEnvFiles(checkoutRoot, result.vars); leaseLineAdded = true; } catch { leaseLineAdded = false; }
+      try {
+        writeEnvFiles(checkoutRoot, result.vars);
+        leaseLineAdded = true;
+      } catch (err) {
+        leaseLineAdded = false;
+        envWriteError = err && err.message ? err.message : String(err);
+      }
     }
   }
 
@@ -122,7 +130,7 @@ async function ensure(cwd, {
     ports: result.ports,
     vars: result.vars,
     reallocated,
-    envWriteError: result.envWriteError,
+    envWriteError,
     leaseLineAdded,
   };
 }
