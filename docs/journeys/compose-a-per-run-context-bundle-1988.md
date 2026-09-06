@@ -10,6 +10,8 @@ files:
   - plugin/skills/wrap-up/auto-merge-short-circuit.md
   - plugin/skills/wrap-up/review-console.md
   - tests/compose-markers-conformance.test.js
+  - plugin/skills/flow/manifesto.md
+  - plugin/skills/flow/SKILL.md
 ---
 
 # Compose a Per-Run Context Bundle From Fenced Skill Sources
@@ -63,7 +65,15 @@ files:
 - **Should understand:** The `## Local-merge fallback` heading is still there but its body is gone (a fenced-whole section renders as a bare heading in the untaken composition — the heading marks the branch's place, so any citation to it by name still resolves); the `## Skip / degrade behavior` section keeps its degrade table (rows 2-7 are pr-first paths) and loses only the local-merge paragraph and its SKIP block; the MCP root-cause section keeps its `Confirmed against…` bullets and `**Consequence:**` paragraph (three later sentences cite "Root cause above" under every transport) and loses only the `**Scope extends…**` paragraph. Source paths are `${CLAUDE_PLUGIN_ROOT}`-rooted, never repo-relative — a `plugin/skills/…` path resolves only from a claude-tweaks checkout and would exit 1 in every consumer install. The bundle is ~56 KB against ~59 KB for the two raw files: additive fencing of prose that already exists is a small saving; the per-step byte budget is #1990's job. `stripMarkers(source) === git show origin/main:{source}` holds for both files — the migration inserted marker lines and changed nothing else.
 - **Red flags:** A `Local-merge fallback` body present under `pr-first`; a degrade-table row missing; a "Root cause above" citation with no root cause left in the bundle; exit 1 with an ENOENT naming `plugin/skills/…`; a skill step that reads `context/merge.md` without checking the exit code first.
 
+### 7. Compose the Manifesto bundle for the mode a run resolved — terminal
+- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run /tmp/compose-demo --step manifesto "${CLAUDE_PLUGIN_ROOT}/skills/flow/manifesto.md"`, with `config.yml` reading `mode: auto` — the call `plugin/skills/flow/SKILL.md`'s Step 3 carries.
+- **Action:** Run it, grep `context/manifesto.md` for `**`confirm` mode**`; change `config.yml` to `mode: confirm`, re-run, grep for `render the FYI variant instead`; delete `config.yml`, re-run, and read the JSON line's `unresolved`.
+- **Should feel:** The Manifesto a run reads describes only the stop it will actually make.
+- **Should understand:** Under `auto` the `confirm` and `hybrid` bullets and their approval-gate pointers are gone; under `confirm` the `auto` bullet and the FYI-rendering paragraph are gone; the `interactive` bullet is never fenced because an `interactive` run never reads this file at all. With no `config.yml`, `mode` and `attendance` are `unresolved`, both branches are present, and the bundle is what a standalone run pays — the same text as reading the file directly. The four fences are the whole of what branches on `mode` in this file; passages true under `confirm` *or* `hybrid` stay unconditional because the grammar has no OR, and the shared template and Path conventions are cited by other files and never fenced. This is a small saving on purpose: the surveys behind #1991 found the flow lifecycle's big shared contracts (`pipeline-run-dir.md`, `auto-mode-contract.md`) branch on `integration-model`, `worktree-policy`, and `transport`, not on `mode` — a bundle of those two would be ~70 KB under every mode and the composed-bytes gate would reject it, so no `flow-run` call site exists.
+- **Red flags:** A `confirm` bullet present under `mode: auto`; the FYI paragraph present under `mode: confirm`; a bundle that differs from the raw file with no `config.yml`; a `flow-run` step in `composedBytesReport`'s table.
+
 ## Origin
 - Created during build of #1988 (per-run skill-context composer CLI — Phase 1 of #1987's decomposition); steps 1-5 built in this session.
 - Step 6 added during build of #1989 (merge-path markers — the first production consumer: `pr-first-merge.md` and `pr-early-run-lifecycle.md` fenced, `/wrap-up`'s two merge sites reading the composed `merge` bundle).
+- Step 7 added during build of #1991 (mode markers on `manifesto.md`; `flow/SKILL.md`'s Step 3 reads the composed `manifesto` bundle; the other three named sources measured as carrying no prose on this axis).
 - Related specs: #1987 (parent design), #1990 (composed-bytes measurement, imports `stripMarkers`/`compose`; carries the merge bundle's byte budget), #1991-#1994 (the remaining records that fence real `_shared/*.md` files), #1995-#1997.
