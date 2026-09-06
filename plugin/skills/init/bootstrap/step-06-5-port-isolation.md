@@ -40,6 +40,11 @@ never guessed at:
   variable at this key; always reported, never rewritten.
 - **README/Makefile Python commands** (`runserver 8000`, `uvicorn --port 8000`) — prose/build-file
   commands, not a config file this step edits; always reported, never rewritten.
+- **A literal test-database name** (`test_db`, `testdb`, `test.db`) as a value in `.env`/`.env.local`
+  or `vitest.config.*` — report it with the suggestion `test_${CLAUDE_TWEAKS_LEASE}` (the managed
+  region's lease token, #1927); never rewritten, since a wrong rewrite points tests at a database
+  that does not exist. False negatives for an unlisted literal are accepted — this row is
+  report-only.
 - **Catch-all:** a detected literal port matching none of the six rewrite rows above and none of
   these three named hard cases defaults to report-only. Never offer a guessed rewrite for a shape
   this table doesn't name.
