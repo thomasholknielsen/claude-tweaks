@@ -117,7 +117,7 @@ Carrying `PIPELINE_RUN_DIR` in that note is load-bearing for any caller resuming
 
 **Polish bundled with re-verify:** If `polish` is in the step list, the re-verify gate runs automatically when polish modifies code. Users do not need to add a separate `re-verify` step. If a user includes the literal `re-verify` in the step list, treat it as a no-op (already bundled with polish) and note: "`re-verify` is bundled with `polish` — no separate step needed."
 
-**Re-verify scoping:** every in-pipeline re-verify — the auto-inserted `test`, the polish re-verify, the review-fix re-verify, and a multi-spec spec-N `test` step — runs scoped against the last full pass per `test/verification.md`'s "Re-verify scoping" table (build Common Step 5 stays full; standalone `/claude-tweaks:test` stays full). `/flow` states this once here and does not restate the rule.
+**Re-verify scoping:** every in-pipeline re-verify — the auto-inserted `test`, the polish re-verify, the review-fix re-verify, and a multi-spec spec-N `test` step — runs scoped against the last full pass per `test/verification.md`'s "Re-verify scoping" table. `/flow` states this once here and does not restate the rule.
 
 **`no-polish` argument behavior:** When `no-polish` is set, the polish phase (and its re-verify gate) is removed from the pipeline. The default pipeline becomes `build,test,review,wrap-up` (the pre-Phase-2 default). `no-polish` overrides any explicit `polish` in the step list — the user's explicit step request wins on the rest of the pipeline, but polish is unconditionally dropped.
 

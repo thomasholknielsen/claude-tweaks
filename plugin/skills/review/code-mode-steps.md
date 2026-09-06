@@ -63,7 +63,7 @@ Verify that `/claude-tweaks:test` has passed before proceeding to analytical rev
 
 ### In `/claude-tweaks:flow` pipeline:
 
-Check for `TEST_PASSED=true` in pipeline context. If present, add one belt-and-braces read of the runner's own artifact (#1921) — `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --stamp-status` (one plain command; prints `{present, sha, head, dirty, scope, fullSha, match, reportPath, legacy}`, exit 0 always). `match: true` → proceed to Step 2. `match: false` with `TEST_PASSED=true` is reported, never silently accepted: "TEST_PASSED set but the runner stamp does not match HEAD ({stamp-sha} vs {head}) — re-running `/claude-tweaks:test`", then re-trigger `/claude-tweaks:test` and re-check.
+Check for `TEST_PASSED=true` in pipeline context. If present, add one belt-and-braces read of the runner's own artifact (#1921) — `node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --stamp-status` (one plain command; prints `{present, sha, head, dirty, scope, fullSha, match, verifiedHead, reportPath, legacy}`, exit 0 always). `verifiedHead: true` (a clean HEAD covered by a full pass, or by a passing scoped run anchored on a still-valid `fullSha` — `match` alone would re-trigger a scoped run forever, #1923) → proceed to Step 2. `verifiedHead: false` with `TEST_PASSED=true` is reported, never silently accepted: "TEST_PASSED set but the runner stamp does not verify HEAD ({stamp-sha}, {scope} vs {head}) — re-running `/claude-tweaks:test`", then re-trigger `/claude-tweaks:test` once and re-check.
 
 ### Standalone (outside `/claude-tweaks:flow`):
 
@@ -73,8 +73,8 @@ Check the verification pass stamp (`test/verification.md`'s "Verification pass s
 node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --stamp-status
 ```
 
-- **`match: true`** (the stamp's `sha` equals `HEAD`, the live tree is clean, `scope` is `full`) → a recent pass; proceed to Step 2. The stamp asserts verification only (types + lint + tests) — when QA stories exist, the QA Ledger Check below still runs as usual.
-- **`present: false`, `match: false`, or `dirty: true`** → no recent pass (fail-open; a stale stamp is never trusted): auto-trigger `/claude-tweaks:test`. If QA stories exist (`stories/*.yaml`), trigger `/claude-tweaks:test all` (full suite + QA). Otherwise trigger `/claude-tweaks:test` (standard suite only).
+- **`verifiedHead: true`** (a clean HEAD covered by a full pass, or by a passing scoped run anchored on a still-valid `fullSha`) → a recent pass; proceed to Step 2. The stamp asserts verification only (types + lint + tests) — when QA stories exist, the QA Ledger Check below still runs as usual.
+- **`present: false`, `verifiedHead: false`, or `dirty: true`** → no recent pass (fail-open; a stale stamp is never trusted): auto-trigger `/claude-tweaks:test`. If QA stories exist (`stories/*.yaml`), trigger `/claude-tweaks:test all` (full suite + QA). Otherwise trigger `/claude-tweaks:test` (standard suite only).
 
 ### QA Ledger Check
 
@@ -87,8 +87,8 @@ After confirming `TEST_PASSED`, read the open items ledger (`docs/plans/*-ledger
 
 | Result | Action |
 |--------|--------|
-| `TEST_PASSED=true` (pipeline) + runner stamp `match: true` | Proceed to Step 2 |
-| `TEST_PASSED=true` (pipeline) + runner stamp `match: false` | Report the mismatch (stamp sha vs HEAD), re-trigger `/claude-tweaks:test`, re-check |
+| `TEST_PASSED=true` (pipeline) + runner stamp `verifiedHead: true` | Proceed to Step 2 |
+| `TEST_PASSED=true` (pipeline) + runner stamp `verifiedHead: false` | Report it (stamp sha/scope vs HEAD), re-trigger `/claude-tweaks:test`, re-check |
 | Verification pass stamp matches `HEAD` (standalone) | Proceed to Step 2 |
 | `/claude-tweaks:test` triggered and passes | Proceed to Step 2 |
 | `/claude-tweaks:test` triggered and fails | **STOP** — present test failures. Fix before continuing. Run `/claude-tweaks:test` to re-verify. |
