@@ -394,14 +394,20 @@ function revertPlainMoves(movedPairs) {
   return fullyReverted;
 }
 
-// True only when `targetPath` is a tracked file in `root`'s index right now
-// — `git ls-files --error-unmatch` exits non-zero for anything untracked
-// (including a path that simply doesn't exist), which is exactly the
-// question a caller about to `git mv` a source needs answered before it
-// tries, not after the attempt fails.
+// True only when `targetPath` is a tracked file in `root`'s index right now,
+// or — when it names a directory — every file it recursively contains is
+// tracked. `git ls-files --error-unmatch` alone is not sufficient for a
+// directory: it treats the argument as a pathspec and exits 0 as soon as ONE
+// contained file matches the index, even when a sibling file underneath is
+// genuinely untracked (empirically verified). A caller about to `git mv` a
+// whole directory (the `topStaged` case below) needs "fully tracked," not
+// "partially tracked" — so a second check confirms no untracked file exists
+// anywhere under targetPath.
 function isTracked(root, targetPath) {
   const check = runGit(['ls-files', '--error-unmatch', targetPath], root);
-  return !check.failure;
+  if (check.failure) return false;
+  const untracked = runGit(['ls-files', '--others', '--exclude-standard', targetPath], root);
+  return !untracked.failure && !untracked.stdout;
 }
 
 function archiveRunDir(root, runDir) {
@@ -479,16 +485,14 @@ function archiveRunDir(root, runDir) {
   // that revert left it. Never git-mv an untracked audit file — check first.
   const untrackedAuditFiles = [];
   if (/-(tidy|sweep)-standalone/.test(runId)) {
-    for (const auditFile of ['decisions.md', 'report.md']) {
+    // 'staged' folded into the same iterated list as the two audit files —
+    // the join/isTracked/push-or-flag logic is identical regardless of
+    // whether the entry names a file or (staged's case) a directory.
+    for (const auditFile of ['decisions.md', 'report.md', 'staged']) {
       const src = path.join(runDir, auditFile);
       if (!fs.existsSync(src)) continue;
       if (isTracked(root, src)) workMoves.push([src, path.join(archiveDir, auditFile)]);
       else untrackedAuditFiles.push(auditFile);
-    }
-    const topStaged = path.join(runDir, 'staged');
-    if (fs.existsSync(topStaged)) {
-      if (isTracked(root, topStaged)) workMoves.push([topStaged, path.join(archiveDir, 'staged')]);
-      else untrackedAuditFiles.push('staged');
     }
   }
   // Refuse the whole archival rather than proceeding with a partial batch —

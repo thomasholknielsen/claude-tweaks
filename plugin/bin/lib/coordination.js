@@ -157,10 +157,17 @@ function findingsMatch(a, b, tolerance = LINE_TOLERANCE_REPRODUCTION) {
 // and flag `severityContested: true` so a consumer (the Wrap-Up Console, a
 // PR verdict comment) can surface the disagreement explicitly rather than
 // silently picking a number. See #733.
+//
+// `lower.severity` is normalized before it lands on the output — a missing
+// or malformed severity field ranks lowest via severityRank's own floor
+// default, but would otherwise propagate through untouched (undefined/null)
+// when that malformed side wins the tiebreak, silently dropping the
+// `severity` key from any consumer that serializes the finding.
 function reconcileSeverity(fa, fb) {
   if (severityBucket(fa.severity) === severityBucket(fb.severity)) return fa;
   const lower = severityRank(fa.severity) <= severityRank(fb.severity) ? fa : fb;
-  return { ...fa, severity: lower.severity, severityContested: true };
+  const severity = typeof lower.severity === 'string' ? lower.severity : 'info';
+  return { ...fa, severity, severityContested: true };
 }
 
 function categoriseReproduction(agentAFindings, agentBFindings) {
