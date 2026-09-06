@@ -9,13 +9,13 @@ In every mode except `interactive`, the Manifesto **computes the levers and writ
 <!-- when: mode=auto -->
 - **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. This is the everyday path, and the only content it ever needs is in this file — never open `manifesto-confirm.md` for an `auto` run.
 <!-- /when -->
-<!-- when: mode=confirm -->
 - **`confirm` mode** — **approval gate.** Present the full Manifesto with the `Approve all / Override / Cancel` block and wait. After approval the rest of the pipeline runs as `auto`. Use when the user wants to inspect/tweak levers first. Additionally read `manifesto-confirm.md` in this skill's directory — the `AskUserQuestion` call, the Rendering rules for the preview, and the On-override/On-cancel branches live there, split out so an `auto` run's own read of this file never has to load them (#657).
-<!-- /when -->
 <!-- when: mode=hybrid -->
 - **`hybrid` mode** — approval gate (same as `confirm`, including `manifesto-confirm.md`); policies set here are honored, but skills still prompt for non-floor decisions.
 <!-- /when -->
+<!-- when: mode=interactive -->
 - **`interactive` mode** — no Manifesto, and this step creates no run directory; skills present each decision in-flow (they prompt rather than read `config.yml`). The run does still acquire a run directory before it ends: `/claude-tweaks:wrap-up`'s Phase 1 creates one unconditionally, in every mode, because its Review Console runs in every mode. That one carries no `config.yml` — nothing ran a Manifesto to write one — so the in-flow prompting above is unaffected.
+<!-- /when -->
 
 ## Compute recommendations
 
