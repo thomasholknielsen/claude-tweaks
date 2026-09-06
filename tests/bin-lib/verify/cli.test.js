@@ -996,7 +996,7 @@ function flakyRepo({ failingFile = 'tests/flaky.test.js', retryExit = 0, flaky =
   r.git('commit', '-q', '-m', 'flaky fixture');
   const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
   const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', branch, '--cmd', 'tests=node fail.js'];
-  return { ...r, branch, args, marker: path.join(r.repo, 'retry.marker'), retryLog: (i) => path.join(r.gitDir, 'claude-tweaks-verify', `tests-retry-tests-flaky.test.js-${i}.log`) };
+  return { ...r, branch, args, marker: path.join(r.repo, 'retry.marker'), retryLog: (i) => path.join(r.gitDir, 'claude-tweaks-verify', `tests-retry-tests+flaky.test.js-${i}.log`) };
 }
 
 test('flaky retry: an allowlisted failing file is re-run through the template and the run passes with flakyRetried on row, report, and stamp (#1925 AC3)', async () => {
@@ -1004,7 +1004,7 @@ test('flaky retry: an allowlisted failing file is re-run through the template an
   const { code, stdout, stderr } = await runCli(r.args, { cwd: r.repo });
   assert.strictEqual(code, 0, stderr);
   assert.match(stdout, /\| tests \| pass \(flaky-retried: tests\/flaky\.test\.js\) \|/);
-  assert.match(stdout, /^CAVEAT: flaky-retried: tests\/flaky\.test\.js — passed on isolated rerun; see .*tests-retry-tests-flaky\.test\.js-1\.log$/m);
+  assert.match(stdout, /^CAVEAT: flaky-retried: tests\/flaky\.test\.js — passed on isolated rerun; see .*tests-retry-tests\+flaky\.test\.js-1\.log$/m);
   assert.strictEqual(fs.readFileSync(r.marker, 'utf8'), 'tests/flaky.test.js');
   const report = JSON.parse(fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify', 'report.json'), 'utf8'));
   assert.strictEqual(report.pass, true);
@@ -1070,6 +1070,28 @@ test('flaky retry: without --scope (no declaration) a failing tests check is nev
   // I1 (#1925 review): a run with no declaration at all must not be read as
   // "the allowlist is empty" — the prior flakyHits map must survive untouched.
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(countStampPath, 'utf8')).flakyHits, { 'tests/flaky.test.js': 3 });
+});
+
+test('flaky retry: a check whose log vanished before the hook could read it is an ordinary failure with retryDecision.reason unreadable-log — no retry, no stamp, no crash (#1925 review 3f)', async () => {
+  const r = flakyRepo();
+  const logDir = tmpDir();
+  // The check prints its TAP failure, then removes its own log file (runOne's
+  // stream keeps writing to the unlinked inode), so the hook's read sees ENOENT.
+  fs.writeFileSync(path.join(r.repo, 'fail-unlink.js'), [
+    "const fs = require('fs');",
+    "process.stdout.write('not ok 1 - vanished\\n    at TestContext.<anonymous> (tests/flaky.test.js:1:1)\\n# tests 1\\n# pass 0\\n# fail 1\\n');",
+    'fs.unlinkSync(process.argv[2]);',
+    'process.exit(1);',
+    '',
+  ].join('\n'));
+  const logPath = path.join(logDir, 'tests.log');
+  const { code, stdout, stderr } = await runCli([...r.args.slice(0, 4), '--log-dir', logDir, '--cmd', `tests=node fail-unlink.js ${logPath}`], { cwd: r.repo });
+  assert.strictEqual(code, 1, stderr);
+  assert.doesNotMatch(stdout, /flaky-retried/);
+  assert.ok(!fs.existsSync(r.marker), 'no retry may run when the log could not be read');
+  const report = JSON.parse(fs.readFileSync(path.join(logDir, 'report.json'), 'utf8'));
+  assert.deepStrictEqual(report.checks.tests.retryDecision, { retry: false, reason: 'unreadable-log' });
+  assert.ok(!fs.existsSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json')));
 });
 
 test('flaky retry: a retried-to-pass suite does not fail-fast-skip the suites behind it, so the full set stamps (#1925 design)', async () => {

@@ -42,7 +42,9 @@ test('planRetry: the allowlist is suite-agnostic — a listed file retries under
 });
 
 test('retryLogName namespaces per file and per attempt', () => {
-  assert.strictEqual(retryLogName('tests', 'tests/bin-lib/a.test.js', 2), 'tests-retry-tests-bin-lib-a.test.js-2');
+  assert.strictEqual(retryLogName('tests', 'tests/bin-lib/a.test.js', 2), 'tests-retry-tests+bin-lib+a.test.js-2');
+  // A dash slug would collide these two; `+` is outside the extracted-path charset (review 3c, #1925).
+  assert.notStrictEqual(retryLogName('tests', 'tests/a-b.test.js', 1), retryLogName('tests', 'tests/a/b.test.js', 1));
 });
 
 test('applyRetryResults: every attempted file passed → exitCode 0 + flakyRetried; a file with no pass → retryFailed and the original exit code kept', () => {
@@ -81,7 +83,7 @@ test('runRetries: files run serially in plan order, each stops at its first pass
   const { runOne, calls } = fakeRunOne({ 'tests/a.test.js': [1, 0], 'tests/b.test.js': [0] });
   const plan = { retry: true, files: ['tests/a.test.js', 'tests/b.test.js'], command: [{ file: 'tests/a.test.js', cmd: 'run tests/a.test.js' }, { file: 'tests/b.test.js', cmd: 'run tests/b.test.js' }] };
   const out = await runRetries({ check: { name: 'tests', exitCode: 1 }, plan, maxRetries: 2, logDir: '/l', runOne, spawnImpl: null, now: () => 0 });
-  assert.deepStrictEqual(calls.map((c) => c.name), ['tests-retry-tests-a.test.js-1', 'tests-retry-tests-a.test.js-2', 'tests-retry-tests-b.test.js-1']);
+  assert.deepStrictEqual(calls.map((c) => c.name), ['tests-retry-tests+a.test.js-1', 'tests-retry-tests+a.test.js-2', 'tests-retry-tests+b.test.js-1']);
   assert.strictEqual(out.exitCode, 0);
   assert.deepStrictEqual(out.flakyRetried, ['tests/a.test.js', 'tests/b.test.js']);
 });
@@ -102,4 +104,14 @@ test('flakyCaveatLines: one line per retried check naming the files and the pass
     { name: 'tests', exitCode: 0, flakyRetried: ['tests/a.test.js'], retryAttempts: [{ file: 'tests/a.test.js', attempt: 1, exitCode: 1, logPath: '/l/a1.log' }, { file: 'tests/a.test.js', attempt: 2, exitCode: 0, logPath: '/l/a2.log' }] },
   ]);
   assert.deepStrictEqual(lines, ['CAVEAT: flaky-retried: tests/a.test.js — passed on isolated rerun; see /l/a2.log']);
+  // Two files retried in one check join with ', ' in both the file list and the passing logs (review 3f, #1925).
+  const two = flakyCaveatLines([{
+    name: 'unit', exitCode: 0, flakyRetried: ['tests/a.test.js', 'tests/b.test.js'],
+    retryAttempts: [
+      { file: 'tests/a.test.js', attempt: 1, exitCode: 0, logPath: '/l/a1.log' },
+      { file: 'tests/b.test.js', attempt: 1, exitCode: 1, logPath: '/l/b1.log' },
+      { file: 'tests/b.test.js', attempt: 2, exitCode: 0, logPath: '/l/b2.log' },
+    ],
+  }]);
+  assert.deepStrictEqual(two, ['CAVEAT: flaky-retried: tests/a.test.js, tests/b.test.js — passed on isolated rerun; see /l/a1.log, /l/b2.log']);
 });

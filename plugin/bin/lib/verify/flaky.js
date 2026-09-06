@@ -20,9 +20,12 @@ function planRetry({ failingFiles, flaky, retry, suite }) {
 }
 
 // {check}-retry-{file-slug}-{i}: per file AND per attempt, so two files
-// retried in one run never share a log path (record Gotchas).
+// retried in one run never share a log path (record Gotchas). The slug
+// swaps `/` for `+` — a character extract.js's path charset never admits,
+// so `tests/a-b.test.js` and `tests/a/b.test.js` cannot collide the way a
+// dash slug would (review 3c, refs #1925).
 function retryLogName(checkName, file, attempt) {
-  return `${checkName}-retry-${file.replace(/\//g, '-')}-${attempt}`;
+  return `${checkName}-retry-${file.replace(/\//g, '+')}-${attempt}`;
 }
 
 function applyRetryResults(check, attempts) {
