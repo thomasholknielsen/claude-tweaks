@@ -29,6 +29,27 @@ const NS = 'claude-tweaks:';
 function ms(iso) { const t = Date.parse(iso); return Number.isFinite(t) ? t : null; }
 function minutesBetween(a, b) { return a === null || b === null || b < a ? 0 : Math.round((b - a) / 60000); }
 function iso(t) { return t === null ? null : new Date(t).toISOString(); }
+// Sum of the wall-clock minutes covered by a set of {start,end} spans,
+// counting overlapping or adjacent time only once — the merge-safe
+// alternative to summing each span's own minutes independently (#1928
+// fix round 3).
+function unionMinutes(spans) {
+  const list = spans
+    .filter((s) => s && Number.isFinite(s.start) && Number.isFinite(s.end) && s.end > s.start)
+    .slice()
+    .sort((a, b) => a.start - b.start);
+  let total = 0;
+  let curStart = null;
+  let curEnd = null;
+  for (const s of list) {
+    if (curStart === null) { curStart = s.start; curEnd = s.end; continue; }
+    if (s.start <= curEnd) { curEnd = Math.max(curEnd, s.end); continue; }
+    total += minutesBetween(curStart, curEnd);
+    curStart = s.start; curEnd = s.end;
+  }
+  if (curStart !== null) total += minutesBetween(curStart, curEnd);
+  return total;
+}
 function skillName(ev) { return typeof ev.skill === 'string' && ev.skill.startsWith(NS) ? ev.skill.slice(NS.length) : null; }
 function isTopLevel(ev) { const n = skillName(ev); return n !== null && !(n in NESTED_PARENT); }
 
@@ -176,42 +197,50 @@ function derivePhases({ events, manifest = null, runState = null, now = new Date
     }
   }
 
-  // Exclusive minutes: build minus plan/tasks; each call minus the top-level
-  // phases whose spans fall inside it. Nothing is counted twice in totals.
+  // Exclusive minutes: build minus plan/tasks; each call minus the union of
+  // every nested row's spans (a union, not a sum of minutes, so two
+  // overlapping nested rows — e.g. a call whose merge phase and a
+  // post-merge build both fall inside it — are not double-subtracted).
+  // Nothing is counted twice in totals.
   const byName = Object.fromEntries(rows.map((r) => [r.phase, r]));
   const nestedIn = (inner, outer) => inner._list && outer._list && inner._list.every((s) => outer._list.some((o) => s.start >= o.start && s.end <= o.end));
   if (byName.build._list) {
     byName.build.ownMinutes = Math.max(0, byName.build.minutes - byName.plan.minutes - byName.tasks.minutes);
   }
   for (const call of rows.filter((r) => /^call-\d+$/.test(r.phase) && r._list)) {
-    let inner = 0;
+    const innerSpans = [];
     for (const r of rows) {
       if (r === call || /^call-\d+$/.test(r.phase) || r.phase === 'plan' || r.phase === 'tasks') continue;
-      if (nestedIn(r, call)) inner += r.minutes;
+      if (nestedIn(r, call)) innerSpans.push(...r._list);
     }
-    call.ownMinutes = Math.max(0, call.minutes - inner);
+    call.ownMinutes = Math.max(0, call.minutes - unionMinutes(innerSpans));
   }
 
   // merge's span is never excluded from other rows above, so a phase that
-  // is still open when the merge push happens (build, a call-N) overlaps
-  // merge's own minutes — subtract that overlap from ownMinutes so
-  // totals.minutes never double-counts it (#1928 fix round 2).
+  // is still open when the merge push happens (build) overlaps merge's own
+  // minutes — subtract that overlap (as a union, per span) from ownMinutes
+  // so totals.minutes never double-counts it (#1928 fix round 3). call-N
+  // rows are handled above already (merge, when nested in a call, is
+  // already excluded via that call's own unionMinutes) — subtracting the
+  // overlap again here would double-subtract it.
   if (byName.merge && byName.merge._list && byName.merge._list.length) {
     const mergeSpan = byName.merge._list[0];
     for (const r of rows) {
-      if (r.phase === 'merge' || !r._list) continue;
-      const overlap = r._list.reduce((sum, s) => {
-        const start = Math.max(s.start, mergeSpan.start);
-        const end = Math.min(s.end, mergeSpan.end);
-        return sum + minutesBetween(start, end);
-      }, 0);
-      r.ownMinutes = Math.max(0, r.ownMinutes - overlap);
+      if (r.phase === 'merge' || /^call-\d+$/.test(r.phase) || !r._list) continue;
+      const overlaps = r._list.map((s) => ({
+        start: Math.max(s.start, mergeSpan.start),
+        end: Math.min(s.end, mergeSpan.end),
+      }));
+      r.ownMinutes = Math.max(0, r.ownMinutes - unionMinutes(overlaps));
     }
   }
 
   const phases = rows.map(({ _list, ...r }) => r);
   const totals = {
-    minutes: phases.reduce((s, r) => s + r.ownMinutes, 0),
+    // Wall-clock minutes covered by any phase — a union across every row's
+    // spans (calls included), never a sum of ownMinutes, so it can never
+    // exceed endOfRun minus the first event (#1928 fix round 3).
+    minutes: unionMinutes(rows.flatMap((r) => r._list || [])),
     verifyRuns: verifies.length,
     verifyModes: [...new Set(verifies.map((v) => v.mode).filter((m) => typeof m === 'string'))],
   };

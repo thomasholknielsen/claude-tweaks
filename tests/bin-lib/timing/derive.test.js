@@ -39,6 +39,10 @@ test('#1928 AC3: the frozen fixture reproduces the reference boundaries within �
   assert.equal(out.totals.verifyRuns, 2);
   assert.deepEqual(out.totals.verifyModes, ['scoped', 'full']);
   assert.ok(near(out.totals.minutes, 73), `totals ${out.totals.minutes}`);
+  // #1928 fix round 3: totals.minutes is now a union over every row's spans
+  // rather than a sum of ownMinutes. The fixture has no overlapping spans,
+  // so the union equals the old sum exactly — pin the exact value too.
+  assert.equal(out.totals.minutes, 73, `totals ${out.totals.minutes}`);
 });
 
 test('#1928: sources are labelled by the boundary that produced them', () => {
@@ -129,18 +133,29 @@ test('#1928 fix round 1: two subagent-driven-development starts before one verif
   assert.equal(p.plan.minutes, 6, `plan.minutes ${p.plan.minutes}`);
 });
 
-test('#1928 fix round 2: an open phase at merge time is excluded from other rows so totals never double-count merge', () => {
+test('#1928 fix round 3: merge overlap is accounted once via union, not double-subtracted from a containing call', () => {
+  // build invoked AFTER the merge push (like the dispatched real run,
+  // record-1503) — its span falls entirely inside merge's span. A sum-based
+  // exclusive-minutes pass double-subtracts merge's minutes from call-1
+  // (once via the call's own inner-sum, once via a separate merge-overlap
+  // pass over the call itself); the union-based pass must not.
   const events = [
     { skill: 'claude-tweaks:flow', ts: '2026-09-05T13:00:00.000Z', type: 'skill_invoked' },
-    { skill: 'claude-tweaks:build', ts: '2026-09-05T13:01:00.000Z', type: 'skill_invoked' },
     { skill: 'claude-tweaks:wrap-up', ts: '2026-09-05T13:30:00.000Z', type: 'skill_invoked' },
     { action: 'push', ts: '2026-09-05T13:35:00.000Z', type: 'commit' },
+    { skill: 'claude-tweaks:build', ts: '2026-09-05T13:37:00.000Z', type: 'skill_invoked' },
     { ts: '2026-09-05T13:40:00.000Z', type: 'session-end' },
   ];
   const out = derivePhases({ events });
   const p = byName(out);
-  assert.ok(out.totals.minutes <= 40, `totals ${out.totals.minutes}`);
-  assert.equal(p.merge.minutes, 5, `merge ${p.merge.minutes}`);
+  assert.equal(p.merge.minutes, 5, `merge.minutes ${p.merge.minutes}`);
+  assert.equal(p.build.minutes, 3, `build.minutes ${p.build.minutes}`);
+  assert.equal(p.build.ownMinutes, 0, `build.ownMinutes ${p.build.ownMinutes}`); // fully inside merge
+  // 40 total minus the union of wrap-up (5), merge (5), and build (3, fully
+  // inside merge) = 40 - 10 = 30. A sum-based pass would double-subtract
+  // build/merge's shared minutes and undercount call-1.ownMinutes.
+  assert.equal(p['call-1'].ownMinutes, 30, `call-1.ownMinutes ${p['call-1'].ownMinutes}`);
+  assert.equal(out.totals.minutes, 40, `totals.minutes ${out.totals.minutes}`);
 });
 
 test('#1928 fix round 2: worktree-reaped as terminal clips endOfRun to the last real event, not the reap ts', () => {
