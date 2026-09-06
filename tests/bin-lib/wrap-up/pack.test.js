@@ -120,3 +120,42 @@ test('gatherPack: the ledger probe counts rows by status and phase from the work
   const pack = await gatherPack({ runDir, cwd: tree, only: ['ledger'], deps: okDeps() });
   assert.deepStrictEqual(pack.ledger.value, { open: 1, total: 3, byPhase: { review: { open: 1, total: 2 }, build: { open: 0, total: 1 } }, files: ['docs/plans/2026-09-05-spec-1535-ledger.md'] });
 });
+
+test('gatherPack: a missing gh binary degrades pr/recordLabels/unblocked to error gh-absent, nothing else (#1930 Gotchas)', async () => {
+  const deps = okDeps({ execFile: async (cmd, args) => { if (cmd === 'gh') { const e = new Error('spawn gh ENOENT'); e.code = 'ENOENT'; throw e; } return okDeps().execFile(cmd, args); } });
+  const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', deps });
+  for (const n of ['pr', 'recordLabels', 'unblocked']) { assert.strictEqual(pack[n].ok, false, n); assert.strictEqual(pack[n].error, 'gh-absent', n); }
+  assert.strictEqual(pack.residue.ok, true);
+  assert.strictEqual(pack.claim.ok, true);
+});
+
+test('gatherPack: a non-forge project reports pr/recordLabels/release as no-forge (#1930 Gotchas)', async () => {
+  const deps = okDeps({ resolvePolicy: (k) => ({ 'work-backend': 'local-files', 'work-links': 'body-text', 'integration-branch': 'main' })[k] || '' });
+  const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', deps });
+  for (const n of ['pr', 'recordLabels', 'release']) { assert.strictEqual(pack[n].ok, false, n); assert.strictEqual(pack[n].error, 'no-forge', n); }
+});
+
+test('gatherPack: the release probe runs release.js status only once run-state.json carries merge.sha (#1930 design)', async () => {
+  const runDir = fixtureRunDir();
+  const state = JSON.parse(fs.readFileSync(path.join(runDir, 'run-state.json'), 'utf8'));
+  state.merge = { sha: 'deadbeef' };
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify(state));
+  const calls = [];
+  const deps = okDeps({ execFile: async (cmd, args) => { if (String(args[0]).endsWith('release.js')) { calls.push(args); return { stdout: JSON.stringify({ shipped: false }), stderr: '' }; } return okDeps().execFile(cmd, args); } });
+  const pack = await gatherPack({ runDir, cwd: '/w/tree', only: ['release'], deps });
+  assert.deepStrictEqual(pack.release.value, { shipped: false });
+  assert.deepStrictEqual(calls[0].slice(1), ['status', '--merge', 'deadbeef', '--records', '1535', '--ref', 'origin/main', '--json']);
+});
+
+test('gatherPack: body-text work-links finds dependents by a literal Blocked by #N line without resolve-blockers.js (#1930)', async () => {
+  const deps = okDeps({
+    resolvePolicy: (k) => ({ 'work-backend': 'github-issues', 'work-links': 'body-text', 'integration-branch': 'main' })[k] || '',
+    execFile: async (cmd, args) => {
+      if (String(args[0]).endsWith('resolve-blockers.js')) throw new Error('must not be called under body-text');
+      if (cmd === 'gh' && args[0] === 'issue' && args[1] === 'list') return { stdout: JSON.stringify([{ number: 1600, title: 'Dependent', body: 'Blocked by #1535\n' }, { number: 1601, title: 'Other', body: 'Blocked by #9\n' }]), stderr: '' };
+      return okDeps().execFile(cmd, args);
+    },
+  });
+  const pack = await gatherPack({ runDir: fixtureRunDir(), cwd: '/w/tree', only: ['unblocked'], deps });
+  assert.deepStrictEqual(pack.unblocked.value, [{ number: 1600, title: 'Dependent' }]);
+});

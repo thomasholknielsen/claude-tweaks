@@ -138,12 +138,65 @@ function ledgerProbe(inputs, deps) {
 // compute from; subprocess probes go through deps.execFile (Task 2).
 function buildProbes(inputs, deps, cwd) {
   const git = (args) => deps.git(args, { cwd: inputs.worktree });
+  const forge = deps.resolvePolicy('work-backend') === 'github-issues';
+  const forgeOrThrow = () => { if (!forge) throw new Error('no-forge'); };
+  const gh = async (args) => {
+    try { return await deps.execFile('gh', args, { cwd: inputs.worktree }); } catch (err) {
+      if (err && err.code === 'ENOENT') throw new Error('gh-absent');
+      throw err;
+    }
+  };
   return {
     state: () => deps.readState({ cwd: inputs.worktree, since: inputs.base }),
     blastRadius: () => deps.computeBlastRadius({ base: inputs.base, integrationBranch: inputs.integrationBranch }, { git }),
     mergeSize: () => deps.computeMergeSizeOverflow({ integrationBranch: inputs.integrationBranch, headRef: 'HEAD' }, { git }),
     ledger: () => ledgerProbe(inputs, deps),
-    // Task 2: residue, pr, recordLabels, release, claim, unblocked
+    residue: async () => {
+      const { stdout } = await deps.execFile('node', [path.join(BIN, 'residue.js'), '--base', String(inputs.base), '--integration-branch', String(inputs.baseRef || inputs.integrationBranch), '--scope', 'blast-radius', '--json'], { cwd: inputs.worktree, maxBuffer: 32 * 1024 * 1024 });
+      return JSON.parse(stdout);
+    },
+    pr: async () => {
+      forgeOrThrow(); if (inputs.pr === null) throw new Error('no PR number in run-state.json');
+      const { stdout } = await gh(['pr', 'view', String(inputs.pr), '--json', 'state,isDraft,mergeStateStatus,statusCheckRollup,reviewDecision']);
+      return JSON.parse(stdout);
+    },
+    recordLabels: async () => {
+      forgeOrThrow();
+      const out = {};
+      for (const n of inputs.records) {
+        const { stdout } = await gh(['issue', 'view', String(n), '--json', 'labels']);
+        out[n] = JSON.parse(stdout).labels.map((l) => l.name);
+      }
+      return out;
+    },
+    release: async () => {
+      forgeOrThrow();
+      if (!inputs.mergeSha) return { status: 'pre-merge', line: 'not yet merged — release status resolves at pr-first-merge Step 4.1' };
+      const { stdout } = await deps.execFile('node', [path.join(BIN, 'release.js'), 'status', '--merge', inputs.mergeSha, '--records', inputs.records.join(','), '--ref', `origin/${inputs.integrationBranch}`, '--json'], { cwd: inputs.worktree });
+      return JSON.parse(stdout);
+    },
+    claim: async () => {
+      const out = {};
+      for (const n of inputs.records) {
+        const blob = await deps.readClaimBlob({ gitRunner: deps.gitRunner }, null, n);
+        if (blob.failure) throw new Error(`claim read failed: ${blob.failure}`);
+        out[n] = { ...deps.classifyClaimBlob(blob.absent ? null : blob.content, deps.now()), via: blob.via || 'git' };
+      }
+      return out;
+    },
+    unblocked: async () => {
+      const closed = inputs.record;
+      const { stdout } = await gh(['issue', 'list', '--state', 'open', '--json', 'number,title,body', '--limit', '200']);
+      const records = JSON.parse(stdout);
+      if (deps.resolvePolicy('work-links') === 'native') {
+        if (!records.length) return [];
+        const res = await deps.execFile('node', [path.join(BIN, 'resolve-blockers.js'), records.map((r) => r.number).join(',')], { cwd: inputs.worktree });
+        const byNumber = JSON.parse(res.stdout.trim());
+        return records.filter((r) => byNumber[r.number] && byNumber[r.number].blockedBy.includes(closed) && !byNumber[r.number].openBlocker).map((r) => ({ number: r.number, title: r.title }));
+      }
+      const re = new RegExp(`^\\s*Blocked by #${closed}\\b`, 'mi');
+      return records.filter((r) => re.test(r.body || '')).map((r) => ({ number: r.number, title: r.title }));
+    },
   };
 }
 
