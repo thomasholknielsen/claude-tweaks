@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  KEYS, VOCAB, UNRESOLVED, MarkerError, stripMarkers, compose, unresolvedKeys, renderResolvedHeader,
+  KEYS, VOCAB, UNRESOLVED, MarkerError, parseMarkers, stripMarkers, compose, unresolvedKeys, renderResolvedHeader,
 } = require('../../../plugin/bin/lib/compose-context/compose');
 
 const ALL = {
@@ -139,9 +139,8 @@ test('a ```markdown fence containing a ~~~ line and a marker pair, closed by ```
 });
 
 test('parseMarkers tags text tokens inside a code fence with fenced: true and nothing else', () => {
-  const { parseMarkers } = require('../../../plugin/bin/lib/compose-context/compose');
   const tokens = parseMarkers('a\n```bash\n# not a heading\n<!-- when: mode=auto -->\n```\nb\n');
-  assert.deepEqual(tokens.map((t) => [t.type, t.fenced === true]), [
+  assert.deepEqual(tokens.map((token) => [token.type, token.fenced === true]), [
     ['text', false], ['text', true], ['text', true], ['text', true], ['text', true], ['text', false], ['text', false],
   ]);
   assert.ok(!('fenced' in tokens[0]), 'an unfenced token carries no fenced key');

@@ -50,8 +50,8 @@ function checkMarkers(text, file) {
   const markerShapedLineCount = lines.filter((line) => MARKER_SHAPED_RE.test(line)).length;
   const parsedMarkerCount = tokens.filter((token) => token.type === 'open' || token.type === 'close').length;
   if (markerShapedLineCount !== parsedMarkerCount) {
-    const n = markerShapedLineCount - parsedMarkerCount;
-    problems.push(`${file}: ${n} marker-shaped line(s) sit inside a code fence and are not parsed as markers`);
+    const swallowed = markerShapedLineCount - parsedMarkerCount;
+    problems.push(`${file}: ${swallowed} marker-shaped line(s) sit inside a code fence and are not parsed as markers`);
   }
   return problems;
 }
@@ -71,7 +71,6 @@ test('every when: marker in plugin/skills/**/*.md is well-formed and no fenced b
     markedFiles.push(rel);
     problems.push(...checkMarkers(text, rel));
   }
-  assert.ok(markedFiles.length >= 2, `expected at least the two #1989 sources to carry markers, saw ${markedFiles.length}`);
   for (const expected of ['_shared/pr-first-merge.md', '_shared/pr-early-run-lifecycle.md']) {
     assert.ok(markedFiles.includes(expected), `expected ${expected} among marked files, saw ${markedFiles.join(', ')}`);
   }
