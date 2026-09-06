@@ -19,7 +19,7 @@ run, where "this work" and "the whole run" are the same thing.
 
 ## Running the sweep
 
-Read `pack.residue` from `{run-dir}/wrap-up-pack.json` first (#1930) — its `value` is exactly this command's `--json` output; run the command below only when the pack file is absent. An `ok: false` field (or a missing key) renders this sweep's existing `unknown` outcome, never a clean sweep.
+Read `pack.residue` from `{run-dir}/wrap-up-pack.json` first (#1930) — its `value` is this command's `--json` output, gathered with `--no-suite` added; run the command below only when the pack file is absent. An `ok: false` field (or a missing key) renders this sweep's existing `unknown` outcome, never a clean sweep. **A pack-fed residue therefore always carries `suite: {ran: false, reason: "skipped via --no-suite"}`** — a fact pack never re-runs the project's test suite. Take this run's suite state from `/claude-tweaks:test`'s verification pass stamp (`{git-dir}/claude-tweaks-verify-pass.json`, written by `bin/verify.js`) and the `report.json` it names (`{git-dir}/claude-tweaks-verify/report.json`, the same file `leftover-routing.md` reads for `flakyEscalation`), never from this probe; the deliberate skip is still logged as an `observation` item by the `unknown` rule at the end of this file, exactly as a hand-passed `--no-suite` already is.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/residue.js" --base {base} --integration-branch {ref} --scope blast-radius
