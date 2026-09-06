@@ -77,7 +77,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/verify.js" --scope .claude-tweaks/verify-scope.j
 
 **Standalone is always full.** Any invocation without `$PIPELINE_RUN_DIR` *or* without `--source` is standalone — a human asked for the suite and gets the suite; never pass `--scope` there.
 
-**Report and log.** Step 3 renders the runner's `Scope:` line, and any `still-verified: bookkeeping-only delta (…)` / `still-verified: no changes since …` line, verbatim above the results table, and logs one `AUTO` decision per `_shared/auto-decision-log.md`: `AUTO {time} — Verification scoped: {mode} — {n} changed file(s) since {base-short}: {path → rule, …}; suites: {list|none}. Reversibility: high.` (the `{path → rule}` pairs come from `report.json`'s `scope` object: `changedFiles` against the declaration's rule order, `unmatched` paths as `→ unmatched (fail-closed)`).
+**Report and log.** Step 3 renders the runner's `Scope:` line, and any `still-verified: bookkeeping-only delta (…)` / `still-verified: no changes since …` line, verbatim above the results table, and logs one `AUTO` decision per `_shared/auto-decision-log.md`: `AUTO {time} — Verification scoped: {mode} — {n} changed file(s) since {base-short}: {path → rule, …}; suites: {list|none}. Reversibility: high.` (the `{path → rule}` pairs come straight from `report.json`'s `scope.matched` — each entry's `rule` is the index of the declaration rule that matched, rendered as that rule's `match` glob, or `null` rendered as `unmatched (fail-closed)`).
 
 ### Pre-existing failures (multi-spec batches)
 

@@ -493,6 +493,11 @@ test('--scope: full → none → scoped across three commits, anchored to the fi
   assert.strictEqual(s3.base, s1.fullSha);
   assert.strictEqual(s3.fullSha, s1.fullSha);
   assert.deepStrictEqual(s3.changedFiles, ['docs/a.md', 'src/a.js']);
+  const report3 = JSON.parse(fs.readFileSync(s3.reportPath, 'utf8'));
+  assert.deepStrictEqual(
+    report3.scope.matched, [{ file: 'docs/a.md', rule: 1 }, { file: 'src/a.js', rule: 0 }],
+    'report.json.scope.matched threads each changed file to the declaration rule index that matched it (F1)',
+  );
   assert.ok(fs.existsSync(r.marker), 'run 3 must spawn unit');
   assert.strictEqual(
     fs.readFileSync(path.join(r.gitDir, 'claude-tweaks-verify-pass'), 'utf8'), bareSha1,
