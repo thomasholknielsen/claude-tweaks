@@ -116,7 +116,7 @@ Ensure `.worktrees/` exists in the project root for the git-fallback path; leave
 
 ### Step 6.5: Port Isolation
 
-Detects literal dev-server ports and offers a reviewable rewrite to env reads (never applied without the gate, even in `auto`); queues the `port-services` policy decision through the same deferred write as `worktree-always`. Read `bootstrap/step-06-5-port-isolation.md`.
+Detects literal dev-server ports and offers a reviewable rewrite to env reads (never applied without the gate, even in `auto`); queues the `port-services` policy decision through the same deferred write as `worktree-always` (see "Finalizing the worktree-always Decision"). Read `bootstrap/step-06-5-port-isolation.md`.
 
 ### Step 6.6: Verify-Scope Starter
 
@@ -162,7 +162,7 @@ Always offered when a GitHub-flavored remote is reachable (same GHE-safe two-tie
 
 ### Step 15: Routine Installation (Optional Companion)
 
-Always offered (not gated) — detect skills shipping `routine-template.yml` without an instantiated record, present via one multiSelect `AskUserQuestion` (≤4-option groups past 4 candidates) with default schedules, and invoke `/claude-tweaks:routine create <skill> --defaults --environment=<id> --source init` per candidate — no per-candidate walkthrough. Issues (or skips, when none selected) Step 14's deferred dedicated-environment offer. Idempotent: existing-record candidates aren't re-offered — Update Mode audits records for drift, relevance, environment dedication; see `update-mode.md`'s Routine Drift/Relevance/Environment Dedication entries. Read `bootstrap/step-15-routine-installation.md`.
+Always offered (not gated) — detect which claude-tweaks skills ship `routine-template.yml` without an instantiated record for this project, present via one multiSelect `AskUserQuestion` (≤4-option groups past 4 candidates) with default schedules, and invoke `/claude-tweaks:routine create <skill> --defaults --environment=<id> --source init` per selected candidate — no per-candidate walkthrough. Issues (or skips, when none selected) Step 14's deferred dedicated-environment offer. Idempotent: existing-record candidates aren't re-offered — Update Mode audits records for drift, relevance, environment dedication; see `update-mode.md`'s Routine Drift/Relevance/Environment Dedication entries. Read `bootstrap/step-15-routine-installation.md`.
 
 ### Step 16: Non-Default-Branch Issue Tracking (Optional Companion)
 
