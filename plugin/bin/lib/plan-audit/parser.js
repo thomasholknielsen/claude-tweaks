@@ -122,10 +122,26 @@ function extractVerificationChecks(text) {
     }));
 }
 
+// Task count for /build's single-task fast-lane condition (#1926): the plan
+// file is the authority, never the diff or SDD's own narration. `batched`
+// is true only for the two markers this record defines — the header line
+// `**Execution:** batched` (text before the first "### Task" heading) or a
+// task title carrying `[batch]` — because a batched dispatch bundles work
+// items reviewed together, which the single-task equivalence never covers.
+function countTasks(text) {
+  const blocks = extractTaskBlocks(text);
+  const firstHeading = text.search(/^###\s+Task\s+\d+:/m);
+  const header = firstHeading === -1 ? text : text.slice(0, firstHeading);
+  const batched = /^\*\*Execution:\*\*\s*batched\s*$/m.test(header)
+    || blocks.some((b) => /\[batch\]/i.test(b.title));
+  return { tasks: blocks.length, batched };
+}
+
 module.exports = {
   extractFileEntries,
   extractScopeKeywords,
   extractTaskBlocks,
   extractStep2Verification,
   extractVerificationChecks,
+  countTasks,
 };

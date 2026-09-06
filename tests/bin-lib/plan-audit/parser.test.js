@@ -5,7 +5,7 @@ const assert = require('node:assert');
 
 const {
   extractFileEntries, extractScopeKeywords, extractTaskBlocks,
-  extractStep2Verification, extractVerificationChecks,
+  extractStep2Verification, extractVerificationChecks, countTasks,
 } = require('../../../plugin/bin/lib/plan-audit/parser');
 
 test('extractFileEntries reads Create/Modify/Delete/Test bullets, backticked and bare', () => {
@@ -119,4 +119,17 @@ test('extractVerificationChecks only returns tasks whose Expected starts with FA
   assert.strictEqual(checks.length, 1);
   assert.strictEqual(checks[0].taskNumber, '1');
   assert.strictEqual(checks[0].command, 'node --test a.test.js');
+});
+
+test('countTasks counts ### Task N: headings and reports batched=false by default (#1926)', () => {
+  assert.deepStrictEqual(countTasks('### Task 1: Only\nbody\n'), { tasks: 1, batched: false });
+  assert.deepStrictEqual(countTasks('# Plan\n\n### Task 1: A\n\n### Task 2: B\n\n### Task 3: C\n'), { tasks: 3, batched: false });
+  assert.deepStrictEqual(countTasks('# Plan with no tasks\n'), { tasks: 0, batched: false });
+});
+
+test('countTasks flags a batched plan by the header marker or a [batch] task title (#1926)', () => {
+  assert.deepStrictEqual(countTasks('# Plan\n\n**Execution:** batched\n\n### Task 1: A\n'), { tasks: 1, batched: true });
+  assert.deepStrictEqual(countTasks('# Plan\n\n### Task 1: Same one-line fix across files [batch]\n'), { tasks: 1, batched: true });
+  // The marker only counts in the header — a task BODY mentioning it is prose, not a marker.
+  assert.deepStrictEqual(countTasks('# Plan\n\n### Task 1: A\n\nSee **Execution:** batched in another plan.\n'), { tasks: 1, batched: false });
 });
