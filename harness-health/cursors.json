@@ -110,5 +110,9 @@
   "skill:pre-tool-use-gate-exemptions": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1788638891436
+  },
+  "skill:parse-signal-discipline": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1788671455941
   }
 }
