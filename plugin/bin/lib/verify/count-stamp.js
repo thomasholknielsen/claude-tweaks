@@ -76,15 +76,9 @@ function nextFlakyHits(previous, retriedFiles, allowlist) {
   const prior = previous && previous.flakyHits && typeof previous.flakyHits === 'object' && !Array.isArray(previous.flakyHits)
     ? previous.flakyHits : {};
   const next = {};
-  if (allowlist === null) {
-    for (const [file, n] of Object.entries(prior)) {
-      if (typeof n === 'number' && Number.isFinite(n) && n > 0) next[file] = n;
-    }
-  } else {
-    for (const file of allowlist) {
-      const n = prior[file];
-      if (typeof n === 'number' && Number.isFinite(n) && n > 0) next[file] = n;
-    }
+  for (const file of allowlist === null ? Object.keys(prior) : allowlist) {
+    const n = prior[file];
+    if (typeof n === 'number' && Number.isFinite(n) && n > 0) next[file] = n;
   }
   for (const file of retriedFiles) next[file] = (next[file] || 0) + 1;
   return next;

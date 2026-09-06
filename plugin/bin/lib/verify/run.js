@@ -64,7 +64,7 @@ function failed(result) {
 // whenever skip is true), so anyFailed stays accurate either way.
 async function runOrSkip(c, ctx, skip) {
   if (skip) return { name: c.name, command: c.command, skipped: 'fail-fast' };
-  const r = await runOne({ ...c, logDir: ctx.logDir, spawnImpl: ctx.spawnImpl, now: ctx.now });
+  const r = await runOne({ ...c, ...ctx });
   return failed(r) ? ctx.retry(r, ctx) : r;
 }
 
