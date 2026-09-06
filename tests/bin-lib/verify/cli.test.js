@@ -684,3 +684,56 @@ test('a --scope run at an unchanged HEAD never downgrades the prior full stamp (
   const status = await runCli(['--stamp-status'], { cwd: r.repo });
   assert.strictEqual(JSON.parse(status.stdout).match, true);
 });
+
+// Review fix H3: a tool-scoped run's "tests" count is not comparable to a
+// full run's baseline — comparing or persisting it would fire a false
+// CAVEAT or silently corrupt the baseline the next full run reads. Note:
+// parseCounts (extract.js) requires all three of `# tests`/`# pass`/`# fail`
+// to be present before it returns a count at all (tap family) — a two-line
+// "# tests N\n# pass N" shape alone parses to null, so a `# fail 0` line is
+// included here even though the dispatch's example only named two lines.
+// Neither command here writes any file, so there is no marker to remove
+// between runs.
+test('--scope: a tool-scoped run neither caveats nor rewrites the count stamp — only a full run updates it (#1922 review H3)', async () => {
+  const r = tmpGitRepo();
+  // checks.tests must literally contain "{base}" for declaration.js to mark
+  // this tool-scoped; embedding it inside a console.log argument is a
+  // harmless extra output line once {base} is substituted with the
+  // resolved anchor sha.
+  const declTests = 'node -e \'console.log("{base}"); console.log("# tests 3"); console.log("# pass 3"); console.log("# fail 0")\'';
+  const decl = {
+    checks: { tests: declTests },
+    rules: [{ match: 'src/**', suites: [], static: false }],
+  };
+  fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
+  r.git('add', '.claude-tweaks/verify-scope.json');
+  r.git('commit', '-q', '-m', 'declare verify scope');
+  const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
+  const declPath = '.claude-tweaks/verify-scope.json';
+  const countStampPath = path.join(r.gitDir, 'claude-tweaks-test-count.json');
+
+  // run 1 has no prior stamp, so it is mode 'full' regardless of the
+  // tool-scoped declaration — its own --cmd runs verbatim and establishes
+  // the count-stamp baseline at 500.
+  const run1Cmd = 'node -e \'console.log("# tests 500"); console.log("# pass 500"); console.log("# fail 0")\'';
+  const run1 = await runCli(['--scope', declPath, '--integration-branch', branch, '--cmd', `tests=${run1Cmd}`], { cwd: r.repo });
+  assert.strictEqual(run1.code, 0, run1.stderr);
+  assert.match(run1.stdout, /^Scope: full/m);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(countStampPath, 'utf8')).tests, 500);
+
+  // run 2 is genuinely tool-scoped: a real prior stamp exists, and src/a.js
+  // matches the one rule. Its --cmd is discarded and replaced by decl's own
+  // {base}-substituted command (printing 3), which is deliberately far below
+  // 500 to prove a real drop would have fired the caveat absent the fix.
+  commitFile(r, 'src/a.js', '1');
+  const run2 = await runCli(['--scope', declPath, '--integration-branch', branch, '--cmd', `tests=${run1Cmd}`], { cwd: r.repo });
+  assert.strictEqual(run2.code, 0, run2.stderr);
+  assert.match(run2.stdout, /^Scope: tool-scoped/m);
+  assert.ok(!run2.stdout.includes('CAVEAT'), 'a tool-scoped run must never fire the count-drop caveat');
+  assert.ok(!/dropped/i.test(run2.stdout), 'a tool-scoped run must never mention a count drop');
+  assert.deepStrictEqual(
+    JSON.parse(fs.readFileSync(countStampPath, 'utf8')).tests, 500,
+    'the count stamp must still record the last FULL run\'s count, untouched by the tool-scoped run',
+  );
+});
