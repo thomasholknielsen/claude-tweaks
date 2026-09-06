@@ -29,6 +29,9 @@ const {
   findComposeCallSites,
   usedConditionKeys,
   measureComposed,
+  composedBytesReport,
+  overComposedCeiling,
+  COMPOSED_STEP_EXCEPTIONS,
 } = require('../../../plugin/bin/lib/skill-audit/context-cost.js');
 const { listSkillDirs, KNOWN_SKILLS } = require('../../../plugin/bin/lib/skill-audit/skill-catalog.js');
 const { compose, KEYS, VOCAB } = require('../../../plugin/bin/lib/compose-context/compose.js');
@@ -490,4 +493,85 @@ test('measureComposed: a missing source is an error row naming the path', () => 
   const result = measureComposed(root, callSite);
   assert.deepStrictEqual(result.combinations, []);
   assert.ok(result.error.includes(missing), `expected the missing path in: ${result.error}`);
+});
+
+// ── composedBytesReport / overComposedCeiling (#1990 Task 4). The hard gate:
+// no compose call site's composed bytes exceed its ceiling under any
+// condition combination its sources branch on. `COMPOSED_STEP_EXCEPTIONS`
+// raises one step's ceiling above `CEILING_BYTES` where today's real corpus
+// already exceeds it — never `CEILING_BYTES` itself.
+
+function writeComposeCallSite(root, skillName, step, sourceRelPath) {
+  const skillDir = path.join(root, 'skills', skillName);
+  fs.mkdirSync(skillDir, { recursive: true });
+  const callLine = `node "\${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step ${step} "\${CLAUDE_PLUGIN_ROOT}/${sourceRelPath}"`;
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `${callLine}\n`);
+}
+
+function fmtOverComposed(e) {
+  if (e.error) return `${e.step} @ ${e.file}:${e.line}: ${e.error}`;
+  return `${e.step} @ ${e.file}:${e.line}: ${JSON.stringify(e.conditions)} ${kb(e.bytes)} KB > ${kb(e.ceiling)} KB ceiling`;
+}
+
+test('overComposedCeiling: a synthetic call site whose composed bytes exceed 40 KB fails the gate (AC2)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-overceiling-big-'));
+  const sharedDir = path.join(root, 'skills', '_shared');
+  fs.mkdirSync(sharedDir, { recursive: true });
+  fs.writeFileSync(path.join(sharedDir, 'big.md'), 'x'.repeat(CEILING_BYTES + 100));
+  writeComposeCallSite(root, 'demo', 'bigstep', 'skills/_shared/big.md');
+
+  const over = overComposedCeiling(composedBytesReport(root), { exceptions: {} });
+  assert.strictEqual(over.length, 1);
+  assert.strictEqual(over[0].step, 'bigstep');
+  assert.deepStrictEqual(over[0].conditions, {});
+  assert.ok(over[0].bytes > CEILING_BYTES, `expected bytes (${over[0].bytes}) > CEILING_BYTES`);
+  assert.strictEqual(over[0].ceiling, CEILING_BYTES);
+});
+
+test('overComposedCeiling: a per-step exception raises that step\'s ceiling only', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-overceiling-exception-'));
+  const sharedDir = path.join(root, 'skills', '_shared');
+  fs.mkdirSync(sharedDir, { recursive: true });
+  fs.writeFileSync(path.join(sharedDir, 'big.md'), 'x'.repeat(CEILING_BYTES + 100));
+  writeComposeCallSite(root, 'demo-a', 'bigstep', 'skills/_shared/big.md');
+  writeComposeCallSite(root, 'demo-b', 'otherbig', 'skills/_shared/big.md');
+
+  const rows = composedBytesReport(root);
+  const bigStepBytes = rows.find((r) => r.step === 'bigstep').combinations[0].bytes;
+
+  const over = overComposedCeiling(rows, { exceptions: { bigstep: bigStepBytes + 1 } });
+  assert.deepStrictEqual(over.map((e) => e.step), ['otherbig']);
+});
+
+test('no compose call site\'s composed bytes exceed its ceiling under any condition combination (#1990)', () => {
+  const over = overComposedCeiling(composedBytesReport(REPO));
+  assert.deepStrictEqual(
+    over.map(fmtOverComposed),
+    [],
+    'a compose call site composes over its ceiling — fence or restructure the sources, never raise CEILING_BYTES',
+  );
+});
+
+test('COMPOSED_STEP_EXCEPTIONS: every exception is still needed', () => {
+  const rows = composedBytesReport(REPO);
+  for (const [step, ceiling] of Object.entries(COMPOSED_STEP_EXCEPTIONS)) {
+    assert.ok(ceiling > CEILING_BYTES, `${step}'s exception ceiling (${ceiling}) must exceed CEILING_BYTES, or it isn't an exception`);
+    const stepRows = rows.filter((r) => r.step === step);
+    assert.ok(
+      stepRows.some((r) => r.max > CEILING_BYTES),
+      `${step}'s exception is stale — no real row exceeds CEILING_BYTES anymore, remove the entry`,
+    );
+  }
+});
+
+test('reports composed bytes per call site and combination', () => {
+  const rows = composedBytesReport(REPO);
+  for (const row of rows) {
+    assert.strictEqual(row.error, undefined, `unexpected error on ${row.step} @ ${row.file}: ${row.error}`);
+    assert.ok(row.combinations.length >= 1, `expected at least one combination for ${row.step} @ ${row.file}`);
+    for (const combo of row.combinations) {
+      console.log(`    ${row.step} @ ${row.file}:${row.line} — ${JSON.stringify(combo.conditions)}: ${kb(combo.bytes)} KB`);
+    }
+    console.log(`    ${row.step} @ ${row.file}:${row.line} — max: ${kb(row.max)} KB`);
+  }
 });

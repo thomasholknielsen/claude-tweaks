@@ -253,6 +253,52 @@ function findComposeCallSites(repoRoot) {
   return out;
 }
 
+// #1989's PR-time measurement (parent #1987 promise F4) reported 55,995 B
+// under pr-first+gh — but that was one combination, not the worst case: the
+// real corpus's actual max across all four integration-model x transport
+// combinations is 58,755 B, at local-merge+mcp (measured here at #1990's
+// authoring time; run the informational test to reconfirm). Either way it's
+// over CEILING_BYTES before this record exists. This record's Non-Goals say
+// it only measures, so the gate cannot demand a restructure it forbids;
+// restructuring the merge bundle is a follow-up record filed at this
+// record's wrap-up. The stale-exception test below removes this entry's
+// reason to exist the moment `merge` fits under CEILING_BYTES on its own.
+const COMPOSED_STEP_EXCEPTIONS = { merge: 59 * 1024 };
+
+// One row per compose call site in the shipped skill prose — the producer
+// set the composed-bytes hard gate (`overComposedCeiling`) runs over.
+function composedBytesReport(repoRoot) {
+  return findComposeCallSites(repoRoot).map((c) => measureComposed(repoRoot, c));
+}
+
+// The hard gate: every combination (or error) over its step's ceiling.
+// `COMPOSED_STEP_EXCEPTIONS` raises one step's ceiling above `CEILING_BYTES`
+// where the real corpus already exceeds it; every other step uses
+// `CEILING_BYTES` unchanged. This replaces the former per-file hard
+// assertions — the number a reader actually pays is the composed bundle at a
+// call site, not any one source file in isolation (`overCeilingWarnings`,
+// the per-file warning tier, above).
+function overComposedCeiling(rows, { exceptions = COMPOSED_STEP_EXCEPTIONS } = {}) {
+  const out = [];
+  for (const row of rows) {
+    if (row.error) {
+      out.push({
+        step: row.step, file: row.file, line: row.line, error: row.error,
+      });
+      continue;
+    }
+    const ceiling = exceptions[row.step] ?? CEILING_BYTES;
+    for (const combo of row.combinations) {
+      if (combo.bytes > ceiling) {
+        out.push({
+          step: row.step, file: row.file, line: row.line, conditions: combo.conditions, bytes: combo.bytes, ceiling,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 // Headroom is the story the raw size does not tell: a file at 39.9 KB is one
 // paragraph from breaching, and reporting it as "under the ceiling" hides that.
 function headroom(entry) {
@@ -355,6 +401,9 @@ module.exports = {
   usedConditionKeys,
   conditionCombinations,
   measureComposed,
+  COMPOSED_STEP_EXCEPTIONS,
+  composedBytesReport,
+  overComposedCeiling,
   totalBytes,
   headroom,
   nearCeiling,
