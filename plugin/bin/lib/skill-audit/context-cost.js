@@ -57,6 +57,23 @@ function skillsDir(repoRoot) {
   return path.join(repoRoot, 'skills');
 }
 
+// The corpus root every measurement here takes is the plugin payload root — the
+// directory with `skills/` directly beneath it (this repo: `plugin/`; an
+// installed consumer: `${CLAUDE_PLUGIN_ROOT}`), never the repo root. The one
+// mistake a caller actually makes is passing the repo root, and a raw
+// `ENOENT: scandir …/skills` out of the walk names neither the rule nor the
+// fix — so the corpus entry points check once and say so (#1990, lens 3c).
+function corpusDir(repoRoot) {
+  const dir = skillsDir(repoRoot);
+  try {
+    if (fs.statSync(dir).isDirectory()) return dir;
+  } catch (err) {
+    if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+  }
+  throw new Error(`${repoRoot} is not a plugin root: no skills/ directory beneath it `
+    + '(pass the directory that holds skills/ — this repo: plugin/; an install: ${CLAUDE_PLUGIN_ROOT} — never the repo root)');
+}
+
 // The byte count a reader of `file` actually pays: CRLF-normalized (#1880 —
 // a `core.autocrlf=true` checkout otherwise inflates every count by one byte
 // per line) and with `<!-- when: ... -->` / `<!-- /when -->` marker lines
@@ -81,7 +98,7 @@ function measuredBytes(file) {
 // Every SKILL.md, with its size. This is the per-invocation payload: sub-files
 // are lazy-loaded and deliberately excluded.
 function measureSkills(repoRoot) {
-  const dir = skillsDir(repoRoot);
+  const dir = corpusDir(repoRoot);
   return listSkillDirs(repoRoot).map((name) => {
     const file = path.join(dir, name, 'SKILL.md');
     return { name, ...measuredBytes(file) };
@@ -102,7 +119,7 @@ function* walkMarkdown(dir) {
 // read, so a sub-file over the ceiling is the same defect one level down. This is
 // the shape that let init/bootstrap-steps.md reach 86 KB behind 18 stubs (IL-70).
 function measureSubFiles(repoRoot) {
-  const dir = skillsDir(repoRoot);
+  const dir = corpusDir(repoRoot);
   const out = [];
   for (const name of fs.readdirSync(dir)) {
     const sd = path.join(dir, name);
@@ -261,8 +278,15 @@ function parseComposeCallLine(line, repoRoot) {
   if (bare) return { unparsed: true, reason: `repo-relative source path (install-dead): ${bare}` };
 
   // Every surviving source is `${CLAUDE_PLUGIN_ROOT}/x`, which resolves
-  // against `repoRoot` itself — the plugin payload root.
-  return { step, sources: rawSources.map((src) => path.join(repoRoot, src.slice(PLUGIN_ROOT_PREFIX.length))) };
+  // against `repoRoot` itself — the plugin payload root. The token is prose
+  // that becomes a filesystem path, so it must stay inside that root: a
+  // `..`-laden token (`${CLAUDE_PLUGIN_ROOT}/../x`) is an unparsed row, never
+  // a read outside the corpus (docs/donts.md's path-decision rule, #1678).
+  const root = path.resolve(repoRoot);
+  const sources = rawSources.map((src) => path.resolve(root, src.slice(PLUGIN_ROOT_PREFIX.length)));
+  const escaped = sources.find((p) => { const rel = path.relative(root, p); return rel === '' || rel.startsWith('..') || path.isAbsolute(rel); });
+  if (escaped) return { unparsed: true, reason: `source path escapes the plugin root: ${escaped}` };
+  return { step, sources };
 }
 
 // Every compose call site in the shipped skill prose — the producer set the
@@ -272,7 +296,7 @@ function parseComposeCallLine(line, repoRoot) {
 // line that has the invocation form but doesn't parse is emitted as an
 // `unparsed` row rather than silently dropped (parse-signal discipline).
 function findComposeCallSites(repoRoot) {
-  const dir = skillsDir(repoRoot);
+  const dir = corpusDir(repoRoot);
   const out = [];
   for (const p of walkMarkdown(dir)) {
     const file = path.relative(dir, p);
@@ -296,8 +320,9 @@ function findComposeCallSites(repoRoot) {
 // #1989's PR-time measurement (parent #1987 promise F4) reported 55,995 B
 // under pr-first+gh — but that was one combination, not the worst case: the
 // real corpus's actual max across all four integration-model x transport
-// combinations is 58,755 B, at local-merge+mcp (measured here at #1990's
-// authoring time; run the informational test to reconfirm). Either way it's
+// combinations is 58,755 B, at local-merge+mcp, and the `unresolved`
+// both-branches row a standalone run reads is 58,761 B (measured here at
+// #1990's authoring time; run the informational test to reconfirm). Either way it's
 // over CEILING_BYTES before this record exists. This record's Non-Goals say
 // it only measures, so the gate cannot demand a restructure it forbids;
 // restructuring the merge bundle is a follow-up record filed at this

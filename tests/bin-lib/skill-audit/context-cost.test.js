@@ -474,6 +474,22 @@ function makeComposeFixture() {
   return { root, aFile, bFile };
 }
 
+test('parseComposeCallLine: a source token that escapes the plugin root is an unparsed row, never a read outside the corpus (#1678 rule)', () => {
+  const escaping = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step merge "${CLAUDE_PLUGIN_ROOT}/../../etc/passwd"';
+  const parsed = parseComposeCallLine(escaping, '/r/plugin');
+  assert.strictEqual(parsed.unparsed, true);
+  assert.ok(/escapes the plugin root/.test(parsed.reason), `expected the escape reason, got: ${parsed.reason}`);
+  const contained = 'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step merge "${CLAUDE_PLUGIN_ROOT}/skills/_shared/a.md"';
+  assert.deepStrictEqual(parseComposeCallLine(contained, '/r/plugin').sources, ['/r/plugin/skills/_shared/a.md']);
+});
+
+test('a root with no skills/ directory beneath it fails every corpus entry point with the plugin-root rule, not a raw scandir error', () => {
+  const notAPluginRoot = tmpRoot('wrong-root');
+  for (const fn of [findComposeCallSites, measureSkills, measureSubFiles]) {
+    assert.throws(() => fn(notAPluginRoot), /not a plugin root: no skills\/ directory/, `${fn.name} should name the rule`);
+  }
+});
+
 test('usedConditionKeys: only the keys the sources use, in canonical order', () => {
   const { aFile, bFile } = makeComposeFixture();
   const sources = [aFile, bFile].map((p) => ({ path: p, content: fs.readFileSync(p, 'utf8') }));
