@@ -680,6 +680,10 @@ test('a --scope run at an unchanged HEAD never downgrades the prior full stamp (
   const run2 = await runCli(args, { cwd: r.repo }); // same HEAD, clean tree, no new commits
   assert.strictEqual(run2.code, 0, run2.stderr);
   assert.strictEqual(stampOf(r.gitDir).scope, 'full', 'the prior full stamp must stand, never downgraded to none');
+  assert.match(
+    run2.stdout, /^still-verified: no changes since/m,
+    'a zero-file "none" run must not print an empty "bookkeeping-only delta ()" (#1922 re-review nit iii)',
+  );
 
   const status = await runCli(['--stamp-status'], { cwd: r.repo });
   assert.strictEqual(JSON.parse(status.stdout).match, true);
@@ -736,4 +740,28 @@ test('--scope: a tool-scoped run neither caveats nor rewrites the count stamp â€
     JSON.parse(fs.readFileSync(countStampPath, 'utf8')).tests, 500,
     'the count stamp must still record the last FULL run\'s count, untouched by the tool-scoped run',
   );
+});
+
+// Re-review NEW-1: H4's --base-vs-anchor check previously used a bare
+// rev-parse with no ancestor test, so a stamp anchor that still resolves to
+// a real (but now-orphaned) commit after a history rewrite could reject a
+// --base that is legitimately correct for the rewritten history.
+test('--scope --base after a history rewrite is accepted when the old anchor is no longer an ancestor (#1922 re-review)', async () => {
+  const r = scopedRepo([{ match: 'src/**', suites: ['unit'], static: true }]);
+  const args = ['--scope', r.declPath, '--integration-branch', r.branch, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'];
+  const run1 = await runCli(args, { cwd: r.repo });
+  assert.strictEqual(run1.code, 0, run1.stderr);
+  fs.unlinkSync(r.marker); // untracked; must not linger as an uncommitted change.
+
+  // Rewrite history: the old stamp anchor (run1's HEAD) still resolves to a
+  // real commit object, but is no longer an ancestor of the new HEAD.
+  r.git('commit', '--amend', '--allow-empty', '-q', '-m', 'rewritten');
+  const newHead = r.git('rev-parse', 'HEAD').trim();
+
+  const run = await runCli(
+    ['--scope', r.declPath, '--base', newHead, '--cmd', `unit=${r.unitCmd}`, '--cmd', 'other=node -e 0'],
+    { cwd: r.repo },
+  );
+  assert.strictEqual(run.code, 0, run.stderr);
+  assert.match(run.stdout, /^Scope:/m);
 });

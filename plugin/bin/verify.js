@@ -11,7 +11,6 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
 
 const { parseArgs, UsageError, USAGE } = require('./lib/verify/args');
 const { runChecks } = require('./lib/verify/run');
@@ -21,7 +20,9 @@ const { readStamp: readCountStamp, detectRegression, caveatLine } = require('./l
 const { writeJsonAtomic } = require('./lib/verify/atomic-write');
 const { composeStamp, writeStamp, readStamp: readVerifyStamp } = require('./lib/verify/stamp');
 const { readDeclaration } = require('./lib/verify/declaration');
-const { changedFiles, resolveBase, ChangedFilesError } = require('./lib/verify/changed-files');
+const {
+  changedFiles, resolveBase, usableAnchor, ChangedFilesError,
+} = require('./lib/verify/changed-files');
 const { selectScope } = require('./lib/verify/scope');
 
 function enrich(result) {
@@ -110,8 +111,11 @@ async function main() {
   // canonical skill invocation is one plain command with no $(...)
   // substitutions (the worktree Bash-shape guard refuses two of them).
   // Explicit flags win; outside a checkout the tmpdir fallback stands and
-  // no count stamp is persisted.
-  const gitDir = parsed.gitDir || resolveGitDir();
+  // no count stamp is persisted. Computed once (nit, re-review): the --scope
+  // anchor read below (M5) needs this exact own-git-dir value too, never a
+  // --git-dir override, so it is resolved here rather than a second time.
+  const ownGitDir = resolveGitDir();
+  const gitDir = parsed.gitDir || ownGitDir;
   const logDir = parsed.logDir
     || (gitDir ? path.join(gitDir, 'claude-tweaks-verify') : fs.mkdtempSync(path.join(os.tmpdir(), 'claude-tweaks-verify-')));
   fs.mkdirSync(logDir, { recursive: true });
@@ -155,7 +159,7 @@ async function main() {
     // never an explicit --git-dir — the identical rule stampStatus() applies
     // above (a foreign --git-dir's stamp is read but never trusted): a
     // sibling checkout must never borrow another repo's pass as its own.
-    const ownGitDir = resolveGitDir();
+    // (ownGitDir is resolved once, above, alongside the default log-dir.)
     priorStamp = ownGitDir ? readVerifyStamp(ownGitDir) : null;
 
     try {
@@ -170,23 +174,17 @@ async function main() {
     // H4 (review): an explicit --base that resolves to a commit other than
     // the stamp's own anchor is a contradiction, not a silent override — the
     // caller almost certainly meant the anchor, and running the diff against
-    // the wrong base would silently under- or over-verify.
+    // the wrong base would silently under- or over-verify. usableAnchor is
+    // the exact same "is this anchor still usable" test resolveBase's own
+    // anchor-first path applies above — a bare rev-parse with no ancestor
+    // check (the earlier version of this block) could reject a --base that
+    // is legitimately correct once history was rewritten and the old anchor
+    // stopped being an ancestor of HEAD, even though it still resolves to a
+    // real (now-stranded) commit (#1922 re-review NEW-1).
     if (parsed.base) {
-      const anchorRef = priorStamp && typeof priorStamp.sha === 'string'
-        ? (typeof priorStamp.fullSha === 'string' ? priorStamp.fullSha : priorStamp.sha)
-        : null;
-      let anchorSha = null;
-      if (anchorRef) {
-        try {
-          anchorSha = String(execFileSync(
-            'git', ['rev-parse', '--verify', '--end-of-options', `${anchorRef}^{commit}`], { encoding: 'utf8' },
-          )).trim();
-        } catch {
-          anchorSha = null; // unresolvable anchor == "no usable anchor" — nothing to conflict with.
-        }
-      }
+      const anchorSha = usableAnchor({ stamp: priorStamp });
       if (anchorSha && resolvedBase !== anchorSha) {
-        process.stderr.write(`--scope: --base ${parsed.base} conflicts with the stamp anchor ${anchorSha.slice(0, 9)}; omit --base or clear the stamp\n${USAGE}\n`);
+        process.stderr.write(`--scope: --base ${parsed.base} conflicts with the stamp anchor ${anchorSha.slice(0, 9)}; omit --base (pass --integration-branch instead) or clear the stamp\n${USAGE}\n`);
         process.exitCode = 2;
         return;
       }
@@ -330,7 +328,14 @@ async function main() {
     // selection outcome, while keeping the same trailing fields.
     const lead = decl === null ? `Scope: full — no declaration at ${parsed.scope}; ${sinceClause}` : `Scope: ${sel.mode} — ${sinceClause}`;
     lines.push(`${lead}; suites: ${suiteList}; static: ${sel.static ? 'yes' : 'no'}; unmatched: ${sel.unmatched.length}`);
-    if (sel.mode === 'none') lines.push(`still-verified: bookkeeping-only delta (${files.join(', ')})`);
+    if (sel.mode === 'none') {
+      // Nit (re-review): an unchanged-HEAD re-run (M6's own scenario) has
+      // zero changed files — "bookkeeping-only delta ()" reads as broken
+      // rather than "nothing to verify".
+      lines.push(files.length
+        ? `still-verified: bookkeeping-only delta (${files.join(', ')})`
+        : `still-verified: no changes since ${String(resolvedBase).slice(0, 9)}`);
+    }
     lines.push('');
   }
   lines.push('| Check | Status | Duration | Summary |', '|---|---|---|---|');

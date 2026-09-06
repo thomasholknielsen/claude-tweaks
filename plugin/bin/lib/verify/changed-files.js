@@ -10,7 +10,11 @@
 // shape). Both git reads use `-z` so a C-quotable path (non-ASCII, containing
 // a tab or newline) round-trips intact — git's default quoting would
 // otherwise corrupt it. Every git call goes through execImpl so tests inject
-// a fake.
+// a fake, and every real call runs with stdio ['ignore','pipe','pipe'] (the
+// posture blast-radius-cli.js's own default git() uses) so a benign
+// non-ancestor/non-existent-ref probe never leaks git's own `fatal:` line to
+// this process's stderr — the thrown error still carries the message on the
+// exit-2 paths below.
 'use strict';
 
 const { execFileSync } = require('child_process');
@@ -21,11 +25,30 @@ class ChangedFilesError extends Error {
 }
 
 function git(execImpl, args) {
-  return String(execImpl('git', args, { encoding: 'utf8' }));
+  return String(execImpl('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
 }
 
 function tryGit(execImpl, args) {
   try { return git(execImpl, args); } catch { return null; }
+}
+
+// usableAnchor({ stamp, execImpl }): the canonical sha of the stamp's own
+// anchor (fullSha, or sha for a legacy stamp) when — and only when — it is a
+// real ancestor of HEAD, else null. Shared by resolveBase's own anchor-first
+// path below and bin/verify.js's --base-vs-anchor conflict check, so "is
+// this anchor still usable" (a rewritten/rebased history can strand the old
+// anchor even though it still resolves to a real commit) is tested exactly
+// once (#1922 re-review NEW-1: the --base check previously ran a bare
+// rev-parse with no ancestor test, so a stale-but-still-resolvable anchor
+// could reject a legitimate --base after a history rewrite).
+function usableAnchor({ stamp = null, execImpl = execFileSync } = {}) {
+  const anchor = stamp && typeof stamp.sha === 'string'
+    ? (typeof stamp.fullSha === 'string' ? stamp.fullSha : stamp.sha)
+    : null;
+  if (!anchor) return null;
+  if (tryGit(execImpl, ['merge-base', '--is-ancestor', anchor, 'HEAD']) === null) return null;
+  const canonical = tryGit(execImpl, ['rev-parse', '--verify', '--end-of-options', `${anchor}^{commit}`]);
+  return canonical === null || canonical.trim() === '' ? null : canonical.trim();
 }
 
 function resolveBase({ stamp = null, integrationBranch = null, base = null, execImpl = execFileSync } = {}) {
@@ -34,16 +57,8 @@ function resolveBase({ stamp = null, integrationBranch = null, base = null, exec
     if (out === null || out.trim() === '') throw new ChangedFilesError(`--base "${base}" does not resolve to a commit`);
     return out.trim();
   }
-  const anchor = stamp && typeof stamp.sha === 'string'
-    ? (typeof stamp.fullSha === 'string' ? stamp.fullSha : stamp.sha)
-    : null;
-  if (anchor && tryGit(execImpl, ['merge-base', '--is-ancestor', anchor, 'HEAD']) !== null) {
-    const canonical = tryGit(execImpl, ['rev-parse', '--verify', '--end-of-options', `${anchor}^{commit}`]);
-    if (canonical === null || canonical.trim() === '') {
-      throw new ChangedFilesError(`stamp anchor "${anchor}" is an ancestor of HEAD but does not resolve to a commit`);
-    }
-    return canonical.trim();
-  }
+  const anchor = usableAnchor({ stamp, execImpl });
+  if (anchor !== null) return anchor;
   if (!integrationBranch) {
     throw new ChangedFilesError('could not resolve a base: no usable stamp anchor and no --integration-branch or --base given');
   }
@@ -108,4 +123,6 @@ function changedFiles({ base, execImpl = execFileSync }) {
   return { base, files: [...set].sort() };
 }
 
-module.exports = { changedFiles, resolveBase, ChangedFilesError };
+module.exports = {
+  changedFiles, resolveBase, usableAnchor, ChangedFilesError,
+};

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const path = require('path');
 
 const {
-  changedFiles, resolveBase, ChangedFilesError,
+  changedFiles, resolveBase, usableAnchor, ChangedFilesError,
 } = require(path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'changed-files.js'));
 
 const FULL = '0123456789abcdef0123456789abcdef01234567';
@@ -113,4 +113,35 @@ test('resolveBase uses stamp.sha as the anchor for a legacy stamp that carries n
     [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
   });
   assert.strictEqual(resolveBase({ stamp: { sha: FULL, scope: 'full', legacy: true }, integrationBranch: 'main', execImpl: exec }), CANON);
+});
+
+// #1922 re-review NEW-1: usableAnchor is the exact "is this anchor still
+// usable" test resolveBase's anchor-first path and bin/verify.js's
+// --base-vs-anchor conflict check both need — pinned standalone so the two
+// call sites can never silently diverge.
+test('usableAnchor returns the canonical sha when the stamp anchor is an ancestor of HEAD', () => {
+  const exec = fakeExec({
+    [`merge-base --is-ancestor ${FULL} HEAD`]: '',
+    [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
+  });
+  assert.strictEqual(usableAnchor({ stamp: { sha: 'x', fullSha: FULL }, execImpl: exec }), CANON);
+});
+
+test('usableAnchor returns null when the anchor is not an ancestor of HEAD (a rewritten/rebased history)', () => {
+  const exec = fakeExec({
+    [`merge-base --is-ancestor ${FULL} HEAD`]: new Error('exit 1'),
+  });
+  assert.strictEqual(usableAnchor({ stamp: { sha: 'x', fullSha: FULL }, execImpl: exec }), null);
+});
+
+test('usableAnchor returns null when there is no stamp at all', () => {
+  assert.strictEqual(usableAnchor({ stamp: null, execImpl: fakeExec({}) }), null);
+});
+
+test('usableAnchor falls back to stamp.sha for a legacy stamp with no fullSha', () => {
+  const exec = fakeExec({
+    [`merge-base --is-ancestor ${FULL} HEAD`]: '',
+    [`rev-parse --verify --end-of-options ${FULL}^{commit}`]: `${CANON}\n`,
+  });
+  assert.strictEqual(usableAnchor({ stamp: { sha: FULL, scope: 'full', legacy: true }, execImpl: exec }), CANON);
 });
