@@ -116,6 +116,12 @@ function sortedUnique(nums) {
   return [...new Set(nums)].sort((a, b) => a - b);
 }
 
+// The {number, title} shape every unblocked-dependent list returns, regardless
+// of which of the three ladder branches (local-files, native, body-text) found it.
+function toSummary(r) {
+  return { number: r.number, title: r.title };
+}
+
 // One directory of materialized headers: work/{n}-spec.md, one per record.
 // The frontmatter `record:` line wins over the filename when both exist.
 function headerRecords(deps, dir) {
@@ -212,8 +218,9 @@ function resolveInputs({ runDir, cwd, deps }) {
   const sources = {};
   const { state, source: stateSource } = resolveState(deps, runDir);
   sources.state = stateSource;
-  const worktree = state && typeof state.worktree === 'string' ? state.worktree : cwd;
-  sources.worktree = state && typeof state.worktree === 'string' ? 'run-state.json' : 'cwd';
+  const hasWorktree = state && typeof state.worktree === 'string';
+  const worktree = hasWorktree ? state.worktree : cwd;
+  sources.worktree = hasWorktree ? 'run-state.json' : 'cwd';
   const { records, source: recordSource } = resolveRecords(deps, runDir, worktree);
   sources.records = recordSource;
   const pr = hasPrNumber(state) ? state.pr.number : null;
@@ -314,7 +321,7 @@ function unblockedLocal(inputs, deps, closed) {
   };
   return dependents
     .filter((d) => d.blockedBy.every((b) => b === closed || isResolved(b)))
-    .map((d) => ({ number: d.number, title: d.title }));
+    .map(toSummary);
 }
 
 // The eight probes. Module probes call the exported functions the CLIs already
@@ -409,7 +416,7 @@ function buildProbes(inputs, deps) {
         if (!records.length) return [];
         const res = await deps.execFile('node', [path.join(BIN, 'resolve-blockers.js'), records.map((r) => r.number).join(',')], { cwd: inputs.worktree, ...EXEC_OPTS });
         const byNumber = JSON.parse(res.stdout.trim());
-        return records.filter((r) => byNumber[r.number] && byNumber[r.number].blockedBy.includes(closed) && !byNumber[r.number].openBlocker).map((r) => ({ number: r.number, title: r.title }));
+        return records.filter((r) => byNumber[r.number] && byNumber[r.number].blockedBy.includes(closed) && !byNumber[r.number].openBlocker).map(toSummary);
       }
       // work-links: body-text — the same two passes unblocked-records.md runs.
       // Pass 1 is `parseDependencies` (the canonical line-anchored `Blocked by
@@ -423,7 +430,7 @@ function buildProbes(inputs, deps) {
       const stateOf = new Map(JSON.parse(states.stdout).map((i) => [i.number, i.state]));
       return dependents
         .filter((d) => d.blockedBy.every((b) => b === closed || stateOf.get(b) === 'CLOSED'))
-        .map((d) => ({ number: d.number, title: d.title }));
+        .map(toSummary);
     },
   };
 }
