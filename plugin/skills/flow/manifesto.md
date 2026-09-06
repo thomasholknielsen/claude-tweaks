@@ -1,12 +1,12 @@
 # Pipeline Config Manifesto — Step 3
 
-The Manifesto is the **first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). One structured table collects every policy lever the pipeline needs. After it's resolved, downstream skills look up policy here — they do not re-ask the user.
+The Manifesto is the **first bookend** of the pipeline (see `_shared/auto-mode-contract.md`). One structured table collects every policy lever the pipeline needs.
 
 ## When to run
 
-In every mode except `interactive`, the Manifesto **computes the levers and writes `config.yml`** (downstream skills need a value to read). What changes by mode is whether it stops for approval:
+In every mode except `interactive`, the Manifesto **computes the levers and writes `config.yml`**. What changes by mode is whether it stops for approval:
 
-- **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. This is the everyday path, and the only content it ever needs is in this file — never open `manifesto-confirm.md` for an `auto` run.
+- **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. The only content it ever needs is in this file — never open `manifesto-confirm.md` for an `auto` run.
 - **`confirm` mode** — **approval gate.** Present the full Manifesto with the `Approve all / Override / Cancel` block and wait. After approval the rest of the pipeline runs as `auto`. Use when the user wants to inspect/tweak levers first. Additionally read `manifesto-confirm.md` in this skill's directory — the `AskUserQuestion` call, the Rendering rules for the preview, and the On-override/On-cancel branches live there, split out so an `auto` run's own read of this file never has to load them (#657).
 - **`hybrid` mode** — approval gate (same as `confirm`, including `manifesto-confirm.md`); policies set here are honored, but skills still prompt for non-floor decisions.
 - **`interactive` mode** — no Manifesto, and this step creates no run directory; skills present each decision in-flow (they prompt rather than read `config.yml`). The run does still acquire a run directory before it ends: `/claude-tweaks:wrap-up`'s Phase 1 creates one unconditionally, in every mode, because its Review Console runs in every mode. That one carries no `config.yml` — nothing ran a Manifesto to write one — so the in-flow prompting above is unaffected.
@@ -20,9 +20,9 @@ Walk the precedence chain (see `_shared/auto-mode-contract.md`):
 3. Project policy — the resolved `auto-mode` value: `AUTO_MODE=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values auto-mode)` (empty when `.claude-tweaks/policy.yml` leaves it unset — the key has no schema default)
 4. Hardcoded sensible defaults (last resort)
 
-For each lever, record both the recommended value AND its source so the user can see why each value was suggested.
+For each lever, record both the recommended value AND its source.
 
-**Git lever override.** When `.claude-tweaks/policy.yml` sets `worktree-always: true`, the Git lever is forced to `worktree` regardless of CLI args or defaults above — `current-branch` is never offered. This is enforced mechanically by a `PreToolUse` gate (`_shared/git-discipline.md`); the Manifesto short-circuits to `worktree` to avoid presenting a choice that can't be honored.
+**Git lever override.** When `.claude-tweaks/policy.yml` sets `worktree-always: true`, the Git lever is forced to `worktree` regardless of CLI args or defaults above — `current-branch` is never offered. This is enforced mechanically by a `PreToolUse` gate (`_shared/git-discipline.md`); the Manifesto short-circuits to `worktree`.
 
 **Ceremony profile computation.** Unlike the other levers (policy preferences resolved via the precedence chain above), `ceremony-profile`'s value is computed by folding every record's materialized `ceremony:` header field (`materialize.md`) with a logical AND: `fast-lane` only when every record in this run has `ceremony: fast-lane`; any record missing the field (defaults to `standard`) or carrying an explicit `standard` sends the whole run's `ceremony-profile` to `standard` — mirrors the auto-merge gate's existing "every member of the group must carry `auto:merge`" rule (`dispatch/SKILL.md`'s Auto-merge gate). Source is always `header`. The computed value still becomes this lever's Recommended value, overridable via the normal `9=value` mechanism below — unlike Design intent (locked in from `/specify`), `ceremony-check`'s verdict is a fresh automated judgment call, and this Manifesto is the first point a human sees it.
 
@@ -49,13 +49,13 @@ A lever is **suppressed** (hidden from the Manifesto) when no skill in the resol
 |---|---|
 | **Overlap** (3) | `/specify` not in the pipeline (always suppressed for `/flow` — specs already exist) |
 | **Design intent** (4) | All records have `design-intent:` locked in their materialized header (or body metadata), OR all records are non-frontend (polish auto-skips regardless) |
-| **Tidy aggressiveness** (8) | Always suppressed by `/flow` — `/tidy` is not an allowed flow step (`steps-and-gates.md`'s Allowed Steps table) and can never be added to a step list. Still written to `config.yml` since a standalone `/tidy` run can independently resolve this run directory. Kept in the canonical lever count for stable numbering. |
+| **Tidy aggressiveness** (8) | Always suppressed by `/flow` — `/tidy` is not an allowed flow step (`steps-and-gates.md`'s Allowed Steps table lists it unconditionally under "Not allowed in flow") and can never be added to a step list. Still written to `config.yml` (per the "suppression is a UI affordance" rule below) since a standalone `/tidy` run can independently resolve this run directory. Kept in the canonical lever count for stable numbering. |
 | **Auto-fix threshold** (6) | `/test` not in the step list |
 | **Review auto-apply ceiling** (7) | `/review` not in the step list |
 | **Leftover routing** (5) | `/wrap-up` not in the step list |
 | **Merge verification** (11) | `/wrap-up` not in the step list (the merge step never runs, so nothing reads it this run) |
 | **Merge authorization** (13) | `/wrap-up` not in the step list (nothing left to authorize a merge for — same condition as lever 11) |
-| **Design critique** (12) | Every record in the run is non-frontend (materialized `surface:` header is `backend`/`infra` on all — critics never dispatch on a non-frontend diff). Still written to `config.yml` (suppression is a UI affordance) |
+| **Design critique** (12) | Every record in the run is non-frontend (materialized `surface:` header is `backend`/`infra` on all — the same input Design intent (4) reads; critics never dispatch on a non-frontend diff). Still written to `config.yml` (suppression is a UI affordance) |
 
 Always visible: **Mode** (1), **Scope-creep** (2), **Ceremony profile** (9), **Model stance** (10) — they affect every pipeline.
 
@@ -67,7 +67,7 @@ The template below is the **`confirm` / `hybrid` (approval-gate)** rendering —
 
 **In default `auto` mode, render the FYI variant instead:** show the same preview + policy-levers tables, but change the heading to `### Pipeline Config (auto)`, drop the approval call entirely, and close with a single line — `→ proceeding (no approval needed) · run with \`confirm\` to review/override`. Then continue to Step 4. Do not wait for input.
 
-**Lever values come from the pack (#1931).** When `{run-dir}/preflight.json` exists for this run (an adopted run directory — `steps-and-gates.md`'s adoption section ran `flow-preflight.js`), fill the policy-levers table's Recommended column from `preflight.levers` (`value`) and the log line's source from its `source` (`run-config` | `policy` | `default`; `ceremony-profile`'s source is `header`), and lever 1 from the pack's `mode`; do not re-resolve any lever with `resolve-policy.js`. A lever entry carrying `error` renders its Recommended cell as `unresolved` and is logged, never guessed. A fresh run (no pack — case 5 created the directory) resolves the levers as this file already describes.
+**Lever values come from the pack (#1931).** When `{run-dir}/preflight.json` reports `preflight.adoption.value.case === 1` (an adopted run directory that already carried `config.yml` — `steps-and-gates.md`'s adoption section ran `flow-preflight.js`), fill the policy-levers table's Recommended column from `preflight.levers` (`value`) and the log line's source from its `source` (`run-config` | `policy` | `default`; `ceremony-profile`'s source is `header`), and lever 1 from the pack's `mode`; do not re-resolve any lever with `resolve-policy.js`. A lever entry carrying `error` renders its Recommended cell as `unresolved` and is logged, never guessed. Adoption cases 2, 3, and 5 have no `config.yml` to read yet: they compute the levers fresh from the precedence chain and write `config.yml`, exactly as this file already describes.
 
 ```markdown
 ### Pipeline Config Manifesto
@@ -104,7 +104,7 @@ I've pre-filled recommendations from project policy + sensible defaults. The Rec
 | 9 | Ceremony profile | **{computed}** | **fast-lane** / standard | Fast-lane trims wrap-up ceremony depth (reflect light mode, narrower skill-curation scan, doc-scan pre-check); standard runs full depth |
 | 10 | Model stance | **default** | economy / **default** / max-rigor | Shifts every dispatch's resolved effort one notch (`economy` also degrades Frontier to Capable); never changes which profile a dispatch requests |
 | 11 | Merge verification | **{derived}** | **merge-when-green** / wait / off | How much CI verification the run's merge waits for — derived per `_shared/policy-schema-coverage.md`'s `merge-verification` coverage block; explicit `policy.yml` value wins |
-| 12 | Design critique | **{resolved}** | off / **auto** / full | Governs whether project-local craft critics run at review time (`skills/design-wrapper/critics.md`, dispatched by `review` mode Step 3.8). Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" design-critique` (JSON envelope; `source` available for the log line); Recommended = resolved `value`; log to `decisions.md` as `AUTO {time} — Manifesto: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read, not a code mutation).` |
+| 12 | Design critique | **{resolved}** | off / **auto** / full | Governs whether project-local craft critics run at review time (`skills/design-wrapper/critics.md`, dispatched by `review` mode Step 3.8). Read via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "$PIPELINE_RUN_DIR" design-critique` (JSON envelope; `source` available for the log line) when no pack exists (a fresh run); on an adopted case-1 run the `value` and `source` come from `preflight.levers`'s `design-critique` entry instead. Recommended = resolved `value`; log to `decisions.md` as `AUTO {time} — Manifesto: design-critique resolved to {value} (source: {source}). Reversibility: n/a (a policy read, not a code mutation).` |
 | 13 | Merge authorization | **ask** | **ask** / pre-authorized | Pre-authorizes this run to merge itself once every HARD-GATE is green and the suite is proven — zero further clicks at the terminal Review Console. |
 
 **Suppressed (not applicable to this run):** 3 (overlap — `/specify` not in pipeline), 4 (design intent — locked by the materialized header on all 3 records: none/none/quiet), 8 (tidy — not in default `/flow`). **Valid overrides for this run:** 1, 2, 5, 6, 7, 9, 10, 11, 12, 13.
@@ -151,7 +151,7 @@ default to fill. From `docs/superpowers/specs/2026-07-20-lifecycle-ceremony-tier
 
 ## Approval flow
 
-**In default `auto` mode (FYI, no gate):** write the computed values straight to `config.yml` (same schema as below), initialize `decisions.md` with the config snapshot header, create `staged/`, then proceed to Step 4 without waiting. The FYI table has already shown the user what was chosen; there is no approval step to process. This is the everyday path. The `Approve all / Override / Cancel` handling below applies only to `confirm` and `hybrid` modes.
+**In default `auto` mode (FYI, no gate):** write the computed values straight to `config.yml` (same schema as below), initialize `decisions.md` with the config snapshot header, create `staged/`, then proceed to Step 4 without waiting. The `Approve all / Override / Cancel` handling below applies only to `confirm` and `hybrid` modes.
 
 **Write mechanism (all modes, #1580):** compose all 13 lever values, then write them in **one call** — `node "${CLAUDE_PLUGIN_ROOT}/bin/set-config.js" --run "$PIPELINE_RUN_DIR" --set "mode={v},scope-creep={v},overlap={v},design-intent={v},leftover-default={v},auto-fix-threshold={v},review-auto-apply-ceiling={v},tidy-aggressiveness={v},ceremony-profile={v},model-stance={v},merge-verification={v},design-critique={v},merge-authorization={v}"` (all 13 `key=value` pairs, comma-joined, in the canonical lever order above) — never one `--key`/`--value` call per lever. The batch form validates the complete set before writing any of it, the same fail-closed posture the single-key form already has (`bin/lib/set-config/write.js`). The single-key form (`--key <lever> --value <value>`) stays available for its only remaining caller — the ceremony escape hatch's downgrade-in-place write (`wrap-up/SKILL.md` Phase 1, `review/code-mode-steps.md`); `steps-and-gates.md` case 3 also takes the batch form (its recovery writes the whole lever set, same as case 5), never 13 single-key calls. `spec:`/`created:` (the two bookkeeping keys below) are not levers — `--set`/`--key` both refuse them by design — so this step writes them itself, appending both lines to `config.yml` after the batch call. Known gap: a worktree-pinned session has no writer for these two keys and ends the run with both absent — bounded (nothing reads them today), but do not add a reader without closing it first.
 
@@ -175,7 +175,7 @@ spec: 42
 created: 2026-05-15T143207
 ```
 
-Suppressed levers still write to `config.yml` with default values — suppression is a UI affordance, not a semantic skip; downstream skills always have a value to read.
+Suppressed levers are still written to `config.yml` with default values — suppression is a UI affordance, not a semantic skip; downstream skills always have a value to read.
 
 Initialize `decisions.md` in the same directory with the config snapshot header (see `_shared/auto-decision-log.md`). Create the `staged/` subdirectory.
 
@@ -194,9 +194,9 @@ Initialize `decisions.md` in the same directory with the config snapshot header 
   `cd`-ing into the run directory afterward for convenience is fine, resolving the *path* relative
   to cwd is not.
 - `ISO-timestamp` is `YYYY-MM-DDTHHMMSS` in UTC (no colons; portable across filesystems) — per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule (`date -u`), cited rather than restated by mint sites
-- `spec-slug` uses a single `spec-` prefix on numeric IDs to disambiguate from timestamp digits: `spec-42` (single spec), `spec-42-45-48` (multi-spec, dash-joined), or a non-numeric topic slug like `meal-planning` (no prefix needed). See `_shared/pipeline-run-dir.md` for SPEC_SLUG conventions.
+- `spec-slug` uses a single `spec-` prefix on numeric IDs to disambiguate from timestamp digits: `spec-42` (single spec), `spec-42-45-48` (multi-spec, dash-joined), or a non-numeric topic slug like `meal-planning` (no prefix needed). See `_shared/pipeline-run-dir.md` for the canonical SPEC_SLUG conventions.
 - Collisions never happen — each parallel agent in the same checkout gets its own run directory
-- The run directory is exposed to downstream skills via `PIPELINE_RUN_DIR` (set in the skill chain)
+- The run directory is exposed to downstream skills via `PIPELINE_RUN_DIR`
 - After successful pipeline closure, `/wrap-up` moves the directory to `.claude-tweaks/pipelines/archive/`
 
 **Manifesto is the only mid-pipeline policy stop.** After this, no skill re-asks about scope-creep, overlap, design-intent, etc. — they read `config.yml` and apply.

@@ -25,6 +25,21 @@ test('steps-and-gates.md calls flow-preflight.js --run exactly once in the adopt
   assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
 });
 
+// #1931 I1: the CLI exits 3 (nothing written) for a missing/unanchored --run, so
+// the module's case 4 is never reachable THROUGH it — the prose must give the
+// reader a branch for each non-zero exit, or a code-3 run has no case at all.
+test('the adoption section branches on the CLI\'s non-zero exits — 3 is case 4, 2 is a malformed invocation (#1931 I1)', () => {
+  const t = read('plugin/skills/flow/steps-and-gates.md');
+  const section = t.slice(t.indexOf('### Adopting an inherited run directory'), t.indexOf('### Partial step lists'));
+  assert.ok(section.length > 0, 'the adoption section bounds must still resolve');
+  assert.match(section, /exit code 3/);
+  assert.match(section, /exit code 2/);
+  assert.match(section, /is not anchored to the main checkout/);
+  // Case 4's own bullet no longer claims the pack reports the reason — it never
+  // runs far enough to write one.
+  assert.doesNotMatch(section, /The pack reports which reason applied/);
+});
+
 test('the four adoption note literals in preflight.js equal the ones steps-and-gates.md renders (#1931 AC5)', () => {
   const t = read('plugin/skills/flow/steps-and-gates.md');
   for (const n of [1, 2, 3, 4]) {
@@ -39,6 +54,9 @@ test('manifesto.md renders the auto FYI table from preflight.levers and lists th
   assert.match(t, /run-config/);
   assert.match(t, /`header`/);
   assert.match(t, /unresolved/);
+  // #1931 C1: only case 1 has a config.yml to read — cases 2/3/5 compute the
+  // levers fresh, so the do-not-re-resolve rule must not fire on them.
+  assert.match(t, /adoption\.value\.case === 1/);
   assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
 });
 
