@@ -39,7 +39,7 @@ It prints one JSON object: `mergeBase` (the resolved base commit), `config`
 policy by the CLI itself), and `summary` (`implLines`/`implFiles`/`testLines`/`testFiles`/
 `sensitiveFilesTouched`) — everything Step 2 weighs.
 
-**Pack-fed input (#1930).** When the caller's `Skill` args carry `--pack {run-dir}/wrap-up-pack.json` (or the pack's `blastRadius` object inlined as `--blast-radius '{…}'`), Step 1 takes `{mergeBase, config, summary}` from that value and does not run `blast-radius.js`. A field carrying `ok: false` (an unresolvable base, `[IL-131]`) is this step's existing `could-not-gather` outcome → `needs-human`; it never triggers a fresh `blast-radius.js` call, because the pack's failure already represents the freshest attempt. With neither `--pack` nor an inlined object, the CLI call above runs exactly as before.
+**Pack-fed input (#1930).** When the caller's `Skill` args carry `--pack {run-dir}/wrap-up-pack.json` (or the pack's `blastRadius` object inlined as `--blast-radius '{…}'`), Step 1 takes `{mergeBase, config, summary}` from that value and does not run `blast-radius.js`. A field carrying `ok: false` (an unresolvable base) is this step's existing `could-not-gather` outcome → `needs-human`; it never triggers a fresh `blast-radius.js` call, because the pack's failure already represents the freshest attempt. With neither `--pack` nor an inlined object, the CLI call above runs exactly as before.
 
 `{integration-branch}` above may be a bare name (e.g. `main`) even in a shared checkout whose
 local ref has gone stale relative to `origin/{name}`: the CLI itself prefers the same-named
