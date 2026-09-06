@@ -146,5 +146,9 @@
   "plugin/bin/lib/hooks": {
     "lastSweptMs": 1788664150920,
     "lastHash": "4f2a906eae801559242d8dc24a18089c56f33c75"
+  },
+  "plugin/bin/lib/init": {
+    "lastSweptMs": 1788664302170,
+    "lastHash": "ecb65719c91ae46e23e0568fff30186bf11959fe"
   }
 }
