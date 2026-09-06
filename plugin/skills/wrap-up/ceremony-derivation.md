@@ -1,7 +1,7 @@
 # Diff-derived ceremony default (auto-mode firings, #1545)
 
 **Already `fast-lane`? Skip this file.** If `config.yml`'s `ceremony-profile` already reads
-`fast-lane` (a header-set value, not a headless derivation), there is nothing left for this
+`fast-lane` (a header-set value, not a diff-derived one), there is nothing left for this
 file's derivation logic to do — go straight to `_shared/fast-lane-digest.md`'s wrap-up section.
 This file matters only for an `auto`-mode run whose header default is still `standard`. What each profile skips is rostered in `_shared/ceremony-profile.md`; this file only decides which profile an `auto`-mode run gets.
 

@@ -15,6 +15,7 @@ test('review-console.md calls console-resolve.js --run exactly once, inside the 
   const call = t.indexOf('console-resolve.js" --run');
   assert.ok(section < call && call < next, 'the call lives in the short-circuit section');
   assert.match(t, /exit code 4/);
+  assert.match(t, /exit code 5/);
   assert.match(t, /exit codes 2 and 3/);
   assert.match(t, /HARD-GATE/);
   assert.match(t, /--dry-run/);
@@ -23,6 +24,12 @@ test('review-console.md calls console-resolve.js --run exactly once, inside the 
 
 test('auto-merge-short-circuit.md logs the needs-human verdict the resolver reads (#1932 decision 3)', () => {
   const t = read('plugin/skills/wrap-up/auto-merge-short-circuit.md');
+  assert.match(t, /assess-agent-autonomy verdict needs-human/);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+});
+
+test('settle-and-merge.md logs the needs-human verdict the resolver reads (#1932 C1)', () => {
+  const t = read('plugin/skills/dispatch/settle-and-merge.md');
   assert.match(t, /assess-agent-autonomy verdict needs-human/);
   assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
 });

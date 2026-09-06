@@ -1,5 +1,5 @@
 'use strict';
-// #1545: for a headless firing, derive the wrap-up ceremony-profile DEFAULT
+// #1545: for an `auto`-mode run, derive the wrap-up ceremony-profile DEFAULT
 // from the diff actually produced, rather than leaving the header-fold
 // default (`flow/manifesto.md`'s Ceremony profile computation, always
 // `standard` unless every materialized record already carried a
