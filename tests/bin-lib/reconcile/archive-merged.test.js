@@ -307,6 +307,33 @@ test('archiveRunDir: tidy-standalone run — one untracked audit file among trac
   assert.ok(trackedFiles(root).includes(`.claude-tweaks/pipelines/${runId}/staged/proposal-1.md`), 'the already-tracked file must stay exactly where it was');
 });
 
+// Regression: `git ls-files --error-unmatch <dir>` exits 0 as soon as ONE
+// file under the directory is tracked, even when a sibling underneath is
+// genuinely untracked (empirically verified) — so a `staged/` directory
+// holding one already-merged proposal AND one still-untracked proposal must
+// still refuse audit-untracked, not silently `git mv` the whole directory
+// and leave the untracked file relocated-but-untracked at the archive path.
+test('archiveRunDir: staged/ with one tracked and one untracked file still refuses audit-untracked', () => {
+  const root = makeRepo();
+  const runId = '2026-08-30T090000-tidy-standalone';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/staged/proposal-1.md`, '# proposal 1\n');
+  fs.writeFileSync(path.join(runDir, 'staged', 'proposal-2.md'), '# proposal 2\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'audit-untracked');
+  assert.deepEqual(result.untrackedAuditFiles, ['staged']);
+
+  // Refused before anything moved — the mixed directory stays exactly where
+  // it was, both files still present, nothing relocated to the archive path.
+  assert.equal(fs.existsSync(path.join(runDir, 'staged', 'proposal-1.md')), true);
+  assert.equal(fs.existsSync(path.join(runDir, 'staged', 'proposal-2.md')), true);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(path.join(archiveDir, 'staged')), false);
+});
+
 // #1493 review fix, negative case: the tidy-standalone carve-out above must
 // not widen into a blanket exemption — a stray tracked file this function
 // doesn't know how to move (anything other than work/, or, on a

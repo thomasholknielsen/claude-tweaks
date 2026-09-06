@@ -556,16 +556,18 @@ function buildLinkedPRQuery(numbers) {
 // A candidate missing from repoData (this query was never run for it) stays
 // eligible, same no-alias -> eligible behavior as the native-blocker check.
 function partitionByOpenLinkedPR(candidates, repoData) {
-  const eligible = [];
-  const excludedByOpenPR = [];
-  for (const c of candidates) {
+  const { eligible, excluded } = partitionByOpenBlockers(candidates, (c) => {
     const node = repoData && repoData['i' + c.number];
     const rawNodes = node && node.closedByPullRequestsReferences && node.closedByPullRequestsReferences.nodes;
     const nodes = Array.isArray(rawNodes) ? rawNodes : [];
     const openPR = nodes.find((n) => n && n.state === 'OPEN');
-    if (openPR) excludedByOpenPR.push({ number: c.number, pr: openPR.number });
-    else eligible.push(c);
-  }
+    return openPR ? [openPR.number] : [];
+  });
+  // partitionByOpenBlockers' generic shape carries a blocker LIST per
+  // excluded candidate (a candidate can have several open blockers); this
+  // caller only ever has exactly one linked PR to name, so unwrap back to
+  // the single `pr` field this function's own callers expect.
+  const excludedByOpenPR = excluded.map((e) => ({ number: e.number, pr: e.blockedBy[0] }));
   return { eligible, excludedByOpenPR };
 }
 

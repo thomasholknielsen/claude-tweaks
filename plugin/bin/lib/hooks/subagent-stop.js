@@ -108,13 +108,13 @@ function run(ctx) {
   // session owns no run, matching skill-invocation.js's identical guard.
   const ownedRun = ctx.ownedRun || {};
   if (!ownedRun.dir) return {};
+  if (isExemptAgentType(ctx.input.agent_type)) return {}; // third-party agent — never governed by this contract; checked before the transcript read below so an exempt stop never pays that I/O cost
   const transcriptPath = ctx.input.agent_transcript_path || ctx.input.transcript_path;
   if (typeof transcriptPath !== 'string' || !transcriptPath) return {};
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
   const trimmedText = text.trim();
   if (STATUS_RE.test(trimmedText)) return {};
-  if (isExemptAgentType(ctx.input.agent_type)) return {}; // third-party agent — never governed by this contract
   ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: trimmedText.split('\n')[0].slice(0, 120) }, ownedRun.attribution);
   return { json: { systemMessage: 'claude-tweaks: a subagent reply is missing the Subagent Contract status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED). Logged to events.jsonl.' } };
 }

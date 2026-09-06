@@ -179,6 +179,22 @@ test('reproduction: location+substance agreement with a straddled severity bucke
   );
 });
 
+test('reproduction: a straddled pair where the lower side is missing severity normalizes to "info", never undefined', () => {
+  // severityRank(undefined) ranks lowest (0), same as 'info' — so a finding
+  // with no severity field at all can legitimately win the "lower of the
+  // two" tiebreak. Before the fix, `lower.severity` (undefined) propagated
+  // straight through, silently dropping the `severity` key from the
+  // confirmed finding once JSON.stringify'd.
+  const a = [{ path: 'src/auth.ts', line: 42, text: 'missing check' }]; // no severity field
+  const b = [{ path: 'src/auth.ts', line: 43, severity: 'critical', text: 'missing check' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 1);
+  assert.strictEqual(unconfirmed.length, 0);
+  assert.strictEqual(confirmed[0].severityContested, true);
+  assert.strictEqual(confirmed[0].severity, 'info');
+  assert.strictEqual(JSON.parse(JSON.stringify(confirmed[0])).severity, 'info');
+});
+
 test('reproduction: genuine location disagreement (not merely a severity straddle) still stays unconfirmed', () => {
   // The gotcha this fix must not violate: only a straddled *severity*
   // bucket is rescued. Two findings at different locations — even with

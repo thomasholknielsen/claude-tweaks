@@ -1000,13 +1000,20 @@ function hasLoggedPrDegrade(runDir) {
 // else (a resolvable ref that isn't this branch's own, or resolution failing)
 // means it has not. The branch-name lookup shares the same ambiguity posture
 // as the upstream lookup above — a failure there is NOT exempt either.
+// A single `git rev-parse` call resolving both revs, rather than two separate
+// spawns — this is the common-case (already-tracked branch) hot path for
+// every push, so it's worth one process instead of two. Safe to combine:
+// empirically, when `@{u}` fails to resolve, git aborts before printing
+// anything for EITHER arg (exit non-zero, empty stdout) — the exact shape
+// the GIT_ERROR branch below already expects, and the one case that never
+// needed the branch name anyway. When both resolve, git prints one line per
+// arg in the given order (upstream, then HEAD).
 function hasNoUpstreamYet(dir) {
-  const upstream = runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], dir);
-  if (upstream.failure === FAILURE.GIT_ERROR) return true;
-  if (upstream.failure) return false;
-  const branch = runGit(['rev-parse', '--abbrev-ref', 'HEAD'], dir);
-  if (branch.failure) return false;
-  return upstream.stdout !== `origin/${branch.stdout}`;
+  const combined = runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}', 'HEAD'], dir);
+  if (combined.failure === FAILURE.GIT_ERROR) return true;
+  if (combined.failure) return false;
+  const [upstream, branch] = combined.stdout.split('\n');
+  return upstream !== `origin/${branch}`;
 }
 
 // The PRODUCTION integration-model read for the PR-stamp branch below.
