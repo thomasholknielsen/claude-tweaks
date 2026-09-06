@@ -48,8 +48,8 @@ function readDeclaration(filePath, fsImpl = fs) {
       if (checks[key] !== undefined && typeof checks[key] !== 'string') errors.push(`checks.${key}: must be a string when present`);
     }
     if (checks.tests === undefined) {
-      tests = null;
-      suites = [];
+      // Valid — zero suites (#1924). tests/suites already default to
+      // null/[] above, so there is nothing to assign here.
     } else if (typeof checks.tests === 'string' && checks.tests.trim() !== '') {
       tests = checks.tests;
       suites = ['tests'];

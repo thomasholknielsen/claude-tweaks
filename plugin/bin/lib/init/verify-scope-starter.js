@@ -213,21 +213,24 @@ function suiteCommand(tool, pkg) {
 function composeStarter({ workspace, rootScripts = {}, bookkeeping = BOOKKEEPING_RULES }) {
   const checks = {};
   const script = (k) => (typeof rootScripts[k] === 'string' && rootScripts[k].trim() !== '' ? rootScripts[k] : null);
-  if (script('typecheck')) checks.types = script('typecheck');
-  if (script('lint')) checks.lint = script('lint');
+  const typecheckScript = script('typecheck');
+  const lintScript = script('lint');
+  const testScript = script('test');
+  if (typecheckScript) checks.types = typecheckScript;
+  if (lintScript) checks.lint = lintScript;
   const rules = [];
   const packages = workspace && Array.isArray(workspace.packages) ? workspace.packages : [];
   if (packages.length > 0) {
     const tested = packages.filter((p) => p.hasTest);
     if (tested.length) checks.tests = Object.fromEntries(tested.map((p) => [p.name, suiteCommand(workspace.tool, p)]));
-    else if (script('test')) checks.tests = script('test');
+    else if (testScript) checks.tests = testScript;
     const dependedOn = new Set(packages.flatMap((p) => p.dependencies));
     for (const p of packages) {
       if (dependedOn.has(p.name)) rules.push({ match: `${p.path}/**`, suites: '*', static: true });
       else if (p.hasTest) rules.push({ match: `${p.path}/**`, suites: [p.name], static: true });
     }
-  } else if (script('test')) {
-    checks.tests = script('test');
+  } else if (testScript) {
+    checks.tests = testScript;
   }
   for (const match of bookkeeping) rules.push({ match, suites: [], static: false });
   return { checks, rules };

@@ -110,8 +110,8 @@ function main() {
   }
 
   const root = path.resolve(parsed.root);
-  let rootStat;
-  try { rootStat = fs.statSync(root); } catch { rootStat = null; }
+  let rootStat = null;
+  try { rootStat = fs.statSync(root); } catch { /* doesn't exist, or unreadable */ }
   if (!rootStat || !rootStat.isDirectory()) {
     process.stderr.write(`init-verify-scope.js: --root is not a directory: ${parsed.root}\n${USAGE}\n`);
     process.exitCode = 2;
@@ -126,13 +126,13 @@ function main() {
   }
 
   let rootPkg = null;
-  try { rootPkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')); } catch { rootPkg = null; }
+  try { rootPkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')); } catch { /* no root package.json, or unparseable */ }
   const rootScripts = (rootPkg && rootPkg.scripts) || {};
   const workspace = detectWorkspace({ root });
   const decl = composeStarter({ workspace, rootScripts });
 
   let existed = false;
-  try { existed = fs.existsSync(targetPath); } catch { existed = false; }
+  try { existed = fs.existsSync(targetPath); } catch { /* treat an unreadable path as not existing */ }
   let written = false;
   if (parsed.write && !existed) {
     fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
