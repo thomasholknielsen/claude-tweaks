@@ -10,9 +10,11 @@ const {
   CEILING_BYTES,
   DESCRIPTION_CEILING_CHARS,
   DESCRIPTION_TOTAL_CEILING_CHARS,
+  measuredBytes,
   measureSkills,
   measureSubFiles,
   overCeiling,
+  overCeilingWarnings,
   totalBytes,
   headroom,
   nearCeiling,
@@ -77,30 +79,81 @@ test('nearCeiling flags only the half-open [90%, 100%) band', () => {
   assert.deepStrictEqual(nearCeiling([overCeilingEntry]), []);
 });
 
-// ── The guards. Both can fail, and after the Phase 3 extraction several files
-// sit within a kilobyte of the ceiling, so they are one paragraph from doing so.
+// ── measuredBytes: CRLF-normalized, marker-stripped byte counts (#1990, #1880).
+// A `core.autocrlf=true` checkout otherwise inflates every count by one byte
+// per line; an unrendered `<!-- when: ... -->` marker is never part of what a
+// reader actually pays either. A malformed marker is reported on the entry,
+// never thrown out of a measurement pass (parent #1987 promise F1).
 
-test('no SKILL.md exceeds the 40 KB per-invocation ceiling', () => {
-  const skills = measureSkills(REPO);
-  const over = overCeiling(skills);
-  assert.deepStrictEqual(
-    over.map((s) => `${s.name} ${kb(s.bytes)} KB`),
-    [],
-    'a SKILL.md loads in full on every invocation and once per dispatched subagent — '
-      + 'extract a section to a sub-file rather than raising this ceiling',
-  );
+test('measuredBytes: a CRLF file measures the same marker-stripped byte count as its LF twin (#1880)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-crlf-'));
+  const aFile = path.join(root, 'a.md');
+  const bFile = path.join(root, 'b.md');
+  fs.writeFileSync(aFile, 'line one\r\nline two\r\n');
+  fs.writeFileSync(bFile, 'line one\nline two\n');
+  assert.strictEqual(measuredBytes(aFile).bytes, measuredBytes(bFile).bytes);
+  assert.strictEqual(measuredBytes(bFile).bytes, 18);
 });
 
-test('no lazy-loaded sub-file exceeds the ceiling either', () => {
+test('measuredBytes: marker lines are not counted', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-markers-'));
+  const file = path.join(root, 'x.md');
+  fs.writeFileSync(file, 'x\n<!-- when: mode=auto -->\ny\n<!-- /when -->\nz\n');
+  assert.strictEqual(measuredBytes(file).bytes, 6);
+});
+
+test('measuredBytes: a malformed marker is reported, never thrown (F1)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-malformed-'));
+  const file = path.join(root, 'bad.md');
+  const content = '<!-- when: mode=auto -->\n';
+  fs.writeFileSync(file, content);
+  const result = measuredBytes(file);
+  assert.strictEqual(result.bytes, Buffer.byteLength(content, 'utf8'));
+  assert.ok(result.markerError.startsWith(file), 'markerError should name the file');
+  assert.ok(/:1: /.test(result.markerError), `expected markerError to name line 1, got: ${result.markerError}`);
+});
+
+// ── The per-file 40 KB ceiling is a warning tier since #1990 — the hard gate is
+// composed bytes per compose call site (Task 4). Both can still be over budget;
+// that's now reported, never failed.
+
+test('overCeilingWarnings: a synthetic SKILL.md over 40 KB is warned about, not failed', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'context-cost-overceiling-'));
+  const skillDir = path.join(root, 'skills', 'huge-skill');
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), 'x'.repeat(CEILING_BYTES + 100));
+  const warnings = overCeilingWarnings(measureSkills(root));
+  assert.strictEqual(warnings.length, 1);
+  assert.ok(warnings[0].includes('huge-skill'), `expected the skill name in: ${warnings[0]}`);
+  assert.ok(warnings[0].includes('KB'), `expected a KB suffix in: ${warnings[0]}`);
+});
+
+test('per-file ceiling is a warning tier now (#1990): report, never fail', () => {
   // A stub citing a sub-file pays the whole file — Read has no section
   // granularity. This is the shape that let init/bootstrap-steps.md reach 86 KB
   // behind 18 stubs (IL-70), while the per-SKILL.md rule was followed exactly.
-  const over = overCeiling(measureSubFiles(REPO));
-  assert.deepStrictEqual(
-    over.map((s) => `${s.file} ${kb(s.bytes)} KB`),
-    [],
-    'split by the unit the stubs actually name, rather than growing one overflow file',
-  );
+  // Neither guard fails the suite any more: the hard gate moved to composed
+  // bytes per compose call site (Task 4).
+  const skillHits = overCeiling(measureSkills(REPO));
+  const subFileHits = overCeiling(measureSubFiles(REPO));
+
+  // A composition check, mirroring the nearCeiling test's shape: every entry
+  // overCeilingWarnings reports must really be over CEILING_BYTES.
+  for (const hit of [...skillHits, ...subFileHits]) {
+    assert.ok(hit.bytes > CEILING_BYTES, `${hit.name || hit.file} should be over the ceiling`);
+  }
+
+  const warnings = overCeilingWarnings([...skillHits, ...subFileHits]);
+  if (warnings.length > 0) {
+    console.warn(`    WARNING: ${warnings.length} file(s) over the ${kb(CEILING_BYTES)} KB per-file `
+      + 'ceiling (warning tier since #1990 — extract a section to a sub-file, or fence with `when:`):');
+    for (const w of warnings) console.warn(`      ${w}`);
+  }
+});
+
+test('no measured skill file carries a marker error', () => {
+  const withErrors = [...measureSkills(REPO), ...measureSubFiles(REPO)].filter((e) => e.markerError);
+  assert.deepStrictEqual(withErrors, []);
 });
 
 // ── /specify lazy-loaded sub-file ceiling (#611). A sub-file over this size

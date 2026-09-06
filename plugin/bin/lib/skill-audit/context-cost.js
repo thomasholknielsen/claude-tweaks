@@ -11,11 +11,19 @@
 // Phase 3 extraction several files sit within a kilobyte of it, so a regression
 // is one added paragraph away — which is precisely when an automated check earns
 // its keep over periodic manual measurement.
+//
+// Since #1990, the per-file 40 KB ceiling is a warning tier, not a hard gate:
+// the number a reader actually pays is the composed bundle at a compose call
+// site (`composedBytesReport`, Task 4), not any one source file in isolation.
+// Per-file bytes are CRLF-normalized and marker-stripped (`measuredBytes`) so
+// a `core.autocrlf=true` checkout or an unrendered `<!-- when: ... -->` marker
+// never inflates a count that nobody actually reads.
 
 const fs = require('node:fs');
 const path = require('node:path');
 const { splitFrontmatterFence } = require('../health-core/frontmatter-list');
 const { listSkillDirs } = require('./skill-catalog');
+const { stripMarkers, MarkerError } = require('../compose-context/compose');
 
 const CEILING_BYTES = 40 * 1024;
 
@@ -47,13 +55,34 @@ function skillsDir(repoRoot) {
   return path.join(repoRoot, 'skills');
 }
 
+// The byte count a reader of `file` actually pays: CRLF-normalized (#1880 —
+// a `core.autocrlf=true` checkout otherwise inflates every count by one byte
+// per line) and with `<!-- when: ... -->` / `<!-- /when -->` marker lines
+// stripped (they render to nothing; every branch's text is still counted). A
+// malformed marker is reported on the entry as `markerError`, never thrown
+// out of a measurement pass (parent #1987 promise F1) — the raw byte count is
+// returned instead so the entry is still usable.
+function measuredBytes(file) {
+  const raw = fs.readFileSync(file, 'utf8');
+  const text = raw.replace(/\r\n/g, '\n');
+  try {
+    const stripped = stripMarkers(text);
+    return { bytes: Buffer.byteLength(stripped, 'utf8') };
+  } catch (err) {
+    if (err instanceof MarkerError) {
+      return { bytes: Buffer.byteLength(text, 'utf8'), markerError: `${file}:${err.line}: ${err.message}` };
+    }
+    throw err;
+  }
+}
+
 // Every SKILL.md, with its size. This is the per-invocation payload: sub-files
 // are lazy-loaded and deliberately excluded.
 function measureSkills(repoRoot) {
   const dir = skillsDir(repoRoot);
   return listSkillDirs(repoRoot).map((name) => {
     const file = path.join(dir, name, 'SKILL.md');
-    return { name, bytes: fs.statSync(file).size };
+    return { name, ...measuredBytes(file) };
   });
 }
 
@@ -68,7 +97,7 @@ function measureSubFiles(repoRoot) {
       const p = path.join(d, e.name);
       if (e.isDirectory()) { walk(p, skill); continue; }
       if (!e.name.endsWith('.md') || e.name === 'SKILL.md') continue;
-      out.push({ skill, file: path.relative(dir, p), bytes: fs.statSync(p).size });
+      out.push({ skill, file: path.relative(dir, p), ...measuredBytes(p) });
     }
   };
   for (const name of fs.readdirSync(dir)) {
@@ -81,6 +110,12 @@ function measureSubFiles(repoRoot) {
 
 function overCeiling(entries) {
   return entries.filter((e) => e.bytes > CEILING_BYTES);
+}
+
+// The per-file 40 KB ceiling is a warning tier since #1990 — the hard gate is
+// composed bytes per compose call site (`overComposedCeiling`, Task 4).
+function overCeilingWarnings(entries) {
+  return overCeiling(entries).map((e) => `${e.name || e.file} ${(e.bytes / 1024).toFixed(1)} KB`);
 }
 
 function totalBytes(entries) {
@@ -179,9 +214,11 @@ module.exports = {
   CEILING_BYTES,
   DESCRIPTION_CEILING_CHARS,
   DESCRIPTION_TOTAL_CEILING_CHARS,
+  measuredBytes,
   measureSkills,
   measureSubFiles,
   overCeiling,
+  overCeilingWarnings,
   totalBytes,
   headroom,
   nearCeiling,
