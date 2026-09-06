@@ -41,10 +41,12 @@ function isComposeContextSourceRepoRelative(line) {
 // compose-context invocation's source arg on a later line than `compose-context.js` and hide
 // a repo-relative offender (the same blind spot the `node\nplugin/bin/` normalization below
 // closes for #1170): a backticked invocation wrapped mid-span (a code span may span lines),
-// and a fenced-block invocation continued with a trailing backslash.
+// and a fenced-block invocation continued with a trailing backslash. The span match must stay
+// anchored on the backtick-then-`node ` opener — a ``` fence opener is never followed by `node `,
+// so it can't act as the span delimiter and collapse a whole fenced block onto one line.
 function joinComposeContextInvocations(text) {
   return text
-    .replace(/`node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/compose-context\.js"[^`]*`/g, (span) => span.replace(/\s*\n\s*/g, ' '))
+    .replace(/`node [^`]*compose-context\.js[^`]*`/g, (span) => span.replace(/\s*\n\s*/g, ' '))
     .replace(/compose-context\.js(?:[^\n]*\\\n)+[^\n]*/g, (block) => block.replace(/\\\n\s*/g, ' '));
 }
 
