@@ -78,7 +78,8 @@ function stampStatus(parsed) {
   const resolvedOwnGitDir = ownGitDir ? realpathOrNull(ownGitDir) : null;
   const foreignGitDir = Boolean(parsed.gitDir)
     && (requestedGitDir === null || resolvedOwnGitDir === null || requestedGitDir !== resolvedOwnGitDir);
-  const match = !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false && scope === 'full';
+  const stampCoversCleanHead = !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false;
+  const match = stampCoversCleanHead && scope === 'full';
   // verifiedHead (#1923): "HEAD is verified" for the re-verify sites — a
   // clean HEAD covered either by a full pass (match) or by a passing
   // scoped/none/static-only/tool-scoped run whose fullSha anchor is still an
@@ -87,7 +88,7 @@ function stampStatus(parsed) {
   // whose anchor a history rewrite stranded. `match` keeps its strict
   // full-pass meaning; Skip-if-recent and /review Step 1.5 read this field.
   // a stamp with no scope (corrupt/hand-edited) is unknown coverage, never verified
-  const verifiedHead = !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false
+  const verifiedHead = stampCoversCleanHead
     && (scope === 'full' || (KNOWN_SCOPES.has(scope) && usableAnchor({ stamp }) !== null));
   const status = {
     present,
