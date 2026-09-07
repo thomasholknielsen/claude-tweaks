@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-06T110420-spec-1988-1989-1990-1991-1992-1993-1994-1995-1996-1997",
-  "sessionId": "c51e0351-230d-40f2-ac46-1ec060680d7c",
-  "claimedAt": "2026-09-06T11:08:25.894Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "never-started: spec 1996 not run",
+  "releasedAt": "2026-09-07T04:14:09.386Z"
 }
