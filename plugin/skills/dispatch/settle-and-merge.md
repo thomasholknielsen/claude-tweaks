@@ -117,8 +117,9 @@ it.
      const { countFailedAttempts } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
      const issueComments = require(process.argv[1]);
      const prDir = process.argv[2];
+     const path = require('path');
      const prComments = fs.existsSync(prDir)
-       ? fs.readdirSync(prDir).flatMap((f) => JSON.parse(fs.readFileSync(prDir + '/' + f, 'utf8')))
+       ? fs.readdirSync(prDir).flatMap((f) => JSON.parse(fs.readFileSync(path.join(prDir, f), 'utf8')))
        : [];
      const comments = issueComments.concat(prComments);
      const attemptNumber = countFailedAttempts(comments) + 1;
