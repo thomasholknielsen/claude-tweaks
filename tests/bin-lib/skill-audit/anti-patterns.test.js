@@ -610,5 +610,15 @@ test('every shipped skill has a parseable Anti-Patterns table', () => {
   //   `--route=keep`", "Filing an upstream issue from an uncertain repo
   //   identity"). Measured by RUNNING the parser on the merged working tree
   //   (actual 398), not by adding 7 to 391 (`[IL-99]`).
-  assert.strictEqual(total, 398);
+  //
+  //   398 -> 403, #44 (new `/claude-tweaks:pipeline-smoke-test` skill). A
+  //   brand-new SKILL.md, not a diff to an existing one — its own
+  //   `## Anti-Patterns` table ships with exactly five rows ("Simulating the
+  //   claim race within one conversation", "Trusting a stage process's own
+  //   stdout as verification", "Running this as part of an unattended
+  //   `/flow`/`/dispatch` firing", "Reporting cleanup success from Step 5's
+  //   exit code alone", "Leaving the test issue open after a failed run for
+  //   debugging"). Measured by RUNNING the parser on the working tree (actual
+  //   403), not by adding 5 to 398 (`[IL-99]`).
+  assert.strictEqual(total, 403);
 });
