@@ -24,7 +24,7 @@ const {
   nextFlakyHits, flakyEscalations, escalationCaveatLine,
 } = require('./lib/verify/count-stamp');
 const { writeJsonAtomic } = require('./lib/verify/atomic-write');
-const { composeStamp, writeStamp, readStamp: readVerifyStamp } = require('./lib/verify/stamp');
+const { composeStamp, writeStamp, readStamp: readVerifyStamp, anchorOf } = require('./lib/verify/stamp');
 const { readDeclaration } = require('./lib/verify/declaration');
 const {
   changedFiles, resolveBase, usableAnchor, ChangedFilesError,
@@ -113,7 +113,7 @@ function stampStatus(parsed) {
     head: git.sha,
     dirty: git.dirty,
     scope,
-    fullSha: present ? (stamp.fullSha === undefined ? stamp.sha : stamp.fullSha) : null,
+    fullSha: present ? anchorOf(stamp) : null,
     match,
     verifiedHead,
     reportPath: present && typeof stamp.reportPath === 'string' ? stamp.reportPath : null,

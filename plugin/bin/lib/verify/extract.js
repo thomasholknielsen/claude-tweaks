@@ -116,16 +116,24 @@ function stripAnsi(text) { return text.replace(ANSI_RE, ''); }
 // under test, and the retry template runs a test file, never a module.
 const TEST_FILE_RE = /(?:\.(?:test|spec)\.[cm]?[jt]sx?|(?:^|\/)test_[^/]+\.py|_test\.[a-z]+)$/;
 const PATH = '[A-Za-z0-9_./@~-]+';
+// Windows-native node --test frames add a drive-letter colon and backslash
+// separators (`C:\repo\tests\x.test.js:42:10`) — this wider class is for
+// TAP_FRAME_RE only. SUMMARY_FAIL_RE keeps the colon-free PATH: its pytest
+// case (`FAILED path::name`) relies on `:` not being a PATH character so the
+// `(?=\s|::|$)` lookahead stops at `::` instead of the capture swallowing it
+// (review finding, refs #1925).
+const WIN_PATH = '[A-Za-z0-9_./@~:\\\\-]+';
 // node --test: `at fn (path:line:col)` / `at path:line:col`, and the
 // `location: 'path:line:col'` diagnostic newer runners print.
-const TAP_FRAME_RE = new RegExp(`(?:\\(|\\s|')(${PATH}):\\d+:\\d+\\)?`, 'g');
+const TAP_FRAME_RE = new RegExp(`(?:\\(|\\s|')(${WIN_PATH}):\\d+:\\d+\\)?`, 'g');
 // vitest (` FAIL  path > name`, `❯ path (n tests | m failed)`), jest
 // (`FAIL path`), pytest (`FAILED path::name`).
 const SUMMARY_FAIL_RE = new RegExp(`^\\s*(?:FAIL|❯|FAILED)\\s+(${PATH})(?=\\s|::|$)`);
 
 function relativize(file, cwd) {
-  const prefix = `${cwd.replace(/\/+$/, '')}/`;
-  return file.startsWith(prefix) ? file.slice(prefix.length) : file;
+  const normalizedFile = file.replace(/\\/g, '/');
+  const prefix = `${cwd.replace(/\\/g, '/').replace(/\/+$/, '')}/`;
+  return normalizedFile.startsWith(prefix) ? normalizedFile.slice(prefix.length) : normalizedFile;
 }
 
 // Deduped, log-order, repo-relative test files named by the failing part of

@@ -748,6 +748,26 @@ test('a --scope run at an unchanged HEAD never downgrades the prior full stamp (
   assert.strictEqual(s.verifiedHead, true);
 });
 
+// Review finding (pre-v6.119.0 whole-branch review): --stamp-status must
+// derive `fullSha` via stamp.js's shared anchorOf(), not a narrower inline
+// `undefined`-only check — a stamp with `fullSha: null` (a value readStamp
+// treats as valid, distinct from absent) must still report the legacy `sha`
+// as the anchor, matching changed-files.js/scope.js's own anchor resolution
+// for the identical stamp file.
+test('--stamp-status: fullSha falls back to sha when the stamp has fullSha: null, matching anchorOf', async () => {
+  const r = tmpGitRepo();
+  const head = r.git('rev-parse', 'HEAD').trim();
+  fs.writeFileSync(path.join(r.gitDir, 'claude-tweaks-verify-pass.json'), JSON.stringify({
+    sha: head, dirty: false, scope: 'full', fullSha: null,
+    base: null, changedFiles: [], suitesRun: [], flakyRetried: [],
+    reportPath: null, at: new Date().toISOString(),
+  }));
+  const status = await runCli(['--stamp-status'], { cwd: r.repo });
+  const s = JSON.parse(status.stdout);
+  assert.strictEqual(s.sha, head);
+  assert.strictEqual(s.fullSha, head, 'fullSha must fall back to sha, not surface the stored null');
+});
+
 // #1923 A1: --stamp-status's own "is HEAD verified" answer for a passing
 // scoped run — match stays strictly full-pass (false here), but
 // verifiedHead is true because the scoped run's fullSha anchor is still an

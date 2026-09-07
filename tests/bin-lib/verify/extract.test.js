@@ -205,6 +205,22 @@ test('extractFailingFiles: pytest FAILED path::name yields the path', () => {
   assert.deepStrictEqual(extractFailingFiles(PYTEST_FIXTURE, 'summary'), ['tests/test_b.py']);
 });
 
+// Review finding (pre-v6.119.0 whole-branch review): node --test's Windows
+// stack frames use a drive-letter colon and backslash separators — the old
+// PATH class excluded both, so a Windows failing frame never matched and the
+// #1925 flaky-retry allowlist silently never engaged on this repo's own
+// (Windows) CI-less local runs.
+test('extractFailingFiles: a Windows-native node --test frame (drive letter + backslashes) is relativized to a repo-relative posix path', () => {
+  const text = [
+    'not ok 1 - a fails',
+    '  stack: |-',
+    '    at TestContext.<anonymous> (C:\\repo\\tests\\a.test.js:12:5)',
+    '  ...',
+    '# tests 1', '# pass 0', '# fail 1',
+  ].join('\n');
+  assert.deepStrictEqual(extractFailingFiles(text, 'tap', { cwd: 'C:\\repo' }), ['tests/a.test.js']);
+});
+
 test('extractFailingFiles: generic family and a log with nothing parseable yield [] — no parse, no retry (AC1)', () => {
   assert.deepStrictEqual(extractFailingFiles(GENERIC_FIXTURE, 'generic'), []);
   assert.deepStrictEqual(extractFailingFiles('not ok 1 - fails with no frame\n# fail 1', 'tap'), []);
