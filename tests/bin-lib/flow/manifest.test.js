@@ -8,7 +8,7 @@ const path = require('path');
 const manifestModule = require('../../../plugin/bin/lib/flow/manifest');
 const {
   parseManifestYaml, serializeManifestYaml, readManifest, writeManifest,
-  formatElapsedMs, transitionSpec,
+  formatElapsedMs, transitionSpec, composeFixesBlock,
 } = manifestModule;
 
 function tmpRunDir() {
@@ -152,7 +152,7 @@ test('transitionSpec is the module\'s only status-mutation entry point, and ever
   // same call.
   assert.deepEqual(
     Object.keys(manifestModule).sort(),
-    ['VALID_STATUSES', 'formatElapsedMs', 'parseManifestYaml', 'readManifest', 'serializeManifestYaml', 'transitionSpec', 'writeManifest'].sort(),
+    ['VALID_STATUSES', 'composeFixesBlock', 'formatElapsedMs', 'parseManifestYaml', 'readManifest', 'serializeManifestYaml', 'transitionSpec', 'writeManifest'].sort(),
   );
 
   const dir = seedRunDir([{ id: 42, status: 'pending', subdir: 'spec-42/' }]);
@@ -217,4 +217,41 @@ test('#1928: phases[] round-trips through serialize → parse byte-for-byte', ()
 test('#1928: a manifest without phases[] still round-trips unchanged', () => {
   const m = parseManifestYaml(LIVE_MANIFEST);
   assert.equal(serializeManifestYaml(m), LIVE_MANIFEST.endsWith('\n') ? LIVE_MANIFEST : LIVE_MANIFEST + '\n');
+});
+
+// --- composeFixesBlock (#2015): a bundle PR's Fixes block must never close a
+// not-run/failed spec on merge — this is the helper the pre-merge refresh
+// (pr-early-run-lifecycle.md's "Pre-merge title/description refresh") calls.
+
+test('#2015: composeFixesBlock emits Fixes for complete specs, Refs for a not-run spec, none for both on the same spec', () => {
+  const lines = composeFixesBlock([
+    { id: 1996, status: 'not-run' },
+    { id: 1997, status: 'complete' },
+  ]);
+  assert.deepEqual(lines, [
+    'Refs #1996 — not run/failed: not run',
+    'Fixes #1997',
+  ]);
+  // Exactly one line per spec — never a Fixes AND a Refs line for the same id.
+  assert.equal(lines.length, 2);
+});
+
+test('#2015: composeFixesBlock names the last attempted phase for a failed spec when known', () => {
+  assert.deepEqual(
+    composeFixesBlock([{ id: 42, status: 'failed', phase: 'test' }]),
+    ['Refs #42 — not run/failed: failed at test'],
+  );
+  assert.deepEqual(
+    composeFixesBlock([{ id: 42, status: 'failed' }]),
+    ['Refs #42 — not run/failed: failed'],
+  );
+});
+
+test('#2015: composeFixesBlock preserves manifest order and handles an empty/missing list', () => {
+  assert.deepEqual(
+    composeFixesBlock([{ id: 3, status: 'complete' }, { id: 1, status: 'complete' }, { id: 2, status: 'not-run' }]),
+    ['Fixes #3', 'Fixes #1', 'Refs #2 — not run/failed: not run'],
+  );
+  assert.deepEqual(composeFixesBlock([]), []);
+  assert.deepEqual(composeFixesBlock(undefined), []);
 });
