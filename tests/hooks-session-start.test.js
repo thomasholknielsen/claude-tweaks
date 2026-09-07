@@ -910,3 +910,23 @@ test('#1792 AC7: more than BLOCK_SIZE valid services disables port isolation for
     portsEnsureMod.ensure = original;
   }
 });
+
+// #1927: the lease pair travels in vars but never in the rendered ports line (#1792 AC3's shape stays).
+test('#1927: the SessionStart ports line omits CLAUDE_TWEAKS_LEASE from the parenthesised list (#1792 AC3 shape stays)', async () => {
+  const project = gitProject();
+  withPolicy(project, 'port-services: web,api\n');
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async () => ({
+    active: true, base: 20000, ports: [20000, 20001, 20002, 20003, 20004, 20005, 20006, 20007, 20008, 20009],
+    vars: [['CLAUDE_TWEAKS_LEASE', '20000'], ['PORT', '20000'], ['API_PORT', '20001']], reallocated: null, envWriteError: null, leaseLineAdded: false,
+  });
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    const lines = out.json.hookSpecificOutput.additionalContext.split('\n\n');
+    const portsLine = lines.find((l) => l.startsWith('claude-tweaks: ports '));
+    assert.match(portsLine, /^claude-tweaks: ports 20000-20009 \(PORT=20000 API_PORT=20001\)$/);
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /CLAUDE_TWEAKS_LEASE/);
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});

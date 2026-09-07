@@ -13,7 +13,7 @@ Run multiple lifecycle steps in sequence without stopping between them. Each ste
 ```
 /claude-tweaks:capture → /superpowers:brainstorming → /claude-tweaks:specify → /claude-tweaks:build → /claude-tweaks:test → /claude-tweaks:review → /claude-tweaks:design-wrapper polish → /claude-tweaks:wrap-up
                                                                                      ╰────────────────────────────────────── [ /claude-tweaks:flow ] automates this stretch ──────────────────────────────╯
-                                                                                     ^^^^ YOU ARE HERE ^^^^   (polish + re-verify run only when frontend)
+                                                                                     ^^^^ YOU ARE HERE ^^^^   (polish + re-verify: frontend and not fast-lane)
 ```
 
 ## When to Use
@@ -148,7 +148,7 @@ Any hard fail, rejection, or claim contest stops the pipeline before the Config 
 
 ### Step 3: Pipeline Config Manifesto (front-loaded policy)
 
-**Adopt-if-set, before creating:** a `PIPELINE_RUN_DIR` set on entry, naming an existing anchored directory that already carries `config.yml`, is adopted as-is (nothing created or re-initialized, levers read from that file). A set, existing, anchored directory that is still **empty** (no `config.yml` — a run dir `/claude-tweaks:dispatch` Step 4 minted before claiming) is adopted by identity and initialized in place, exactly as a from-scratch run would be. Set-but-missing, unanchored, or unset creates fresh as below. Branch: `steps-and-gates.md`'s **Adopting an inherited run directory**.
+**Adopt-if-set, before creating:** a `PIPELINE_RUN_DIR` set on entry, naming an existing anchored directory that already carries `config.yml`, is adopted as-is (nothing created or re-initialized, levers read from `flow-preflight.js`'s pack). A set, existing, anchored directory that is **empty** (no `config.yml` — a run dir `/claude-tweaks:dispatch` Step 4 minted before claiming) is adopted by identity and initialized in place, as a from-scratch run does. Set-but-missing, unanchored, or unset creates fresh as below. Branch: `steps-and-gates.md`'s **Adopting an inherited run directory**.
 
 This is the bookend "begin stop" that locks in policy for the rest of the pipeline. Runs after pre-flight passes so policy levers are not collected if the pipeline would not have started. In every mode except `interactive`, it computes the levers (scope-creep, overlap, design-intent, leftover-default, auto-fix-threshold, review-auto-apply-ceiling, tidy-aggressiveness, ceremony-profile, model-stance, merge-verification, design-critique, merge-authorization) from the precedence chain and writes `config.yml` + initializes `decisions.md` in `$RUN_ROOT/.claude-tweaks/pipelines/{ISO-timestamp}-{spec-slug}/`. What differs by mode is whether it **stops** — `auto` (default) is a read-only FYI, `confirm`/`hybrid` gate on approval, `interactive` skips the Manifesto entirely; the full per-mode Manifesto-behavior table lives in `mode-table.md` in this skill's directory.
 
@@ -175,7 +175,7 @@ For each step in order:
      - **No browser backend (`agent-browser` not installed):** `/visual-review` reports the detection failure with install instructions. Review falls back to code mode. Flow notes: "Visual review skipped — no browser backend available."
      - **No reachable app and no dev command to start one:** `/visual-review` logs the gap and falls back to code mode. Flow notes: "Visual review skipped — no dev server and no start command."
      - The ephemeral server (if started) stays up for the rest of the run and is torn down by `/wrap-up` cleanup (Section D) — or, in multi-spec runs, once at the end by `/flow`.
-   - `review` → `polish` (when `no-polish` not set) — invoke `/claude-tweaks:design-wrapper polish <spec>` via the Skill tool. See "Polish phase execution" below for the dispatch logic.
+   - `review` → `polish` (when `no-polish` not set and `ceremony-profile` is not `fast-lane` — roster tag `polish`, `_shared/ceremony-profile.md`) — invoke `/claude-tweaks:design-wrapper polish <spec>` via the Skill tool. See "Polish phase execution" below for the dispatch logic.
    - `polish` → `re-verify` (only when polish modified code) — invoke `/claude-tweaks:test skip-qa`. See "Re-verify execution" below.
    - `polish` (or `re-verify`) → `wrap-up` receives the review summary, polish results, and verdict. Skill observations (`build/skill` and `review/skill` ledger entries) carry forward via the ledger file for wrap-up's Skills curation row.
 5. **Ledger carries forward** — each step reads and appends to the open items ledger (see `/claude-tweaks:ledger` for all operations). Unlike conversation context (which may be compressed), the ledger is a file — it survives context window limits.
@@ -248,7 +248,7 @@ Next Actions in `/claude-tweaks:flow` are outcome-conditional and rendered as pa
 | Creating a work record bypassing the Review Console's gate | Follows `_shared/auto-mode-contract.md`'s tiered stance (Approve-all / `consoleAutoResolve`) — pipeline phases never file directly outside it |
 | Skipping test in the pipeline | Review depends on `TEST_PASSED` — skipping it reviews potentially broken code |
 | Retrying polish after re-verify failure within the same flow run | The one-cycle cap prevents oscillation — surface the failure and require a fresh `/flow {spec} polish` to retry |
-| Treating polish skip as a flow failure | Skips are normal (non-frontend spec, no Impeccable, `no-polish` flag, no audit findings + no refinement-set changes); the pipeline continues to wrap-up |
+| Treating polish skip as a flow failure | Skips are normal (non-frontend spec, no Impeccable, `no-polish` flag, `ceremony-profile: fast-lane`, no audit findings + no refinement-set changes); the pipeline continues to wrap-up |
 | Running re-verify without `skip-qa` | Browser QA is irrelevant after stylistic-only polish — `/test skip-qa` keeps the cycle fast; the Design CLI gate still runs |
 | Using `no-polish` on a frontend spec by reflex | Polish is the value-add for frontend specs — set `no-polish` only when iterating fast or after a manual Impeccable polish |
 | Auto-running creative commands surfaced in the Creative Opportunities block | Recommendations only — flow never executes Impeccable creative commands from survey output; the user invokes them |

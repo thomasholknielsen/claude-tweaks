@@ -39,7 +39,11 @@ Immediately after presenting the console tables above (and the qualifying-rows l
 **`integration-model: pr-first`** — read the PR's live CI status before rendering the options
 below, the same read `_shared/pr-first-merge.md`'s Step 2.5 (Merge-verification gate) classifies
 as green/pending/red (`gh pr view {pr-number} --json state,mergeStateStatus,headRefOid,statusCheckRollup`)
-— cite that classification rather than restating it. This is the same rule
+— cite that classification rather than restating it. Read `pack.pr` from `{run-dir}/wrap-up-pack.json`
+first (#1930) — its `value` is that same `gh pr view` JSON — and run the command itself only when the
+pack file is absent. An `ok: false` field is the state read having failed, which is Step 2.5's own
+first classification (`state-read-failed`: report `pending-review` and stop; a read failure is not
+"no CI"), never a green or empty rollup. This is the same rule
 `dispatch/SKILL.md`'s "Confirm before resuming" applies to its own Resume/Cancel options, so a
 run reaching both prompts in one session (dispatch's resume confirmation, then this console on
 re-entry) never sees them disagree. Four options:

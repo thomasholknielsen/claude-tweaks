@@ -1450,3 +1450,12 @@ test('archiveMerged: a status:clean run dir with no recoverable branch is skippe
 test('isAbandonedInterrupted: false for a non-interrupted status', () => {
   assert.equal(isAbandonedInterrupted('/x', { status: 'active' }, 'sess-1', Date.now()), false);
 });
+
+test('#1854: an auto-resolve console.json ({resolved:true, mode:"auto-resolve", …}) reads as resolved and archives, never console-never-rendered (#1932 AC6)', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-auto-resolve-'));
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ resolved: true, mode: 'auto-resolve', at: '2026-09-06T12:00:00.000Z', ceiling: 'unattended', items: [], merge: { resolution: 'merge', reason: 'x' } }));
+  assert.strictEqual(readConsoleState(runDir), 'resolved');
+  const decision = decideArchive({ state: 'MERGED' }, readConsoleState(runDir));
+  assert.notStrictEqual(decision.reason, 'console-never-rendered');
+  assert.deepStrictEqual(decision, { action: 'archive' });
+});
