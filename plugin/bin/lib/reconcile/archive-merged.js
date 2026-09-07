@@ -13,7 +13,7 @@ const { parseWorktreeList } = require('../hooks/worktree-reap');
 const {
   iterRunDirsWithState, writeRunState, readRunState, RUN_ID_RE,
 } = require('../hooks/context');
-const { resolvePrState } = require('./pr-state');
+const { resolvePrState, resolvePrStateByNumber } = require('./pr-state');
 const { recordResidueSuccess, trackResidue } = require('./cache');
 const { escalateResidue } = require('./escalate-residue');
 const { repoSlugOf } = require('./release-merged');
@@ -965,6 +965,34 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
     const branch = (wtEntry && wtEntry.branch) || fallbackBranch(root, dir, state);
     if (!branch) {
       const reason = stampedWorktree ? 'no-branch' : 'no-worktree';
+      // #1962: a stamped worktree that's confirmably gone AND whose branch
+      // has since been deleted (fallbackBranch above already tried and
+      // failed) leaves nothing to derive a branch from — but run-state.json's
+      // `pr.number` (stamped once at PR-early lifecycle time, never cleared)
+      // still names the PR. Probe it directly by number instead of skipping
+      // 'no-branch' forever: a closed-unmerged PR here has nothing to wait
+      // for (no merge commit to catch up on, unlike the merged path below),
+      // so it can archive immediately once its console (if any) is resolved.
+      if (stampedWorktree && state && state.pr && state.pr.number) {
+        const byNumber = resolvePrStateByNumber(root, state.pr.number);
+        if (byNumber && typeof byNumber === 'object' && byNumber.state === 'CLOSED') {
+          const consoleState = readConsoleState(dir);
+          if (consoleState === 'unresolved') {
+            skipped.push({ runDir: dir, reason: 'console-unresolved' });
+            continue;
+          }
+          if (consoleState === 'none') {
+            skipped.push({ runDir: dir, reason: 'console-never-rendered' });
+            continue;
+          }
+          if (dryRun) { archived.push(dir); continue; }
+          const result = archiveRunDir(root, dir);
+          trackArchiveResult(root, repoSlug, dir, result);
+          if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
+          archived.push(dir);
+          continue;
+        }
+      }
       skipped.push({ runDir: dir, reason });
       trackStuckSkip(root, repoSlug, dir, reason);
       continue;
