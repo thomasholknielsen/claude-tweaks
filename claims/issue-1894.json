@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-07T142038-record-1894",
-  "sessionId": "f57b4154-b360-58b9-96a2-77f2a0cc2bf3",
-  "claimedAt": "2026-09-07T14:25:09.735Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "reason": "failed: premise-not-reproducible-in-plugin-code",
+  "releasedAt": "2026-09-07T14:29:44.794Z"
 }
