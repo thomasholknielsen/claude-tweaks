@@ -135,6 +135,22 @@ sweep* — the entry going stale is the success case for the work the exemption 
 
 When a resolver has a deliberate special case that excludes one source from precedence entirely (a config layer that must never win even though it normally would — `merge-authorization`'s exclusion of `.claude-tweaks/policy.yml`, `bin/lib/policy-schema.js`), assert the excluded source is actually ignored, not just what the resolver ultimately returns. `tests/resolve-policy-lib.test.js`'s four `merge-authorization` tests are the instance: unset resolves to default, run-config wins over an unset policy value, a set policy.yml value is discarded (falls to default, not `source: 'policy'`), and run-config still wins even when policy.yml is also set. The third case is the one a same-final-value assertion alone would miss — a resolver that merely deprioritized policy.yml instead of excluding it could pass every other assertion while silently letting policy.yml win whenever run-config is absent.
 
+### Doctor by structural boundary, not a magic line-span regex
+
+A discrimination proof that removes an anchor paragraph to prove the sniff can go red needs a
+doctoring transform that survives the file's real line-wrap and line-ending shape — a regex
+guessing how many lines the paragraph spans (`[^\r\n]*(?:\r?\n[^\r\n]*){0,4}`) is brittle twice
+over: the magic span number silently stops matching if the paragraph rewraps, and on a
+CRLF-normalized file a join-based `assert.notEqual(doctored, text)` guard can pass without the
+doctoring actually having removed anything. `tests/foreground-execution-instruction.test.js`
+(#1965) replaced that shape with a blank-line paragraph split (`text.split(/\r?\n\r?\n/)`) filtered
+on the anchor, guarded by an exact removed-paragraph count
+(`paragraphs.length - kept.length === 2`) rather than a same-string inequality — both stronger
+(pins that *exactly* the expected number of paragraphs vanished, not merely that *something*
+changed) and simpler than the line-span form it replaced. Reach for a structural split over a
+line-count regex whenever the doctored unit is a whole paragraph, list item, or fenced block —
+anything with its own natural delimiter — rather than counting lines to guess where it ends.
+
 ## Decision Framework
 
 | The prose you want to assert on | Do this |
