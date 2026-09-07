@@ -18,7 +18,14 @@ symmetric one (two siblings sharing a criterion, two utility skills sharing a ni
 alphabetically first side owns it. So a relationship involving `/review` may live under
 `/build`, and the `/review` section will not restate it. Non-skill targets — `_shared/*.md`
 fragments, `bin/` modules, design docs, `agents/qa-agent.md` — sit with the skill that
-depends on them.
+depends on them. A `_shared/*.md` file used independently by several skills legitimately
+gets one row per skill (each row states that skill's own distinct relationship to it) — that
+is not a violation. The violation is narrower: when a row explicitly speaks for named
+co-citing skills (the "Shared with `/x`, `/y` — owned here as the alphabetically-first of
+the N citing skills" pattern), none of those named skills may also carry their own row for
+that same target — that would restate content this file already says lives in exactly one
+place. Do not add a "see the `{skill}` section" pointer to a row unless a row for the same
+target actually exists there; a dangling pointer is worse than no pointer.
 
 **Payload paths in this file are relative to the payload root**, i.e. the repo's `plugin/`
 subtree (ADR-0015) — the same root the bare `_shared/x.md` and `{skill}/{file}.md`
