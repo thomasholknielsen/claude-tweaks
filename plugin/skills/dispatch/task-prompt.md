@@ -69,6 +69,12 @@ once, comma-joined. Stop after the test gate -- do not proceed to review, polish
 a separate Task call handles those. If you reference any of these issue numbers in an
 intermediate commit message, write "refs #N" -- never "closes #N" or "fixes #N".
 
+Foreground execution (required): run `npm test` and every other long-running command in the
+foreground of this turn, output redirected to a file if it's long -- never with
+`run_in_background`. Never end this turn waiting on a background test run, fix-round, or child
+agent's completion notification; a dispatched agent that yields this way is never re-woken and
+the run stalls silently (#1965).
+
 {context-pack}
 
 If the build or test step hits a HARD-GATE, handle it per
@@ -140,6 +146,12 @@ the command line is what makes this call resume that exact run rather than start
 _shared/pipeline-run-dir.md's resolution order step 1 (the env var, its documented preferred
 path) feeding flow/SKILL.md Step 3's adopt-if-set branch. You need no other input about what
 the prior call did or found.
+
+Foreground execution (required): run `npm test` and every other long-running command in the
+foreground of this turn, output redirected to a file if it's long -- never with
+`run_in_background`. Never end this turn waiting on a background test run, fix-round, or child
+agent's completion notification; a dispatched agent that yields this way is never re-woken and
+the run stalls silently (#1965).
 
 {context-pack}
 
