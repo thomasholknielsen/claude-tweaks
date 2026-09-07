@@ -105,6 +105,14 @@ collision) directly into `{tmp-records-file}` before it's cached to `$SNAPSHOT`.
 fetch itself is still subject to the same cap — a repo with more than `LIMIT` open records needs a
 raised `backlog-fetch-limit` regardless of this completion step.
 
+**Invariant for direct `{tmp-records-file}` consumers.** Once the completion above has run,
+`{tmp-records-file}`'s row count is no longer bounded by `LIMIT` — it can be `LIMIT` plus however
+many missing open records the merge added. A consumer that reads `{tmp-records-file}` directly
+(rather than through the open-filtered `{tmp-faceted-file}` below) and runs its own truncation
+check against `Number(process.env.FETCH_LIMIT)` must compare with `>=`, not `===`: an exact-equality
+check silently stops firing on exactly the runs where the merge fired, which is exactly when
+truncation still occurred (closed-record coverage capped at `LIMIT`).
+
 ## `work-backend: github-issues` fetch
 
 The fetch script below resolves `backlog-fetch-limit` itself via the canonical read path (per
