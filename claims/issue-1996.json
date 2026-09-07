@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-09-06T110420-spec-1988-1989-1990-1991-1992-1993-1994-1995-1996-1997",
-  "reason": "never-started: spec 1996 not run",
-  "releasedAt": "2026-09-07T04:14:09.386Z"
+  "runId": "2026-09-07T124946-record-1894",
+  "sessionId": "0035382e-24ae-4a83-bb5b-d826f3d63c72",
+  "claimedAt": "2026-09-07T12:51:25.264Z",
+  "ttlHours": 72,
+  "host": "Djoef-PC-WE8Swd"
 }
