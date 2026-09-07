@@ -154,5 +154,9 @@
   "plugin/bin/lib/issues": {
     "lastSweptMs": 1788750594482,
     "lastHash": "aa49098f45071a29b68d5445bc8a3a6e7d6b9fd8"
+  },
+  "plugin/bin/lib/journey-health": {
+    "lastSweptMs": 1788750756974,
+    "lastHash": "f54e24e490254bdd0f99e13377a379733db4345d"
   }
 }
