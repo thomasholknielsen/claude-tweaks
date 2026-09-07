@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-07T093034-record-1818",
-  "sessionId": "ef58b183-f94a-4636-abda-d8c73cbb066a",
-  "claimedAt": "2026-09-07T09:34:16.677Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "failed: build:target-not-found",
+  "releasedAt": "2026-09-07T09:41:58.205Z"
 }
