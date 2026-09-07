@@ -53,10 +53,10 @@ test('one comment per kind per run — re-runs edit in place, never append a dup
   assert.match(COMMENTS, /it never appends a duplicate/);
 });
 
-test('retry-ceiling counting is called out as reading from the PR, not the issue, under the gate', () => {
+test('retry-ceiling counting is called out as merging the issue with every linked PR, not one source alone', () => {
   assert.match(
     COMMENTS,
-    /Retry-ceiling \*\*counting\*\*.*reads from the \*\*PR's\*\* comments under this gate, not the issue's/s,
+    /Retry-ceiling \*\*counting\*\*.*merges the issue's comments with every PR ever linked to the record, open or closed/s,
   );
 });
 
@@ -69,20 +69,20 @@ test('pr-early-run-lifecycle.md reopens a closed-unmerged PR on retry before fal
   );
 });
 
-test('settle-and-merge.md routes the retry-ceiling comment fetch to the PR when run-state carries one', () => {
-  assert.match(SETTLE, /Comment source routes on the pr-first gate/);
-  assert.match(SETTLE, /repos\/\{owner\}\/\{repo\}\/issues\/\{pr-number\}\/comments/);
+test('settle-and-merge.md fetches every PR ever linked to the issue, open or closed, before counting', () => {
+  assert.match(SETTLE, /Comment sources: the issue, plus every PR ever linked to it, open or closed/);
+  assert.match(SETTLE, /gh pr list --repo \{owner\}\/\{repo\} --state all --json number,closingIssuesReferences/);
 });
 
-test('settle-and-merge.md posts the failure tombstone to the PR and closes it, content unchanged', () => {
+test('settle-and-merge.md posts the failure tombstone (a pointer, not the full comment) to the PR and closes it', () => {
   assert.match(SETTLE, /this is the failure tombstone/);
   assert.match(SETTLE, /gh pr close \{pr-number\} --repo \{owner\}\/\{repo\}/);
-  assert.match(SETTLE, /Leave\s*\n?\s*the branch and worktree in place/);
+  assert.match(SETTLE, /Leave the branch and worktree in place/);
 });
 
-test('settle-and-merge.md posts the trust-negative-evidence marker to the issue separately via extractNegativeEvidenceMarker', () => {
-  assert.match(SETTLE, /extractNegativeEvidenceMarker/);
-  assert.match(SETTLE, /bin\/lib\/issues\/trust\.js.*reads only the record\s*\n?\s*issue's comments and is not modified/s);
+test('settle-and-merge.md posts the full comment, trust-negative-evidence marker included, to the issue always', () => {
+  assert.match(SETTLE, /Post the full comment to the issue, always/);
+  assert.match(SETTLE, /bin\/lib\/issues\/trust\.js.*reads only the record issue's comments and is not modified/s);
 });
 
 test('verification-brief.md routes the full brief to the PR and leaves a one-line pointer on the issue', () => {
