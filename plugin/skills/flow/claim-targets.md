@@ -147,7 +147,7 @@ This CLI is the `gh` transport only — its `deps.gh`/`deps.ghApi` shell to real
 `gh-api-module-pattern`'s injectable-runner convention). In a `gh`-absent environment
 (`_shared/github-write-transport.md`'s MCP routing), this CLI does not apply: follow
 `_shared/issue-claims.md`'s "The lock" steps 1-6 directly via the MCP contents-API calls, per
-target, exactly as before this CLI existed.
+target, exactly as before this CLI existed — read them from the composed `claims` bundle (`node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step claims "${CLAUDE_PLUGIN_ROOT}/skills/_shared/issue-claims.md"`, then `$PIPELINE_RUN_DIR/context/claims.md`; the run directory always exists here, set or minted mkdir-only by "Resolve this run's identity" above, and the composer needs only the directory, not `config.yml`); if the compose command is unavailable or exits non-zero, read the named source files directly.
 
 **Branch on exit code:**
 

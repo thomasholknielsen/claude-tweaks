@@ -65,13 +65,17 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   not, create it from the repository's default branch, tolerating an "already exists" rejection
   (a concurrent agent may have created it first — the same 422-tolerance the claim write itself
   has).
+<!-- when: transport=gh -->
   - **gh CLI:** `gh api "repos/{owner}/{repo}/git/refs/heads/${CLAIMS_BRANCH}"` to check;
     `DEFAULT_SHA=$(gh api "repos/{owner}/{repo}/commits/$(gh api "repos/{owner}/{repo}" -q .default_branch)" -q .sha)`
     then `gh api "repos/{owner}/{repo}/git/refs" -f "ref=refs/heads/${CLAIMS_BRANCH}" -f "sha=${DEFAULT_SHA}"`
     to create.
+<!-- /when -->
+<!-- when: transport=mcp -->
   - **MCP:** call `create_branch` with name = `CLAIMS_BRANCH` (`claims-registry`,
     `node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js').CLAIMS_BRANCH)"`)
     and source = the repository's default branch.
+<!-- /when -->
 
   Either bootstrap leaves `claims-registry` carrying the default branch's history underneath it
   — harmless, since the branch is a registry nobody merges, but not equivalent to an orphan
@@ -85,6 +89,7 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
      exist) is a normal outcome, not an error — it means "never claimed." Emit the literal
      sentinel `__ABSENT__` on a 404 so step 2 can classify it the same way whether the read
      came from a live claim or a never-claimed issue:
+<!-- when: transport=gh -->
      - **gh CLI:**
        ```bash
        if RAW=$(gh api "repos/{owner}/{repo}/contents/${CLAIM_PATH}?ref=${CLAIMS_BRANCH}" \
@@ -104,10 +109,13 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
        The command's output (when it succeeds) is the **wrapper object**
        `{content: "<decoded blob text>", sha: "<blob sha>"}` — step 2 below needs only the
        `.content` field's *value*, not this wrapper, so extract it before classifying (see step 2).
+<!-- /when -->
+<!-- when: transport=mcp -->
      - **MCP:** the equivalent "get file contents" tool call against `claimPath` on
        `CLAIMS_BRANCH`; a not-found response is the same normal outcome — set
        `CONTENT_PATH_OR_ABSENT_SENTINEL="__ABSENT__"` in that case, otherwise write the tool's
        returned content to a file and use that path.
+<!-- /when -->
   2. **Extract the content before classifying.** When step 1 produced a real file (not the
      `__ABSENT__` sentinel), that file holds the **wrapper object** `{content, sha}` from the
      `gh api` call's `-q` filter — step 2's classifier needs the **`.content` field's value**
@@ -134,12 +142,16 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
      above is what prevents this.
   3. **`state: 'absent'`** — no prior claim. Write **create-only** (no `sha`): the payload's
      `fileContent` at `claimPath` on `CLAIMS_BRANCH`.
+<!-- when: transport=gh -->
      - **gh CLI:** `gh api --method PUT "repos/{owner}/{repo}/contents/${CLAIM_PATH}" -f "message=Claim issue #${ISSUE}" -f "content=$(base64 <<<"$FILE_CONTENT")" -f "branch=${CLAIMS_BRANCH}"`
        — omitting `sha` means create-only; a 422 means someone else's create-only write landed
        first between the read and this write.
+<!-- /when -->
+<!-- when: transport=mcp -->
      - **MCP:** `create_or_update_file` with `path` = `claimPath`, `content` = `fileContent`,
        `branch` = `CLAIMS_BRANCH`, omitting `sha`; a file-already-exists rejection is the same
        race.
+<!-- /when -->
      A rejection on either transport is **contested** — same handling as `'live'` below, not a
      retry.
   4. **`state: 'tombstone'` or `'stale'`** — a legitimate re-claim, not a contest, EXCEPT: first
@@ -159,10 +171,14 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
      write, and report it the same way `flow/claim-targets.md`'s in-flight card does. Any other
      state (closed, merged) or a failed read falls through to the write below unchanged. Otherwise,
      write **conditionally** (**with** `sha` = the current file's blob sha from step 1):
+<!-- when: transport=gh -->
      - **gh CLI:** the same `PUT contents` call as step 3, adding `-f "sha=${CURRENT_SHA}"`. (This
        transport's in-flight check runs inside `bin/claim-targets.js` itself, not this manual
        step — see "In-flight detection at claim time (#315)" below.)
+<!-- /when -->
+<!-- when: transport=mcp -->
      - **MCP:** the same `create_or_update_file` call as step 3, adding `sha: currentSha`.
+<!-- /when -->
      A rejection here means someone else re-claimed or broke it first — contested.
   5. **`state: 'live'`** — contested. Do not attempt any write.
   6. **`state: 'unreadable'`** — fails closed to *live* (`classifyClaimBlob` reports
@@ -191,9 +207,13 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   way `4` permits) / `1` failed / `2` malformed or `gh` absent. The MCP path stays the manual
   read-classify-write above.
 - **List all claims:** list the `claims/` directory on `CLAIMS_BRANCH`.
+<!-- when: transport=gh -->
   - **gh CLI:** `gh api "repos/{owner}/{repo}/contents/claims?ref=${CLAIMS_BRANCH}" -q '.[].name'`
+<!-- /when -->
+<!-- when: transport=mcp -->
   - **MCP:** the equivalent read-tree/list-directory tool call against `claims/` on
     `CLAIMS_BRANCH`.
+<!-- /when -->
 
 ### Repairing an unreadable claim blob
 

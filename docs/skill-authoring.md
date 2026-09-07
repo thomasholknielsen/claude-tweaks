@@ -18,11 +18,39 @@ Every skill follows this structure:
 
 Skills do **not** carry a Relationship to Other Skills table. That convention was removed in v6.34.0 — every edge is recorded once in `docs/skill-graph.md` instead.
 
-**Size:** treat 40 KB as a soft ceiling for a single SKILL.md — see the extraction rule in CLAUDE.md's `## Don'ts`.
+**Size:** 40 KB per file is a warning tier since #1990 — the hard gate is composed bytes per compose call site (`plugin/bin/lib/skill-audit/context-cost.js`'s `overComposedCeiling`, with `COMPOSED_STEP_EXCEPTIONS` for a step carrying a provisional ceiling) — see the extraction rule in CLAUDE.md's `## Don'ts`.
 
-A sub-file may carry a **tighter per-file pin** than that ceiling when a step reads it on a hot path: `plugin/skills/flow/manifesto.md` (21504 bytes) and `plugin/skills/flow/multi-spec.md` (20480 bytes) each carry their own pin in `tests/run-dir-timestamp-utc.test.js` (#724) — check the live `BUDGETS` map there for current values rather than hardcoding a number here, since a future lever can move either one again. Check `wc -c` and the pinning test before adding to a file that has a budget of its own — 40 KB is the default ceiling, not the only one in force.
+A sub-file may carry a **tighter per-file pin** than that ceiling when a step reads it on a hot path: `plugin/skills/flow/manifesto.md` and `plugin/skills/flow/multi-spec.md` each carry a single-read budget in `tests/run-dir-timestamp-utc.test.js` (#724) — check the live `BUDGETS` map there for current values rather than hardcoding a number here, since a future lever can move either one again. `manifesto.md` is also a compose source, so it is guarded twice: the `manifesto` composed gate covers the adopted-run read at `flow/SKILL.md` Step 3, and the raw budget covers the fresh-run direct read the same step documents (#1997 kept both when it retired the other per-file pins under `[IL-153]`). Check `wc -c` and the pinning test before adding to a file that has a budget of its own — 40 KB is the default ceiling, not the only one in force.
 
 **Extracting to a sub-file under budget pressure.** When a file nearing its ceiling needs new content, extract the least-structural part — rationale paragraphs, "why" explanations, edge-case walkthroughs — into a cited sub-file rather than trimming inline prose to the point of losing clarity. This repo has done it repeatedly: `console-template.md`, `manifesto-overrides.md`, and `manifesto-authorized-merge.md` (extracted from `flow/manifesto.md` to clear its own #724 pin), and `journey-health/deep-tier.md` and `specify/next-actions.md` (extracted from their respective `SKILL.md`s, #1806) are worked examples.
+
+## Conditional blocks and the composer
+
+A `plugin/skills/_shared/*.md` contract or a skill sub-file may fence a passage that applies only under one resolved run condition, so a step reads one composed bundle instead of every branch of every file:
+
+```markdown
+<!-- when: integration-model=pr-first -->
+… the pr-first branch …
+<!-- /when -->
+```
+
+**Marker grammar.** `<!-- when: {key}={value} -->` opens a block and `<!-- /when -->` closes it, each on its own line; exactly one `key=value` per marker; a pair opens and closes in the same file; nesting depth at most 1 — an inner block is kept only when both its own condition and the enclosing block's hold. Six keys, in this canonical order: `integration-model` (`pr-first`|`local-merge`), `mode` (`auto`|`confirm`|`interactive`|`hybrid`), `attendance` (`headless`|`attended`), `transport` (`gh`|`mcp`), `worktree-policy` (`always`|`optional`), `work-backend` (`github-issues`|`local-files`). A malformed marker (unclosed, unknown key or value, nesting deeper than 1, a close with no open) is a compose error — the composer exits 2 naming the file and line and writes nothing; it never silently keeps or drops a branch. Marker-shaped lines inside a fenced code block (``` or ~~~) are literal text to the composer — never markers, never validated, never stripped — which is how a composed file documents this grammar without triggering it.
+
+**`mode=confirm` never resolves at runtime.** The vocabulary accepts it, but no run directory can produce it: `resolve-conditions.js` reads `mode` only from the run's `config.yml`, and the sanctioned writer for that file (`bin/lib/set-config/write.js`'s `CONFIG_ONLY_VALUES`) admits only `auto`, `hybrid`, and `interactive` — a `confirm` run writes `auto` once its gate resolves. A `<!-- when: mode=confirm -->` fence is therefore stripped from every bundle a real run composes, and survives only in the `unresolved` both-branches case, so fence such a passage on `mode=auto` or leave it unconditional. Whether the value stays in the vocabulary at all is #1987's open call.
+
+**Call-site form.** A step that reads several fenced sources composes them once per step:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step {step} {files}
+```
+
+then reads `{run}/context/{step}.md` — the sources in argv order, untaken blocks removed, marker lines stripped, opening with a `<!-- resolved: … -->` line naming every key's value. Source paths are given install-safe — `"${CLAUDE_PLUGIN_ROOT}/skills/_shared/{file}.md"`, never a repo-relative `plugin/skills/…` path, which resolves only inside a claude-tweaks checkout and makes the call fail (and the fallback fire) in every installed consumer; `tests/skill-prose-plugin-root-invocations.test.js` pins this for compose-context source arguments the same way it pins `node plugin/bin/…`. The step checks the command's exit code before reading the bundle — a failed call writes nothing and leaves any prior bundle at that path untouched, so reading without checking hands the step stale prose from an earlier composition. A key the run cannot resolve (no `config.yml` on a standalone run, no policy file) keeps **both** branches and is listed as `unresolved` in that line and in the CLI's JSON output — a branch is never dropped on a guess. `transport` is the one key that is always resolved (it is a probe for `gh`, never a guess); `integration-model` resolves only from the run's `config.yml` pin or `policy.yml`, never from forge detection, and is `unresolved` otherwise. The bundle is regenerated on every call, never cached, since the Manifesto can re-answer a lever mid-run. The composed-bytes gate (`context-cost.js`'s `findComposeCallSites`) scans single-line calls only — a call wrapped across lines is not measured — so keep the call on one line.
+
+**Every call site carries this fallback sentence verbatim:** *if the compose command is unavailable or exits non-zero, read the named source files directly.*
+
+**A fenced block never holds the only copy of a heading, Step label, or anchor another file cites** — every citation must resolve in every composition, so headings and anchors stay outside the fences and only the condition-specific prose goes inside. When a whole section body is fenced, its heading therefore renders as a bare heading in the untaken composition — expected, not truncation: it marks where the branch would sit.
+
+**Composition over fragmentation.** When a file nears its ceiling, the standing response is to fence the condition-specific passages and let the composer trim them per run — not to split the file again. Per-file byte ceilings measure what a run *could* load; composed bytes per step measure what it *does*.
 
 ## Inline `_shared` contract vs a new component skill
 

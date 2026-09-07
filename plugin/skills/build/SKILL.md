@@ -119,7 +119,7 @@ The plan will be written to `docs/superpowers/plans/YYYY-MM-DD-{feature}.md`.
 
 **Plan-authoring checks:** before finalizing the plan, run every check in `plan-authoring-checks.md` in this skill's directory — return-shape widening, blocking-verification downgrades, deictic-reference re-resolution, verbatim-command run-once verification, degrade-clause convention citation, copied-config re-derivation, renumbering completeness, and gate-over-producers tracing. (Same checks apply in Design Step 3 below.)
 
-**Size-headroom check:** when a plan task appends to a `skills/_shared/*.md` or `SKILL.md` file already within ~10% of the 40 KB ceiling, measure `wc -c` against the ceiling on the merge base and name the split up front in the plan, rather than discovering the overflow at test time. (Same check applies in Design Step 3 below.)
+**Size-headroom check:** when a plan task appends to a `skills/_shared/*.md` or `SKILL.md` file already within ~10% of the 40 KB ceiling, measure `wc -c` against the ceiling on the merge base and name the split up front in the plan — since #1990 the per-file test only warns, and it's the composed-bytes gate (`context-cost.js`'s `overComposedCeiling`) at that file's compose call site(s) that actually fails. (Same check applies in Design Step 3 below.)
 
 Proceed to **Common Step 2**.
 
@@ -163,7 +163,7 @@ Proceed to **Common Step 2**.
 
 If the user specified `worktree`, set up the isolated workspace via `/superpowers:using-git-worktrees` after a pre-flight branch-divergence check and (when in auto mode) pre-authorizing the consent prompt.
 
-For the full procedure (pre-flight branch-divergence check with auto-mode behavior, consent prompt handling, and worktree-creation failure recovery table), read `worktree-setup.md` in this skill's directory.
+For the full procedure (pre-flight branch-divergence check with auto-mode behavior, consent prompt handling, and worktree-creation failure recovery table), read the composed `worktree-setup` bundle rather than the two source files separately whenever `$PIPELINE_RUN_DIR` is already set (a `/claude-tweaks:flow`-parented build exports it before this step): `node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step worktree-setup "${CLAUDE_PLUGIN_ROOT}/skills/_shared/worktree-setup.md" "${CLAUDE_PLUGIN_ROOT}/skills/build/worktree-setup.md"`, then read `$PIPELINE_RUN_DIR/context/worktree-setup.md` — the shared staleness-protection procedures (`_shared/worktree-setup.md`) followed by this skill's own entry path (`worktree-setup.md` in this skill's directory). A standalone `/build` (record or design mode) normally reaches this step with no `$PIPELINE_RUN_DIR` — record mode mints its directory later, at Spec Step 1's materialize, and design mode never mints one — so unless one already resolves (`_shared/pipeline-run-dir.md`'s most-recent-matching-directory step, or the inline-export resume form) it reads the two files directly; if the compose command is unavailable or exits non-zero, read the named source files directly.
 
 If the user did not specify `worktree`, skip this step.
 

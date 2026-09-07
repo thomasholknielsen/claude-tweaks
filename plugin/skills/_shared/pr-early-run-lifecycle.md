@@ -9,8 +9,10 @@ procedure this generalizes and replaces). Every later phase exit pushes
 the PR always reflects live progress rather than only the state as of run start or only the state
 as of `pending-review`.
 
+<!-- when: integration-model=local-merge -->
 `local-merge` runs (`_shared/integration-model.md`) skip this file entirely — today's no-PR
 lifecycle, unchanged.
+<!-- /when -->
 
 ## Root cause: MCP PR-body sanitization strips HTML comments on read, not write (#929)
 
@@ -42,6 +44,7 @@ deliberate, reasonable defense) — it's to also carry a plain-text companion fo
 looks like an HTML tag to the sanitizer in the first place, so it survives the MCP read path
 unchanged. See "Dual-marker scheme" in Step 3 below.
 
+<!-- when: transport=mcp -->
 **Scope extends to issue reads, not just PR reads (#1700).** The same `bluemonday.StrictPolicy()`
 strips `<!-- ... -->` spans from `mcp__github__list_issues` and `mcp__github__issue_read` results
 too — confirmed live (2026-08-30): fetching a batch of `by:docs-health` issues via both
@@ -52,6 +55,7 @@ appends that marker as the body's literal last line) showed it intact — the sa
 method used above for PR bodies. `_shared/health-issue-index.md` documents the consequence for
 health-sweep dedup and the fix (`bin/lib/issues/record.js`'s plain-text `work-fingerprint:`
 companion line, mirroring this file's own dual-marker scheme) rather than restating it here.
+<!-- /when -->
 
 ## Callers
 
@@ -339,9 +343,11 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
   gh pr edit {number} --repo {owner}/{repo} --body-file /tmp/pr-checklist-{n}.md
   ```
 
+<!-- when: transport=mcp -->
   `gh`-absent: `mcp__github__update_pull_request` with the same composed body — this write is
   unsanitized (Root cause above), so it carries both delimiter pairs through untouched
   regardless of which one was used to locate the span.
+<!-- /when -->
 
   Compose-then-write-once — read, patch the checklist section in memory, write the whole body
   back in one call. Never a partial/streaming edit.
@@ -416,6 +422,7 @@ None of these ever block the pipeline — a pr-first project whose GitHub connec
 for one run behaves exactly like a `local-merge` run for that run, with the degradation logged
 rather than silent.
 
+<!-- when: integration-model=local-merge -->
 **`local-merge` row specifically (`build/SKILL.md` Spec Step 1's documented conditional action):**
 this is the one row above with no existing log line of its own — every connectivity-degrade row
 already writes its own `AUTO … FAILED` line (see the citations above) and keeps doing so unchanged.
@@ -428,3 +435,4 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --sta
 ```
 
 Standalone `/build` (no run dir): list the skip in the Step 7 handoff instead (`build/handoff-template.md`'s inline-skip listing).
+<!-- /when -->

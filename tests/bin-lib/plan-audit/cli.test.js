@@ -187,6 +187,49 @@ test('a task declaring Expected: FAIL whose command genuinely fails pre-dispatch
   }
 });
 
+// #1997 — a compose call site the plan touches that could not be measured
+// (here: a malformed `when:` marker on one of its two sources) is reported
+// as `headroom.composedErrors` and surfaced in the human summary line as
+// "Composed: N unmeasured" — informational-but-visible, never a failing
+// exit code on its own (the plan touches a *different*, healthy source of
+// the same call site here, so nothing else fails either).
+test('AC7: a fixture plan touching a compose call site with a malformed sibling source reports composedErrors and "Composed: 1 unmeasured", still exits 0', () => {
+  const repo = makeTmpRepo();
+  const skillDir = path.join(repo, 'plugin', 'skills', 'x');
+  const sharedDir = path.join(repo, 'plugin', 'skills', '_shared');
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.mkdirSync(sharedDir, { recursive: true });
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), [
+    '---',
+    'name: x',
+    'description: fixture',
+    '---',
+    '',
+    'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step demo "${CLAUDE_PLUGIN_ROOT}/skills/_shared/a.md" "${CLAUDE_PLUGIN_ROOT}/skills/_shared/b.md"',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(sharedDir, 'a.md'), 'Source A body.\n');
+  fs.writeFileSync(path.join(sharedDir, 'b.md'), '<!-- when: mode=auto -->\nSource B body, unclosed marker.\n');
+  try {
+    const plan = writePlan(repo, [
+      '### Task 1: Add prose',
+      '**Files:**',
+      '- Modify: `plugin/skills/_shared/a.md`',
+    ].join('\n'));
+    const { exitCode, stdout } = runCli(plan, repo);
+    assert.strictEqual(exitCode, 0);
+    const [jsonLine, summaryLine] = stdout.split('\n');
+    const report = JSON.parse(jsonLine);
+    assert.strictEqual(report.headroom.ok, true);
+    assert.deepStrictEqual(report.headroom.composed, []);
+    assert.strictEqual(report.headroom.composedErrors.length, 1);
+    assert.strictEqual(report.headroom.composedErrors[0].step, 'demo');
+    assert.match(summaryLine, /Composed: 1 unmeasured/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('usage error on a missing plan-file argument exits 2', () => {
   try {
     execFileSync('node', [CLI], { encoding: 'utf8' });

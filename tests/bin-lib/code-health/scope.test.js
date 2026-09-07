@@ -23,8 +23,11 @@ test('sliceRecursive is false only for the "." slice id', () => {
   assert.strictEqual(sliceRecursive('packages/a'), true);
 });
 
-// Bytes of filler that reliably pushes a directory past MAX_SLICE_BYTES (30 KB).
-const BIG = 'x'.repeat(40 * 1024);
+// Bytes of filler that reliably pushes a directory past MAX_SLICE_BYTES (30 KB)
+// in code-health/scope.js — unrelated to the skill-content 40 KB ceiling
+// in context-cost.js, so #1997 re-expresses this literal rather than
+// importing that unrelated module's constant.
+const BIG = 'x'.repeat(31 * 1024);
 
 test('sliceRecursive(id, root) reports false for a split directory\'s own-files slice', () => {
   const root = tmp();

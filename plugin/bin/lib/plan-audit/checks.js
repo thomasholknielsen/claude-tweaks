@@ -7,7 +7,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { CEILING_BYTES } = require('../skill-audit/context-cost');
+const {
+  CEILING_BYTES, composedBytesReport, COMPOSED_STEP_EXCEPTIONS,
+} = require('../skill-audit/context-cost');
 
 const WALK_EXCLUDES = new Set(['.git', 'node_modules', '.claude', '.claude-tweaks']);
 
@@ -126,15 +128,83 @@ function isGovernedMdPath(relPath) {
   return /^plugin\/skills\/.+\.md$/.test(norm);
 }
 
-function headroomCheck(entries, repoRoot) {
+// Composed rows — the multi-spec pre-flight [IL-140] lacked: a per-file
+// ceiling never caught two specs each adding a *little* prose to two
+// different sources of the same compose call site, where the composed bundle
+// (not either file alone) is what crosses the ceiling. For every compose
+// call site under `<repoRoot>/plugin` whose `sources` intersect this plan's
+// touched governed entries, report the composed max across every combination
+// the sources branch on, alongside `ceiling` (honoring
+// `COMPOSED_STEP_EXCEPTIONS`) and `over` — regardless of which spec in a
+// multi-spec run happens to touch which source first, since the intersection
+// test is against the call site's full source list, not just the one entry
+// that triggered it. A missing `plugin/` dir (the documented no-corpus case
+// — a repo with governed paths but no payload subtree) or an unparsed
+// call-site row (no `sources` to intersect against — parsing never reached a
+// source list) never throws and contributes no composed row.
+//
+// A row that DOES have `sources` but also carries `error` (missing source,
+// unreadable source, malformed marker — #1997) is a call site this plan
+// touches that the tool simply could not measure. That is never the same
+// signal as "does not apply": silently `continue`-ing past it (the pre-#1997
+// behavior, indistinguishable from the unparsed case) would let a plan land
+// against a call site nobody actually checked. Such rows go into
+// `composedErrors` instead — reported, never blocking (`ok` stays keyed off
+// `composed`/`breaches` only; see `headroomCheck` below). The same rule
+// covers the report itself crashing (an unreadable corpus, a thrown bug):
+// that is one `composedErrors` row with `step: null`, never an empty result
+// that reads as "nothing to report" — the silent-fallback shape `[IL-146]`
+// names. `deps.report` is the injectable seam a test uses to make it throw.
+function composedHeadroom(governedPaths, repoRoot, { report = composedBytesReport } = {}) {
+  const composed = [];
+  const composedNearCeiling = [];
+  const composedErrors = [];
+  if (governedPaths.size === 0) return { composed, composedNearCeiling, composedErrors };
+  const pluginRoot = path.join(repoRoot, 'plugin');
+  if (!fs.existsSync(pluginRoot)) return { composed, composedNearCeiling, composedErrors };
+  let rows;
+  try {
+    rows = report(pluginRoot);
+  } catch (err) {
+    composedErrors.push({
+      step: null, file: null, line: null, error: `composed-bytes report failed: ${err.code || err.message}`,
+    });
+    return { composed, composedNearCeiling, composedErrors };
+  }
+  for (const row of rows) {
+    if (!row.sources) continue; // unparsed call site — nothing to intersect
+    const relSources = row.sources.map((s) => path.relative(repoRoot, s).split(path.sep).join('/'));
+    if (!relSources.some((s) => governedPaths.has(s))) continue;
+    if (row.error) {
+      composedErrors.push({
+        step: row.step, file: row.file, line: row.line, error: row.error,
+      });
+      continue;
+    }
+    const ceiling = Object.prototype.hasOwnProperty.call(COMPOSED_STEP_EXCEPTIONS, row.step)
+      ? COMPOSED_STEP_EXCEPTIONS[row.step]
+      : CEILING_BYTES;
+    const over = Math.max(0, row.max - ceiling);
+    const entry = {
+      step: row.step, file: row.file, line: row.line, max: row.max, ceiling, over,
+    };
+    composed.push(entry);
+    if (over === 0 && row.max >= ceiling * 0.9) composedNearCeiling.push(entry);
+  }
+  return { composed, composedNearCeiling, composedErrors };
+}
+
+function headroomCheck(entries, repoRoot, deps = {}) {
   const nearCeiling = [];
   const breaches = [];
   const seen = new Set();
+  const governedPaths = new Set();
   for (const { type, path: relPath } of entries) {
     if (type === 'Create') continue;
     if (!isGovernedMdPath(relPath)) continue;
     if (seen.has(relPath)) continue;
     seen.add(relPath);
+    governedPaths.add(relPath.split(path.sep).join('/'));
     const abs = path.resolve(repoRoot, relPath);
     let bytes;
     try {
@@ -148,7 +218,14 @@ function headroomCheck(entries, repoRoot) {
       nearCeiling.push({ file: relPath, bytes, headroom: CEILING_BYTES - bytes });
     }
   }
-  return { ok: breaches.length === 0, nearCeiling, breaches };
+  const { composed, composedNearCeiling, composedErrors } = composedHeadroom(governedPaths, repoRoot, deps);
+  // composedErrors never gates `ok` — it's "could not measure", not "over
+  // ceiling" (#1997); still reported so it stays visible rather than
+  // silently dropped.
+  const ok = breaches.length === 0 && composed.every((c) => c.over === 0);
+  return {
+    ok, nearCeiling, breaches, composed, composedNearCeiling, composedErrors,
+  };
 }
 
 module.exports = { checkA, checkB, checkC, headroomCheck, looksPassing, isGovernedMdPath };
