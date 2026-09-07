@@ -115,5 +115,8 @@
   },
   "doc:decisions/0016-composed-bundles-gate-context-size-not-per-file-ceilings": {
     "lastAuditedMs": 1788761206372
+  },
+  "doc:plans/2026-09-05-record-1634-ledger": {
+    "lastAuditedMs": 1788761767990
   }
 }
