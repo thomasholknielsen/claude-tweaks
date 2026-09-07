@@ -293,7 +293,7 @@ test('--stamp-status recomputes dirty from the live tree — a dirty edit with n
   assert.strictEqual(s.verifiedHead, false, '#1923: a dirty tree is never verified');
 });
 
-test('--stamp-status honors --git-dir and reads a legacy bare-SHA stamp as scope full (#1921)', async () => {
+test('--stamp-status honors --git-dir and reads a legacy bare-SHA stamp as scope full but never matches (#1921)', async () => {
   const { repo, git, gitDir } = tmpGitRepo();
   fs.writeFileSync(path.join(gitDir, 'claude-tweaks-verify-pass'), `${git('rev-parse', 'HEAD').trim()}\n`);
   const { code, stdout } = await runCli(['--stamp-status', '--git-dir', gitDir], { cwd: repo });
@@ -302,9 +302,35 @@ test('--stamp-status honors --git-dir and reads a legacy bare-SHA stamp as scope
   assert.strictEqual(s.present, true);
   assert.strictEqual(s.legacy, true);
   assert.strictEqual(s.scope, 'full');
-  assert.strictEqual(s.match, true);
-  assert.strictEqual(s.verifiedHead, true);
+  // A legacy bare-SHA stamp carries no `dirty` field, so it can never prove
+  // the tree was clean when it was recorded -- match/verifiedHead are false
+  // even though sha/head/scope all otherwise line up (#1921 review fix).
+  assert.strictEqual(s.match, false);
+  assert.strictEqual(s.verifiedHead, false);
   assert.strictEqual(s.reportPath, null);
+});
+
+// Review finding, refs #1921: a stamp written against a dirty tree
+// (stamp.dirty === true) read match:true (and verifiedHead:true) from
+// --stamp-status once the uncommitted edit was discarded -- stampStatus()
+// recomputed dirty live but never consulted the stamp's OWN stored dirty. A
+// HEAD state never verified pristine must never be trusted this way.
+test('--stamp-status never matches a stamp that was recorded on a dirty tree, even once the tree is clean again (#1921 review fix)', async () => {
+  const { repo, gitDir } = tmpGitRepo();
+  const untracked = path.join(repo, 'untracked.txt');
+  fs.writeFileSync(untracked, 'dirty');
+  const { code: passCode } = await runCli(['--cmd', 'tests=node -e 0'], { cwd: repo });
+  assert.strictEqual(passCode, 0);
+  const stamp = JSON.parse(fs.readFileSync(path.join(gitDir, 'claude-tweaks-verify-pass.json'), 'utf8'));
+  assert.strictEqual(stamp.dirty, true, 'setup: the stamp must record the dirty tree it was written against');
+  fs.unlinkSync(untracked);
+  const { code, stdout } = await runCli(['--stamp-status'], { cwd: repo });
+  assert.strictEqual(code, 0);
+  const s = JSON.parse(stdout);
+  assert.strictEqual(s.present, true);
+  assert.strictEqual(s.dirty, false, 'the live tree is clean now');
+  assert.strictEqual(s.match, false, 'the stamp itself was never recorded on a clean tree');
+  assert.strictEqual(s.verifiedHead, false, 'the stamp itself was never recorded on a clean tree');
 });
 
 test('--stamp-status: a hand-written stamp with no scope is present but never verified (re-review N1)', async () => {
@@ -434,7 +460,12 @@ test('--git-dir on a normal run redirects report/count paths to that git dir and
 // trivially true whenever the one suite's rule matches.
 function scopedRepo(rules, extra = {}) {
   const r = tmpGitRepo();
-  const marker = path.join(r.repo, 'unit-ran.marker');
+  // Inside .git/, not the working tree: git status --porcelain never sees it,
+  // so a passing run's own "unit ran" side-effect can't make the stamp read
+  // dirty:true at write time -- these tests are about scope/verifiedHead
+  // semantics, not about deliberately dirtying the tree (that is its own
+  // dedicated scenario elsewhere in this file, refs #1921 review fix).
+  const marker = path.join(r.gitDir, 'unit-ran.marker');
   const decl = { checks: { tests: { unit: 'placeholder', other: 'placeholder' } }, rules, ...extra };
   fs.mkdirSync(path.join(r.repo, '.claude-tweaks'), { recursive: true });
   fs.writeFileSync(path.join(r.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify(decl));
