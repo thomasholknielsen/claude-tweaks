@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-08-29T080612-record-1350",
-  "reason": "not actionable now — standing watch-item for a future live /specify decomposition run, no code to build",
-  "releasedAt": "2026-08-29T08:06:19.451Z"
+  "runId": "2026-09-07T002121-record-1350",
+  "sessionId": "73fa844f-2c28-573f-837c-b14f96fec499",
+  "claimedAt": "2026-09-07T00:47:05.323Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
