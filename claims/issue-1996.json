@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-09-07T142038-record-1894",
-  "reason": "failed: go-no-go-prerequisite-unmet",
-  "releasedAt": "2026-09-07T14:29:44.794Z"
+  "runId": "2026-09-07T181720-record-1996",
+  "sessionId": "c1de3e72-e30b-5de4-8031-d6036813b7a0",
+  "claimedAt": "2026-09-07T18:21:49.290Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
