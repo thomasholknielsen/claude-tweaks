@@ -191,6 +191,7 @@ apply here — the policy read below, and any explicit argument or CLAUDE.md sta
 nearly every repo, which would shadow the `@{upstream}` fallback and make a worktree-creation
 call site on a tracked feature branch compare against the wrong ref and warn about a divergence
 that isn't there.
+<!-- integration-branch-ranks: excludes=5 -->
 
 ```bash
 # Integration branch when the project pins one, else the upstream of the current
