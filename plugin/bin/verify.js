@@ -87,7 +87,15 @@ function stampStatus(parsed) {
   const resolvedOwnGitDir = ownGitDir ? realpathOrNull(ownGitDir) : null;
   const foreignGitDir = Boolean(parsed.gitDir)
     && (requestedGitDir === null || resolvedOwnGitDir === null || requestedGitDir !== resolvedOwnGitDir);
-  const stampCoversCleanHead = !foreignGitDir && present && git.sha !== null && stamp.sha === git.sha && git.dirty === false;
+  // A stamp recorded against a dirty tree (stored dirty !== false) can never
+  // cover a verified-clean HEAD, regardless of the live tree's current state:
+  // the write gate never consults dirty, so a stamp written mid-edit is
+  // otherwise indistinguishable from one written on a pristine HEAD once the
+  // edit is discarded. A legacy bare-SHA stamp carries no dirty field at all
+  // — undefined is "not false", so it can never prove the tree was clean when
+  // it was recorded either (review finding, refs #1921).
+  const storedClean = present && stamp.dirty === false;
+  const stampCoversCleanHead = !foreignGitDir && storedClean && git.sha !== null && stamp.sha === git.sha && git.dirty === false;
   const match = stampCoversCleanHead && scope === 'full';
   // verifiedHead (#1923): "HEAD is verified" for the re-verify sites — a
   // clean HEAD covered either by a full pass (match) or by a passing
