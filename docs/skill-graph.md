@@ -18,7 +18,15 @@ symmetric one (two siblings sharing a criterion, two utility skills sharing a ni
 alphabetically first side owns it. So a relationship involving `/review` may live under
 `/build`, and the `/review` section will not restate it. Non-skill targets — `_shared/*.md`
 fragments, `bin/` modules, design docs, `agents/qa-agent.md` — sit with the skill that
-depends on them.
+depends on them. A `_shared/*.md` file used independently by several skills legitimately
+gets one row per skill (each row states that skill's own distinct relationship to it) — that
+is not a violation. The violation is narrower: when a row explicitly speaks for named
+co-citing skills (the "Shared with `/x`, `/y` — owned here as the alphabetically-first of
+the N citing skills" pattern), none of those named skills may also carry their own row for
+that same target — that would restate content this file already says lives in exactly one
+place. Do not add a "see the `## {skill}` section" pointer to a `_shared/*.md` row unless a
+row for the same target actually exists there (mechanically checked by
+`tests/skill-graph-dangling-pointer.test.js`); a dangling pointer is worse than no pointer.
 
 **Payload paths in this file are relative to the payload root**, i.e. the repo's `plugin/`
 subtree (ADR-0015) — the same root the bare `_shared/x.md` and `{skill}/{file}.md`
@@ -362,6 +370,15 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 |---|---|
 | `/deepen` | Does not write ledger items. Pipeline staging goes through the Auto-Mode Contract instead (`decisions.md` + `{run-dir}/staged/deepen-{n}.md`, plus `staged/deepen-collapse-{n}.patch` for narrow collapse candidates per `_shared/staged-patch.md`), and `/flow` renders returned candidates directly as a Depth Opportunities block, never via the ledger. |
 | `/tidy` | `/ledger` creates the per-feature ledger files at `docs/plans/*-ledger.md`, consumed by `/build`, `/test`, `/review`, `/wrap-up`, and `/flow` during a pipeline run, and deleted at `/wrap-up`'s Phase 4 execution step on successful completion. `/tidy` Step 4 also globs `docs/plans/*-ledger.md` (`tidy/scan-procedures.md`) and emits a `[ledger]` finding for every ledger it matches, each carrying a Keep or Delete recommendation. The `Status` column is authoritative: any row still `open` keeps the file regardless of where its run directory sits, and only a ledger with no `open` row **and** no matching live run directory under `.claude-tweaks/pipelines/` (absent, or present only under `archive/`) is recommended for deletion as an orphan — a pipeline that never reached wrap-up no longer leaves its ledger permanently invisible. |
+
+## pipeline-smoke-test
+
+| Target | Relationship |
+|---|---|
+| `/capture` | Files the throwaway `[pipeline-smoke-test]`-prefixed test record via a genuinely separate `claude` process invoking `/capture` — never inline, since the whole design point is a real cross-process boundary. |
+| `/specify` | A second separate process shapes the captured test record to `ready` with trivial `risk:low`/`size:low` scoring. |
+| `/dispatch` | Two separate processes fire concurrent claim attempts against the same shaped test record — the deliberate claim-race exercise this skill exists to run; verified against live claim state, never either process's own narration. |
+| `_shared/issue-claims.md` | Reads live claim state (the same "Reading claim state" procedure `/dispatch`'s own claim path uses) to verify the race outcome, and releases the claim at cleanup via `bin/release-claim.js`. |
 
 ## reflect
 

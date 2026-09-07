@@ -189,7 +189,7 @@ For a surface routed to pre-build — `surface` ∈ `web | mobile | desktop | te
 
 ### Common Step 2: Execute the Plan
 
-Execution depends on the chosen execution strategy (see Build Options).
+Execution depends on the chosen execution strategy (see Build Options). **These two are the only licensed strategies** — read `execution-mode-policy.md` in this skill's directory (record #491) for why an interactive session executing the plan directly, bypassing Task dispatch entirely, is never a third option — applies identically to standalone `/build` and `/flow`-orchestrated `/build`.
 
 > **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-output-contract.md` for the full pattern.
 

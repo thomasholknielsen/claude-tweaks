@@ -240,7 +240,7 @@ registerCheck('run-dir-archived', ({ originalRunDir, repoRoot, expectations, dep
 });
 
 // ---- worktree removed ---------------------------------------------------------
-registerCheck('worktree-removed', ({ runDir, expectations, deps }) => {
+registerCheck('worktree-removed', ({ runDir, expectations, deps, cwd }) => {
   const deferred = deferredSet(expectations);
   if (deferred.has('worktree')) return { result: 'skip', detail: 'deferred to parent console' };
   // Worktree paths/branches are named from the spec-slug alone (e.g.
@@ -250,7 +250,7 @@ registerCheck('worktree-removed', ({ runDir, expectations, deps }) => {
   const slug = specSlugFromRunDir(runDir);
   let porcelain;
   try {
-    porcelain = deps.git(['worktree', 'list', '--porcelain'], process.cwd());
+    porcelain = deps.git(['worktree', 'list', '--porcelain'], cwd);
   } catch (err) {
     return { result: 'unknown', detail: `git worktree list failed: ${err.message}` };
   }
@@ -300,7 +300,7 @@ function resolvedIssueNumbers(runDir) {
 // actually resolves for this run (resolvePrNumber); local-merge /
 // current-branch runs have no PR, and the branch-log commit is their only
 // carrier -- missing there stays a genuine `fail`, unchanged from before.
-registerCheck('carrier-commit', ({ runDir, base, deps }) => {
+registerCheck('carrier-commit', ({ runDir, base, deps, cwd }) => {
   const issues = resolvedIssueNumbers(runDir);
   if (!issues.length) return { result: 'skip', detail: 'no resolved issue numbers found (conversation-based work, or no materialized headers and no expectations issues)' };
   const prNumber = resolvePrNumber(runDir);
@@ -310,7 +310,7 @@ registerCheck('carrier-commit', ({ runDir, base, deps }) => {
   for (const n of issues) {
     let out;
     try {
-      out = deps.git(['log', `--grep=Fixes #${n}`, `${base}..HEAD`, '--oneline'], process.cwd());
+      out = deps.git(['log', `--grep=Fixes #${n}`, `${base}..HEAD`, '--oneline'], cwd);
     } catch (err) {
       return { result: 'unknown', detail: `git log failed: ${err.message}` };
     }
@@ -320,7 +320,7 @@ registerCheck('carrier-commit', ({ runDir, base, deps }) => {
     if (!prBodyFetched) {
       prBodyFetched = true;
       try {
-        prBody = JSON.parse(deps.gh(['pr', 'view', String(prNumber), '--json', 'body'], process.cwd())).body || '';
+        prBody = JSON.parse(deps.gh(['pr', 'view', String(prNumber), '--json', 'body'], cwd)).body || '';
       } catch (err) {
         return { result: 'unknown', detail: `gh pr view failed for PR #${prNumber}: ${err.message}` };
       }
@@ -332,7 +332,7 @@ registerCheck('carrier-commit', ({ runDir, base, deps }) => {
 });
 
 // ---- reference-repair commit scoping -------------------------------------------
-registerCheck('reference-repairs', ({ runDir, base, deps }) => {
+registerCheck('reference-repairs', ({ runDir, base, deps, cwd }) => {
   const statePath = path.join(runDir, 'engine-state.json');
   if (!fs.existsSync(statePath)) return { result: 'skip', detail: 'no engine-state.json (curation deferred or not run)' };
   let state;
@@ -346,7 +346,7 @@ registerCheck('reference-repairs', ({ runDir, base, deps }) => {
   if (!applied.length) return { result: 'skip', detail: 'no applied reference-repair findings this run' };
   let commitLog;
   try {
-    commitLog = deps.git(['log', '--grep=Initiative-Fix:', `${base}..HEAD`, '--format=%H'], process.cwd());
+    commitLog = deps.git(['log', '--grep=Initiative-Fix:', `${base}..HEAD`, '--format=%H'], cwd);
   } catch (err) {
     return { result: 'unknown', detail: `git log failed: ${err.message}` };
   }
@@ -356,7 +356,7 @@ registerCheck('reference-repairs', ({ runDir, base, deps }) => {
   for (const sha of commits) {
     let diff;
     try {
-      diff = deps.git(['diff-tree', '--no-commit-id', '--name-only', '-r', sha], process.cwd());
+      diff = deps.git(['diff-tree', '--no-commit-id', '--name-only', '-r', sha], cwd);
     } catch (err) {
       return { result: 'unknown', detail: `git diff-tree failed for ${sha}: ${err.message}` };
     }
@@ -369,9 +369,9 @@ registerCheck('reference-repairs', ({ runDir, base, deps }) => {
 });
 
 // ---- gh availability probe ------------------------------------------------
-function ghAvailable(deps) {
+function ghAvailable(deps, cwd) {
   try {
-    deps.gh(['--version'], process.cwd());
+    deps.gh(['--version'], cwd);
     return true;
   } catch {
     return false;
@@ -386,10 +386,10 @@ function ghAvailable(deps) {
 // comments. Returns { ok:false, error } instead of throwing so a gh/JSON
 // failure folds into the check's own `fail` detail line rather than
 // aborting the whole check.
-function resolveParent(n, deps) {
+function resolveParent(n, deps, cwd) {
   let raw;
   try {
-    raw = deps.gh(['issue', 'view', String(n), '--json', 'parent'], process.cwd());
+    raw = deps.gh(['issue', 'view', String(n), '--json', 'parent'], cwd);
   } catch (err) {
     return { ok: false, error: `gh issue view (parent) failed for #${n} (${err.message})` };
   }
@@ -444,8 +444,8 @@ function resolvePrNumber(runDir) {
 // `local-files` backend's different acceptance shape (`facets.acceptance`
 // on the record body, no `gh` comments at all) are both out of scope for
 // this check as written; it only reproduces the `github-issues` path.
-registerCheck('acceptance-labeling', ({ runDir, deps }) => {
-  if (!ghAvailable(deps)) return { result: 'unknown', detail: 'gh absent' };
+registerCheck('acceptance-labeling', ({ runDir, deps, cwd }) => {
+  if (!ghAvailable(deps, cwd)) return { result: 'unknown', detail: 'gh absent' };
   const issues = resolvedIssueNumbers(runDir);
   if (!issues.length) return { result: 'skip', detail: 'no resolved issue numbers found' };
   const failing = [];
@@ -457,7 +457,7 @@ registerCheck('acceptance-labeling', ({ runDir, deps }) => {
   const targets = [];
   const seenTargets = new Set();
   for (const n of issues) {
-    const resolved = resolveParent(n, deps);
+    const resolved = resolveParent(n, deps, cwd);
     if (!resolved.ok) {
       failing.push(`#${n}: ${resolved.error}`);
       continue;
@@ -473,7 +473,7 @@ registerCheck('acceptance-labeling', ({ runDir, deps }) => {
   for (const target of targets) {
     let labelsRaw;
     try {
-      labelsRaw = deps.gh(['issue', 'view', String(target), '--json', 'labels'], process.cwd());
+      labelsRaw = deps.gh(['issue', 'view', String(target), '--json', 'labels'], cwd);
     } catch (err) {
       failing.push(`#${target}: gh issue view failed (${err.message})`);
       continue;
@@ -491,7 +491,7 @@ registerCheck('acceptance-labeling', ({ runDir, deps }) => {
     }
     let commentsRaw;
     try {
-      commentsRaw = deps.gh(['issue', 'view', String(target), '--json', 'comments'], process.cwd());
+      commentsRaw = deps.gh(['issue', 'view', String(target), '--json', 'comments'], cwd);
     } catch (err) {
       failing.push(`#${target}: gh issue view (comments) failed (${err.message})`);
       continue;
@@ -515,7 +515,7 @@ registerCheck('acceptance-labeling', ({ runDir, deps }) => {
       if (hasPointer) {
         let prCommentsRaw;
         try {
-          prCommentsRaw = deps.gh(['pr', 'view', String(prNumber), '--json', 'comments'], process.cwd());
+          prCommentsRaw = deps.gh(['pr', 'view', String(prNumber), '--json', 'comments'], cwd);
         } catch (err) {
           failing.push(`#${target}: gh pr view failed for PR #${prNumber} (${err.message})`);
           continue;
@@ -570,18 +570,18 @@ registerCheck('memory-updates', ({ expectations }) => {
 });
 
 // ---- upstream feedback ----------------------------------------------------------
-registerCheck('upstream-feedback', ({ expectations, deps }) => {
+registerCheck('upstream-feedback', ({ expectations, deps, cwd }) => {
   if (!expectations.ok) return { result: 'unknown', detail: expectationsUnknownDetail(expectations) };
   const entries = expectations.data.upstream || [];
   if (!entries.length) return { result: 'skip', detail: 'nothing recorded' };
-  if (!ghAvailable(deps)) return { result: 'unknown', detail: 'gh absent' };
+  if (!ghAvailable(deps, cwd)) return { result: 'unknown', detail: 'gh absent' };
   const failing = [];
   for (const { url } of entries) {
     const m = url.match(/github\.com\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
     if (!m) { failing.push(`could not parse issue URL: ${url}`); continue; }
     const [, owner, repo, number] = m;
     try {
-      deps.gh(['issue', 'view', number, '--repo', `${owner}/${repo}`, '--json', 'number'], process.cwd());
+      deps.gh(['issue', 'view', number, '--repo', `${owner}/${repo}`, '--json', 'number'], cwd);
     } catch (err) {
       failing.push(`${url}: gh issue view failed (${err.message})`);
     }

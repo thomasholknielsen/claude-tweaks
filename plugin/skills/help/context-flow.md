@@ -90,6 +90,7 @@ Where a row below reads or writes `specs/NN-*.md`, that means a work record mate
 | `/feedback` | A described defect or gap in a claude-tweaks skill | A GitHub issue against `thomasholknielsen/claude-tweaks` (human-invoked, after explicit scrub + confirmation) | — |
 | `/routine-kickoff` | Plugin cache listing, target SKILL.md (fallback path) | — (reconcile side effects belong to bin/lib/reconcile) | — |
 | `/sweep` | Open work-record queue (via its component steps' own fetches — no separate fetch of its own) | One shared run dir's `decisions.md`/`staged/`, plus whatever `/tidy`, `/specify`, and `/claude-tweaks:backlog refine` each write to records under `--source sweep`. Invokes those three in sequence; hands off to `/claude-tweaks:dispatch` as a recommendation only, never a call | — |
+| `/pipeline-smoke-test` | Live `git`/`gh` state (issue labels, claim comments, worktree list) via genuinely separate `claude` processes it spawns | One throwaway, `[pipeline-smoke-test]`-prefixed test issue and its claim state (both closed/released at cleanup); a pass/fail report | The test issue's claim, verified released; no worktree or branch is ever created (stops before `/build`) |
 
 ## Open Items Ledger
 

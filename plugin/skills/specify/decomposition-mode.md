@@ -220,7 +220,7 @@ SPECIFY_KEY_FILES=$(node -e "
 ```
 
 - **Every open record** — invert Step 1's File Reference Map (`file → [record refs]`) into one `{id, keyFiles}` entry per record ref, `keyFiles` being every file that mapped to it. Exclude a record whose body fingerprint matches a unit in this run's list: it IS that unit from a prior partial run — double-entry would fabricate a self-dependency signal and flip Step 2.6's verdict on resume.
-- **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 5's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the sub-issue's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet.
+- **Every new work unit from this decomposition** — its own `keyFiles` is the file list identified while applying the Decomposition Heuristics and drafting its own Key Files section (Step 1 item 5's codebase pass plus the design doc's Data/API Surface feed this; the same list that will populate the sub-issue's `### Key Files` subsection in Step 3). Use `{design-doc-slug}:{unit-slug}` as `id` — the same slug the fingerprint below uses — since these units have no record number yet. This is each unit's own *scope-only* list — Step 3's cross-reference pass (`record-creation-subissues.md`'s "Cross-reference forward/backward Key Files") adds to it afterward when a sibling unit's Gotchas/Prerequisites forward-references a facet this unit owns (record #490).
 
 ```bash
 node -e "
