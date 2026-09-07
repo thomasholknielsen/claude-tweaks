@@ -148,7 +148,9 @@ item that fails to clear the materiality floor, with a `Defer-reason:` other tha
 its Step 1 option relabeled `"Digest — below floor"` in place of `"Route to a record"` — so the
 human sees the actual destination before choosing it, never silently substituted after approval;
 choosing it appends a digest entry instead of a record, skipping the composition below for that
-item. For an item whose reason the drill itself picks (the "anything else" case above), apply the
+item. This sweep's own end-of-run summary states the digest comment URL and the count routed this
+run, per `_shared/materiality-floor.md`'s "Digest URL and count surfacing" section. For an item
+whose reason the drill itself picks (the "anything else" case above), apply the
 test once that value is chosen, before the record is composed. Otherwise it composes exactly as ledger Phase
 3's branches do (`_shared/ledger-format.md`) — `specShapedBody`, the #621 mapping above supplying
 its `Defer-reason:`, landing born-ready, parked, or `needs:definition` by the same rules.
