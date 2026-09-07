@@ -1,7 +1,7 @@
 {
+  "released": true,
   "runId": "2026-09-07T021741-record-1776",
-  "sessionId": "1d544bb1-9c7a-54a5-9701-2453348b46e5",
-  "claimedAt": "2026-09-07T02:22:28.321Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "reason": "failed: build-target-missing",
+  "releasedAt": "2026-09-07T02:28:19.459Z",
+  "link": "https://github.com/thomasholknielsen/claude-tweaks/pull/2013"
 }
