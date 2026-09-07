@@ -383,6 +383,29 @@ test('headroomCheck reports composedErrors (not composed) for a call site whose 
   }
 });
 
+test('headroomCheck surfaces a composed-bytes report that throws as a composedErrors row, never as a clean result (#1997)', () => {
+  const repo = makeTmpRepo();
+  try {
+    writeComposeFixture(repo);
+    // A report that crashes (a bug, EACCES, anything that isn't the documented
+    // no-corpus case) must not render as "nothing to report": that is the
+    // silent-fallback shape IL-146 names. Injected via `deps.report` so the
+    // failure is deterministic rather than platform-dependent.
+    const result = headroomCheck(
+      [{ type: 'Modify', path: 'plugin/skills/_shared/a.md' }],
+      repo,
+      { report: () => { throw new Error('boom'); } },
+    );
+    assert.deepStrictEqual(result.composed, []);
+    assert.strictEqual(result.composedErrors.length, 1, 'the crash must be visible as an unmeasured row');
+    assert.strictEqual(result.composedErrors[0].step, null);
+    assert.match(result.composedErrors[0].error, /report failed: boom/);
+    assert.strictEqual(result.ok, true, 'composedErrors is informational-but-visible — it never flips ok');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('headroomCheck yields composed: [] and unchanged per-file results when the repo has no plugin/ dir', () => {
   const repo = makeTmpRepo();
   try {

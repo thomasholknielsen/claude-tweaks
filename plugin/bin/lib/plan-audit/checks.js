@@ -138,9 +138,10 @@ function isGovernedMdPath(relPath) {
 // `COMPOSED_STEP_EXCEPTIONS`) and `over` — regardless of which spec in a
 // multi-spec run happens to touch which source first, since the intersection
 // test is against the call site's full source list, not just the one entry
-// that triggered it. A missing `plugin/` dir, an unreadable corpus, or an
-// unparsed call-site row (no `sources` to intersect against — parsing never
-// reached a source list) never throws and contributes no composed row.
+// that triggered it. A missing `plugin/` dir (the documented no-corpus case
+// — a repo with governed paths but no payload subtree) or an unparsed
+// call-site row (no `sources` to intersect against — parsing never reached a
+// source list) never throws and contributes no composed row.
 //
 // A row that DOES have `sources` but also carries `error` (missing source,
 // unreadable source, malformed marker — #1997) is a call site this plan
@@ -149,8 +150,12 @@ function isGovernedMdPath(relPath) {
 // behavior, indistinguishable from the unparsed case) would let a plan land
 // against a call site nobody actually checked. Such rows go into
 // `composedErrors` instead — reported, never blocking (`ok` stays keyed off
-// `composed`/`breaches` only; see `headroomCheck` below).
-function composedHeadroom(governedPaths, repoRoot) {
+// `composed`/`breaches` only; see `headroomCheck` below). The same rule
+// covers the report itself crashing (an unreadable corpus, a thrown bug):
+// that is one `composedErrors` row with `step: null`, never an empty result
+// that reads as "nothing to report" — the silent-fallback shape `[IL-146]`
+// names. `deps.report` is the injectable seam a test uses to make it throw.
+function composedHeadroom(governedPaths, repoRoot, { report = composedBytesReport } = {}) {
   const composed = [];
   const composedNearCeiling = [];
   const composedErrors = [];
@@ -159,8 +164,11 @@ function composedHeadroom(governedPaths, repoRoot) {
   if (!fs.existsSync(pluginRoot)) return { composed, composedNearCeiling, composedErrors };
   let rows;
   try {
-    rows = composedBytesReport(pluginRoot);
-  } catch {
+    rows = report(pluginRoot);
+  } catch (err) {
+    composedErrors.push({
+      step: null, file: null, line: null, error: `composed-bytes report failed: ${err.code || err.message}`,
+    });
     return { composed, composedNearCeiling, composedErrors };
   }
   for (const row of rows) {
@@ -186,7 +194,7 @@ function composedHeadroom(governedPaths, repoRoot) {
   return { composed, composedNearCeiling, composedErrors };
 }
 
-function headroomCheck(entries, repoRoot) {
+function headroomCheck(entries, repoRoot, deps = {}) {
   const nearCeiling = [];
   const breaches = [];
   const seen = new Set();
@@ -210,7 +218,7 @@ function headroomCheck(entries, repoRoot) {
       nearCeiling.push({ file: relPath, bytes, headroom: CEILING_BYTES - bytes });
     }
   }
-  const { composed, composedNearCeiling, composedErrors } = composedHeadroom(governedPaths, repoRoot);
+  const { composed, composedNearCeiling, composedErrors } = composedHeadroom(governedPaths, repoRoot, deps);
   // composedErrors never gates `ok` — it's "could not measure", not "over
   // ceiling" (#1997); still reported so it stays visible rather than
   // silently dropped.
