@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { checkA, checkB, checkC, headroomCheck, looksPassing, isGovernedMdPath } = require('../../../plugin/bin/lib/plan-audit/checks');
-const { CEILING_BYTES } = require('../../../plugin/bin/lib/skill-audit/context-cost');
+const { CEILING_BYTES, composedBytesReport } = require('../../../plugin/bin/lib/skill-audit/context-cost');
 
 function makeTmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'plan-audit-checks-'));
@@ -237,7 +237,9 @@ test('headroomCheck ignores Create entries — nothing to measure yet', () => {
   const repo = makeTmpRepo();
   try {
     const result = headroomCheck([{ type: 'Create', path: 'plugin/skills/build/new.md' }], repo);
-    assert.deepStrictEqual(result, { ok: true, nearCeiling: [], breaches: [] });
+    assert.deepStrictEqual(result, {
+      ok: true, nearCeiling: [], breaches: [], composed: [], composedNearCeiling: [], composedErrors: [],
+    });
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -253,6 +255,164 @@ test('a clean plan (no missing paths, no scope keywords, no FAIL findings, no he
     const c = checkC([], repo);
     const h = headroomCheck([{ type: 'Modify', path: rel }], repo);
     assert.ok(a.ok && b.ok && c.ok && h.ok);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+// ── Headroom — composed rows (#1997, the multi-spec pre-flight [IL-140] lacked) ──
+
+// A synthetic plugin root: one skill file (`plugin/skills/x/SKILL.md`) carrying
+// a real compose call site for step "demo", and two marker-bearing sources
+// under `plugin/skills/_shared/`. `bBytes` lets the over-ceiling fixture pad
+// one source past CEILING_BYTES without duplicating the whole layout.
+// `bMarkerBroken` swaps source b for an unclosed `when:` marker (a malformed
+// source #1997's `composedErrors` path exists to surface, rather than
+// silently drop) — mutually exclusive with `bBytes`.
+function writeComposeFixture(repo, { bBytes = null, bMarkerBroken = false } = {}) {
+  const skillDir = path.join(repo, 'plugin', 'skills', 'x');
+  const sharedDir = path.join(repo, 'plugin', 'skills', '_shared');
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.mkdirSync(sharedDir, { recursive: true });
+  fs.writeFileSync(path.join(skillDir, 'SKILL.md'), [
+    '---',
+    'name: x',
+    'description: fixture',
+    '---',
+    '',
+    'Compose call:',
+    '',
+    'node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step demo "${CLAUDE_PLUGIN_ROOT}/skills/_shared/a.md" "${CLAUDE_PLUGIN_ROOT}/skills/_shared/b.md"',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(sharedDir, 'a.md'), [
+    '<!-- when: mode=auto -->',
+    'Source A body.',
+    '<!-- /when -->',
+    '',
+  ].join('\n'));
+  let bContent;
+  if (bMarkerBroken) {
+    bContent = '<!-- when: mode=auto -->\nSource B body, unclosed marker.\n';
+  } else {
+    bContent = bBytes === null ? 'Source B body.\n' : `${'x'.repeat(bBytes)}\n`;
+  }
+  fs.writeFileSync(path.join(sharedDir, 'b.md'), bContent);
+}
+
+test('headroomCheck reports a composed row for a call site whose source the plan touches, with over: 0 when small', () => {
+  const repo = makeTmpRepo();
+  try {
+    writeComposeFixture(repo);
+    const expectedRows = composedBytesReport(path.join(repo, 'plugin'));
+    const demoRow = expectedRows.find((r) => r.step === 'demo');
+    assert.ok(demoRow, 'fixture must produce a demo call site');
+    const result = headroomCheck([{ type: 'Modify', path: 'plugin/skills/_shared/a.md' }], repo);
+    assert.strictEqual(result.composed.length, 1);
+    assert.strictEqual(result.composed[0].step, 'demo');
+    assert.strictEqual(result.composed[0].max, demoRow.max);
+    assert.strictEqual(result.composed[0].ceiling, CEILING_BYTES);
+    assert.strictEqual(result.composed[0].over, 0);
+    assert.strictEqual(result.ok, true);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('headroomCheck reports no composed rows when the plan touches neither source of a call site', () => {
+  const repo = makeTmpRepo();
+  try {
+    writeComposeFixture(repo);
+    const result = headroomCheck([{ type: 'Modify', path: 'plugin/skills/x/SKILL.md' }], repo);
+    assert.deepStrictEqual(result.composed, []);
+    assert.deepStrictEqual(result.composedNearCeiling, []);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('headroomCheck fires the same composed row for two specs regardless of which one touches which source (multi-spec pre-flight, IL-140)', () => {
+  const repo = makeTmpRepo();
+  try {
+    writeComposeFixture(repo);
+    // Two separate spec plans — modeled as two independent headroomCheck calls,
+    // each naming only its own single touched source.
+    const specA = headroomCheck([{ type: 'Modify', path: 'plugin/skills/_shared/a.md' }], repo);
+    const specB = headroomCheck([{ type: 'Modify', path: 'plugin/skills/_shared/b.md' }], repo);
+    assert.strictEqual(specA.composed.length, 1);
+    assert.strictEqual(specB.composed.length, 1);
+    assert.strictEqual(specA.composed[0].step, 'demo');
+    assert.strictEqual(specB.composed[0].step, 'demo');
+    assert.strictEqual(specA.composed[0].max, specB.composed[0].max);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('headroomCheck flags an over-ceiling composed row and flips ok to false', () => {
+  const repo = makeTmpRepo();
+  try {
+    writeComposeFixture(repo, { bBytes: CEILING_BYTES + 2000 });
+    const result = headroomCheck([{ type: 'Modify', path: 'plugin/skills/_shared/a.md' }], repo);
+    assert.strictEqual(result.composed.length, 1);
+    assert.strictEqual(result.composed[0].step, 'demo');
+    assert.ok(result.composed[0].over > 0, `expected over > 0, got ${result.composed[0].over}`);
+    assert.strictEqual(result.ok, false);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('headroomCheck reports composedErrors (not composed) for a call site whose touched source is malformed, ok stays true (#1997)', () => {
+  const repo = makeTmpRepo();
+  try {
+    writeComposeFixture(repo, { bMarkerBroken: true });
+    // The plan touches source a — a healthy source — but the call site's
+    // OTHER source (b) carries the unclosed `when:` marker. The intersection
+    // test is against the call site's full source list (same rule as the
+    // multi-spec IL-140 fixture above), so this call site is in scope even
+    // though the malformed file itself isn't the touched one.
+    const result = headroomCheck([{ type: 'Modify', path: 'plugin/skills/_shared/a.md' }], repo);
+    assert.deepStrictEqual(result.composed, [], 'a call site that could not be measured must not appear in composed');
+    assert.strictEqual(result.composedErrors.length, 1);
+    assert.strictEqual(result.composedErrors[0].step, 'demo');
+    assert.ok(typeof result.composedErrors[0].error === 'string' && result.composedErrors[0].error.length > 0);
+    assert.strictEqual(result.ok, true, 'composedErrors is informational-but-visible — it never flips ok');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('headroomCheck surfaces a composed-bytes report that throws as a composedErrors row, never as a clean result (#1997)', () => {
+  const repo = makeTmpRepo();
+  try {
+    writeComposeFixture(repo);
+    // A report that crashes (a bug, EACCES, anything that isn't the documented
+    // no-corpus case) must not render as "nothing to report": that is the
+    // silent-fallback shape IL-146 names. Injected via `deps.report` so the
+    // failure is deterministic rather than platform-dependent.
+    const result = headroomCheck(
+      [{ type: 'Modify', path: 'plugin/skills/_shared/a.md' }],
+      repo,
+      { report: () => { throw new Error('boom'); } },
+    );
+    assert.deepStrictEqual(result.composed, []);
+    assert.strictEqual(result.composedErrors.length, 1, 'the crash must be visible as an unmeasured row');
+    assert.strictEqual(result.composedErrors[0].step, null);
+    assert.match(result.composedErrors[0].error, /report failed: boom/);
+    assert.strictEqual(result.ok, true, 'composedErrors is informational-but-visible — it never flips ok');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('headroomCheck yields composed: [] and unchanged per-file results when the repo has no plugin/ dir', () => {
+  const repo = makeTmpRepo();
+  try {
+    const result = headroomCheck([{ type: 'Modify', path: 'plugin/skills/build/plan-audit.md' }], repo);
+    assert.deepStrictEqual(result, {
+      ok: true, nearCeiling: [], breaches: [], composed: [], composedNearCeiling: [], composedErrors: [],
+    });
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

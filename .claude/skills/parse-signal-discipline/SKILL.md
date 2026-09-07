@@ -50,6 +50,35 @@ negative, not a caught gap.
 anywhere in this repo — the real name is `extractStep2Verification`. This citation uses the
 verified name; treat any reference to `parseStep2` elsewhere as the same stale-name drift.)
 
+## Two more worked examples, both from the composer run (#1988, #1997)
+
+The `extractStep2Verification` case above is the anti-pattern. These two are the rule applied
+correctly, in opposite directions — one refuses to merge at the parser, one refuses to merge at the
+reporter.
+
+- **Refuse at the parser: a marker-shaped line is never content.** `plugin/bin/lib/compose-context/compose.js`'s
+  `CANDIDATE_RE` (`/^\s*<!--\s*(?:when:|\/when\b)/`) splits the input into "not a marker at all"
+  and "starts like a marker". Only the first is text; a line matching `CANDIDATE_RE` that then
+  fails `OPEN_RE`/`CLOSE_RE`, or carries a key/value outside `VOCAB`, or nests past `MAX_DEPTH`,
+  throws a `MarkerError` naming the file and line rather than falling through to
+  `tokens.push({type: 'text'})`. The comment above the constant states the split as the contract:
+  *"A line that starts like a marker is either a valid open/close or a malformed marker — never
+  content."* That is the fix shape's step 1 realized as a hard error instead of a tagged result:
+  legitimate for this parser because the caller (`bin/compose-context.js`) has a real place to put
+  it — exit 2 with `file:line` on stderr, nothing written, any prior bundle left untouched.
+  Silently treating a typo'd `<!-- when: mdoe=auto -->` as prose would compose the wrong branch
+  into a bundle a skill step then reads as authoritative.
+- **Refuse at the reporter: "could not measure" is not "does not apply".** `plugin/bin/lib/plan-audit/checks.js`'s
+  `composedHeadroom` has three outcomes where the pre-#1997 code had two. A row with no `sources`
+  is genuine non-applicability (parsing never reached a source list) and is `continue`-d — the fix
+  shape's step 3. A row that *does* carry `sources` but also an `error` (missing source, unreadable
+  source, malformed marker) is a call site the plan touches that the tool could not measure, and it
+  goes to a separate `composedErrors` array with its `step`/`file`/`line`. The report itself
+  throwing is one `composedErrors` row with `step: null` — never an empty result that reads as
+  "nothing to report" (`[IL-146]`'s silent-fallback shape). Note the reporting posture:
+  `composedErrors` never gates `ok`, which stays keyed off `composed`/`breaches` — the fix shape's
+  step 2 says *surface it*, not *block on it*.
+
 ## The fix shape
 
 When mechanizing a prose heuristic into a deterministic check:

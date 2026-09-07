@@ -1408,3 +1408,36 @@ the second commit through with no `record-worktree` ever called. #1099's fix (ab
 too, since it's the same `resolveRun` arm; `tests/hooks-bookkeeping-stamps-gate.test.js`'s "#1520,
 real resolveRun" test reproduces record-769/#815's exact shape end-to-end (a real cross-worktree
 `resolveRun` call feeding the gate, not a hand-constructed `ownedRun`) and pins that it now denies.
+
+## IL-153 — Per-file 40 KB test pins retired in favour of composed-bytes gates
+
+Fourteen ad-hoc per-file `<= 40960`-byte assertions had accreted across thirteen `tests/*.test.js`
+files between 2026-05 and 2026-09, each one added by a record that happened to touch a skill file
+near the ceiling and pinned that one file's raw size defensively at the point of the split. #1990
+made the per-file 40 KB tier in `context-cost.js` a warning (`overCeilingWarnings`), not a hard
+gate, and introduced the composed-bytes hard gate instead (`composedBytesReport`/
+`overComposedCeiling`): the number a reader actually pays is the composed bundle at a
+`compose-context.js` call site, not any one source file measured in isolation. That change left
+the fourteen scattered per-file pins asserting a ceiling nothing else in the system still enforced
+as a hard fail — of the fourteen, only one (`_shared/github-pr-scan.md`, via `sweep-backstop.test.js`)
+guards a file that is actually a compose source with a composed gate to retarget to; the other
+thirteen guard files with no compose call site at all. #1997 retargeted the one retargetable pin to
+its `pr-scan` composed-gate equivalent (and `run-dir-timestamp-utc.test.js`'s `manifesto.md` raw
+budget to the `manifesto` composed gate) and deleted the rest, each with an in-file comment naming
+this entry.
+
+**Removal condition:** reintroduce a per-file pin only for a file that (i) has crossed 40,960 raw
+bytes, (ii) has no compose call site whose composed gate covers it, and (iii) shows a measured
+per-invocation cost regression — a warning-band residency alone is not that state.
+`context-cost.test.js`'s warning tier and `plan-audit`'s headroom check are the reporting channels
+that surface (i) and the file's trajectory without needing a hard per-file test to do it.
+
+At retirement, six files sat within 1,000 B of the 40,960 B raw ceiling with no hard `npm test`
+guard: `dispatch/SKILL.md` (40,948 B), `flow/SKILL.md` (40,810 B), `wrap-up/SKILL.md` (40,708 B),
+`_shared/subagent-output-contract.md` (40,573 B), `routine/create-and-update.md` (40,464 B), and
+`tidy/step-6-auto.md` (40,102 B) — the first, third, and last of these had carried a deleted pin;
+`_shared/github-pr-scan.md` (40,131 B) is in the same band but guarded by the `pr-scan` composed gate.
+All are reported only by the warning tier now. `flow/manifesto.md` keeps its raw single-read budget
+(21,760 B) alongside its composed gate, because `flow/SKILL.md` Step 3 still reads it directly on
+every fresh run. Whether invocation-unit `SKILL.md` files should keep one central hard ceiling is a
+staged decision for the parent (#1987), not this entry's.

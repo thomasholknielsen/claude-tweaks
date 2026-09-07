@@ -31,6 +31,14 @@ function summaryLine(report) {
   if (!report.checkC.ok) parts.push(`Check C: ${report.checkC.findings.length} non-discriminating command(s)`);
   if (!report.headroom.ok) parts.push(`Headroom: ${report.headroom.breaches.length} breach(es)`);
   if (report.headroom.nearCeiling.length) parts.push(`Headroom: ${report.headroom.nearCeiling.length} near-ceiling`);
+  const composedOver = report.headroom.composed.filter((c) => c.over > 0).length;
+  if (composedOver) parts.push(`Composed: ${composedOver} over`);
+  if (report.headroom.composedNearCeiling.length) parts.push(`Composed: ${report.headroom.composedNearCeiling.length} near-ceiling`);
+  // Informational-but-visible (#1997): a composed call site this plan
+  // touches that the tool could not measure (missing/unreadable source,
+  // malformed marker) is never silenced into the same "no findings" bucket
+  // as a call site that legitimately doesn't apply.
+  if (report.headroom.composedErrors.length) parts.push(`Composed: ${report.headroom.composedErrors.length} unmeasured`);
   if (parts.length === 0) return 'plan-audit: clean — no findings.';
   return `plan-audit: ${parts.join('; ')}.`;
 }

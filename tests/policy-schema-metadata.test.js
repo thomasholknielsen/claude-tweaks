@@ -12,8 +12,6 @@ const { POLICY_KEYS, POLICY_CATEGORIES } = require('../plugin/bin/lib/policy-sch
 
 const MD_PATH = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'policy-schema.md');
 const md = fs.readFileSync(MD_PATH, 'utf8');
-const COVERAGE_MD_PATH = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'policy-schema-coverage.md');
-const coverageMd = fs.readFileSync(COVERAGE_MD_PATH, 'utf8');
 
 test('every POLICY_KEYS row carries summary, category, and tier', () => {
   for (const row of POLICY_KEYS) {
@@ -52,13 +50,7 @@ test('no summary string is duplicated verbatim into policy-schema.md', () => {
 });
 
 // --- 40 KB ceiling — policy-schema.md and its coverage sibling (#635) ---
-// Same registration pattern as the github-pr-scan.md (#204) and
-// review-console.md (#552) splits: every file this repo's ceiling gate
-// touches gets a byte-length assertion at the point it was split.
-test('policy-schema.md and its policy-schema-coverage.md sibling stay under the 40 KB sub-file ceiling', () => {
-  const CEILING_BYTES = 40 * 1024;
-  const files = { 'policy-schema.md': md, 'policy-schema-coverage.md': coverageMd };
-  for (const [name, text] of Object.entries(files)) {
-    assert.ok(Buffer.byteLength(text, 'utf8') <= CEILING_BYTES, `${name} exceeds the 40 KB ceiling`);
-  }
-});
+// Per-file 40 KB pins on policy-schema.md and policy-schema-coverage.md
+// retired by #1997 — the per-file tier is a warning since #1990 and these
+// files have no compose call site; removal condition in
+// docs/incident-log.md [IL-153].

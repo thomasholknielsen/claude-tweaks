@@ -86,6 +86,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
 
 9. **Unarmed ready PR** — a green, gate-passed, granted or grantable, plugin-created PR whose `--auto` was never armed. "Plugin-created" is detected purely GitHub-side, from the PR body's `<!-- claude-tweaks-run: {run-id} -->` marker (stamped by `_shared/pr-early-run-lifecycle.md`'s PR-open template) or one of the two mechanical-housekeeping markers — `<!-- tidy-housekeeping-pr -->` (stamped by `/claude-tweaks:tidy` Step 7 at creation) or `<!-- wrap-up-residue-pr -->` (stamped by `wrap-up/residue-sweep.md`'s pr-first landing path — the same low-judgment, purely-mechanical shape as a tidy Step-7 commit, gated by the identical `housekeeping-auto-merge` lever) — no local run-dir join, so this check works from a fresh sandbox exactly like every other item here.
 
+<!-- when: transport=gh -->
    Resolve this item's session-scoped temp paths first, per `_shared/session-tmp-root.md`:
 
    ```bash
@@ -172,6 +173,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
    ```
 
    Both outcomes share the `[pr-unarmed]` prefix — the row content, not the prefix, distinguishes granted (recommends arming now) from ungranted (recommends granting first). Every row also carries the repo's `allow_auto_merge` state (`ALLOW_AUTO_MERGE`, read once above via `gh api repos/{owner}/{repo} -q .allow_auto_merge`) whenever it's `false`, so a recommendation to "arm" never implies a live `--auto` arm will succeed on a repo where it structurally can't — the degrade path still applies. **The list-time snapshot above is never trusted for the actual write**: grant labels, the `bot:blocked` exclusion (a record parked between the scan and the arm — or one whose labels the classifier's `gh issue view` loop failed to fetch and defaulted to `[]` — must still block the arm), `housekeeping-auto-merge`, and gate status (CI/draft/threads) are all re-read immediately before `gh pr merge --auto` runs, whether that arm happens interactively or via `/claude-tweaks:tidy`'s own Step 6/7 batch approval.
+<!-- /when -->
 
 10. **Unsettled run** — a claimed or `bot:in-progress`-labeled issue whose pipeline shows no evidence of progress since it was claimed, past a threshold. Detected purely GitHub-side, in three fetches:
 
@@ -310,6 +312,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
 
 2. **Blocked** — `gh issue list --label bot:blocked --state open --json number --limit 200 -q 'length'`
 
+<!-- when: transport=gh -->
 3. **Auto-merged this week** — `[fast-lane]`-tagged, `[auto-merge]`-tagged, or
    `[manifesto-authorized]`-tagged commits on the *default* branch (never the current worktree's
    own branch — see the note on `worktree-always` below), last 7 days. All three skip the
@@ -329,6 +332,7 @@ Three cheap counts for the dashboard's Triage Queue section. This scope exists s
    ```
 
    The commits endpoint defaults to the default branch when no `sha=` param is given — correct regardless of which branch/worktree `/help` itself runs from under `worktree-always`. `SINCE` is computed via `node`, not shell `date` arithmetic, which differs between BSD/macOS and GNU date.
+<!-- /when -->
 
 Render as three lines: `Pending authorization: **{N}** records awaiting your decision` / `Blocked: **{N}** records hit their retry ceiling` / `Auto-merged this week: **{N}** auto-merges` — omit any line whose count is 0.
 
