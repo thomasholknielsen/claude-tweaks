@@ -1432,8 +1432,12 @@ per-invocation cost regression — a warning-band residency alone is not that st
 `context-cost.test.js`'s warning tier and `plan-audit`'s headroom check are the reporting channels
 that surface (i) and the file's trajectory without needing a hard per-file test to do it.
 
-At retirement, the three files closest to the raw ceiling with no hard `npm test` guard remaining
-were `dispatch/SKILL.md` (40,948 B), `wrap-up/SKILL.md` (40,708 B), and `tidy/step-6-auto.md`
-(40,102 B) — all three within a few hundred bytes of the 40,960 B raw ceiling the deleted pins
-used to assert, reported only by the warning tier now; whether invocation-unit `SKILL.md` files
-should keep one central hard ceiling is a staged decision for the parent (#1987), not this entry's.
+At retirement, six files sat within 1,000 B of the 40,960 B raw ceiling with no hard `npm test`
+guard: `dispatch/SKILL.md` (40,948 B), `flow/SKILL.md` (40,810 B), `wrap-up/SKILL.md` (40,708 B),
+`_shared/subagent-output-contract.md` (40,573 B), `routine/create-and-update.md` (40,464 B), and
+`tidy/step-6-auto.md` (40,102 B) — the first, third, and last of these had carried a deleted pin;
+`_shared/github-pr-scan.md` (40,131 B) is in the same band but guarded by the `pr-scan` composed gate.
+All are reported only by the warning tier now. `flow/manifesto.md` keeps its raw single-read budget
+(21,760 B) alongside its composed gate, because `flow/SKILL.md` Step 3 still reads it directly on
+every fresh run. Whether invocation-unit `SKILL.md` files should keep one central hard ceiling is a
+staged decision for the parent (#1987), not this entry's.

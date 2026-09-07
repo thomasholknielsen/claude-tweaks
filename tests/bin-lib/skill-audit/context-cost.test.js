@@ -562,6 +562,9 @@ test('measureComposed: a malformed source is reported on the row, never thrown (
   assert.deepStrictEqual(result.combinations, []);
   assert.ok(typeof result.error === 'string', 'expected an error string');
   assert.ok(/:1: /.test(result.error), `expected the error to name line 1, got: ${result.error}`);
+  // #1997: an error row still carries `sources` — a consumer intersecting
+  // error rows against touched files needs them, same as a success row.
+  assert.deepStrictEqual(result.sources, [badFile]);
 });
 
 test('measureComposed: a missing source is an error row naming the path', () => {
@@ -571,6 +574,7 @@ test('measureComposed: a missing source is an error row naming the path', () => 
   const result = measureComposed(root, callSite);
   assert.deepStrictEqual(result.combinations, []);
   assert.ok(result.error.includes(missing), `expected the missing path in: ${result.error}`);
+  assert.deepStrictEqual(result.sources, [missing], '#1997: error row must carry sources');
 });
 
 test('measureComposed: a source path that is a directory is an error row (not only ENOENT)', () => {
@@ -582,6 +586,19 @@ test('measureComposed: a source path that is a directory is an error row (not on
   assert.deepStrictEqual(result.combinations, []);
   assert.ok(typeof result.error === 'string', 'expected an error string');
   assert.ok(result.error.includes('EISDIR'), `expected EISDIR in: ${result.error}`);
+  assert.deepStrictEqual(result.sources, [dirAsSource], '#1997: error row must carry sources');
+});
+
+test('measureComposed: a malformed-marker error row also carries sources (#1997)', () => {
+  const { root, sharedDir } = tmpCorpus('composed-malformed-sources');
+  const okFile = path.join(sharedDir, 'ok.md');
+  fs.writeFileSync(okFile, '# fine\n');
+  const badFile = path.join(sharedDir, 'bad.md');
+  fs.writeFileSync(badFile, '<!-- when: mode=auto -->\nbody\n');
+  const callSite = { step: 'x', file: 'f', line: 1, sources: [okFile, badFile] };
+  const result = measureComposed(root, callSite);
+  assert.ok(typeof result.error === 'string', 'expected an error string');
+  assert.deepStrictEqual(result.sources, [okFile, badFile]);
 });
 
 // ── composedBytesReport / overComposedCeiling (#1990 Task 4). The hard gate:

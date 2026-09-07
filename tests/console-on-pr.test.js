@@ -12,7 +12,6 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const CONSOLE_ON_PR = read('plugin', 'skills', '_shared', 'console-on-pr.md');
-const REVIEW_CONSOLE = read('plugin', 'skills', 'wrap-up', 'review-console.md');
 const REVIEW_CONSOLE_INTERACTIVE = read('plugin', 'skills', 'wrap-up', 'review-console-interactive.md');
 const MULTISPEC_CONSOLE = read('plugin', 'skills', 'flow', 'multispec-review-console.md');
 

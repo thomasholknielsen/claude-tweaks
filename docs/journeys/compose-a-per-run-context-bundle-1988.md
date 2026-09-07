@@ -28,6 +28,8 @@ files:
   - docs/donts.md
   - tests/sweep-backstop.test.js
   - tests/run-dir-timestamp-utc.test.js
+  - plugin/skills/build/plan-audit.md
+  - docs/incident-log.md
 ---
 
 # Compose a Per-Run Context Bundle From Fenced Skill Sources
@@ -111,7 +113,7 @@ files:
 
 ### 11. Ask the gate, not the file — terminal
 - **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/plan-audit.js" <plan.md>` on a plan that lists `Modify: plugin/skills/_shared/issue-claims.md`, then `grep -rn "40960\|40 \* 1024" tests`.
-- **Action:** Read the JSON envelope's `headroom.composed` rows — one per compose call site whose sources the plan touches, with `max`, `ceiling`, and `over` — and then the grep, which now returns only `context-cost.test.js` and the plan-audit suite.
+- **Action:** Read the JSON envelope's `headroom.composed` rows — one per compose call site whose sources the plan touches, with `max`, `ceiling`, and `over` — and then the grep, which now returns only the plan-audit CLI's two fixture lines (`context-cost.test.js` imports the constant rather than spelling the number).
 - **Should feel:** The number that can fail the suite is the one a reader pays at a call site. The raw per-file number still prints — as a warning band, as the merge-time probe's disclosure, and as the headroom check's per-file rows — but nothing in `npm test` pins a file's raw bytes any more except the composed gate and its own tests.
 - **Should understand:** Thirteen ad-hoc `<= 40960` pins guarded files that no call site composes; #1990's warning-tier decision had already made them redundant, and #1997 deleted them with a removal condition (`[IL-153]`: reintroduce a per-file pin only for a file that has crossed the ceiling, has no composed gate covering it, and shows a measured per-invocation regression). The one pin whose file is a compose source (`github-pr-scan.md`) and the `manifesto.md` budget now assert the composed gate instead. `docs/donts.md`'s three ceiling rules say the same: markers or a call site, not another sub-file. What that leaves open, on purpose, is whether invocation-unit files (every `SKILL.md`, read whole every time) deserve one central hard ceiling — `dispatch/SKILL.md` sits 12 B under with only a warning behind it — and that is a human's call, staged for the console rather than decided here.
 - **Red flags:** a `40960` literal reappearing in a test outside `context-cost.test.js` and the plan-audit suite; a `headroom.composed` row with `over > 0` that `plan-audit` reports as passing; an `[IL-nn]` tag missing from a rewritten `docs/donts.md` rule; `merge-size-probe.js` described anywhere as a blocking gate (it discloses).

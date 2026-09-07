@@ -393,6 +393,14 @@ test('every new/edited file mentioning integration-model cites the shared fragme
 // cost now.
 test('github-pr-scan.md stays under the pr-scan composed-bytes ceiling', () => {
   const PLUGIN_ROOT = path.join(ROOT, 'plugin');
+  // Guard against a vacuous pass (#1997): if the `pr-scan` call site is ever
+  // removed or renamed, the filter below yields [] regardless of whether
+  // github-pr-scan.md is actually over budget anywhere — retarget this test
+  // or restore the raw per-file pin instead of leaving it silently vacuous.
+  assert.ok(
+    composedBytesReport(PLUGIN_ROOT).some((r) => r.step === 'pr-scan' && !r.unparsed),
+    'the pr-scan call site is gone — retarget or restore the raw pin',
+  );
   const overRows = overComposedCeiling(composedBytesReport(PLUGIN_ROOT)).filter((r) => r.step === 'pr-scan');
   assert.deepStrictEqual(overRows, [], `pr-scan composed bundle over ceiling: ${JSON.stringify(overRows)}`);
 });

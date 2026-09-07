@@ -238,7 +238,7 @@ test('headroomCheck ignores Create entries — nothing to measure yet', () => {
   try {
     const result = headroomCheck([{ type: 'Create', path: 'plugin/skills/build/new.md' }], repo);
     assert.deepStrictEqual(result, {
-      ok: true, nearCeiling: [], breaches: [], composed: [], composedNearCeiling: [],
+      ok: true, nearCeiling: [], breaches: [], composed: [], composedNearCeiling: [], composedErrors: [],
     });
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
@@ -264,9 +264,12 @@ test('a clean plan (no missing paths, no scope keywords, no FAIL findings, no he
 
 // A synthetic plugin root: one skill file (`plugin/skills/x/SKILL.md`) carrying
 // a real compose call site for step "demo", and two marker-bearing sources
-// under `plugin/skills/_shared/`. `overrideB` lets the over-ceiling fixture pad
+// under `plugin/skills/_shared/`. `bBytes` lets the over-ceiling fixture pad
 // one source past CEILING_BYTES without duplicating the whole layout.
-function writeComposeFixture(repo, { bBytes = null } = {}) {
+// `bMarkerBroken` swaps source b for an unclosed `when:` marker (a malformed
+// source #1997's `composedErrors` path exists to surface, rather than
+// silently drop) — mutually exclusive with `bBytes`.
+function writeComposeFixture(repo, { bBytes = null, bMarkerBroken = false } = {}) {
   const skillDir = path.join(repo, 'plugin', 'skills', 'x');
   const sharedDir = path.join(repo, 'plugin', 'skills', '_shared');
   fs.mkdirSync(skillDir, { recursive: true });
@@ -288,7 +291,12 @@ function writeComposeFixture(repo, { bBytes = null } = {}) {
     '<!-- /when -->',
     '',
   ].join('\n'));
-  const bContent = bBytes === null ? 'Source B body.\n' : `${'x'.repeat(bBytes)}\n`;
+  let bContent;
+  if (bMarkerBroken) {
+    bContent = '<!-- when: mode=auto -->\nSource B body, unclosed marker.\n';
+  } else {
+    bContent = bBytes === null ? 'Source B body.\n' : `${'x'.repeat(bBytes)}\n`;
+  }
   fs.writeFileSync(path.join(sharedDir, 'b.md'), bContent);
 }
 
@@ -355,12 +363,32 @@ test('headroomCheck flags an over-ceiling composed row and flips ok to false', (
   }
 });
 
+test('headroomCheck reports composedErrors (not composed) for a call site whose touched source is malformed, ok stays true (#1997)', () => {
+  const repo = makeTmpRepo();
+  try {
+    writeComposeFixture(repo, { bMarkerBroken: true });
+    // The plan touches source a — a healthy source — but the call site's
+    // OTHER source (b) carries the unclosed `when:` marker. The intersection
+    // test is against the call site's full source list (same rule as the
+    // multi-spec IL-140 fixture above), so this call site is in scope even
+    // though the malformed file itself isn't the touched one.
+    const result = headroomCheck([{ type: 'Modify', path: 'plugin/skills/_shared/a.md' }], repo);
+    assert.deepStrictEqual(result.composed, [], 'a call site that could not be measured must not appear in composed');
+    assert.strictEqual(result.composedErrors.length, 1);
+    assert.strictEqual(result.composedErrors[0].step, 'demo');
+    assert.ok(typeof result.composedErrors[0].error === 'string' && result.composedErrors[0].error.length > 0);
+    assert.strictEqual(result.ok, true, 'composedErrors is informational-but-visible — it never flips ok');
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('headroomCheck yields composed: [] and unchanged per-file results when the repo has no plugin/ dir', () => {
   const repo = makeTmpRepo();
   try {
     const result = headroomCheck([{ type: 'Modify', path: 'plugin/skills/build/plan-audit.md' }], repo);
     assert.deepStrictEqual(result, {
-      ok: true, nearCeiling: [], breaches: [], composed: [], composedNearCeiling: [],
+      ok: true, nearCeiling: [], breaches: [], composed: [], composedNearCeiling: [], composedErrors: [],
     });
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });

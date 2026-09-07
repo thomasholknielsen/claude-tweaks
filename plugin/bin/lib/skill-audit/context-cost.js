@@ -174,7 +174,13 @@ function conditionCombinations(keys) {
 // keys its sources branch on. A missing source, an unreadable source, a
 // malformed marker, or an unparsed call site is an error row
 // (`{ error, combinations: [] }`), never a thrown exception — parent #1987
-// promise F1.
+// promise F1. A missing/unreadable/malformed-marker error row also carries
+// `sources` (the same resolved, absolute paths a success row carries) so a
+// consumer can still intersect it against a set of touched files — "could
+// not measure" is never the same as "does not apply" (#1997,
+// `parse-signal-discipline`). An unparsed call site has no known sources to
+// carry (parsing never reached a source list), so its error row carries
+// neither `sources` nor a usable one.
 function measureComposed(repoRoot, callSite) {
   if (callSite.unparsed) return { ...callSite, error: callSite.reason, combinations: [] };
   const { step, file, line, sources: sourcePaths } = callSite;
@@ -182,15 +188,23 @@ function measureComposed(repoRoot, callSite) {
   try {
     sources = sourcePaths.map((p) => ({ path: path.relative(repoRoot, p), content: fs.readFileSync(p, 'utf8') }));
   } catch (err) {
-    if (err.code === 'ENOENT') return { step, file, line, error: `missing source: ${err.path}`, combinations: [] };
-    return { step, file, line, error: `unreadable source ${err.path}: ${err.code || err.message}`, combinations: [] };
+    if (err.code === 'ENOENT') {
+      return {
+        step, file, line, sources: sourcePaths, error: `missing source: ${err.path}`, combinations: [],
+      };
+    }
+    return {
+      step, file, line, sources: sourcePaths, error: `unreadable source ${err.path}: ${err.code || err.message}`, combinations: [],
+    };
   }
   let keys;
   try {
     keys = usedConditionKeys(sources);
   } catch (err) {
     if (err instanceof MarkerError) {
-      return { step, file, line, error: `${err.file}:${err.line}: ${err.message}`, combinations: [] };
+      return {
+        step, file, line, sources: sourcePaths, error: `${err.file}:${err.line}: ${err.message}`, combinations: [],
+      };
     }
     throw err;
   }

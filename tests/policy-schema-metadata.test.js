@@ -12,8 +12,6 @@ const { POLICY_KEYS, POLICY_CATEGORIES } = require('../plugin/bin/lib/policy-sch
 
 const MD_PATH = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'policy-schema.md');
 const md = fs.readFileSync(MD_PATH, 'utf8');
-const COVERAGE_MD_PATH = path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'policy-schema-coverage.md');
-const coverageMd = fs.readFileSync(COVERAGE_MD_PATH, 'utf8');
 
 test('every POLICY_KEYS row carries summary, category, and tier', () => {
   for (const row of POLICY_KEYS) {
