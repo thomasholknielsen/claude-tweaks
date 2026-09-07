@@ -95,6 +95,38 @@ Documented procedure and exercised procedure are then the same bytes by construc
 
 **Lighter variant: pin only the flags, not the side effects.** When the goal is proving a documented snippet's *flags* parse cleanly against the CLI's real arg parser — not exercising the command's full side effects — tokenize the live snippet and feed the resulting argv straight through the parser directly, with no subprocess and no fixture repo. `tests/bin-lib/verify/snippet-conformance.test.js` is the instance: it extracts `verification.md`'s pinned `verify.js` invocation, tokenizes the argv after the script path, and calls `parseArgs` on it. Its go-red proof exercises the extractor itself, not just the assertion — it appends a bogus flag to the *extracted* snippet and asserts the whole extract-plus-parse pipeline throws, catching a broken tokenizer as well as a broken doc.
 
+### Import the shipped parser's constants; never retype them into the test's own helper
+
+When the corpus sweep needs the same recognizer a shipped module already owns — a marker regex, a
+vocabulary, a grammar — export it and cite it. `tests/compose-markers-conformance.test.js` (#1989)
+destructures `parseMarkers`, `MarkerError`, `KEYS`, `VOCAB`, and `CANDIDATE_RE` straight off
+`plugin/bin/lib/compose-context/compose.js`, and its first test asserts the vocabulary *by shape*
+(`KEYS.length === 6`, every `VOCAB[key]` a 2+ member array) rather than by a copied literal — the
+header says "cited, not restated". Its swallowed-marker check needs the parser's own
+`CANDIDATE_RE` to count marker-shaped lines and compare that against the tokens `parseMarkers`
+actually recognized; the suite's simplify pass found it had restated that regex character-for-character
+and fixed it by exporting the constant instead. A restated recognizer is the same defect as a
+paraphrased snippet (Anti-Patterns below), one level in: both stay green while the shipped
+behaviour moves out from under them, and here the drift is silent in the *safe* direction — a
+narrower copy stops seeing offenders the real parser would reject. This is the code-side twin of the
+Decision Framework's first row: there the prose restates a structure in code and is pinned against
+it; here the *test* was doing the restating, and the fix is an import, not a pin.
+
+### An allowlist entry owes a stale-check of its own
+
+A sweep with an exemption list has a failure mode the non-empty-haystack rule above does not
+cover: the exemptions rot. The condition that justified an entry goes away — the gap gets closed,
+the citation moves, the prose is reworded — and the entry silently starts covering something new,
+or covers nothing at all while reading as a live carve-out. `tests/dispatch-prompt-bundle-citations.test.js`
+(#1995) is the shape to copy. Its `GAPS` array names two `_shared/` citations with no compose step
+behind them yet; alongside the offender sweep it ships a `gapStatus(text, gap)` returning
+`ok` | `fallback-shaped` | `missing`, one test asserting every gap is still `ok`, and — the part
+that makes it discriminate — a proof that doctors each gap **both** ways in memory and asserts the
+status flips: rewrite the citation line into a fallback clause and it must read `fallback-shaped`;
+replace the path with a composed-bundle path and it must read `missing`. Write the stale-check in
+the same change as the allowlist, and make its failure message say *shrink the list*, not *fix the
+sweep* — the entry going stale is the success case for the work the exemption was waiting on.
+
 ### Fixture repos come from the shared helper
 
 `tests/helpers/git-fixtures.js` exports `gitRepo`, `linkedWorktreeOf`, `harnessWorktreeOf`, `fixtureGit`, and `FIXTURE_TIMEOUT_MS`. Adoption is partial, not universal — many suites under `tests/` still build their throwaway repo from a local `git init` ladder of their own (`tests/bin-lib/reconcile/archive-merged.test.js`'s `makeRepo()` among them), so never assume the suite you are editing already imports the helper: read its requires first, and when you factor a fixture helper out inside such a suite, build it on `gitRepo` rather than on the local ladder you found there. Build throwaway repos from the helper rather than hand-rolling another `spawnSync('git', ['init'])` ladder, and take `FIXTURE_TIMEOUT_MS` from it too so one machine-speed knob governs the suite.
@@ -154,6 +186,8 @@ A varying failure count across runs on byte-identical code tracks machine load f
 | Running the whitespace-collapsed control scan on only the presence half of a migration suite | The absence half is the half that fails open, so the untested direction is exactly the one that silently certifies a retired clause as deleted `[IL-66]` |
 | Reusing a fixture already frozen in the file as a new pin's go-red control, because it is sitting right there | A control proves the pin can go red only when it is the pre-change text of the **same** region the pin targets — an excerpt from another file or section can never contain the new needle, so `!control.includes(needle)` was already true before the pin existed and stays true after the pinned prose is deleted, vacuous either way. `tests/untrusted-record-content-conformance.test.js` still carries two such controls against `FROZEN_NEXT_MODE_BOUNDARY`; only #1276's was corrected, to `FROZEN_PRE_1276_SCOPE` — the pin's own pre-change text |
 | Asserting a count over live prose without exercising the counting helper | A helper that finds no blocks at all reports the number the prose happens to have, so the suite certifies a cardinality it never measured |
+| Retyping a shipped module's recognizer (a regex, a vocabulary, a grammar) into the sweep's own helper | Export and import it instead. The copy drifts in the direction that hides offenders — a narrower recognizer sweeps a smaller haystack and stays green, and nothing compares the two spellings (`tests/compose-markers-conformance.test.js`, #1989) |
+| Shipping a sweep's exemption list with no check that its entries are still earned | The exemption outlives its reason: the gap closes, the citation moves, and the entry silently covers something new or nothing at all — either way the sweep reports zero offenders and the carve-out reads as live (`GAPS`/`gapStatus` in `tests/dispatch-prompt-bundle-citations.test.js`, #1995) |
 | Merging on a green branch without re-running the full suite post-merge | Byte-pinning suites are the class that goes red only at the merge combination |
 | Anchoring a snippet-extraction regex on a prose sentence | The sentence is the part of the doc most likely to be reworded, so the suite goes red on its own anchor instead of on the procedure — and the tempting fix is to loosen the regex, which quietly stops pinning the fence at all |
 | Proving a prose pin discriminates by mutating the tree (revert the fix, delete the pinned sentence) and re-running | The mutation is live working-tree state with no owner but the running agent — one killed mid-cycle leaves it sitting in the tree, reading as ordinary work in progress to whoever looks next. `git show {base}:{file}` proves the same thing with zero mutation — see "Proving discrimination without editing the tree" below. Where a real mutation is unavoidable, commit first and drive the whole cycle from one script, and `git status` after any agent death |

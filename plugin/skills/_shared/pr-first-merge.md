@@ -118,10 +118,12 @@ resolve the lever **per merged run** from that run's own directory (`--run "{tha
 never from whichever `PIPELINE_RUN_DIR` the merging session happens to hold, which is one run's
 overlay applied to another's merge.
 
+<!-- when: transport=mcp -->
 `gh` absent → the lever is unenforceable; proceed as `off` and disclose at **warn** tier per
 `_shared/pr-early-run-lifecycle.md`'s degrade table (its "gh absent at merge time" row). Under
 pr-first this is near-unreachable: no `gh` means no PR, so this procedure's own precondition
 already fails.
+<!-- /when -->
 
 `$MERGE_VERIFICATION` empty or not one of the three values (an invalid `policy.yml` value prints an
 empty `--values` line — `invalid: true`, never silently re-derived; or a resolver error) → treat it
@@ -416,7 +418,9 @@ is known, never speculatively before.
 
 ## Local-merge fallback
 
+<!-- when: integration-model=local-merge -->
 Not this file's concern — `local-merge` projects keep each citing file's own pre-#411 procedure
 in substance: the branch-switch guard, the `close-run` E1 relief, the push-from-worktree rule,
 and (for `flow/worktree-merge.md`) the scratch-worktree conflict procedure. Each citing file
 keeps a compact section stating this rather than duplicating the old prose here.
+<!-- /when -->

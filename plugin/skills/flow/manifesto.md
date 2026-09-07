@@ -6,10 +6,16 @@ The Manifesto is the **first bookend** of the pipeline (see `_shared/auto-mode-c
 
 In every mode except `interactive`, the Manifesto **computes the levers and writes `config.yml`**. What changes by mode is whether it stops for approval:
 
-- **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. The only content it ever needs is in this file — never open `manifesto-confirm.md` for an `auto` run.
+<!-- when: mode=auto -->
+- **`auto` mode (flow's default)** — **read-only FYI.** Compute the levers, render them as a `### Pipeline Config (auto)` table (value + source), print `→ proceeding (no approval needed)`, and continue. No approval stop. This is the everyday path, and the only content it ever needs is in this file — never open `manifesto-confirm.md` for an `auto` run.
+<!-- /when -->
 - **`confirm` mode** — **approval gate.** Present the full Manifesto with the `Approve all / Override / Cancel` block and wait. After approval the rest of the pipeline runs as `auto`. Use when the user wants to inspect/tweak levers first. Additionally read `manifesto-confirm.md` in this skill's directory — the `AskUserQuestion` call, the Rendering rules for the preview, and the On-override/On-cancel branches live there, split out so an `auto` run's own read of this file never has to load them (#657).
+<!-- when: mode=hybrid -->
 - **`hybrid` mode** — approval gate (same as `confirm`, including `manifesto-confirm.md`); policies set here are honored, but skills still prompt for non-floor decisions.
+<!-- /when -->
+<!-- when: mode=interactive -->
 - **`interactive` mode** — no Manifesto, and this step creates no run directory; skills present each decision in-flow (they prompt rather than read `config.yml`). The run does still acquire a run directory before it ends: `/claude-tweaks:wrap-up`'s Phase 1 creates one unconditionally, in every mode, because its Review Console runs in every mode. That one carries no `config.yml` — nothing ran a Manifesto to write one — so the in-flow prompting above is unaffected.
+<!-- /when -->
 
 ## Compute recommendations
 
@@ -65,7 +71,9 @@ When suppressed, mention it once in the Suppressed footer so the user knows it w
 
 The template below is the **`confirm` / `hybrid` (approval-gate)** rendering — it ends with the `Approve all / Override / Cancel` `AskUserQuestion` call and waits.
 
+<!-- when: mode=auto -->
 **In default `auto` mode, render the FYI variant instead:** show the same preview + policy-levers tables, but change the heading to `### Pipeline Config (auto)`, drop the approval call entirely, and close with a single line — `→ proceeding (no approval needed) · run with \`confirm\` to review/override`. Then continue to Step 4. Do not wait for input.
+<!-- /when -->
 
 **Lever values come from the pack (#1931).** When `{run-dir}/preflight.json` reports `preflight.adoption.value.case === 1` (an adopted run directory that already carried `config.yml` — `steps-and-gates.md`'s adoption section ran `flow-preflight.js`), fill the policy-levers table's Recommended column from `preflight.levers` (`value`) and the log line's source from its `source` (`run-config` | `policy` | `default`; `ceremony-profile`'s source is `header`), and lever 1 from the pack's `mode`; do not re-resolve any lever with `resolve-policy.js`. A lever entry carrying `error` renders its Recommended cell as `unresolved` and is logged, never guessed. Adoption cases 2, 3, and 5 have no `config.yml` to read yet: they compute the levers fresh from the precedence chain and write `config.yml`, exactly as this file already describes.
 
