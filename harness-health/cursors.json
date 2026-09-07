@@ -114,5 +114,9 @@
   "skill:parse-signal-discipline": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1788753871673
+  },
+  "skill:scratch-worktree": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1788784571125
   }
 }
