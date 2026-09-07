@@ -19,11 +19,14 @@ const PLUGIN = path.join(__dirname, '..', 'plugin');
 const TASK_PROMPT = path.join(PLUGIN, 'skills', 'dispatch', 'task-prompt.md');
 const BUILD_DISPATCH = path.join(PLUGIN, 'skills', 'build', 'dispatch.md');
 
-// The load-bearing facts a reader (human or dispatched agent) must come away with: never
-// background a long-running command, and never end the turn waiting on one (or a child agent's
-// completion notification) — the exact failure mode #1965 documents.
-const NEVER_BACKGROUND_RE = /never\s+(?:with\s+)?`?run_in_background`?/i;
-const NEVER_END_TURN_RE = /never end\s+(?:this|the) turn waiting on a background/i;
+// The load-bearing facts a reader (human or dispatched agent) must come away with — the exact
+// failure mode #1965 documents. Each `\s+` absorbs the templates' hard line wrapping; the
+// this/the alternation covers the direct address in task-prompt.md's templates versus
+// build/dispatch.md's instruction about the dispatches SDD composes.
+const REQUIRED = [
+  [/never with\s+`run_in_background`/i, 'never background a long-running command'],
+  [/never end\s+(?:this|the) turn waiting on a background/i, "never end the turn waiting on a background run or a child agent's notification"],
+];
 
 function fencedBlocks(text) {
   const blocks = [];
@@ -44,31 +47,17 @@ test('task-prompt.md: both fenced Task-prompt templates carry the foreground-exe
 
   const [firstCall, secondCall] = blocks;
   for (const [label, block] of [['first call (build,test)', firstCall], ['second call (review,polish,wrap-up)', secondCall]]) {
-    assert.match(
-      block,
-      NEVER_BACKGROUND_RE,
-      `${label} template must instruct the dispatched agent never to background a long-running command (#1965)`,
-    );
-    assert.match(
-      block,
-      NEVER_END_TURN_RE,
-      `${label} template must instruct the dispatched agent never to end its turn waiting on a background run or child agent (#1965)`,
-    );
+    for (const [pattern, fact] of REQUIRED) {
+      assert.match(block, pattern, `${label} template must instruct the dispatched agent to ${fact} (#1965)`);
+    }
   }
 });
 
 test('build/dispatch.md: the SDD invocation instruction directs implementer and reviewer dispatches to run in the foreground', () => {
   const text = fs.readFileSync(BUILD_DISPATCH, 'utf8');
-  assert.match(
-    text,
-    NEVER_BACKGROUND_RE,
-    'build/dispatch.md must instruct SDD to forbid backgrounding a long-running command in its per-task implementer/reviewer dispatches (#1965)',
-  );
-  assert.match(
-    text,
-    NEVER_END_TURN_RE,
-    'build/dispatch.md must instruct SDD to forbid ending the turn waiting on a background run or child agent in its per-task implementer/reviewer dispatches (#1965)',
-  );
+  for (const [pattern, fact] of REQUIRED) {
+    assert.match(text, pattern, `build/dispatch.md must instruct SDD's per-task implementer/reviewer dispatches to ${fact} (#1965)`);
+  }
   assert.match(
     text,
     /implementer dispatch and every reviewer dispatch/i,
@@ -77,15 +66,19 @@ test('build/dispatch.md: the SDD invocation instruction directs implementer and 
 });
 
 test('the foreground-instruction predicate can actually go red (discrimination proof)', () => {
-  const text = fs.readFileSync(TASK_PROMPT, 'utf8');
-  const doctored = text.replace(
-    /Foreground execution \(required\):[^\r\n]*(?:\r?\n[^\r\n]*){0,4}\r?\n\r?\n/g,
-    '',
+  const paragraphs = fs.readFileSync(TASK_PROMPT, 'utf8').split(/\r?\n\r?\n/);
+  const kept = paragraphs.filter((p) => !p.startsWith('Foreground execution (required):'));
+  assert.equal(
+    paragraphs.length - kept.length,
+    2,
+    'expected to doctor out exactly the two foreground-execution paragraphs — anchor text not found',
   );
-  assert.notEqual(doctored, text, 'doctoring did not remove any foreground-execution paragraph — anchor text not found');
-  const blocks = fencedBlocks(doctored);
+
+  const blocks = fencedBlocks(kept.join('\n\n'));
   assert.equal(blocks.length, 2);
   for (const block of blocks) {
-    assert.doesNotMatch(block, NEVER_BACKGROUND_RE, 'doctored block unexpectedly still matches — test cannot discriminate');
+    for (const [pattern] of REQUIRED) {
+      assert.doesNotMatch(block, pattern, 'doctored block unexpectedly still matches — test cannot discriminate');
+    }
   }
 });
