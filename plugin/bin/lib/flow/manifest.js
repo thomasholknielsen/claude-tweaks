@@ -197,6 +197,27 @@ function transitionSpec({ runDir, specId, status, phase, now = new Date() }) {
   return { ok: true, banner, summaryLine, position, total, manifest };
 }
 
+// specs (manifest.multispec.specs) -> string[] of one line per spec, in
+// manifest order: 'Fixes #{id}' for status:'complete', 'Refs #{id} — not
+// run/failed: {reason}' for any other status. #2015: a bundle PR's `Fixes`
+// block is composed once at run start (pr-early-run-lifecycle.md's Step 3),
+// before any spec has run, so it always lists every spec as if it would
+// complete — this is what the pre-merge refresh (that file's "Pre-merge
+// title/description refresh" section) calls to correct the block against
+// actual outcomes before the PR is marked ready, so a `not-run`/`failed`
+// spec's issue is never closed by the merge commit.
+function composeFixesBlock(specs) {
+  return (specs || []).map((spec) => {
+    if (spec.status === 'complete') return `Fixes #${spec.id}`;
+    const reason = spec.status === 'not-run'
+      ? 'not run'
+      : spec.status === 'failed'
+        ? (spec.phase ? `failed at ${spec.phase}` : 'failed')
+        : spec.status; // pending/running — defensive; the refresh runs post-gate
+    return `Refs #${spec.id} — not run/failed: ${reason}`;
+  });
+}
+
 module.exports = {
   VALID_STATUSES,
   parseManifestYaml,
@@ -205,4 +226,5 @@ module.exports = {
   writeManifest,
   formatElapsedMs,
   transitionSpec,
+  composeFixesBlock,
 };
