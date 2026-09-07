@@ -150,5 +150,9 @@
   "plugin/bin/lib/init": {
     "lastSweptMs": 1788664302170,
     "lastHash": "ecb65719c91ae46e23e0568fff30186bf11959fe"
+  },
+  "plugin/bin/lib/issues": {
+    "lastSweptMs": 1788750594482,
+    "lastHash": "aa49098f45071a29b68d5445bc8a3a6e7d6b9fd8"
   }
 }
