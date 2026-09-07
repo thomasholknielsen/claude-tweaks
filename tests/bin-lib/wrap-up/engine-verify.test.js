@@ -1194,3 +1194,154 @@ test('#1230: defaultGit\'s execFileSync call carries a timeout matching defaultG
   assert.strictEqual(gitCall[2].timeout, ghCall[2].timeout, "defaultGit's timeout must match defaultGh's");
   assert.strictEqual(gitCall[2].timeout, 5000);
 });
+
+// ---- #1477: the eleven remaining process.cwd() sites now thread the injected
+// `cwd`, not the live process.cwd() -- each test below passes a distinct
+// `repoRoot` and `cwd` fixture dir and asserts the captured deps.git/deps.gh
+// call carries `cwd`, mirroring plans-ledger/design-caches' own
+// `statusCall.cwd, repoRoot` assertion pattern (record #1222).
+
+test('worktree-removed check runs git worktree list against the injected cwd, not repoRoot', () => {
+  const runDir = makeTmpDir('verify-cwd-worktree-removed-');
+  const repoRoot = makeCleanRepoRoot();
+  const cwd = makeCleanRepoRoot();
+  const calls = [];
+  const fakeGit = (args, callCwd) => { calls.push({ args, cwd: callCwd }); return ''; };
+  try {
+    runVerify({ runDir, base: 'main', repoRoot, cwd, deps: { git: fakeGit, gh: () => '' } });
+    const call = calls.find((c) => c.args[0] === 'worktree');
+    assert.ok(call, 'expected a git worktree list call');
+    assert.strictEqual(call.cwd, cwd);
+    assert.notStrictEqual(call.cwd, repoRoot);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('carrier-commit check runs git log against the injected cwd, not repoRoot', () => {
+  const runDir = makeTmpDir('verify-cwd-carrier-log-');
+  const repoRoot = makeCleanRepoRoot();
+  const cwd = makeCleanRepoRoot();
+  writeSpecFile(runDir, '900', 900);
+  const calls = [];
+  const fakeGit = (args, callCwd) => { calls.push({ args, cwd: callCwd }); return ''; };
+  try {
+    runVerify({ runDir, base: 'main', repoRoot, cwd, deps: { git: fakeGit, gh: () => '' } });
+    const call = calls.find((c) => c.args[0] === 'log' && c.args.some((a) => a.includes('Fixes #900')));
+    assert.ok(call, 'expected a git log call for the resolved issue');
+    assert.strictEqual(call.cwd, cwd);
+    assert.notStrictEqual(call.cwd, repoRoot);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('carrier-commit check runs gh pr view (PR-body fallback) against the injected cwd, not repoRoot', () => {
+  const runDir = makeTmpDir('verify-cwd-carrier-prbody-');
+  const repoRoot = makeCleanRepoRoot();
+  const cwd = makeCleanRepoRoot();
+  writeSpecFile(runDir, '900', 900);
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ pr: { number: 1199 } }));
+  const calls = [];
+  const fakeGh = (args, callCwd) => {
+    calls.push({ args, cwd: callCwd });
+    return JSON.stringify({ body: 'Fixes #900' });
+  };
+  try {
+    runVerify({ runDir, base: 'main', repoRoot, cwd, deps: { git: () => '', gh: fakeGh } });
+    const call = calls.find((c) => c.args[0] === 'pr' && c.args[1] === 'view');
+    assert.ok(call, 'expected a gh pr view call');
+    assert.strictEqual(call.cwd, cwd);
+    assert.notStrictEqual(call.cwd, repoRoot);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('reference-repairs check runs git log and git diff-tree against the injected cwd, not repoRoot', () => {
+  const runDir = makeTmpDir('verify-cwd-refrepairs-');
+  const repoRoot = makeCleanRepoRoot();
+  const cwd = makeCleanRepoRoot();
+  fs.writeFileSync(path.join(runDir, 'engine-state.json'), JSON.stringify({
+    version: 1,
+    results: { references: { findings: [{ action: 'applied', kind: 'broken-link', summary: 'fix', targetPath: 'docs/a.md' }] } },
+  }));
+  const calls = [];
+  const fakeGit = (args, callCwd) => {
+    calls.push({ args, cwd: callCwd });
+    if (args[0] === 'log' && args.includes('--grep=Initiative-Fix:')) return 'def5678 Initiative-Fix: repair refs\n';
+    if (args[0] === 'diff-tree' && args.includes('--name-only')) return 'docs/a.md\n';
+    return '';
+  };
+  try {
+    runVerify({ runDir, base: 'main', repoRoot, cwd, deps: { git: fakeGit, gh: () => '' } });
+    const logCall = calls.find((c) => c.args[0] === 'log' && c.args.includes('--grep=Initiative-Fix:'));
+    const diffCall = calls.find((c) => c.args[0] === 'diff-tree');
+    assert.ok(logCall, 'expected a git log call');
+    assert.ok(diffCall, 'expected a git diff-tree call');
+    assert.strictEqual(logCall.cwd, cwd);
+    assert.strictEqual(diffCall.cwd, cwd);
+    assert.notStrictEqual(logCall.cwd, repoRoot);
+    assert.notStrictEqual(diffCall.cwd, repoRoot);
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('acceptance-labeling check runs its gh probe, issue view, and comments calls (via ghAvailable and resolveParent) against the injected cwd, not repoRoot', () => {
+  const runDir = makeTmpDir('verify-cwd-acceptance-');
+  const repoRoot = makeCleanRepoRoot();
+  const cwd = makeCleanRepoRoot();
+  writeSpecFile(runDir, '900', 900);
+  const calls = [];
+  const fakeGh = (args, callCwd) => {
+    calls.push({ args, cwd: callCwd });
+    if (args[0] === '--version') return 'gh version 2.0.0';
+    if (args.includes('parent')) return JSON.stringify({ parent: null });
+    if (args.includes('labels')) return JSON.stringify({ labels: [{ name: 'demo:pending' }] });
+    if (args.includes('comments')) return JSON.stringify({ comments: [{ body: '## Verification Brief\n### Confirmed' }] });
+    return '{}';
+  };
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd, deps: { git: () => '', gh: fakeGh } });
+    const row = result.rows.find((r) => r.check === 'acceptance-labeling');
+    assert.strictEqual(row.result, 'pass', row.detail);
+    assert.ok(calls.length > 0, 'expected at least one gh call');
+    for (const call of calls) {
+      assert.strictEqual(call.cwd, cwd, `gh ${call.args.join(' ')} must run against the injected cwd`);
+      assert.notStrictEqual(call.cwd, repoRoot);
+    }
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('upstream-feedback check runs its gh probe and issue view (via ghAvailable) against the injected cwd, not repoRoot', () => {
+  const runDir = makeTmpDir('verify-cwd-upstream-');
+  const repoRoot = makeCleanRepoRoot();
+  const cwd = makeCleanRepoRoot();
+  writeExpectations(runDir, { version: 1, memory: [], upstream: [{ url: 'https://github.com/org/repo/issues/42' }] });
+  const calls = [];
+  const fakeGh = (args, callCwd) => {
+    calls.push({ args, cwd: callCwd });
+    return args[0] === '--version' ? 'gh version 2.0.0' : JSON.stringify({ number: 42 });
+  };
+  try {
+    const result = runVerify({ runDir, base: 'main', repoRoot, cwd, deps: { git: () => '', gh: fakeGh } });
+    const row = result.rows.find((r) => r.check === 'upstream-feedback');
+    assert.strictEqual(row.result, 'pass');
+    assert.ok(calls.length >= 2, 'expected the gh probe and the issue view call');
+    for (const call of calls) {
+      assert.strictEqual(call.cwd, cwd, `gh ${call.args.join(' ')} must run against the injected cwd`);
+      assert.notStrictEqual(call.cwd, repoRoot);
+    }
+  } finally {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
