@@ -1,6 +1,6 @@
 {
-  "computedAt": "2026-09-08T12:20:27.811Z",
-  "runId": "2026-09-08T121702-dispatch-standalone",
+  "computedAt": "2026-09-08T14:21:36.657Z",
+  "runId": "2026-09-08T141624-dispatch-standalone",
   "freshnessSignal": {
     "issues": [
       {
@@ -35,12 +35,7 @@
       },
       {
         "number": 2009,
-        "updatedAt": "2026-09-08T05:21:45Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2006,
-        "updatedAt": "2026-09-07T11:57:53Z",
+        "updatedAt": "2026-09-08T13:42:15Z",
         "state": "OPEN"
       },
       {
@@ -165,7 +160,7 @@
       },
       {
         "number": 1301,
-        "updatedAt": "2026-09-08T08:57:41Z",
+        "updatedAt": "2026-09-08T12:36:44Z",
         "state": "OPEN"
       },
       {
@@ -177,6 +172,11 @@
         "number": 605,
         "updatedAt": "2026-09-05T08:29:29Z",
         "state": "OPEN"
+      },
+      {
+        "number": 2006,
+        "updatedAt": "2026-09-08T13:38:25Z",
+        "state": "CLOSED"
       },
       {
         "number": 2020,
@@ -403,129 +403,6 @@
     ],
     [
       {
-        "number": 2009,
-        "title": "Split dispatch/SKILL.md's Reporting and Configuration sections into sub-files — the file sits within 15 bytes of the 40,960 ceiling",
-        "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect full (batch pass) from the multi-spec run 2026-09-05T193518 (#1928, #1929)\nDefer-reason: tangential\n\n## Current State\n\n`plugin/skills/dispatch/SKILL.md` is 40,945 bytes against the 40,960-byte skill-file ceiling. Two specs in this run had to add one line each to its Reporting section (#1928's per-group timing line, #1929's token clause) and each turned into a trim negotiation: #1928's plan named a trim that fell 103 bytes short and the implementer shortened its own new prose; #1929 had to move flags inside a literal and cut a sentence to land at 40,945. `flow/multi-spec.md` had the same shape against its own 20,480-byte read-budget pin until #1928 split its Run directory layout tail into `multispec-run-dir-layout.md` (ledger item 19 → resolved by that split). Evidence: `wc -c` at #1928 Task 7 (40,948 → 40,875) and #1929 Task 4 (40,875 → 40,955 → 40,945). Cost this session: two extra review rounds and one NEEDS-CONTEXT-class shortfall across two specs.\n\n## Deliverables\n\n- Move `dispatch/SKILL.md`'s `## Reporting` (and, if still needed for headroom, `## Configuration` / `## Routine Configuration`) into `dispatch/reporting.md` (and `dispatch/configuration.md`), leaving a one-paragraph pointer in SKILL.md, the same shape `flow/multispec-run-dir-layout.md` took.\n- Keep every pinned literal (`timing: call-1 …`, the `--transcript` command, the `pending-review` paragraph) in whichever file the pins now point at; update `tests/timing-prose-conformance.test.js` and any other pin to the new path.\n- Add the new sub-file(s) to `docs/plugin-structure.md`'s dispatch row.\n\n## Acceptance Criteria\n\n1. `wc -c plugin/skills/dispatch/SKILL.md` ≤ 36,864 (≥ 10% headroom under the ceiling).\n2. Every test that pinned Reporting text passes against the new location; `npm test` shows no new failures.\n3. `docs/plugin-structure.md`'s dispatch sub-file row lists the new file(s) and `tests/flow-subfile-table-completeness.test.js`-style completeness holds for dispatch if such a pin exists.\n\n_Filed by `reflect` via specShapedBody._\n\n\n_Created by the consolidated Review Console of multi-spec run 2026-09-05T193518 (auto-resolved under the unattended ceiling; proposal: `staged/reflect-1.md`)._\n\nhttps://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB",
-        "labels": [
-          "ready",
-          "risk:low",
-          "size:low",
-          "type:task",
-          "auto:build",
-          "auto:merge",
-          "priority:low"
-        ],
-        "createdAt": "2026-09-06T21:24:48Z",
-        "updatedAt": "2026-09-08T05:21:45Z",
-        "state": "OPEN",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "number": 2006,
-        "title": "wrap-up/SKILL.md sits within 100 bytes of the 40 KB ceiling — move a section into a sub-file",
-        "body": "Title: wrap-up/SKILL.md sits within 100 bytes of the 40 KB ceiling — move a section into a sub-file\nType: task\nLabels: risk:low, size:low, ready\nDefer-reason: genuinely-larger\n\n## Current State\n`plugin/skills/wrap-up/SKILL.md` is 40,866 bytes after #1926 (ceiling 40,960, pinned by tests). #1925 and #1926 each spent the remaining margin on one-sentence edits; the next record that must touch the file cannot add a sentence without first moving bytes out (`[IL-140]`).\n\n## Deliverables\n- [ ] Move one self-contained section (candidates: \"Resuming a halted Review Console\", or the Flags subsection) into a sub-file under `plugin/skills/wrap-up/`, leaving a one-line pointer.\n- [ ] Keep every literal the existing tests pin (`tests/wrap-up-flaky-escalation-row.test.js`, `tests/deferral-gate-conformance.test.js`, `tests/wrap-up-registry-pin.test.js`, `tests/ceremony-profile-roster.test.js`).\n\n## Acceptance Criteria\n1. `wc -c plugin/skills/wrap-up/SKILL.md` ≤ 38,000.\n2. `npm test` passes with no new failures relative to `main`.\n\n_Filed by `build` (whole-branch review of #1926) via a staged proposal._\n\n\n_Created by the consolidated Review Console of multi-spec run 2026-09-05T193518 (auto-resolved under the unattended ceiling; proposal: `spec-1926/staged/backlog-wrap-up-skill-headroom.md`)._\n\nhttps://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB",
-        "labels": [
-          "ready",
-          "risk:low",
-          "size:low",
-          "type:task",
-          "auto:build",
-          "auto:merge",
-          "priority:low"
-        ],
-        "createdAt": "2026-09-06T21:24:36Z",
-        "updatedAt": "2026-09-07T11:57:53Z",
-        "state": "OPEN",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "number": 1890,
-        "title": "Live-verify create_webhook_trigger request/response shape (#1302 follow-up, 4th recurrence)",
-        "body": "Origin: ledger resolve gate\n\nDefer-reason: blocked-dependency\n\n## Current State\n\nRecord #1302 built the WEBHOOK-TRIGGER mode (`plugin/skills/routine/webhook-trigger.md`), the `webhook_triggers` schema field, the filter grammar, and both preconditions -- all documented from `create_webhook_trigger`'s own tool description, since `RemoteTrigger` was confirmed unavailable via `ToolSearch select:RemoteTrigger` in that build session. This is the 4th consecutive session (2026-08-23 x2, 2026-08-26, 2026-09-05) to confirm the same unavailability. AC2 (\"verified against a real (or explicitly documented dry-run) call\") remains unmet: the request/response shape has never actually been confirmed against a live `create_webhook_trigger` call.\n\nA prior follow-up for this same gap, #1485, was filed and closed on 2026-08-31 -- but the closing commit (`e0d4aded`, \"[fast-lane] Dispatch-queue, worktree-guard, reconcile, and process-hygiene fixes (19 records)\") bundled 19 unrelated record numbers via `Fixes #N` and contains no work touching `webhook-trigger.md`, `RemoteTrigger`, or live-call verification. #1485 appears to have been swept into an unrelated batch closure rather than substantively resolved -- its own acceptance criterion (a live or explicit-dry-run `create_webhook_trigger` call) was never actually satisfied. This record exists so the gap is not lost a second time to the same failure mode; whoever picks this up should close it only against real evidence of a live (or explicit dry-run) call, not a batch commit that doesn't mention the file.\n\n## Deliverables\n\n- Re-run `ToolSearch select:RemoteTrigger` in a session where the tool may be reachable -- 4 consecutive interactive-session misses is a strong signal worth testing in a different session type (cloud/routine) if one becomes available.\n- Once reachable, call `create_webhook_trigger` against a real (or an explicit, logged dry-run) routine and record its actual required fields, response shape, and any App-not-installed error text.\n- Diff the actual response against what `plugin/skills/routine/webhook-trigger.md` currently documents (Step 5's assembled body, the `routine_trigger_id` field, the App-not-installed error detection) and correct any mismatch.\n- Before closing, verify the closing commit/PR actually touches `webhook-trigger.md` or names the live-verification evidence directly -- do not let this close via an unrelated batch sweep the way #1485 did.\n\n## Acceptance Criteria\n\n- A live (or explicit dry-run) `create_webhook_trigger` call has been made and its actual request/response shape is confirmed to match (or has been corrected to match) `plugin/skills/routine/webhook-trigger.md`.\n- The closing commit or PR description names this evidence directly (a transcript excerpt, a diff to `webhook-trigger.md`, or an explicit \"confirmed matching, no changes needed\" note) rather than a bare `Fixes #N` in an unrelated batch.\n\n## Technical Approach\n\nStart with `ToolSearch select:RemoteTrigger` in whichever session type is available at build time. If reachable, make one real or explicit-dry-run `create_webhook_trigger` call and capture its actual request/response shape verbatim before touching the docs. Then diff that captured shape against `webhook-trigger.md`'s current documentation section by section (assembled body, `routine_trigger_id`, App-not-installed error detection) and correct only what actually differs.\n\n### Key Files\n\n- `plugin/skills/routine/webhook-trigger.md` -- the documented request/response shape to verify and correct\n\n## Gotchas\n\n- If `RemoteTrigger`/`create_webhook_trigger` is still unreachable in whatever session builds this record, do not fabricate a \"verified\" result and do not close this record -- report the continued unavailability plainly (a 5th consecutive miss is itself a useful data point) and leave it open.\n- Do not let this close via a bulk/batch commit that references this issue number without actually touching the files above -- that is exactly how #1485 was lost.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
-        "labels": [
-          "ready",
-          "size:low",
-          "type:task",
-          "auto:build",
-          "priority:low",
-          "risk:medium",
-          "ceremony:fast-lane"
-        ],
-        "createdAt": "2026-09-05T09:42:23Z",
-        "updatedAt": "2026-09-08T09:48:02Z",
-        "state": "OPEN",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
         "number": 1878,
         "title": "Doc staleness: plans/2026-08-28-record-1058-ledger — Freshness",
         "body": "**Doc:** plans/2026-08-28-record-1058-ledger | **Section:** Freshness | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: cea40569f1cee57588ef9402d748a38ce9322308\n\n## Current State\n\nThe row states 'pr — PR #1602 open, head worktree-dispatch-record-1058 (this work)'. Live check: GitHub reports PR #1602 as state=closed, merged=true, merged_at=2026-09-04T09:40:13Z; `git ls-remote --heads origin worktree-dispatch-record-1058` returns no match (branch deleted post-merge). The ledger's factual claim is contradicted by current repository/GitHub state.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | wrap-up | pr — PR #1602 open, head worktree-dispatch-record-1058 (this work), flagged by residue-sweep's blast-radius scan | accepted | This run's own open PR, staged for Phase 4's own merge decision (same run) — not stray residue. |\n```\n\n**Proposed:**\n```\n| 1 | wrap-up | pr — PR #1602 (merged 2026-09-04), head worktree-dispatch-record-1058 (branch deleted post-merge), flagged by residue-sweep's blast-radius scan | accepted | This run's own PR, merged per Phase 4's own merge decision (same run) — not stray residue. |\n```\n\n## Acceptance Criteria\n\nUpdate the ledger's Open Items row to reflect that PR #1602 has since merged (2026-09-04) and its head branch worktree-dispatch-record-1058 has been deleted, rather than stating it is still open.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-d3a21639 -->",
@@ -623,7 +500,7 @@
           "shaped:headless"
         ],
         "createdAt": "2026-08-23T14:22:15Z",
-        "updatedAt": "2026-09-08T08:57:41Z",
+        "updatedAt": "2026-09-08T12:36:44Z",
         "state": "OPEN",
         "facets": {
           "origin": null,
@@ -646,6 +523,45 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": true
+        }
+      },
+      {
+        "number": 1890,
+        "title": "Live-verify create_webhook_trigger request/response shape (#1302 follow-up, 4th recurrence)",
+        "body": "Origin: ledger resolve gate\n\nDefer-reason: blocked-dependency\n\n## Current State\n\nRecord #1302 built the WEBHOOK-TRIGGER mode (`plugin/skills/routine/webhook-trigger.md`), the `webhook_triggers` schema field, the filter grammar, and both preconditions -- all documented from `create_webhook_trigger`'s own tool description, since `RemoteTrigger` was confirmed unavailable via `ToolSearch select:RemoteTrigger` in that build session. This is the 4th consecutive session (2026-08-23 x2, 2026-08-26, 2026-09-05) to confirm the same unavailability. AC2 (\"verified against a real (or explicitly documented dry-run) call\") remains unmet: the request/response shape has never actually been confirmed against a live `create_webhook_trigger` call.\n\nA prior follow-up for this same gap, #1485, was filed and closed on 2026-08-31 -- but the closing commit (`e0d4aded`, \"[fast-lane] Dispatch-queue, worktree-guard, reconcile, and process-hygiene fixes (19 records)\") bundled 19 unrelated record numbers via `Fixes #N` and contains no work touching `webhook-trigger.md`, `RemoteTrigger`, or live-call verification. #1485 appears to have been swept into an unrelated batch closure rather than substantively resolved -- its own acceptance criterion (a live or explicit-dry-run `create_webhook_trigger` call) was never actually satisfied. This record exists so the gap is not lost a second time to the same failure mode; whoever picks this up should close it only against real evidence of a live (or explicit dry-run) call, not a batch commit that doesn't mention the file.\n\n## Deliverables\n\n- Re-run `ToolSearch select:RemoteTrigger` in a session where the tool may be reachable -- 4 consecutive interactive-session misses is a strong signal worth testing in a different session type (cloud/routine) if one becomes available.\n- Once reachable, call `create_webhook_trigger` against a real (or an explicit, logged dry-run) routine and record its actual required fields, response shape, and any App-not-installed error text.\n- Diff the actual response against what `plugin/skills/routine/webhook-trigger.md` currently documents (Step 5's assembled body, the `routine_trigger_id` field, the App-not-installed error detection) and correct any mismatch.\n- Before closing, verify the closing commit/PR actually touches `webhook-trigger.md` or names the live-verification evidence directly -- do not let this close via an unrelated batch sweep the way #1485 did.\n\n## Acceptance Criteria\n\n- A live (or explicit dry-run) `create_webhook_trigger` call has been made and its actual request/response shape is confirmed to match (or has been corrected to match) `plugin/skills/routine/webhook-trigger.md`.\n- The closing commit or PR description names this evidence directly (a transcript excerpt, a diff to `webhook-trigger.md`, or an explicit \"confirmed matching, no changes needed\" note) rather than a bare `Fixes #N` in an unrelated batch.\n\n## Technical Approach\n\nStart with `ToolSearch select:RemoteTrigger` in whichever session type is available at build time. If reachable, make one real or explicit-dry-run `create_webhook_trigger` call and capture its actual request/response shape verbatim before touching the docs. Then diff that captured shape against `webhook-trigger.md`'s current documentation section by section (assembled body, `routine_trigger_id`, App-not-installed error detection) and correct only what actually differs.\n\n### Key Files\n\n- `plugin/skills/routine/webhook-trigger.md` -- the documented request/response shape to verify and correct\n\n## Gotchas\n\n- If `RemoteTrigger`/`create_webhook_trigger` is still unreachable in whatever session builds this record, do not fabricate a \"verified\" result and do not close this record -- report the continued unavailability plainly (a 5th consecutive miss is itself a useful data point) and leave it open.\n- Do not let this close via a bulk/batch commit that references this issue number without actually touching the files above -- that is exactly how #1485 was lost.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
+        "labels": [
+          "ready",
+          "size:low",
+          "type:task",
+          "auto:build",
+          "priority:low",
+          "risk:medium",
+          "ceremony:fast-lane"
+        ],
+        "createdAt": "2026-09-05T09:42:23Z",
+        "updatedAt": "2026-09-08T09:48:02Z",
+        "state": "OPEN",
+        "facets": {
+          "origin": null,
+          "risk": "medium",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
         }
       }
     ]
