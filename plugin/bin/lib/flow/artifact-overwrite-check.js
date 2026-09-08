@@ -220,7 +220,7 @@ function checkArtifactOverwrite(opts) {
   const paths = (rawPaths && rawPaths.length > 0) ? rawPaths : ['docs/journeys/', 'stories/'];
 
   const nameStatusOut = git(
-    ['log', '--reverse', '--diff-filter=AM', '--name-status', '--format=%H', `${base}..${head}`, '--', ...paths],
+    ['log', '--reverse', '--diff-filter=AM', '--name-status', '--format=%H', '--end-of-options', `${base}..${head}`, '--', ...paths],
     cwd,
   );
   const commits = parseNameStatusLog(nameStatusOut);

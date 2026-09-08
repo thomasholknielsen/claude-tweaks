@@ -203,6 +203,20 @@ test('a path with no add-then-modify shape in range is ignored (modify-only, no 
   assert.strictEqual(result.clean, true);
 });
 
+test('the top-level walk guards the interpolated {base}..{head} range with --end-of-options', () => {
+  const calls = [];
+  const fakeGit = (args) => {
+    calls.push(args);
+    return ''; // empty name-status log — clean, no A/M events
+  };
+  const result = checkArtifactOverwrite({ base: 'main', head: 'HEAD', git: fakeGit, cwd: '/fake' });
+  assert.strictEqual(result.clean, true);
+  assert.strictEqual(calls.length, 1);
+  const rangeIdx = calls[0].indexOf('main..HEAD');
+  assert.ok(rangeIdx > 0, 'range token should be present');
+  assert.strictEqual(calls[0][rangeIdx - 1], '--end-of-options', 'the range token must be immediately preceded by --end-of-options');
+});
+
 test('a git-command failure (e.g. an unresolvable --base) throws ArtifactOverwriteCheckError, not a raw Error', () => {
   const fx = repo();
   assert.throws(
