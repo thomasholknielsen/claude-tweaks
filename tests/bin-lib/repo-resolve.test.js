@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { parseRepo } = require('../../plugin/bin/lib/repo-resolve');
+const { parseRepo, ghAvailable } = require('../../plugin/bin/lib/repo-resolve');
 
 test('parseRepo: SSH remote URL', () => {
   assert.deepEqual(parseRepo('git@github.com:o/r.git'), { owner: 'o', repo: 'r' });
@@ -24,4 +24,39 @@ test('parseRepo: non-GitHub or malformed URL -> null', () => {
   assert.equal(parseRepo(''), null);
   assert.equal(parseRepo(null), null);
   assert.equal(parseRepo(undefined), null);
+});
+
+test('ghAvailable: injected runner succeeds -> true', () => {
+  const calls = [];
+  const result = ghAvailable({
+    execFileSync: (cmd, args, opts) => { calls.push([cmd, args, opts]); return 'gh version 2.0.0\n'; },
+  });
+  assert.equal(result, true);
+  assert.deepEqual(calls.length, 1);
+  assert.deepEqual(calls[0][0], 'gh');
+  assert.deepEqual(calls[0][1], ['--version']);
+  assert.equal(typeof calls[0][2].timeout, 'number');
+  assert.ok(calls[0][2].timeout > 0);
+});
+
+test('ghAvailable: injected runner throws ENOENT (gh absent) -> false', () => {
+  const result = ghAvailable({
+    execFileSync: () => { const e = new Error('spawnSync gh ENOENT'); e.code = 'ENOENT'; throw e; },
+  });
+  assert.equal(result, false);
+});
+
+test('ghAvailable: injected runner throws a generic error (non-zero exit) -> false', () => {
+  const result = ghAvailable({
+    execFileSync: () => { throw new Error('gh: some other failure'); },
+  });
+  assert.equal(result, false);
+});
+
+test('ghAvailable: no deps passed -> defaults to the real execFileSync (does not throw at call time)', () => {
+  // Not asserting the boolean result (depends on whether `gh` is on this
+  // machine's PATH) -- only that the zero-arg call shape used by every
+  // pre-existing direct importer (fetch-sub-issues.js, backlog-grant-gate.js,
+  // etc.) still resolves without throwing.
+  assert.doesNotThrow(() => ghAvailable());
 });
