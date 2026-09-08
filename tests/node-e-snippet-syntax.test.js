@@ -45,16 +45,19 @@ function unescapeDoubleQuoted(s) {
 // parser's constants" convention.
 const DOUBLE_QUOTED_NODE_E_RE = /node -e "((?:\\.|[^"\\])*)"/g;
 
+// Shared by the same two functions, for the same reason. `\r?\n` after the fence opener (not
+// a bare `\n`): a checkout with core.autocrlf=true and no .gitattributes (this repo's own
+// Windows dev checkouts) normalizes markdown to CRLF, and a literal `\n` here would silently
+// match zero fences on such a checkout -- the same class of bug this release already hardened
+// elsewhere (extract.js's TAP-frame regex, #2033).
+const BASH_FENCE_RE = /```bash\r?\n([\s\S]*?)```/g;
+
 // Extract every `node -e "..."` / `node -e '...'` invocation from within ```bash fences.
 // Handles both quote styles and both single-line and multi-line forms with one regex
 // per style (character classes match newlines by default, so no /s flag is needed).
-// `\r?\n` after the fence opener (not a bare `\n`): a checkout with core.autocrlf=true and no
-// .gitattributes (this repo's own Windows dev checkouts) normalizes markdown to CRLF, and a
-// literal `\n` here would silently match zero fences on such a checkout -- the same class of
-// bug this release already hardened elsewhere (extract.js's TAP-frame regex, #2033).
 function extractNodeEScripts(markdown) {
   const scripts = [];
-  const fenceRe = /```bash\r?\n([\s\S]*?)```/g;
+  const fenceRe = new RegExp(BASH_FENCE_RE.source, 'g');
   let fence;
   while ((fence = fenceRe.exec(markdown)) !== null) {
     const block = fence[1];
@@ -72,7 +75,7 @@ function extractNodeEScripts(markdown) {
 // zero substitution inside '...'), so it needs no check here.
 function extractRawDoubleQuotedNodeEBodies(markdown) {
   const bodies = [];
-  const fenceRe = /```bash\r?\n([\s\S]*?)```/g;
+  const fenceRe = new RegExp(BASH_FENCE_RE.source, 'g');
   let fence;
   while ((fence = fenceRe.exec(markdown)) !== null) {
     const block = fence[1];
