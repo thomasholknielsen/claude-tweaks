@@ -203,3 +203,58 @@ test('#1402: readEvents drops a primary fallback-attributed event but keeps a re
   const adhoc = readEvents(dir, 'adhoc');
   assert.equal(adhoc.length, 2, 'the adhoc source is unaffected — already worktree-validated by findRunsByWorktreePath');
 });
+
+// --- friction-lens vocabulary filter (#2016) --------------------------------
+//
+// readEvents itself stays general-purpose (the #1337/#1402 filters above are
+// about event fidelity, not vocabulary) — the friction-lens vocabulary filter
+// is applied once, in run(), against the merged primary+adhoc event list, so
+// every other event type a run logs (`commit`, `push`, `pre-compact`,
+// `session-end`, `skill_invoked`, …) never reaches stdout.
+
+test('#2016: run() filters the merged event stream to only the five Friction Lens vocabulary types', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { readEvents: realReadEvents } = require('../plugin/bin/friction-events');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-fe-vocab-'));
+  fs.writeFileSync(
+    path.join(dir, 'events.jsonl'),
+    [
+      '{"type":"commit","ts":"t1"}',
+      '{"type":"pre-compact","ts":"t2"}',
+      '{"type":"session-end","ts":"t3"}',
+      '{"type":"skill_invoked","ts":"t4"}',
+      '{"type":"push","ts":"t5"}',
+      '{"type":"wd-deny","ts":"t6"}',
+      '{"type":"gate-denial","ts":"t7"}',
+      '{"type":"bookkeeping-stamp-deny","ts":"t8"}',
+      '{"type":"contract-violation","ts":"t9"}',
+      '{"type":"ask-user-question","ts":"t10"}',
+    ].join('\n') + '\n',
+  );
+  const deps = fakeDeps({ readEvents: (runDir, source) => (runDir === dir ? realReadEvents(runDir, source) : []) });
+  const code = run(['--run', dir], deps);
+  assert.equal(code, 0);
+  const out = JSON.parse(deps.calls.stdout[0]);
+  assert.deepEqual(
+    out.map((e) => e.type).sort(),
+    ['ask-user-question', 'bookkeeping-stamp-deny', 'contract-violation', 'gate-denial', 'wd-deny'],
+  );
+});
+
+test('#2016: a run dir whose events.jsonl holds only commit rows prints []', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { readEvents: realReadEvents } = require('../plugin/bin/friction-events');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-fe-vocab-commits-'));
+  fs.writeFileSync(
+    path.join(dir, 'events.jsonl'),
+    ['{"type":"commit","ts":"t1"}', '{"type":"commit","ts":"t2"}'].join('\n') + '\n',
+  );
+  const deps = fakeDeps({ readEvents: (runDir, source) => (runDir === dir ? realReadEvents(runDir, source) : []) });
+  const code = run(['--run', dir], deps);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), []);
+});
