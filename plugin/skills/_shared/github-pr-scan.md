@@ -109,7 +109,7 @@ Full sweep of open PRs, `by:code-health`-labelled issues, `by:harness-health`-la
        const ageHours = (now - Date.parse(pr.updatedAt)) / 3600000;
        if (ageHours < AGE_HOURS) return false;
        const checks = pr.statusCheckRollup || [];
-       // A job whose own `if:` condition is false (e.g. a default-branch-only
+       // A job whose own if: condition is false (e.g. a default-branch-only
        // cleanup job) reports SKIPPED on every feature-branch PR, permanently --
        // treating that as non-green made this filter unsatisfiable for any PR
        // carrying such a job. NEUTRAL is the same shape from another CI provider.
