@@ -60,3 +60,25 @@ test('ghAvailable: no deps passed -> defaults to the real execFileSync (does not
   // etc.) still resolves without throwing.
   assert.doesNotThrow(() => ghAvailable());
 });
+
+const fs = require('fs');
+const pathModule = require('path');
+
+test("'--version' appears in plugin/bin only inside repo-resolve.js's ghAvailable()", () => {
+  const binDir = pathModule.join(__dirname, '..', '..', 'plugin', 'bin');
+  const hits = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = pathModule.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith('.js')) {
+        const content = fs.readFileSync(p, 'utf8');
+        content.split('\n').forEach((line, i) => {
+          if (line.includes("'--version'")) hits.push(`${pathModule.relative(binDir, p)}:${i + 1}`);
+        });
+      }
+    }
+  };
+  walk(binDir);
+  assert.deepEqual(hits, [`lib${pathModule.sep}repo-resolve.js:31`]);
+});
