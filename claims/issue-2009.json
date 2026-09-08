@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-08T134014-record-2009",
-  "sessionId": "0035382e-24ae-4a83-bb5b-d826f3d63c72",
-  "claimedAt": "2026-09-08T13:42:08.971Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "issue-closed: reconciled from #2009",
+  "releasedAt": "2026-09-08T14:26:42.513Z"
 }
