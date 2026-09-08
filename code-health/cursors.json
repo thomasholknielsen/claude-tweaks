@@ -162,5 +162,9 @@
   "plugin/bin/lib/compose-context": {
     "lastSweptMs": 1788836999026,
     "lastHash": "5fd1fadea95bc64f174d74a3637fd2a5d3695837"
+  },
+  "plugin/bin/lib/console": {
+    "lastSweptMs": 1788837146935,
+    "lastHash": "1e8d5d59306dbc1604d75057753e1861161c2f76"
   }
 }
