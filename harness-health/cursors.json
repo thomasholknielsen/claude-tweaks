@@ -118,5 +118,9 @@
   "skill:scratch-worktree": {
     "lastAuditedSha": null,
     "lastAuditedMs": 1788784571125
+  },
+  "skill:compose-context-fencing": {
+    "lastAuditedSha": null,
+    "lastAuditedMs": 1788844517179
   }
 }
