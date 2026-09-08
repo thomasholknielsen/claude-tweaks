@@ -81,11 +81,28 @@ An unhandled error in a step halts the sequence before the next step — sweep n
 
 ## Next Actions
 
+When Step 1's tidy pass staged anything this run (a non-zero `staged` count in the counts it
+reported back), `/claude-tweaks:tidy --approve` leads the block, bolded and recommended —
+clearing an already-vetted, zero-judgment batch is cheaper than either heavier pick below it,
+so it takes the top slot ahead of both `/claude-tweaks:dispatch` and the needs-you launcher
+that would otherwise fill it. The dispatch/needs-you line still renders, one slot down,
+unbolded. When nothing was staged this run, the original order applies unchanged, needs-you
+precedence rule included.
+
+**Tidy staged something this run:**
+**`/claude-tweaks:tidy --approve`** — apply this run's staged tidy items (recommended)
+`/claude-tweaks:dispatch` — drain the authorized queue this sweep just prepared
+`/claude-tweaks:backlog attention` — re-check after acting
+
+**Nothing staged this run (unchanged):**
 **`/claude-tweaks:dispatch`** — drain the authorized queue this sweep just prepared (recommended)
 `/claude-tweaks:tidy --approve` — apply this run's staged tidy items, if any
 `/claude-tweaks:backlog attention` — re-check after acting
 
-Precedence: when attention's render above names a "needs you" item (its Pick up next line or a `needs:*` row), that item's launcher leads this block instead of `/claude-tweaks:dispatch`, bolded, with `(recommended)` — mirroring `backlog/SKILL.md`'s own needs-you-first precedence.
+Precedence (nothing-staged case only — the staged case's top slot is always `tidy --approve`):
+when attention's render above names a "needs you" item (its Pick up next line or a `needs:*`
+row), that item's launcher leads this block instead of `/claude-tweaks:dispatch`, bolded, with
+`(recommended)` — mirroring `backlog/SKILL.md`'s own needs-you-first precedence.
 
 ## Component-Skill Contract
 

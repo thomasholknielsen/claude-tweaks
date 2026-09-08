@@ -622,6 +622,46 @@ function checkPipelineShadowGuard(ctx) {
   return {};
 }
 
+// git-stash worktree-hazard warn gate (#1967): the stash stack is
+// repository-wide, shared by every linked worktree of the same main
+// checkout — `git stash` / `git stash pop` run from inside a linked
+// worktree can push onto, or pop, an entry a SIBLING worktree's session
+// created and still expects to find. The #1864 review call proved this by
+// popping a sibling worktree's WIP stash while comparing test discrimination
+// against a baseline. This is a WARN, never a deny: unlike E1/
+// worktree-required, there is no provable "whose stash entry is this" signal
+// to gate on — only a heads-up pointing at a non-mutating alternative.
+// Scoped to the bare/`pop` shapes only — `stash list`/`show`/`drop`/`apply`/
+// etc. don't reach for the shared stack the same destructive way and are left
+// alone, mirroring git-command.js's own PLUMBING_WRITE_SUBCOMMANDS comment on
+// why `stash` was deliberately excluded from its one-level subcommand check:
+// a second token has to be resolved to tell the mutating shape from a
+// read-only one. Needs no pipeline run state — this fires regardless of
+// whether a run is active, same as the worktree-required gate below.
+function checkGitStashWarn(ctx, command, warnings) {
+  // Caller only ever passes a non-empty string here when ctx.input.tool_name
+  // is already 'Bash' (runInner's own `command` derivation) — re-checked
+  // defensively rather than trusted, since a future caller could pass this
+  // command through from a different tool_name branch.
+  if (typeof command !== 'string' || !command) return;
+  forEachCommandSegment(command, ctx.cwd, (t, effCwd) => {
+    const resolved = resolveGitCommand(t, effCwd);
+    if (!resolved || t[resolved.index] !== 'stash') return;
+    const next = t[resolved.index + 1];
+    if (next !== undefined && next !== 'pop') return; // only bare `stash` or `stash pop`
+    if (!resolved.dir) return;
+    const { isLinkedWorktree, indeterminate } = wtDetect.repoInfo(resolved.dir);
+    if (indeterminate || !isLinkedWorktree) return;
+    warnings.push(
+      'claude-tweaks: git stash is repository-wide, shared by every linked worktree of this '
+      + "checkout — running it here can push onto or pop a SIBLING worktree's stash entry. "
+      + 'Compare against a baseline without mutating the tree instead: `git show <rev>:<path>`, '
+      + 'or set your own work aside with a temporary WIP commit (`git commit -m wip`, then apply '
+      + 'it elsewhere by SHA — `git show <sha>` / `git cherry-pick <sha>`) rather than stash.',
+    );
+  });
+}
+
 // worktree-required policy gate: unlike E1 below, this needs no pipeline run
 // state at all — it fires on the first Edit/Write/NotebookEdit/commit of a
 // session, before any skill has ever run, whenever the target repo has opted
@@ -979,16 +1019,41 @@ function hasLoggedPrDegrade(runDir) {
 // Step 2 itself — the one action a PR stamp cannot exist without. Without
 // this, the PR-stamp deny fires on that very push (worktree stamp already
 // landed, pr not yet recorded), making Step 6 structurally impossible: no run
-// could ever produce the PR this gate demands. `@{u}` fails with a git-error
-// exit when no upstream is configured — the definitive "not pushed yet"
-// signal. Ambiguous outcomes (timeout, no git, spawn failure) resolve to
-// false — NOT exempt, the opposite of this file's usual "ambiguity resolves
-// to allow" posture — because here ambiguity would silently widen a narrow,
-// one-shot exemption into an unbounded one instead of merely allowing a
-// single already-in-flight write through.
+// could ever produce the PR this gate demands. Ambiguous outcomes (timeout, no
+// git, spawn failure) resolve to false — NOT exempt, the opposite of this
+// file's usual "ambiguity resolves to allow" posture — because here ambiguity
+// would silently widen a narrow, one-shot exemption into an unbounded one
+// instead of merely allowing a single already-in-flight write through.
+//
+// #1860: `@{u}` failing with a git-error exit is NOT the only "never pushed"
+// signal — it is also the state of a worktree branch created via
+// `git worktree add -b {branch} {path} origin/{default}` (what
+// `worktree.baseRef: fresh`, this plugin's own default, always does): git's
+// `branch.autoSetupMerge` default inherits the branch-off point's tracking ref
+// (`origin/{default}`) onto the new branch immediately, before it has ever
+// been pushed under its own name. `@{u}` therefore resolves successfully —
+// but to a DIFFERENT ref than this branch's own eventual remote — so the old
+// git-error-only check misclassified every such worktree as "already tracked"
+// and denied its first publish push. Comparing the resolved ref's name
+// against `origin/{this-branch}` distinguishes the two: a match means a real
+// prior push already established this branch's own remote tracking; anything
+// else (a resolvable ref that isn't this branch's own, or resolution failing)
+// means it has not. The branch-name lookup shares the same ambiguity posture
+// as the upstream lookup above — a failure there is NOT exempt either.
+// A single `git rev-parse` call resolving both revs, rather than two separate
+// spawns — this is the common-case (already-tracked branch) hot path for
+// every push, so it's worth one process instead of two. Safe to combine:
+// empirically, when `@{u}` fails to resolve, git aborts before printing
+// anything for EITHER arg (exit non-zero, empty stdout) — the exact shape
+// the GIT_ERROR branch below already expects, and the one case that never
+// needed the branch name anyway. When both resolve, git prints one line per
+// arg in the given order (upstream, then HEAD).
 function hasNoUpstreamYet(dir) {
-  const { failure } = runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], dir);
-  return failure === FAILURE.GIT_ERROR;
+  const combined = runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}', 'HEAD'], dir);
+  if (combined.failure === FAILURE.GIT_ERROR) return true;
+  if (combined.failure) return false;
+  const [upstream, branch] = combined.stdout.split('\n');
+  return upstream !== `origin/${branch}`;
 }
 
 // The PRODUCTION integration-model read for the PR-stamp branch below.
@@ -1401,6 +1466,9 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
 
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
     && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
+
+  checkGitStashWarn(ctx, command, warnings);
+
   // Shared by checkWorktreeRequired's Bash branch above and the E1 loop
   // below — parsing the same command/cwd through gitTargets twice per
   // invocation was pure repeated work.

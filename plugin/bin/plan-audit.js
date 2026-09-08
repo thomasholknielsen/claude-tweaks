@@ -2,7 +2,9 @@
 // plugin/bin/plan-audit.js — mechanized plan audit (#903): Checks A/B/C plus
 // a size-headroom check, replacing the hand-run prose procedure that used to
 // live entirely in plugin/skills/build/plan-audit.md. Exit 0 iff every check
-// is ok (a `nearCeiling` headroom flag alone does not fail).
+// is ok (a `nearCeiling` headroom flag alone does not fail). `--count-tasks`
+// (#1926) is a read-only verb printing `{tasks, batched}` for /build's
+// single-task fast-lane condition — it never runs the checks.
 'use strict';
 
 const fs = require('node:fs');
@@ -11,7 +13,7 @@ const { execFileSync } = require('node:child_process');
 
 const { parseArgs, UsageError, USAGE } = require('./lib/plan-audit/args');
 const {
-  extractFileEntries, extractScopeKeywords, extractVerificationChecks, extractUnparseableStep2s,
+  extractFileEntries, extractScopeKeywords, extractVerificationChecks, extractUnparseableStep2s, countTasks,
 } = require('./lib/plan-audit/parser');
 const { checkA, checkB, checkC, headroomCheck } = require('./lib/plan-audit/checks');
 
@@ -32,6 +34,14 @@ function summaryLine(report) {
   if (report.checkC.warnings.length) parts.push(`Check C: ${report.checkC.warnings.length} unparseable Step 2(s)`);
   if (!report.headroom.ok) parts.push(`Headroom: ${report.headroom.breaches.length} breach(es)`);
   if (report.headroom.nearCeiling.length) parts.push(`Headroom: ${report.headroom.nearCeiling.length} near-ceiling`);
+  const composedOver = report.headroom.composed.filter((c) => c.over > 0).length;
+  if (composedOver) parts.push(`Composed: ${composedOver} over`);
+  if (report.headroom.composedNearCeiling.length) parts.push(`Composed: ${report.headroom.composedNearCeiling.length} near-ceiling`);
+  // Informational-but-visible (#1997): a composed call site this plan
+  // touches that the tool could not measure (missing/unreadable source,
+  // malformed marker) is never silenced into the same "no findings" bucket
+  // as a call site that legitimately doesn't apply.
+  if (report.headroom.composedErrors.length) parts.push(`Composed: ${report.headroom.composedErrors.length} unmeasured`);
   if (parts.length === 0) return 'plan-audit: clean — no findings.';
   return `plan-audit: ${parts.join('; ')}.`;
 }
@@ -55,6 +65,17 @@ function main() {
   } catch (err) {
     process.stderr.write(`plan-audit.js: cannot read plan file ${parsed.planFile}: ${err.message}\n`);
     process.exitCode = 2;
+    return;
+  }
+
+  if (parsed.countTasks) {
+    const { tasks, batched } = countTasks(text);
+    if (tasks === 0) {
+      process.stderr.write(`plan-audit.js: ${parsed.planFile} has no parseable tasks (no "### Task N:" heading)\n`);
+      process.exitCode = 2;
+      return;
+    }
+    process.stdout.write(`{"tasks": ${tasks}, "batched": ${batched}}\n`);
     return;
   }
 

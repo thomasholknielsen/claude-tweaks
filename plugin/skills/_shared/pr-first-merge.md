@@ -118,10 +118,12 @@ resolve the lever **per merged run** from that run's own directory (`--run "{tha
 never from whichever `PIPELINE_RUN_DIR` the merging session happens to hold, which is one run's
 overlay applied to another's merge.
 
+<!-- when: transport=mcp -->
 `gh` absent → the lever is unenforceable; proceed as `off` and disclose at **warn** tier per
 `_shared/pr-early-run-lifecycle.md`'s degrade table (its "gh absent at merge time" row). Under
 pr-first this is near-unreachable: no `gh` means no PR, so this procedure's own precondition
 already fails.
+<!-- /when -->
 
 `$MERGE_VERIFICATION` empty or not one of the three values (an invalid `policy.yml` value prints an
 empty `--values` line — `invalid: true`, never silently re-derived; or a resolver error) → treat it
@@ -282,8 +284,10 @@ label, or `manifesto-authorized` for the same short-circuit triggered instead by
 `merge-authorization` Manifesto lever with no label present (`wrap-up/review-console.md`,
 `wrap-up/manifesto-authorized-merge.md`) — preserving all three tags' meanings — `/help`'s
 auto-merged-this-week metric (`_shared/github-pr-scan.md` `triage-queue` item 3) keys on all
-three. `{issue-list}` is one `Fixes #{n}` per record — the exact same set the PR body's own
-`Fixes` lines already carry (`_shared/pr-early-run-lifecycle.md`), restated here because the
+three. `{issue-list}` is one `Fixes #{n}` per record — the manifest's `complete` specs only for a
+bundle (#2015; rest release via their own `never-started:`/`abandoned:` reason). Same set the
+PR body's own `Fixes` lines already carry
+(`_shared/pr-early-run-lifecycle.md`'s pre-merge refresh), restated here because the
 merge commit's own message is what GitHub scans for closing keywords on a non-default
 integration branch, where the PR body's keywords don't fire (GitHub only auto-closes from a
 merge commit's message, or a PR body merged into the *default* branch — an explicit merge
@@ -416,7 +420,9 @@ is known, never speculatively before.
 
 ## Local-merge fallback
 
+<!-- when: integration-model=local-merge -->
 Not this file's concern — `local-merge` projects keep each citing file's own pre-#411 procedure
 in substance: the branch-switch guard, the `close-run` E1 relief, the push-from-worktree rule,
 and (for `flow/worktree-merge.md`) the scratch-worktree conflict procedure. Each citing file
 keeps a compact section stating this rather than duplicating the old prose here.
+<!-- /when -->

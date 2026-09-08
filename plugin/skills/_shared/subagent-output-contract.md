@@ -23,6 +23,8 @@ A dispatched agent is a clean room. Don't pass the conversation. Pass exactly:
 
 1. **The task scope** — one sentence: "Audit `src/auth.ts` for the OWASP top 10."
 2. **The file/path the agent should read** — explicit paths, not "the relevant code."
+
+   **Cite the run's composed bundle, never a `_shared/` path** — except inside the fallback sentence itself, which is expected to name the underlying source files it falls back to. The dispatcher composes the bundle before dispatch (`bin/compose-context.js`, `{run}/context/{step}.md`) and the prompt cites that path, stating in the same sentence the one fallback the agent can act on — if that bundle is absent, read the named source file directly; the compose command's own fallback (if the compose command is unavailable or exits non-zero, read the named source files directly) belongs to the dispatcher's compose instruction, since the agent never runs that command or sees its exit. `dispatch/task-prompt.md`'s Context pack is the reference shape for both halves.
 3. **The output template** — literally, inline. Agents only see what's in their prompt; they cannot read sibling files.
 4. **Constraints that prevent overreach** — "Do not modify other files." "Read-only."
 
@@ -71,9 +73,7 @@ During worktree-mode pipeline runs this rule is mechanically enforced — the pl
 
 ## Waiting for Dispatched Agents
 
-The task-notification that arrives when a dispatched agent finishes is the **primary resume signal** — it is what actually wakes the dispatcher, not a per-agent `ScheduleWakeup` park-and-poll loop (a bounded slot-fill poll like `/test`'s QA dispatch is a different, still-valid pattern — see that skill's `qa-prompts.md`). Treat the notification as the default: after dispatching a wave of parallel agents, let their completion notifications drive the next turn.
-
-**Cap parking to one long-delay watchdog per dispatch wave, not one per dispatch.** A `ScheduleWakeup` call for every individual agent in a fan-out is redundant against the notification each one already sends on completion, and it inflates per-wave API-call and context overhead for no additional signal — six scheduled parks buy nothing that the six completion notifications don't already deliver on their own. If a backstop against a hung or unusually slow wave is genuinely needed, schedule at most one long-delay watchdog for the whole wave, not one per agent dispatched into it.
+Read `_shared/dispatch-waiting.md` — the notification-driven resume pattern and the one-watchdog-per-wave cap (extracted for headroom, #1995).
 
 ## Implementer Status Protocol
 
@@ -108,7 +108,7 @@ Need: actual file path of the auth middleware, or confirmation it doesn't exist.
 
 SubagentStop hook (E3) logs replies missing the status line to the run dir's `events.jsonl` (best-effort — the event fires unreliably for Task dispatches, claude-code#27755).
 
-**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) tests one regex against the last assistant text it can reach and has no way to know *which* agent replied or what contract that dispatch declared, so at least two non-violating cases land in the log identically: a dispatch whose own template specifies a different first line (its header comment names this one), and a **third-party agent exempt from this contract entirely** (see Exemption below — an exempt agent "is not violating a format it was never given", yet its reply still trips the regex; `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch is the everyday instance). Triage each entry against the dispatch that produced it before treating it as a finding — and never re-prompt an exempt agent on the strength of one.
+**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) tests one regex against the last assistant text it can reach and has no way to know *which* agent replied or what contract that dispatch declared, so two non-violating cases still land in the log: a dispatch whose own template specifies a different first line (its header comment names this one), and a **background-job-orchestrated session's own interim narration turns** — checked independently while that session waits on its own parallel Task-tool dispatches, even though the status-line requirement above is scoped to a dispatched subagent's own *final* reply and never applies to an orchestrator's interim turns (its header comment names this case too). A **third-party agent exempt from this contract entirely** (see Exemption below) is now filtered out at the detector itself via its `agent_type` input field (#1596), so `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch no longer needs manual triage. Triage the remaining two cases against the dispatch that produced it before treating it as a finding.
 
 ## Model Selection
 
@@ -275,7 +275,7 @@ In a Form B blockquote:
 
 ```
 > **Parallel execution:** Dispatch {scope} as parallel Task agents — each runs independently and returns findings in Template A format. Assemble results after all agents complete.
-> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, then Template A. Pick the cheapest work profile that fits ({Fast | Standard | Capable} — Frontier never rides a fan-out; singleton slots only, §Model Selection) and resolve it per §Model Selection. Inline the template literally; reject and re-prompt on format violations.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, nothing before it (WRONG: "Based on my review, DONE"), then Template A. Pick the cheapest work profile that fits ({Fast | Standard | Capable} — Frontier never rides a fan-out; singleton slots only, §Model Selection) and resolve it per §Model Selection. Inline the template literally; reject and re-prompt on format violations.
 ```
 
 In the actual `Task()` call, the prompt body must contain the literal template — not a reference to it. Concrete example:
@@ -283,7 +283,7 @@ In the actual `Task()` call, the prompt body must contain the literal template �
 ```
 Task scope: Review src/auth.ts and src/api.ts for security issues.
 
-Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
+Status line (required): First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED, nothing before it. WRONG: "Based on my review, DONE".
 
 OUTPUT FORMAT (required):
 Return ONLY a markdown table, no preamble:

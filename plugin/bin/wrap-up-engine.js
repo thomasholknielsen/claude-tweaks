@@ -111,9 +111,13 @@ function resolveTelemetryPath(cwd) {
 //
 // `files:` YAML list in the frontmatter block: lines between the first `---`
 // pair, a `^files:\s*$` key line, then consecutive `^\s*-\s+(.+)$` items
-// until a non-matching line.
+// until a non-matching line. Normalize CRLF first -- a journey file with
+// `\r\n` line endings otherwise leaves each line carrying a trailing `\r`
+// that the item regex's `(.+)$` (no `m` flag, and `.` excludes `\r`) can
+// never consume, so the very first `- path` line fails to match and the
+// whole list silently parses to `[]` (#1787).
 function parseJourneyFilesList(content) {
-  const lines = content.split('\n');
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
   if (!lines.length || lines[0].trim() !== '---') return [];
   let end = -1;
   for (let i = 1; i < lines.length; i += 1) {

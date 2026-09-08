@@ -20,6 +20,12 @@ const SEVERITY_BUCKETS = {
 // Alternative scheme (from spec gotchas): { critical: 'crit', high: 'mid',
 // medium: 'mid', low: 'low', info: 'low' }. Swap by replacing the map above.
 
+// Ordering used only to resolve a *confirmed* severity when a reproduction
+// pair straddles a bucket boundary (see categoriseReproduction's
+// reconcileSeverity below) — a separate concern from SEVERITY_BUCKETS, which
+// only ever groups values into the coarse high/low pair used for matching.
+const SEVERITY_RANK = ['info', 'low', 'medium', 'high', 'critical'];
+
 const RED_TEAM_PERSONAS = [
   {
     name: 'Implementer',
@@ -45,6 +51,19 @@ function severityBucket(severity) {
   // its real severity.
   if (typeof severity !== 'string') return 'low';
   return SEVERITY_BUCKETS[severity.toLowerCase()] || 'low';
+}
+
+// Same case-insensitivity/non-string-safety posture as severityBucket above,
+// but returns a fine-grained rank (not a coarse bucket) — used only to pick
+// a deterministic "lower of the two" severity when a reproduction pair
+// straddles a bucket boundary. An unrecognized or missing severity ranks as
+// the lowest ('info'), never as the highest — silently promoting a
+// malformed value to the top of the scale would be the more dangerous
+// default.
+function severityRank(severity) {
+  if (typeof severity !== 'string') return 0;
+  const idx = SEVERITY_RANK.indexOf(severity.toLowerCase());
+  return idx === -1 ? 0 : idx;
 }
 
 // Template A (skills/_shared/subagent-output-contract.md) mandates dispatched
@@ -128,6 +147,29 @@ function findingsMatch(a, b, tolerance = LINE_TOLERANCE_REPRODUCTION) {
   return severityBucket(na.severity) === severityBucket(nb.severity);
 }
 
+// Reconciles a matched reproduction pair's severity into the single value
+// the caller sees on the confirmed finding. When both agents bucket the
+// finding the same way, nothing changes — this is the pre-existing behavior,
+// pinned by the "matching severity bucket" test. When the pair straddles a
+// bucket boundary (e.g. high vs medium: agreement on location and substance,
+// disagreement only on how severe it is), the finding is still reproduced —
+// take the lower of the two severities as the deterministic confirmed value,
+// and flag `severityContested: true` so a consumer (the Wrap-Up Console, a
+// PR verdict comment) can surface the disagreement explicitly rather than
+// silently picking a number. See #733.
+//
+// `lower.severity` is normalized before it lands on the output — a missing
+// or malformed severity field ranks lowest via severityRank's own floor
+// default, but would otherwise propagate through untouched (undefined/null)
+// when that malformed side wins the tiebreak, silently dropping the
+// `severity` key from any consumer that serializes the finding.
+function reconcileSeverity(fa, fb) {
+  if (severityBucket(fa.severity) === severityBucket(fb.severity)) return fa;
+  const lower = severityRank(fa.severity) <= severityRank(fb.severity) ? fa : fb;
+  const severity = typeof lower.severity === 'string' ? lower.severity : 'info';
+  return { ...fa, severity, severityContested: true };
+}
+
 function categoriseReproduction(agentAFindings, agentBFindings) {
   const confirmed = [];
   const unconfirmed = [];
@@ -136,12 +178,13 @@ function categoriseReproduction(agentAFindings, agentBFindings) {
   for (const rawFa of agentAFindings) {
     const fa = normalizeFinding(rawFa);
     const matchIdx = agentBFindings.findIndex(
-      (fb, i) => !matchedB.has(i) && findingsMatch(fa, fb, LINE_TOLERANCE_REPRODUCTION),
+      (fb, i) => !matchedB.has(i) && sameLocation(fa, normalizeFinding(fb), LINE_TOLERANCE_REPRODUCTION),
     );
     if (matchIdx === -1) {
       unconfirmed.push({ ...fa, source: 'A' });
     } else {
-      confirmed.push(fa);
+      const fb = normalizeFinding(agentBFindings[matchIdx]);
+      confirmed.push(reconcileSeverity(fa, fb));
       matchedB.add(matchIdx);
     }
   }
@@ -247,6 +290,7 @@ module.exports = {
   RED_TEAM_PERSONAS,
   // Comparison / aggregation logic
   severityBucket,
+  severityRank,
   parsePathLine,
   normalizeFinding,
   sameLocation,

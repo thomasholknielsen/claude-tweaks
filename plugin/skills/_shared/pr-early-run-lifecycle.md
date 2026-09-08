@@ -9,8 +9,10 @@ procedure this generalizes and replaces). Every later phase exit pushes
 the PR always reflects live progress rather than only the state as of run start or only the state
 as of `pending-review`.
 
+<!-- when: integration-model=local-merge -->
 `local-merge` runs (`_shared/integration-model.md`) skip this file entirely — today's no-PR
 lifecycle, unchanged.
+<!-- /when -->
 
 ## Root cause: MCP PR-body sanitization strips HTML comments on read, not write (#929)
 
@@ -42,6 +44,7 @@ deliberate, reasonable defense) — it's to also carry a plain-text companion fo
 looks like an HTML tag to the sanitizer in the first place, so it survives the MCP read path
 unchanged. See "Dual-marker scheme" in Step 3 below.
 
+<!-- when: transport=mcp -->
 **Scope extends to issue reads, not just PR reads (#1700).** The same `bluemonday.StrictPolicy()`
 strips `<!-- ... -->` spans from `mcp__github__list_issues` and `mcp__github__issue_read` results
 too — confirmed live (2026-08-30): fetching a batch of `by:docs-health` issues via both
@@ -52,6 +55,7 @@ appends that marker as the body's literal last line) showed it intact — the sa
 method used above for PR bodies. `_shared/health-issue-index.md` documents the consequence for
 health-sweep dedup and the fix (`bin/lib/issues/record.js`'s plain-text `work-fingerprint:`
 companion line, mirroring this file's own dual-marker scheme) rather than restating it here.
+<!-- /when -->
 
 ## Callers
 
@@ -184,7 +188,11 @@ claude-tweaks-run: {run-id}
 
 `PIPELINE_RUN_DIR="{run-dir}" /claude-tweaks:flow "{target}" {next-step}`
 
+<!-- fixes-start -->
+[claude-tweaks-fixes-start]
 Fixes #{n}
+[claude-tweaks-fixes-end]
+<!-- fixes-end -->
 ```
 
 The `<!-- claude-tweaks-run: {run-id} -->` marker is the **first line**, unconditionally,
@@ -210,6 +218,8 @@ writing both costs nothing and there is no transport-detection to get wrong at w
 | Run-id marker | `<!-- claude-tweaks-run: {run-id} -->` | `claude-tweaks-run: {run-id}` |
 | Phase-checklist start | `<!-- phases-start -->` | `[claude-tweaks-phases-start]` |
 | Phase-checklist end | `<!-- phases-end -->` | `[claude-tweaks-phases-end]` |
+| Fixes start | `<!-- fixes-start -->` | `[claude-tweaks-fixes-start]` |
+| Fixes end | `<!-- fixes-end -->` | `[claude-tweaks-fixes-end]` |
 
 **Which form a *reader* uses depends on transport, per Root cause above:** a `gh`-present
 read (`gh pr view`, `gh api`, or any REST/GraphQL read) sees the real stored body and can key
@@ -236,24 +246,30 @@ duplicate that logic, just skip the row when it will never happen.
 
 **One `Fixes #{n}` line per record.** A single-record run gets one line. A dispatch bundle
 (`dispatch/SKILL.md`'s file-overlap grouping) enumerates every record from the parent
-`manifest.yml`'s `specs[].id` list and lists one `Fixes #{m}` line per record. Unlike the retired
+`manifest.yml`'s `specs[].id` list and lists one `Fixes #{m}` line per record — provisional
+(#2015). Unlike the retired
 dispatch-only durability procedure this file replaced (`docs/incident-log.md`'s `[IL-128]`),
 whose PR opened only when a run already reached `pending-review` (i.e. after `review`'s gate
 already passed) and used `Refs`, this PR opens **before any gate has run**, and it stays in
 draft the whole time gates are still pending — GitHub blocks merging a draft by default, so
 `Fixes` sitting inert in a draft body is safe. It only becomes live once the merge-path sub-issue
-marks the PR ready after gates pass. A human force-merging a draft mid-run is accepting ungated
-work; that risk is stated once here, not re-litigated at every call site.
+marks the PR ready after gates pass.
 
 `{target}` and `{next-step}` in the Resume line: `{target}` is the same record reference(s) this
 run was invoked with (`#{n}` or the bundle's comma-joined list). `{next-step}` is the step this
 run is *about* to execute — `build` at run start, since this procedure runs before any phase.
 
-Write the body to `/tmp/pr-early-body-{n}.md`, then:
+Write the body to `/tmp/pr-early-body-{run-id}-{n}.md` — scoped by this run's own `{run-id}`
+(the run-dir basename), not just the issue number, so a retried run's fresh write can never
+land on a stale file a prior attempt left at a fixed `{n}`-only path (worse on Windows, where
+`Write` and `Bash` can resolve `/tmp` differently). Before invoking `gh pr create`, re-read the
+file's first line back and confirm it is `<!-- claude-tweaks-run: {run-id} -->` for *this run's*
+`{run-id}` — second line of defense; hard-stop this step on a mismatch rather than push a wrong
+body.
 
 ```bash
 gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {branch} \
-  --title "{record title} (#{n})" --body-file /tmp/pr-early-body-{n}.md
+  --title "{record title} (#{n})" --body-file /tmp/pr-early-body-{run-id}-{n}.md
 ```
 
 `{record title}` — the lowest-numbered record's title for a bundle; `{n}` likewise the
@@ -333,15 +349,20 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
   above, even though it still exists in the stored body). Flip that phase's checklist row from
   `- [ ] {phase}` to `- [x] {phase}` inside whichever span was found, leaving everything else —
   including the *other* delimiter pair, which this read may not even show — untouched, then
-  write back through the same transport that did the read:
+  write back through the same transport that did the read, to
+  `/tmp/pr-checklist-{run-id}-{n}.md` — scoped by `{run-id}`, same reason as Step 3's path
+  above. Re-read that file's first line back before `gh pr edit` and confirm it still names
+  this run's `{run-id}`; hard-stop this update on a mismatch rather than push a wrong body:
 
   ```bash
-  gh pr edit {number} --repo {owner}/{repo} --body-file /tmp/pr-checklist-{n}.md
+  gh pr edit {number} --repo {owner}/{repo} --body-file /tmp/pr-checklist-{run-id}-{n}.md
   ```
 
+<!-- when: transport=mcp -->
   `gh`-absent: `mcp__github__update_pull_request` with the same composed body — this write is
   unsanitized (Root cause above), so it carries both delimiter pairs through untouched
   regardless of which one was used to locate the span.
+<!-- /when -->
 
   Compose-then-write-once — read, patch the checklist section in memory, write the whole body
   back in one call. Never a partial/streaming edit.
@@ -392,13 +413,22 @@ phase this run actually completed.
 2. Re-run the Phase-checklist update procedure above once more, unconditionally — idempotent
    (a phase whose own update already landed re-flips the same rows to the same values); this is
    the final catch-all for any phase whose own best-effort update silently failed.
-3. Read the record's current title (`gh issue view {n} --json title -q .title` for the
+<!-- when: integration-model=pr-first -->
+3. **Rewrite the `Fixes` block from `manifest.yml` outcomes (#2015).** Pass parent
+   `manifest.yml`'s `multispec.specs` (`bin/lib/flow/manifest.js`'s `readManifest`) to
+   `composeFixesBlock`, replacing the fixes span with its output: one `Fixes #{m}` per
+   `complete` spec, one `Refs #{m} — not run/failed: {reason}` otherwise. Log: `AUTO {time} —
+   PR-early run lifecycle: rewrote Fixes block for PR #{number} — {c} complete, {r}
+   not-run/failed. Reversibility: high (gh pr edit).`
+<!-- /when -->
+4. Read the record's current title (`gh issue view {n} --json title -q .title` for the
    lowest-numbered record). If it no longer matches the PR's own title (the record was retitled
    after PR creation), refresh it: `gh pr edit {pr-number} --repo {owner}/{repo} --title "{current record title} (#{n})"`.
-4. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
+5. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
 
-Best-effort, like the phase-checklist update it extends — a failed `gh pr edit` here logs a
-warning and the merge proceeds; a stale title/checklist is cosmetic, never a merge blocker.
+Best-effort, like the phase-checklist update it extends — a failed `gh pr edit` at any step above
+logs a warning and the merge proceeds; a stale title/checklist/`Fixes` block is cosmetic, never a
+merge blocker.
 
 ## Skip / degrade behavior
 
@@ -416,6 +446,7 @@ None of these ever block the pipeline — a pr-first project whose GitHub connec
 for one run behaves exactly like a `local-merge` run for that run, with the degradation logged
 rather than silent.
 
+<!-- when: integration-model=local-merge -->
 **`local-merge` row specifically (`build/SKILL.md` Spec Step 1's documented conditional action):**
 this is the one row above with no existing log line of its own — every connectivity-degrade row
 already writes its own `AUTO … FAILED` line (see the citations above) and keeps doing so unchanged.
@@ -428,3 +459,4 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$PIPELINE_RUN_DIR" --sta
 ```
 
 Standalone `/build` (no run dir): list the skip in the Step 7 handoff instead (`build/handoff-template.md`'s inline-skip listing).
+<!-- /when -->

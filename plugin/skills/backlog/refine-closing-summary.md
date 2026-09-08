@@ -20,7 +20,7 @@ AUTO {time} — Backlog refine: updated **Related:** on #{n} to reference #{m}.
 AUTO {time} — Backlog refine: granted auto:build{ + auto:merge} to #{n} (risk:{riskTier}, size:{sizeTier}). Rationale: {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: re-authorized #{n} — stripped bot:blocked, granted auto:build{ + auto:merge}.
 AUTO {time} — Backlog refine: repaired dependency on #{n} — {wired native blocked-by referencing #{m} | appended Blocked by #{m} line}.
-AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring}.
+AUTO {time} — Backlog refine: flagged back #{n} — {missing sections | needs scoring | no verdict rendered}.
 AUTO {time} — Backlog refine: stamped needs:decision on #{n} — {grant-check RATIONALE}.
 AUTO {time} — Backlog refine: skipped #{n} — premise changed since confirmation ({what changed}); dropped without writing.
 FAILED {time} — Backlog refine: {priority | Related | grant | dependency-repair | flag-back | needs-decision} write failed on #{n}: {error}.

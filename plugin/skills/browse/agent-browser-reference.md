@@ -46,13 +46,34 @@ Two command families act on elements:
 
 - **Ref-based** — `snapshot -i -c` returns the accessibility tree with `@eN` refs;
   act on a ref (`click @e3`). Refs are session-scoped and regenerate on every
-  snapshot — never store them.
+  snapshot — never store them. This is a different purpose from plain `snapshot`
+  (no `-i`/`-c` flags): plain `snapshot` is for a static-text assertion ("does the
+  page say X") and returns the page's text tree with no `@eN` refs; reach for
+  `snapshot -i -c` only when the next step needs to act on or inspect a specific
+  interactive element by ref.
 - **Locator-based** — `find <locator> <value> <action> [text]` locates semantically
   and performs the action in one command. **The action argument is mandatory in this
   plugin's usage: a bare `find` with no action defaults to clicking the element**
   (verified v0.27.0), so an "is it there?" probe phrased as `find` mutates the page.
   For pure existence/assertion checks, use `snapshot` and inspect the tree, or
   `is visible <sel>` / `wait --text <text>` — never an action-less `find`.
+  **`<action>` only resolves to `click`/`fill`/`check`/`hover` in this pinned
+  version** — agent-browser's own self-docs (Authority above) also show
+  `select`/`press`/`type` as `find` actions, but none of those three resolved
+  against a real v0.27.0 daemon (verified); this is the kind of drift the Authority
+  section says to note and file upstream, not a case where the self-docs should be
+  trusted over observed behavior. There is no `find ... select` fallback for a
+  dropdown interaction: take a full `snapshot -i -c` to get the option's `@eN` ref,
+  then run the top-level `select @eN <value>` command as a separate call.
+  `press` has the same fallback shape as `select`, but simpler: it is not a `find`
+  action, but it is a real, working top-level command that needs no locator at all
+  — `agent-browser --session <name> press "<key>"` presses a key (or combo, e.g.
+  `Control+a`) at whatever element currently has focus (verified v0.27.0).
+  **`find role <role> ... --name X` only reliably resolves the `button` role** —
+  `link` and `heading` silently fail to match (the command exits clean with no
+  match, not an error) even when a same-named element with that role exists on the
+  page. Locate a link or heading with a different locator (`text`, `testid`, or
+  `label`) instead of `role`.
 
 | Operation | Command |
 |---|---|
@@ -67,6 +88,7 @@ Two command families act on elements:
 | click ref | `agent-browser --session <name> click <ref>` |
 | fill ref | `agent-browser --session <name> fill <ref> "<value>"` |
 | type ref | `agent-browser --session <name> type <ref> "<text>"` |
+| press key at current focus | `agent-browser --session <name> press "<key>"` |
 | assert visible | `agent-browser --session <name> is visible <sel>` |
 | wait for text | `agent-browser --session <name> wait --text "<text>"` |
 | wait for URL | `agent-browser --session <name> wait --url "<glob>"` |
@@ -76,7 +98,17 @@ Two command families act on elements:
 
 The screenshot path is a positional argument — there is no `--filename` flag.
 `--annotate` overlays numbered `[N]` labels matching `@eN` snapshot refs and prints
-a legend.
+a legend. `screenshot` has two known limitations in this pinned version: it can
+fail with an OS-level error under concurrent sessions (a transient condition —
+retry once before treating it as a real failure), and it rejects an output path
+containing a space — keep screenshot paths space-free (the kebab-case
+session/description convention above already does this).
+
+`click` (both the ref form and the locator-based `find ... click` form) does
+**not** auto-scroll the target into view — a below-the-fold click reports success
+but lands nowhere. Pin a tall viewport (`set viewport <width> <height>`, below) so
+the elements a story walk clicks stay in the visible area, rather than relying on
+click to scroll for you.
 
 ## Viewport and device
 

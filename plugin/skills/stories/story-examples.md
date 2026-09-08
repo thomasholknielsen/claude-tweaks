@@ -36,7 +36,7 @@ stories:
         locator: { role: heading, name: "Hacker News" }
         verify: "Front page loads with posts"
       - action: click
-        locator: { role: link, name: "More" }
+        locator: { text: "More" }
         verify: "Page 2 loads with a new set of posts"
       - action: press
         value: "Alt+ArrowLeft"
@@ -239,7 +239,7 @@ stories:
 | Locator | Use when | Example |
 |---|---|---|
 | `{ testid: "..." }` | The element has a `data-testid` (or framework equivalent). Most stable. | `{ testid: "checkout-submit" }` |
-| `{ role: "...", name: "..." }` | The element has an unambiguous accessible name. Default for buttons, links, headings, tabs, switches. | `{ role: button, name: "Save" }` |
+| `{ role: "...", name: "..." }` | The element has an unambiguous accessible name. Only `button` reliably resolves via `find role` in the pinned agent-browser version — `link` and `heading` silently fail to match (see `agent-browser-reference.md`); use `text`/`testid`/`label` for those instead. | `{ role: button, name: "Save" }` |
 | `{ label: "..." }` | Form inputs with associated `<label>` elements. | `{ label: "Email" }` |
 | `{ placeholder: "..." }` | Inputs without labels but with placeholder text. | `{ placeholder: "Search posts..." }` |
 | `{ text: "...", exact?: true }` | Last resort — unique visible text. Brittle to copy edits. | `{ text: "Order confirmed", exact: true }` |

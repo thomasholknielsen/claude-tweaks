@@ -11,9 +11,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
+const { CEILING_BYTES } = require('../plugin/bin/lib/skill-audit/context-cost.js');
 
 const CLI = path.join(__dirname, '..', 'plugin', 'bin', 'merge-size-probe.js');
-const CEILING_BYTES = 40 * 1024;
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -90,7 +90,7 @@ test('e2e: two branches each green alone; merge pushes the shared file over the 
 // AC3 (#641): a branch that stays under ceiling both alone AND merged with
 // main must pass with no false-positive overflow.
 test('e2e: a branch under ceiling alone and merged reports zero overflow (no false positive)', () => {
-  const smallAdd = 100; // base+sibling(1200)+small(100) = 40300, still under 40960.
+  const smallAdd = 100; // base+sibling(1200)+small(100) = 40300, still under CEILING_BYTES.
   const { dir } = makeFixtureRepo(smallAdd);
 
   const res = spawnSync(

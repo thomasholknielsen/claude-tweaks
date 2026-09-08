@@ -2,7 +2,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, detectCrossPRFileOverlap } = require('../../../plugin/bin/lib/issues/grouping');
+const { groupByFileOverlap, GROUP_SIZE_GUARD_DEFAULT, partitionGroupsBySizeGuard, bundleFastLaneSingletons, FASTLANE_BUNDLE_CAP_DEFAULT, extractKeyFiles, extractKeyFilesSection, expectsKeyFilesSection, parseExplicitIssueList, selectGroupsForExplicitList, detectCrossPRFileOverlap } = require('../../../plugin/bin/lib/issues/grouping');
 
 // ── groupByFileOverlap ──────────────────────────────────────────────────────
 
@@ -236,6 +236,102 @@ test('empty input returns no withinGuard and no oversized groups', () => {
   const { withinGuard, oversized } = partitionGroupsBySizeGuard([]);
   assert.deepStrictEqual(withinGuard, []);
   assert.deepStrictEqual(oversized, []);
+});
+
+// ── bundleFastLaneSingletons (#1910) ──────────────────────────────────────
+
+function fastLaneIssue(number, { labels = [], createdAt } = {}) {
+  return { number, labels: ['ceremony:fast-lane', ...labels].map((name) => ({ name })), createdAt: createdAt || `2026-01-0${number}T00:00:00Z` };
+}
+
+test('three eligible fast-lane singletons bundle into one group (default cap 3)', () => {
+  const groups = [[fastLaneIssue(1)], [fastLaneIssue(2)], [fastLaneIssue(3)]];
+  const { groups: result, bundles } = bundleFastLaneSingletons(groups);
+  assert.strictEqual(result.length, 1);
+  assert.deepStrictEqual(result[0].map((i) => i.number), [1, 2, 3]);
+  assert.deepStrictEqual(bundles, [{ records: [1, 2, 3] }]);
+});
+
+test('a standard (non-fast-lane) record is excluded and kept as its own singleton', () => {
+  const standard = { number: 9, labels: [{ name: 'ceremony:standard' }], createdAt: '2026-01-09T00:00:00Z' };
+  const groups = [[fastLaneIssue(1)], [fastLaneIssue(2)], [standard]];
+  const { groups: result, bundles } = bundleFastLaneSingletons(groups);
+  assert.strictEqual(bundles.length, 1);
+  assert.deepStrictEqual(bundles[0].records, [1, 2]);
+  assert.ok(result.some((g) => g.length === 1 && g[0].number === 9));
+});
+
+test('an overlapping (already multi-member) group is never touched by bundling', () => {
+  const overlapGroup = [fastLaneIssue(5), fastLaneIssue(6)];
+  const groups = [overlapGroup, [fastLaneIssue(1)], [fastLaneIssue(2)]];
+  const { groups: result, bundles } = bundleFastLaneSingletons(groups);
+  assert.ok(result.some((g) => g === overlapGroup));
+  assert.deepStrictEqual(bundles, [{ records: [1, 2] }]);
+});
+
+test('never merges across priority bands', () => {
+  const groups = [
+    [fastLaneIssue(1, { labels: ['priority:high'] })],
+    [fastLaneIssue(2, { labels: ['priority:low'] })],
+    [fastLaneIssue(3, { labels: ['priority:high'] })],
+  ];
+  const { bundles } = bundleFastLaneSingletons(groups);
+  assert.strictEqual(bundles.length, 1);
+  assert.deepStrictEqual(bundles[0].records, [1, 3]);
+});
+
+test('never merges records with different auto:merge state', () => {
+  const groups = [
+    [fastLaneIssue(1, { labels: ['auto:merge'] })],
+    [fastLaneIssue(2)],
+    [fastLaneIssue(3, { labels: ['auto:merge'] })],
+  ];
+  const { bundles } = bundleFastLaneSingletons(groups);
+  assert.strictEqual(bundles.length, 1);
+  assert.deepStrictEqual(bundles[0].records, [1, 3]);
+});
+
+test('bundles oldest-first within a bucket', () => {
+  const groups = [
+    [fastLaneIssue(1, { createdAt: '2026-03-01T00:00:00Z' })],
+    [fastLaneIssue(2, { createdAt: '2026-01-01T00:00:00Z' })],
+    [fastLaneIssue(3, { createdAt: '2026-02-01T00:00:00Z' })],
+  ];
+  const { bundles } = bundleFastLaneSingletons(groups);
+  assert.deepStrictEqual(bundles[0].records, [2, 3, 1]);
+});
+
+test('respects a custom bundleCap, chunking into multiple bundles plus a leftover singleton', () => {
+  const groups = [[fastLaneIssue(1)], [fastLaneIssue(2)], [fastLaneIssue(3)], [fastLaneIssue(4)], [fastLaneIssue(5)]];
+  const { groups: result, bundles } = bundleFastLaneSingletons(groups, { bundleCap: 2 });
+  assert.strictEqual(bundles.length, 2);
+  assert.deepStrictEqual(bundles[0].records, [1, 2]);
+  assert.deepStrictEqual(bundles[1].records, [3, 4]);
+  assert.ok(result.some((g) => g.length === 1 && g[0].number === 5));
+});
+
+test('dispatch-fastlane-bundle-cap: 0 disables bundling and reproduces the input unchanged', () => {
+  const groups = [[fastLaneIssue(1)], [fastLaneIssue(2)], [fastLaneIssue(3)]];
+  const { groups: result, bundles } = bundleFastLaneSingletons(groups, { bundleCap: 0 });
+  assert.strictEqual(result, groups);
+  assert.deepStrictEqual(bundles, []);
+});
+
+test('a bundleCap of 1 is also a no-op (nothing to merge a lone record with)', () => {
+  const groups = [[fastLaneIssue(1)], [fastLaneIssue(2)]];
+  const { groups: result, bundles } = bundleFastLaneSingletons(groups, { bundleCap: 1 });
+  assert.strictEqual(result, groups);
+  assert.deepStrictEqual(bundles, []);
+});
+
+test('empty input returns no groups and no bundles', () => {
+  const { groups, bundles } = bundleFastLaneSingletons([]);
+  assert.deepStrictEqual(groups, []);
+  assert.deepStrictEqual(bundles, []);
+});
+
+test('FASTLANE_BUNDLE_CAP_DEFAULT is 3', () => {
+  assert.strictEqual(FASTLANE_BUNDLE_CAP_DEFAULT, 3);
 });
 
 // ── extractKeyFiles ──────────────────────────────────────────────────────────

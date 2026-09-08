@@ -438,6 +438,16 @@ function stampAdHocRunDir(ctx) {
     } else {
       const markerPath = sessionTmpPath(sessionId, ADHOC_WORKTREE_CHECKED_MARKER);
       if (markerPath && fs.existsSync(markerPath)) return; // already checked (or ruled out) this session — skip the git call entirely
+      // #1864: the porcelain lookup shells out `git -C ctx.cwd worktree list --porcelain`,
+      // which is guaranteed to fail when ctx.cwd no longer exists on disk — the shape produced
+      // by an ExitWorktree(remove) event, whose PostToolUse fires against the just-deleted
+      // worktree directory. That failure means the lookup itself never ran, not that it ran and
+      // definitively found nothing — so it must NOT be treated the same as a real "checked,
+      // found nothing" outcome. Skip the lookup and the marker write in that case: a later
+      // worktree (e.g. a raw `git worktree add` in the same session, bypassing EnterWorktree)
+      // still gets a fresh, real check instead of being silently skipped forever by a marker
+      // written against a check that never actually ran.
+      if (typeof ctx.cwd === 'string' && ctx.cwd && !fs.existsSync(ctx.cwd)) return;
       const viaPorcelain = resolveWorktreePathViaPorcelain(ctx);
       // Record "checked" regardless of outcome — best-effort: a write failure here just costs
       // this session the rate-limit next call, never a correctness issue (the ctx.ownedRun.dir

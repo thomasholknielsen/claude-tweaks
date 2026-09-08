@@ -142,6 +142,71 @@ test('reproduction: matching Path:Line + matching severity bucket → confirmed'
   assert.strictEqual(confirmed[0].path, 'src/auth.ts');
 });
 
+test('reproduction: matching Path:Line + matching severity bucket → confirmed, no severityContested flag', () => {
+  // Companion to the test above: pins that the plain-agreement path is
+  // untouched by #733's fix — no severityContested field appears when the
+  // pair already agrees on bucket.
+  const a = [{ path: 'src/auth.ts', line: 42, severity: 'critical', text: 'missing check' }];
+  const b = [{ path: 'src/auth.ts', line: 43, severity: 'high', text: 'missing check' }];
+  const { confirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed[0].severity, 'critical');
+  assert.strictEqual(confirmed[0].severityContested, undefined);
+});
+
+test('reproduction: location+substance agreement with a straddled severity bucket (#733) → confirmed, not unconfirmed, severity contested', () => {
+  // The reflect-4 shape this record fixes: two reproduction agents agree on
+  // location (and, by construction here, on the underlying finding text —
+  // "substance") but rate severity high (B) vs medium (A), straddling the
+  // high/low bucket boundary. Pre-fix, categoriseReproduction required
+  // matching severity buckets to treat this as reproduced, so it fell to
+  // `unconfirmed` despite the location+substance agreement.
+  const a = [{ path: 'step-6-auto.md', line: 154, severity: 'medium', text: 'digest-vs-Approve finding' }];
+  const b = [{ path: 'step-6-auto.md', line: 154, severity: 'high', text: 'digest-vs-Approve finding' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 1, 'straddled-bucket pair must be reproduced, not unconfirmed');
+  assert.strictEqual(unconfirmed.length, 0);
+  assert.strictEqual(confirmed[0].path, 'step-6-auto.md');
+  assert.strictEqual(confirmed[0].severityContested, true);
+  // Deterministic resolution: the lower of the two severities (medium < high).
+  assert.strictEqual(confirmed[0].severity, 'medium');
+
+  const entry =
+    `- AUTO 09:14:02 — Reproduction: lens "3c" finding ${confirmed[0].path}:${confirmed[0].line} ` +
+    `reproduced, severity contested (took the lower of the two). Confirmed. Reversibility: high.`;
+  assert.match(
+    entry,
+    decisionLogPattern(REVIEW_SKILL, ['reproduced, severity contested', 'took the lower of the two']),
+  );
+});
+
+test('reproduction: a straddled pair where the lower side is missing severity normalizes to "info", never undefined', () => {
+  // severityRank(undefined) ranks lowest (0), same as 'info' — so a finding
+  // with no severity field at all can legitimately win the "lower of the
+  // two" tiebreak. Before the fix, `lower.severity` (undefined) propagated
+  // straight through, silently dropping the `severity` key from the
+  // confirmed finding once JSON.stringify'd.
+  const a = [{ path: 'src/auth.ts', line: 42, text: 'missing check' }]; // no severity field
+  const b = [{ path: 'src/auth.ts', line: 43, severity: 'critical', text: 'missing check' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 1);
+  assert.strictEqual(unconfirmed.length, 0);
+  assert.strictEqual(confirmed[0].severityContested, true);
+  assert.strictEqual(confirmed[0].severity, 'info');
+  assert.strictEqual(JSON.parse(JSON.stringify(confirmed[0])).severity, 'info');
+});
+
+test('reproduction: genuine location disagreement (not merely a severity straddle) still stays unconfirmed', () => {
+  // The gotcha this fix must not violate: only a straddled *severity*
+  // bucket is rescued. Two findings at different locations — even with
+  // agreeing severities — are a real disagreement, not the false-negative
+  // this record narrows.
+  const a = [{ path: 'src/one.ts', line: 10, severity: 'high', text: 'x' }];
+  const b = [{ path: 'src/two.ts', line: 900, severity: 'high', text: 'y' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 0);
+  assert.strictEqual(unconfirmed.length, 2);
+});
+
 test('reproduction: one-side-only finding → unconfirmed with STAGED entry matching the documented schema', () => {
   const a = [{ path: 'src/auth.ts', line: 42, severity: 'critical', text: 'only-A' }];
   const b = [];
@@ -184,6 +249,19 @@ test('reproduction: severity buckets collapse correctly (critical+high vs medium
   const otherBucket = { path: 'p', line: 10, severity: 'medium' };
   assert.strictEqual(c.findingsMatch(a, sameBucket), true);
   assert.strictEqual(c.findingsMatch(a, otherBucket), false);
+});
+
+test('severityRank: orders info < low < medium < high < critical; unrecognized/non-string ranks lowest', () => {
+  assert.ok(c.severityRank('info') < c.severityRank('low'));
+  assert.ok(c.severityRank('low') < c.severityRank('medium'));
+  assert.ok(c.severityRank('medium') < c.severityRank('high'));
+  assert.ok(c.severityRank('high') < c.severityRank('critical'));
+  // Case-insensitive, same as severityBucket.
+  assert.strictEqual(c.severityRank('Critical'), c.severityRank('critical'));
+  // Unrecognized or missing severity never outranks a recognized one — a
+  // malformed value must not silently win a "lower of the two" comparison.
+  assert.strictEqual(c.severityRank('made-up'), c.severityRank('info'));
+  assert.strictEqual(c.severityRank(undefined), c.severityRank('info'));
 });
 
 test('parsePathLine / normalizeFinding: bridges Template A\'s combined "Path:Line" column into separate path/line fields', () => {
@@ -542,7 +620,7 @@ test('/review reproduction integration: per-lens reproduction → confirmed/unco
   const lensName = 'security';
   const confirmedEntry =
     `- AUTO 14:32:08 — Reproduction: lens "${lensName}" finding ${confirmed[0].path}:${confirmed[0].line} reproduced. Confirmed. Reversibility: high.`;
-  assert.match(confirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Findings present in both agents']));
+  assert.match(confirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Findings present in both agents', 'same severity bucket']));
   const unconfirmedEntry =
     `- STAGED 14:32:11 — Reproduction: lens "${lensName}" finding ${unconfirmed[0].path}:${unconfirmed[0].line} not reproduced. Staged to Review Console as low-confidence. Reversibility: high.`;
   assert.match(unconfirmedEntry, decisionLogPattern(REVIEW_SKILL, ['Findings present in only one']));

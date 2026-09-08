@@ -110,10 +110,11 @@ For each step in the steps array:
    - `screenshot` → `agent-browser --session <story-id> screenshot {SCREENSHOT_PATH}/<NN>_<step-name>-raw.png` (path is positional — there is no `--filename` flag; unannotated here, step 5 below captures the annotated version separately at the plain `<NN>_<step-name>.png` path)
    - `assert_visible` → take a fresh `snapshot -i -c` and check the tree for an element matching the locator (role + accessible name, testid, text). Element present = PASS, absent = FAIL. Never phrase this as an action-less `find` — that clicks.
    - `navigate` (rare; only inside step blocks) → `agent-browser --session <story-id> open <url>`
+   - `press` (no locator — acts at whatever currently has focus) → `agent-browser --session <story-id> press "<value>"` (the story's `value` field supplies the key/combo, e.g. `Enter`, `Control+a`, `Alt+ArrowLeft`; escape per the rule below)
 
    **Escaping story-supplied strings:** every `<name>`/`<text>`/`<label>`/`<placeholder>` above (and the `<value>`/`<text>` arguments used by `fill`/`type`) is a story-authored string spliced into a double-quoted Bash argument. Before splicing any such string into a command, backslash-escape it for double-quoted-shell-argument safety, in this order: `\` → `\\`, then `"` → `\"`, `` ` `` → `` \` ``, and `$` → `\$` (escape backslashes first so the newly-inserted escape characters are not themselves re-escaped). Never interpolate a story-supplied string into a shell command unescaped.
 
-2. **Execute the command.** For `fill`/`type`, the story's `value` field supplies the trailing `[text]` argument (escaped per Step 1): e.g. `find label "Email" fill "user@example.com"`.
+2. **Execute the command.** For `fill`, the story's `value` field supplies the trailing `[text]` argument (escaped per Step 1): e.g. `find label "Email" fill "user@example.com"`. `find`'s action argument only resolves to `click`/`fill`/`check`/`hover` in this pinned version (`agent-browser-reference.md`'s Operation vocabulary) — a story action outside that set has no `find`-based translation.
 
 3. **Locator failure recovery:** If the `find` command errors with element-not-found, take a fresh snapshot:
    ```

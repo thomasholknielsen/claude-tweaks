@@ -4,7 +4,11 @@ Judge file for the `docs` registry row (`Docs`), loaded per that row when its ga
 
 Loaded by `/claude-tweaks:wrap-up`'s Docs curation row to judge the health of docs this work actually touched or is closely related to, and to detect documentation this work should have produced but didn't. Three checks — D0 broadens which existing docs get judged beyond the touched set via a domain-overlap scan, D1 applies the shared docs-health judgment to that combined scope, D2 judges the diff for missing coverage.
 
-**Fast-lane narrows breadth, never gates existence.** Under `ceremony-profile: fast-lane` the engine applies the profile to `scope.cap` only, never to gate evaluation (`engine-plan.js`'s `resolveDomainOverlapScope`) — D0's scan still runs whenever the row's gate is open, with a smaller cap. The same principle `skill-curation.md` states for the Skills row; it holds for this row too.
+**Fast-lane narrows breadth, never gates existence.** See `_shared/fast-lane-digest.md`'s
+wrap-up section for the exact cap number — the engine applies the profile to `scope.cap` only,
+never to gate evaluation (`engine-plan.js`'s `resolveDomainOverlapScope`); D0's scan still runs
+whenever the row's gate is open, with a smaller cap. The same principle `skill-curation.md`
+states for the Skills row; it holds for this row too.
 
 ## D0: Domain-Overlap Scan
 

@@ -109,8 +109,9 @@ isolated to this worktree can still see an Edit/Write attempt against `decisions
 `staged/*.md`, `manifest.yml`, or any other file under a resolved run directory refused outright.
 When that happens, use `bin/log-decision.js` (`_shared/auto-decision-log.md`'s canonical
 appender) for a `decisions.md` entry, or `bin/stage-item.js` for a new staged file; `bin/set-config.js`
-writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <value>` — the
-ceremony escape hatch's downgrade path, refs #1376) the same way — none of the three are
+writes a `config.yml` policy lever (`--run <run-dir> --key <lever> --value <value>`, or the
+`--run <run-dir> --set <key1>=<value1>,...` batch form that writes every lever in one call,
+refs #1376/#1580) the same way — none of the three are
 subject to this tool-level pinning, and all work identically from a worktree session or the
 main checkout. Reach for `bin/set-config.js` rather than a hand-rolled `sed -i` on `config.yml`
 even from a Bash call: a `sed -i` target built from a shell variable set in an earlier command
@@ -145,9 +146,9 @@ than satisfying any of them (see the matching Don't in `docs/donts.md`).
 
 A third guard sits at the **CLI-argument boundary** — the one path neither of the two above
 covers, a run directory handed to a binary explicitly on the command line rather than inherited
-or created. Three rules live at this boundary — the first two split by whether the binary has a
+or created. Four shapes live at this boundary — the first two split by whether the binary has a
 documented legitimate run directory outside the repository, the third carried by the
-sanctioned-write family:
+sanctioned-write family, the fourth a single documented exception:
 
 - **Pipeline-owned binaries** — `bin/hooks.js` (`resolveRunArg`, `--run`), `bin/wrap-up-engine.js`
   (`main`, `--run-dir`), `bin/materialize.js` (`run`, `--run-dir`), and `bin/apply-refine-labels.js`
@@ -257,6 +258,17 @@ argument still holds there.
   invocation), with its own two messages ("run dir does not exist" versus "not anchored under
   the main checkout (a worktree-local shadow)"). A fourth writer imports that `resolveTarget`
   rather than re-deriving the predicate.
+
+- **The composer CLI** — `bin/compose-context.js` (`--run`, #1988) — writes
+  `{run}/context/{step}.md` yet takes the resolver family's anchored-or-outside rule
+  (`bin/lib/run-dir-guard.js`'s `anchoredOrOutsideMessage`) rather than the sanctioned-writer
+  strict rule, and rejects with exit **2**, its malformed-invocation code, not 3. Deliberate, and
+  narrower than it looks: its callers never branch on a run-dir code — a skill step's documented
+  fallback on any non-zero exit is to read the named source files directly
+  (`docs/skill-authoring.md`'s "Conditional blocks and the composer") — and its tests run the real
+  binary against tmp-root fixtures outside any checkout, the same documented outside-repo use the
+  two resolver CLIs have. A fifth writer copying it inherits that reasoning only if its own callers
+  share it; otherwise the sanctioned-writer family above is the default.
 
 The first two rules keep the two failure modes distinct in the message — "resolves outside the main
 checkout" (a worktree-relative shadow) versus "could not determine the git repository root" (no

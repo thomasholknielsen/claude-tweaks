@@ -7,7 +7,7 @@ const fs = require('fs');
 const { EventEmitter } = require('events');
 const { PassThrough } = require('stream');
 
-const { runChecks } = require(path.join(
+const { runChecks, runOne } = require(path.join(
   __dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'verify', 'run.js'));
 
 function tmpLogDir() {
@@ -202,4 +202,42 @@ test('a write-stream failure kills the already-spawned child instead of leaving 
     cmds: [{ name: 'tests', command: 't' }], logDir, spawnImpl,
   });
   assert.strictEqual(children.t.killed, true);
+});
+
+test('a failed tests check is handed to the retry hook, and a hook that returns exitCode 0 un-skips the checks behind it (#1925)', async () => {
+  const { spawnImpl } = makeFakeSpawn({ 'run-tests': { exit: 1 }, 'run-other': { exit: 0 } });
+  const seen = [];
+  const retry = async (result, ctx) => {
+    seen.push({ name: result.name, hasLogDir: typeof ctx.logDir === 'string', hasSpawn: typeof ctx.spawnImpl === 'function' });
+    return { ...result, exitCode: 0, flakyRetried: ['tests/a.test.js'] };
+  };
+  const results = await runChecks({
+    cmds: [{ name: 'tests', command: 'run-tests' }, { name: 'other', command: 'run-other' }],
+    logDir: tmpLogDir(), spawnImpl, now: Date.now, retry,
+  });
+  assert.deepStrictEqual(seen, [{ name: 'tests', hasLogDir: true, hasSpawn: true }]);
+  assert.strictEqual(results[0].exitCode, 0);
+  assert.deepStrictEqual(results[0].flakyRetried, ['tests/a.test.js']);
+  assert.strictEqual(results[1].exitCode, 0, 'other ran instead of being fail-fast skipped');
+});
+
+test('the retry hook is never called for types or lint, and a hook that keeps the failure keeps fail-fast (#1925 AC7)', async () => {
+  const { spawnImpl } = makeFakeSpawn({ 'run-lint': { exit: 1 }, 'run-tests': { exit: 0 } });
+  const seen = [];
+  const retry = async (result) => { seen.push(result.name); return result; };
+  const results = await runChecks({
+    cmds: [{ name: 'lint', command: 'run-lint' }, { name: 'tests', command: 'run-tests' }],
+    logDir: tmpLogDir(), spawnImpl, now: Date.now, retry,
+  });
+  assert.deepStrictEqual(seen, []);
+  assert.strictEqual(results[1].skipped, 'fail-fast');
+});
+
+test('runOne is exported for retry spawns and records its log under logDir (#1925)', async () => {
+  const { spawnImpl } = makeFakeSpawn({ 'run-x': { exit: 0, output: 'hi\n' } });
+  const logDir = tmpLogDir();
+  const r = await runOne({ name: 'tests-retry-tests-a.test.js-1', command: 'run-x', logDir, spawnImpl, now: Date.now });
+  assert.strictEqual(r.exitCode, 0);
+  assert.strictEqual(path.basename(r.logPath), 'tests-retry-tests-a.test.js-1.log');
+  assert.strictEqual(fs.readFileSync(r.logPath, 'utf8'), 'hi\n');
 });

@@ -26,6 +26,33 @@ const MAX_REPORTED = 3;
 // whose whole point is to report what it did).
 const FAST_CHECKS = ['mirror', 'red-tip', 'console'];
 
+// #137: complements (never replaces) the seven-copy routine preamble
+// paragraph (skills/_shared/routine-template-schema.md) that reports the
+// resolved build in a routine firing's own *output* -- readable back from a
+// transcript or filed issue later. This puts the same fact in every OTHER
+// entry point's *context* instead (interactive session, /flow run, dispatched
+// subagent) -- the agent knows it, even if it never says it out loud. Read
+// unconditionally, not gated on differing from the marketplace catalog: this
+// hook is a real Node process already running from the resolved plugin root,
+// so CLAUDE_PLUGIN_ROOT is simply this process's own env, never a guess the
+// way the preamble's multi-rung LLM-executed fallback ladder has to be for an
+// agent reading its own context -- a catalog read here would add a network
+// dependency to every session start for a diagnostic only ever consulted when
+// something already looks wrong (decided, not left open, per the record's own
+// Deliverables). `env` is injectable for tests; production omits it.
+function resolveBuildLine(env = process.env) {
+  const pluginRoot = env.CLAUDE_PLUGIN_ROOT;
+  if (!pluginRoot) return null;
+  let pkg;
+  try {
+    pkg = JSON.parse(fs.readFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!pkg || typeof pkg.version !== 'string' || !pkg.version) return null;
+  return `claude-tweaks v${pkg.version} @ ${pluginRoot}`;
+}
+
 async function run(ctx) {
   const parts = [];
   // Per-invocation cache (#381): memoizes `git worktree list --porcelain` and
@@ -36,7 +63,23 @@ async function run(ctx) {
   // tests, /dispatch, /tidy, any other reconcile() caller) omits it and keeps
   // today's fresh-spawn-per-call behavior unchanged.
   const cache = { worktreeList: new Map(), integrationBranch: new Map() };
+  // #1687: hoisted to the top of run() so both the inline reconcile() call
+  // below AND the detached reconcile-background spawn (further down) can use
+  // the same value — `ctx.input.session_id` is the hook payload's own session
+  // id, reliably present here (unlike `process.env.CLAUDE_CODE_SESSION_ID`,
+  // which bin/hooks.js's own header comment documents as not reliably present
+  // for a hook-spawned process). Previously computed only inside the first
+  // try block below, so the spawn block (a separate try block, further down)
+  // had no access to it and the detached child never received a session id at
+  // all — see that block's own comment for the fix this enables.
+  const sessionId = typeof ctx.input === 'object' && ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id
+    ? ctx.input.session_id
+    : undefined;
   try { parts.push(...deps.collect()); } catch { /* best-effort */ }
+  try {
+    const buildLine = resolveBuildLine();
+    if (buildLine) parts.push(buildLine);
+  } catch { /* best-effort */ }
   try {
     // Only the newest MAX_REPORTED entries are ever shown — pull from the
     // lazy iterator and stop early instead of materializing (and reading
@@ -187,20 +230,17 @@ async function run(ctx) {
     // NOT gated on this same stamp — it keys off
     // reconcile-background-status.json's own `completedAt` (see the spawn
     // block below and its comment for why conflating the two was a bug).
-    // `ctx.input.session_id` is the hook payload's own session id — the same
-    // field hooks.js's dispatcher already reads for `ownedRun` (`ctxLib.resolveRun(cwd,
-    // process.env, input.session_id)`), unlike `process.env.CLAUDE_CODE_SESSION_ID`,
-    // which hooks.js's own header comment documents as not reliably present for a
-    // hook-spawned process. FAST_CHECKS never includes 'archive' (see this file's own
-    // constant above), so this has no effect on archive-merged.js's ownership gate
-    // today — that check only ever runs off the detached `reconcile-background`
-    // child process (spawned below), which receives no stdin and therefore has no
-    // session id to thread through at all. Passed here anyway for correctness: this
-    // is the one call site in this file that actually calls reconcile(), and a real
-    // session id is genuinely reachable at it.
-    const sessionId = typeof ctx.input === 'object' && ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id
-      ? ctx.input.session_id
-      : undefined;
+    // `sessionId` (hoisted to the top of run(), above) is the hook payload's
+    // own session id — the same field hooks.js's dispatcher already reads for
+    // `ownedRun` (`ctxLib.resolveRun(cwd, process.env, input.session_id)`).
+    // FAST_CHECKS never includes 'archive' (see this file's own constant
+    // above), so passing it here has no effect on archive-merged.js's
+    // ownership gate today — that check only ever runs off the detached
+    // `reconcile-background` child process (spawned below), which now
+    // receives this same session id via its spawn environment instead of
+    // having none to thread through at all (#1687). Passed here anyway for
+    // correctness: this is the one call site in this file that actually calls
+    // reconcile() inline, and a real session id is genuinely reachable at it.
     const result = await reconcile({
       cwd: ctx.cwd, checks: FAST_CHECKS, skipIfFresh: true, ttlMs: DEFAULT_TTL_MS, cache, sessionId,
     });
@@ -318,6 +358,21 @@ async function run(ctx) {
       if (!fresh) {
         try {
           const { spawn } = require('child_process');
+          // #1687: thread this session's id into the detached child's
+          // environment so `bin/hooks.js`'s `reconcile-background` subcommand
+          // can pass it to `reconcile({ ..., sessionId })`, which is what
+          // makes archive-merged.js's `isAbandonedInterrupted` ownership gate
+          // actually engage on this path — before this fix the child had no
+          // session id at all, reachable via neither an argv nor an env value,
+          // so the gate was permanently inert here (the path that runs the
+          // 'archive' check in production). A dedicated `CLAUDE_TWEAKS_`-
+          // prefixed var, not `CLAUDE_CODE_SESSION_ID`: the child inherits
+          // this process's env either way, and if that harness-set var were
+          // reliably present here this record wouldn't exist (see this file's
+          // header comment and #1687's own body). Only set when a real
+          // session id is known — an absent key means "unresolvable", matching
+          // reconcile-background's read-side fallback (`|| undefined`).
+          const spawnEnv = sessionId ? { ...process.env, CLAUDE_TWEAKS_SESSION_ID: sessionId } : process.env;
           const child = spawn(
             process.execPath,
             [path.join(__dirname, '..', '..', 'hooks.js'), 'reconcile-background'],
@@ -326,7 +381,7 @@ async function run(ctx) {
             // and without the flag Windows gives it a VISIBLE one — as it
             // then does for every git process this background pass spawns
             // beneath it. See tests/hooks-git-exec.test.js for the funnel.
-            { cwd: ctx.cwd, detached: true, stdio: 'ignore', windowsHide: true },
+            { cwd: ctx.cwd, detached: true, stdio: 'ignore', windowsHide: true, env: spawnEnv },
           );
           // spawn() returns an EventEmitter, and an ASYNCHRONOUS spawn
           // failure (EAGAIN under fork pressure — routine in a repo running
@@ -388,7 +443,10 @@ async function run(ctx) {
             const result = await portsEnsure.ensure(ctx.cwd, { policyServices: services });
             if (result.active) {
               const range = `${result.base}-${result.base + result.ports.length - 1}`;
-              const vars = result.vars.map(([k, v]) => `${k}=${v}`).join(' ');
+              // #1927: CLAUDE_TWEAKS_LEASE rides in vars for the env file, not in this line (#1792 AC3's shape).
+              const vars = result.vars
+                .filter(([k]) => k === 'PORT' || k.endsWith('_PORT'))
+                .map(([k, v]) => `${k}=${v}`).join(' ');
               // Reallocation moves URLs — this line must never be silent
               // (see #1792's Gotchas: "never make the reallocation silent").
               parts.push(result.reallocated
@@ -407,4 +465,4 @@ async function run(ctx) {
   return { json: { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: parts.join('\n\n') } } };
 }
 
-module.exports = { run, FAST_CHECKS };
+module.exports = { run, FAST_CHECKS, resolveBuildLine };

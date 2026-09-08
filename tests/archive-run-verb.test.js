@@ -98,6 +98,40 @@ test('archive-run: never prints a moved: line for a name absent from the fixture
   assert.doesNotMatch(result.stdout, /moved: staged/);
 });
 
+// Regression: a *-sweep-standalone*/*-tidy-standalone* run's decisions.md/
+// staged only become git-tracked once their worktree copy has merged AND
+// this checkout has pulled that merge (SKILL.md's pr-first Step 7.5) — a
+// real window where they exist on disk here but are genuinely untracked.
+// The CLI must name the untracked files and point at the actual fix (sync
+// this checkout), not the generic 'archival refused — git-mv-failed' a
+// human has no way to act on.
+test('archive-run: sweep-standalone run with untracked decisions.md/staged refuses audit-untracked, names the files and the fix', () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-archrun-standalone-')));
+  git(['init', '-q', '--initial-branch=main'], root);
+  git(['config', 'user.email', 'test@example.com'], root);
+  git(['config', 'user.name', 'Test'], root);
+  fs.writeFileSync(path.join(root, 'a.txt'), 'one\n');
+  git(['add', 'a.txt'], root);
+  git(['commit', '-q', '-m', 'seed'], root);
+
+  const runId = '2026-08-14T120000-sweep-standalone';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(path.join(runDir, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n');
+  fs.writeFileSync(path.join(runDir, 'staged', 'proposal-1.md'), '# proposal\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'clean' }));
+
+  const result = runHook(['archive-run', '--run', runDir], { cwd: root });
+  assert.match(result.stdout, /archival refused — audit-untracked/);
+  assert.match(result.stdout, /decisions\.md/);
+  assert.match(result.stdout, /staged/);
+  assert.match(result.stdout, /sync this checkout with origin/);
+  assert.ok(fs.existsSync(runDir), 'run dir must not be touched');
+  assert.ok(fs.existsSync(path.join(runDir, 'decisions.md')), 'decisions.md must survive at its original path');
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.ok(!fs.existsSync(path.join(archiveDir, 'decisions.md')), 'no half-populated archive dir');
+});
+
 // #1130 AC4: the direct CLI verb is wrap-up's own archival route and already
 // requires terminal status, but a run parked with a rendered-but-unanswered
 // PR console (console.json present, resolved !== true) could still be

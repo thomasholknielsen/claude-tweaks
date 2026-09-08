@@ -200,6 +200,79 @@ test('worktree-always nudge appears when policy is on and session is not yet iso
   assert.match(out.json.hookSpecificOutput.additionalContext, /using-git-worktrees/);
 });
 
+// --- #137: resolved-build line, complementing (not replacing) the routine preamble ---
+
+function tmpPluginRoot(version) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-plugin-'));
+  fs.mkdirSync(path.join(dir, '.claude-plugin'), { recursive: true });
+  if (version !== undefined) {
+    fs.writeFileSync(path.join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify({ version }));
+  }
+  return dir;
+}
+
+test('resolveBuildLine reads the version from plugin.json under the given CLAUDE_PLUGIN_ROOT', () => {
+  const root = tmpPluginRoot('6.114.1');
+  try {
+    const line = sessionStart.resolveBuildLine({ CLAUDE_PLUGIN_ROOT: root });
+    assert.strictEqual(line, `claude-tweaks v6.114.1 @ ${root}`);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveBuildLine returns null when CLAUDE_PLUGIN_ROOT is unset', () => {
+  assert.strictEqual(sessionStart.resolveBuildLine({}), null);
+});
+
+test('resolveBuildLine returns null when plugin.json is missing or unreadable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-noplugin-'));
+  try {
+    assert.strictEqual(sessionStart.resolveBuildLine({ CLAUDE_PLUGIN_ROOT: root }), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveBuildLine returns null when plugin.json has no string version field', () => {
+  const root = tmpPluginRoot();
+  fs.writeFileSync(path.join(root, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'claude-tweaks' }));
+  try {
+    assert.strictEqual(sessionStart.resolveBuildLine({ CLAUDE_PLUGIN_ROOT: root }), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('run() includes the resolved-build line in additionalContext, unconditionally, alongside other checks', async () => {
+  const project = tmpProject();
+  const root = tmpPluginRoot('9.9.9');
+  const orig = process.env.CLAUDE_PLUGIN_ROOT;
+  try {
+    process.env.CLAUDE_PLUGIN_ROOT = root;
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.match(out.json.hookSpecificOutput.additionalContext, /claude-tweaks v9\.9\.9 @ /);
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /claude-tweaks: claude-tweaks v/);
+  } finally {
+    if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
+    else process.env.CLAUDE_PLUGIN_ROOT = orig;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('run() emits no build line (and no crash) when CLAUDE_PLUGIN_ROOT is unset, same as before #137', async () => {
+  const project = tmpProject();
+  const orig = process.env.CLAUDE_PLUGIN_ROOT;
+  try {
+    delete process.env.CLAUDE_PLUGIN_ROOT;
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /claude-tweaks v/);
+  } finally {
+    if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
+    else process.env.CLAUDE_PLUGIN_ROOT = orig;
+  }
+});
+
 test('worktree-always nudge is absent when policy is off', async () => {
   const project = gitProject();
   const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
@@ -587,6 +660,51 @@ test('SessionStart: a throw while rendering the background summary still leaves 
   }
 });
 
+// #1687: the reconcile-background child had no way to learn the spawning
+// session's id at all — neither argv nor env — so archive-merged.js's
+// ownership gate (isAbandonedInterrupted) was permanently inert on the one
+// path that actually runs the 'archive' check in production. session-start.js
+// now threads ctx.input.session_id into the spawned child's own environment
+// via a dedicated var, never CLAUDE_CODE_SESSION_ID (this file's own header
+// comment documents that one as unreliable for a hook-spawned process).
+test('SessionStart spawn gate: threads ctx.input.session_id into the background child\'s environment as CLAUDE_TWEAKS_SESSION_ID (#1687)', async () => {
+  const cp = require('child_process');
+  const originalSpawn = cp.spawn;
+  let spawnedWith = null;
+  cp.spawn = (...args) => { spawnedWith = args; return { unref() {}, on() {} }; };
+  try {
+    const project = gitProject();
+    await sessionStart.run({ input: { session_id: 'sess-1687-abc' }, runDir: null, runState: null, cwd: project });
+    assert.ok(spawnedWith, 'expected the background pass to spawn');
+    assert.strictEqual(spawnedWith[1][1], 'reconcile-background');
+    assert.strictEqual(spawnedWith[2].env.CLAUDE_TWEAKS_SESSION_ID, 'sess-1687-abc');
+    // The rest of the parent's env must still be inherited, not replaced.
+    assert.strictEqual(spawnedWith[2].env.PATH, process.env.PATH);
+  } finally {
+    cp.spawn = originalSpawn;
+  }
+});
+
+// AC2's "no session id resolvable, behavior is unchanged" half, pinned at the
+// spawn boundary: with no session id known, the child must inherit the
+// parent's env object unchanged — not a copy carrying an empty/undefined
+// CLAUDE_TWEAKS_SESSION_ID key, which would itself be a (harmless but
+// needless) behavior change from today.
+test('SessionStart spawn gate: no CLAUDE_TWEAKS_SESSION_ID override when ctx.input carries no session id (#1687)', async () => {
+  const cp = require('child_process');
+  const originalSpawn = cp.spawn;
+  let spawnedWith = null;
+  cp.spawn = (...args) => { spawnedWith = args; return { unref() {}, on() {} }; };
+  try {
+    const project = gitProject();
+    await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.ok(spawnedWith, 'expected the background pass to spawn');
+    assert.strictEqual(spawnedWith[2].env, process.env, 'with no known session id, the child inherits the parent env object unchanged');
+  } finally {
+    cp.spawn = originalSpawn;
+  }
+});
+
 // #820 final review finding 1: D7's freshness cache is wired into the INLINE
 // fast pass, not just the background one — near-simultaneous session starts
 // in the same repo skip the mirror/red-tip/console work inside the TTL.
@@ -861,6 +979,26 @@ test('#1792 AC7: more than BLOCK_SIZE valid services disables port isolation for
       out.json.hookSpecificOutput.additionalContext,
       new RegExp(`claude-tweaks: ports — port-services lists ${names.length} services, more than one block \\(${portsRegistryMod.BLOCK_SIZE}\\) can hold`),
     );
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});
+
+// #1927: the lease pair travels in vars but never in the rendered ports line (#1792 AC3's shape stays).
+test('#1927: the SessionStart ports line omits CLAUDE_TWEAKS_LEASE from the parenthesised list (#1792 AC3 shape stays)', async () => {
+  const project = gitProject();
+  withPolicy(project, 'port-services: web,api\n');
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async () => ({
+    active: true, base: 20000, ports: [20000, 20001, 20002, 20003, 20004, 20005, 20006, 20007, 20008, 20009],
+    vars: [['CLAUDE_TWEAKS_LEASE', '20000'], ['PORT', '20000'], ['API_PORT', '20001']], reallocated: null, envWriteError: null, leaseLineAdded: false,
+  });
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    const lines = out.json.hookSpecificOutput.additionalContext.split('\n\n');
+    const portsLine = lines.find((l) => l.startsWith('claude-tweaks: ports '));
+    assert.match(portsLine, /^claude-tweaks: ports 20000-20009 \(PORT=20000 API_PORT=20001\)$/);
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /CLAUDE_TWEAKS_LEASE/);
   } finally {
     portsEnsureMod.ensure = original;
   }

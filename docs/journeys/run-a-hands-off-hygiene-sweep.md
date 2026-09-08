@@ -11,7 +11,7 @@ files:
 **Persona:** A claude-tweaks maintainer who wants the whole backlog hygiene chain — tidy, shape, grant — run in one command before a dispatch session, without answering anything.
 **Goal:** Run `/claude-tweaks:sweep` once and get a tidied, shaped, and (where authorized) granted queue, ending on the attention report and a paste-ready `/claude-tweaks:dispatch` line.
 **Entry point:** A terminal at the project checkout; type `/claude-tweaks:sweep` (optionally `--budget <n|all>` and/or `--scope <name>[,<name>...]`).
-**Success state:** Tidy, specify's bare drain, and backlog refine's headless posture all ran under one shared run directory and one `decisions.md`; the run closes with `/claude-tweaks:backlog attention`'s own rendered report and a `## Next Actions` block recommending `/claude-tweaks:dispatch` (or a needs-you launcher, if one is pending).
+**Success state:** Tidy, specify's bare drain, and backlog refine's headless posture all ran under one shared run directory and one `decisions.md`; the run closes with `/claude-tweaks:backlog attention`'s own rendered report and a `## Next Actions` block recommending `/claude-tweaks:tidy --approve` (when Step 2's tidy pass staged anything this run — the cheapest, zero-judgment item leads), or otherwise `/claude-tweaks:dispatch` (or a needs-you launcher, if one is pending).
 
 ## Steps
 
@@ -43,3 +43,4 @@ files:
 ### 5. Read the close-out — terminal
 - **URL:** same session, sweep's final rendered reply
 - **Action:** Read `/claude-tweaks:backlog attention`'s own rendered report (invoked directly as sweep's close-out, not restated), then the `## Next Actions` block beneath it.
+- **Should understand:** When Step 2's tidy pass staged anything this run, `/claude-tweaks:tidy --approve` leads the block (bolded, recommended) ahead of `/claude-tweaks:dispatch` and any needs-you launcher — clearing an already-vetted, zero-judgment batch is cheaper than either heavier pick. When nothing was staged, the block falls back to the original order (`/claude-tweaks:dispatch`, or a needs-you launcher, leading).
