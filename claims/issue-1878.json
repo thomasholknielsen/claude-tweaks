@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-08T201542-record-1878",
-  "sessionId": "37e9c60f-8bed-59df-b0bc-bdd582c7d27c",
-  "claimedAt": "2026-09-08T20:18:53.098Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "reason": "failed: build-target-obsolete",
+  "releasedAt": "2026-09-08T20:21:55.558Z"
 }
