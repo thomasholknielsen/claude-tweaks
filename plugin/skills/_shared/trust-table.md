@@ -305,8 +305,8 @@ node -e "
   const { trustRows, parseGitLog } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/trust.js');
   const issues = require('{tmp-records}');
   const subIssues = new Set(require('{tmp-sub-issues}'));
-  if (issues.length === Number(process.env.FETCH_LIMIT)) {
-    console.error('WARNING: fetched exactly ' + issues.length + ' records (the configured backlog-fetch-limit) — history beyond this cap was dropped, so every cell below may be under-counted. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
+  if (issues.length >= Number(process.env.FETCH_LIMIT)) {
+    console.error('WARNING: fetched ' + issues.length + ' records (at or beyond the configured backlog-fetch-limit) — history beyond this cap was dropped, so every cell below may be under-counted. Raise backlog-fetch-limit in .claude-tweaks/policy.yml and re-run before reading any verdict.');
   }
   const records = issues.map((i) => ({ ...i, labels: i.labels.map((l) => l.name), hasParent: subIssues.has(i.number) }));
   const gitLog = parseGitLog(fs.readFileSync('{tmp-git-log}', 'utf8'));
