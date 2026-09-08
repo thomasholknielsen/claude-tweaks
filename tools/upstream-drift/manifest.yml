@@ -21,7 +21,7 @@ dependencies:
       run: "npx --no-install impeccable --version"
       root: "npm root -g"
       root-suffix: "impeccable"
-    pinned: "3.5.0"
+    pinned: "3.6.0"
     upstream:
       repo: "pbakaus/impeccable"
       tag-prefix: "cli-v"
