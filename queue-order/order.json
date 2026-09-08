@@ -1,242 +1,242 @@
 {
-  "computedAt": "2026-09-07T18:16:33.796Z",
-  "runId": null,
+  "computedAt": "2026-09-08T02:20:00.789Z",
+  "runId": "2026-09-08T021336-dispatch-standalone",
   "freshnessSignal": {
     "issues": [
       {
         "number": 2025,
         "updatedAt": "2026-09-07T11:58:44Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2023,
         "updatedAt": "2026-09-07T11:58:41Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2020,
         "updatedAt": "2026-09-07T11:59:24Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2018,
         "updatedAt": "2026-09-07T11:58:26Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2017,
         "updatedAt": "2026-09-07T11:58:22Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2016,
         "updatedAt": "2026-09-07T11:58:19Z",
-        "state": "open"
-      },
-      {
-        "number": 2015,
-        "updatedAt": "2026-09-07T11:58:16Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2014,
         "updatedAt": "2026-09-07T11:58:12Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2009,
         "updatedAt": "2026-09-07T11:58:03Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2006,
         "updatedAt": "2026-09-07T11:57:53Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 2005,
-        "updatedAt": "2026-09-07T11:57:50Z",
-        "state": "open"
-      },
-      {
-        "number": 1996,
-        "updatedAt": "2026-09-07T14:30:20Z",
-        "state": "open"
+        "updatedAt": "2026-09-07T19:27:21Z",
+        "state": "OPEN"
       },
       {
         "number": 1973,
         "updatedAt": "2026-09-07T11:56:23Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1971,
         "updatedAt": "2026-09-07T11:56:17Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1970,
         "updatedAt": "2026-09-07T11:56:11Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1967,
         "updatedAt": "2026-09-07T11:56:05Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1966,
         "updatedAt": "2026-09-07T17:41:48Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1965,
         "updatedAt": "2026-09-07T16:53:16Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1964,
         "updatedAt": "2026-09-07T11:55:44Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1963,
         "updatedAt": "2026-09-07T15:52:53Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1962,
         "updatedAt": "2026-09-07T14:01:13Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1919,
         "updatedAt": "2026-09-07T13:07:46Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1912,
-        "updatedAt": "2026-09-07T11:54:16Z",
-        "state": "open"
+        "updatedAt": "2026-09-08T01:21:51Z",
+        "state": "OPEN"
       },
       {
         "number": 1911,
-        "updatedAt": "2026-09-07T11:54:12Z",
-        "state": "open"
+        "updatedAt": "2026-09-08T01:22:02Z",
+        "state": "OPEN"
       },
       {
         "number": 1910,
         "updatedAt": "2026-09-07T11:54:09Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1909,
-        "updatedAt": "2026-09-07T11:54:06Z",
-        "state": "open"
+        "updatedAt": "2026-09-08T01:20:59Z",
+        "state": "OPEN"
       },
       {
         "number": 1906,
         "updatedAt": "2026-09-07T11:54:03Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1903,
         "updatedAt": "2026-09-07T10:24:43Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1900,
         "updatedAt": "2026-09-07T10:24:46Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1890,
         "updatedAt": "2026-09-07T10:25:04Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1882,
         "updatedAt": "2026-09-07T12:24:05Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1878,
         "updatedAt": "2026-09-07T10:24:51Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1877,
         "updatedAt": "2026-09-07T10:24:54Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1876,
         "updatedAt": "2026-09-07T11:57:56Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1875,
         "updatedAt": "2026-09-07T10:24:58Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1795,
-        "updatedAt": "2026-09-07T10:25:38Z",
-        "state": "open"
+        "updatedAt": "2026-09-08T00:22:35Z",
+        "state": "OPEN"
       },
       {
         "number": 1794,
-        "updatedAt": "2026-09-07T10:25:40Z",
-        "state": "open"
+        "updatedAt": "2026-09-08T01:22:11Z",
+        "state": "OPEN"
       },
       {
         "number": 1793,
-        "updatedAt": "2026-09-07T10:25:43Z",
-        "state": "open"
+        "updatedAt": "2026-09-08T00:22:34Z",
+        "state": "OPEN"
       },
       {
         "number": 1776,
         "updatedAt": "2026-09-07T10:23:42Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1594,
         "updatedAt": "2026-09-07T12:00:19Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1570,
         "updatedAt": "2026-09-05T14:32:41Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1537,
         "updatedAt": "2026-09-05T13:31:00Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1350,
         "updatedAt": "2026-09-07T01:12:47Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1301,
         "updatedAt": "2026-09-07T10:25:01Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 1135,
         "updatedAt": "2026-09-05T10:19:10Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 666,
         "updatedAt": "2026-09-07T10:23:45Z",
-        "state": "open"
+        "state": "OPEN"
       },
       {
         "number": 605,
         "updatedAt": "2026-09-05T08:29:29Z",
-        "state": "open"
+        "state": "OPEN"
+      },
+      {
+        "number": 2015,
+        "updatedAt": "2026-09-08T00:00:31Z",
+        "state": "CLOSED"
+      },
+      {
+        "number": 1996,
+        "updatedAt": "2026-09-07T18:23:45Z",
+        "state": "OPEN"
       }
     ]
   },
@@ -259,7 +259,7 @@
         ],
         "createdAt": "2026-09-07T06:07:38Z",
         "updatedAt": "2026-09-07T11:58:44Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
@@ -302,7 +302,7 @@
         ],
         "createdAt": "2026-09-07T05:23:29Z",
         "updatedAt": "2026-09-07T11:58:41Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "harness-health",
           "risk": "low",
@@ -343,7 +343,7 @@
         ],
         "createdAt": "2026-09-07T04:12:34Z",
         "updatedAt": "2026-09-07T11:59:24Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "medium",
@@ -385,7 +385,7 @@
         ],
         "createdAt": "2026-09-07T04:12:30Z",
         "updatedAt": "2026-09-07T11:58:26Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -427,7 +427,7 @@
         ],
         "createdAt": "2026-09-07T04:12:28Z",
         "updatedAt": "2026-09-07T11:58:22Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -469,7 +469,7 @@
         ],
         "createdAt": "2026-09-07T04:12:26Z",
         "updatedAt": "2026-09-07T11:58:19Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -482,47 +482,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "number": 2015,
-        "title": "Reconcile a bundle PR's Fixes lines with manifest outcomes before the merge — a not-run or failed spec must never close on merge",
-        "body": "Defer-reason: pre-existing-outside-diff\nOrigin: reflect full (batch) from /flow #1988-#1997 consolidated close (parent run 2026-09-06T110420)\n\n## Current State\n\n`_shared/pr-early-run-lifecycle.md` (\"One `Fixes #{n}` line per record\") writes one `Fixes #{m}` per `manifest.yml` `specs[].id` into the bundle PR body at run start, before any spec has run — draft-safe by design. Nothing later reconciles those lines with what the run actually built: `hooks.js spec-status` writing `not-run` or `failed` does not touch the PR body, the \"Pre-merge title/description refresh\" section refreshes only the title and the phase checklist, and `flow/multispec-review-console.md`'s Shared teardown step 2 tells `_shared/pr-first-merge.md` Step 3 to put every `specs[].id` into the merge commit's `Fixes` lines. In the #1988–#1997 run, #1996 was ruled `not-run` (its go/no-go reads post-release data) and the PR body still carried `Fixes #1996` until the controller re-read the body at close-out and replaced it by hand; the merge-commit `Fixes` list had to be narrowed by hand the same way. A headless dispatch firing has no such re-read — the merge would have closed a record that never built, and the never-started claim release would then have posted on a closed issue.\n\n## Deliverables\n\n- In `_shared/pr-early-run-lifecycle.md`'s pre-merge refresh: rewrite the body's `Fixes` block from `manifest.yml` — one `Fixes #{m}` per spec with `status: complete`, and one `Refs #{m} — not run/failed: {reason}` line per spec with any other status — as an unconditional `AUTO` step alongside the title/checklist refresh.\n- In `flow/multispec-review-console.md` Shared teardown step 2 and `_shared/pr-first-merge.md` Step 3: define `{issue-list}` for a bundle as the manifest's `complete` specs, never the full `specs[].id` list; the not-run/failed set is released with `never-started:`/`abandoned:` reasons in step 3 exactly as today.\n- A conformance test pinning both prose sites, plus a fixture on whatever helper composes the `Fixes` block (a manifest with one `not-run` entry yields no `Fixes` line for it and one `Refs` line).\n\n## Acceptance Criteria\n\n- A multi-spec run with one `not-run` spec merges with `Fixes` lines only for the complete specs; the not-run record stays open after the merge and its claim releases as `never-started`.\n- The pre-merge refresh log line names the rewritten `Fixes` block.\n- `npm test` green apart from the tracked baseline (#1900).\n\n\n_Filed from the /flow #1988-#1997 consolidated Review Console (run 2026-09-06T110420, PR #1998); staged proposal: staged/record-proposal-2.md._\n",
-        "labels": [
-          "ready",
-          "size:low",
-          "by:capture",
-          "type:bug",
-          "auto:build",
-          "priority:high",
-          "risk:medium"
-        ],
-        "createdAt": "2026-09-07T04:12:24Z",
-        "updatedAt": "2026-09-07T11:58:16Z",
-        "state": "open",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
@@ -551,7 +510,7 @@
         ],
         "createdAt": "2026-09-07T04:12:22Z",
         "updatedAt": "2026-09-07T11:58:12Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -592,7 +551,7 @@
         ],
         "createdAt": "2026-09-06T21:24:48Z",
         "updatedAt": "2026-09-07T11:58:03Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -633,7 +592,7 @@
         ],
         "createdAt": "2026-09-06T21:24:36Z",
         "updatedAt": "2026-09-07T11:57:53Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -646,88 +605,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "number": 2005,
-        "title": "test/design-gate.md's Design CLI gate reads git diff --name-only, which is empty on every committed pipeline diff — read verify.js --changed-files instead",
-        "body": "Title: test/design-gate.md's Design CLI gate reads git diff --name-only, which is empty on every committed pipeline diff — read verify.js --changed-files instead\nType: bug\nLabels: risk:low, size:low, ready\nDefer-reason: genuinely-larger\n\nOrigin: ledger resolve gate (spec #1923 build, whole-branch review finding 12)\n\nDefer-reason: genuinely-larger\n\n## Current State\n\n`plugin/skills/test/design-gate.md` resolves the Design CLI gate's `<changed-files>` argument from `git diff --name-only`. In a pipeline every change is already committed by the time `/claude-tweaks:test` runs, so that list is empty, `design-detect.js`'s Layer 3 sniff sees zero files, and the gate returns `decision: \"skip\"` on every committed frontend diff — the #808 merge precondition's own deterministic gate silently self-skips. Found by #1923's whole-branch review (finding 12, pre-existing). Since #1923 the same skill states \"never hand-roll `git diff --name-only` — it is empty for every committed pipeline diff\" and its `affected`/QA paths read `verify.js --changed-files`.\n\n## Deliverables\n\n- [ ] `plugin/skills/test/design-gate.md`: resolve `<changed-files>` from `node \"${CLAUDE_PLUGIN_ROOT}/bin/verify.js\" --changed-files --integration-branch {ref}` (`{ref}` via `_shared/integration-branch.md`), joining `files` with commas for `--files`; an exit 1 (no resolvable base) falls back to `git diff --name-only HEAD~1..HEAD` ∪ the working tree, never an empty list.\n\n- [ ] A prose pin in `tests/test-skill-affected-conformance.test.js` (or a sibling): `design-gate.md` cites `--changed-files` and no longer cites bare `git diff --name-only` for the gate input.\n\n- [ ] `docs/skill-graph.md` `## test` ↔ `/design-wrapper` row mentions the shared changed-file set.\n\n## Acceptance Criteria\n\n1. `grep -n \"git diff --name-only\" plugin/skills/test/design-gate.md` returns nothing for the gate-input step; `grep -n -- \"--changed-files\" plugin/skills/test/design-gate.md` returns at least one line.\n\n2. In a temp repo with a committed `src/App.tsx` change since the stamp anchor, following `design-gate.md`'s step yields a non-empty `--files` value for `design-detect.js --mode test` (a `node -e` probe in the conformance test can assert the documented command shape).\n\n3. `npm test` passes with no new failures relative to `main`.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n\n\n_Created by the consolidated Review Console of multi-spec run 2026-09-05T193518 (auto-resolved under the unattended ceiling; proposal: `spec-1923/staged/ledger-record-design-gate-changed-files.md`)._\n\nhttps://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB",
-        "labels": [
-          "ready",
-          "risk:low",
-          "size:low",
-          "type:bug",
-          "auto:build",
-          "auto:merge",
-          "priority:high"
-        ],
-        "createdAt": "2026-09-06T21:24:33Z",
-        "updatedAt": "2026-09-07T11:57:50Z",
-        "state": "open",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "number": 1996,
-        "title": "Subagent skill-tree read gate: pre-tool-use denies a subagent's Read of plugin/skills/_shared when the step's composed bundle exists — go/no-go on U8's measurement",
-        "body": "Surface: backend\n\n## Overview\n\nAdd a new deny gate in `plugin/bin/lib/hooks/pre-tool-use.js` that denies a subagent's `Read` (or a Bash `cat`/`sed`/`head` invocation) of a `plugin/skills/_shared/**/*.md` path when the current run's `{run}/context/` directory already holds a composed bundle for the specific step currently in progress (the per-step condition governs everywhere in this record — Deliverables/AC below use \"current run\" loosely in a couple of places; read every such instance as \"for the current step,\" since a run can have multiple steps and multiple bundles, and the gate must key off the one the current tool call's step actually needs, not merely \"some bundle exists somewhere in this run\") — enforcement for the boundary U8 established by convention alone. The first deliverable is explicitly a go/no-go check against U8 (#1995)'s own before/after measurement (reported in #1995's own last Deliverable and PR description): if U8 already achieved the ≥10× subagent-read reduction it targets, this record closes as not-needed, with the numbers quoted in the closing comment, rather than shipping an enforcement gate nothing further requires. That close is a snapshot judgment against U8's measured sessions, not a permanent guarantee — a later regression in subagent behavior that reintroduces heavy `_shared/` reads is a new record, evaluated fresh against then-current numbers, not an automatic reopening of this one.\n\n**Complexity:** Low\n**Estimated tasks:** 4\n\n## Non-Goals\n\n- Building the measurement this record's go/no-go decision consumes — that measurement is U8's own Deliverable, already produced before this record starts (Blocked by U8).\n- Denying any Read/Bash access outside the exact shape described below — a subagent's Read of any other path, or a main-agent's Read of anything, is never touched by this gate.\n- Fixing #1894, #1501, or #1441 — all three also edit `pre-tool-use.js`; this record's gate is additive and must not collide with any of them, but resolving those records is out of scope here.\n\n## Current State\n\n- `plugin/bin/lib/hooks/pre-tool-use.js` already carries a family of scoping exemptions on its deny gates (`isPipelineBookkeeping`, `isPolicyFile`/`realTarget`, `isPolicyOnlyCommit`, `isDeleteOnlyPush`, `isStampsGateExemptTarget`, the Bash foreign-repos branch, `checkBookkeepingStampsGate`'s file-tool foreign-target branch) — this record's new gate must follow the same discipline every existing exemption in this file already obeys (absolute-path-only guard, resolve the leaf symlink before deciding, fail closed on every unprovable answer, a Bash-shaped exemption matches the entire command string against a grammar, every new exemption needs a regression test proven to fail on revert).\n- This record's `Blocked by` link is U8 (#1995) — verify it has actually merged (e.g. `gh pr list --search \"1995\" --state merged`) before starting; once merged, its PR description carries the before/after subagent-read measurement for the switched dispatch prompts — this record's first real deliverable is reading that number, not writing code, before anything else here happens.\n- No existing check in `pre-tool-use.js` currently reads a subagent-vs-main-agent discriminator field from the PreToolUse hook payload (a `grep -n \"transcript\\|isSubagent\" plugin/bin/lib/hooks/pre-tool-use.js` at spec time returns nothing) — the only confirmed subagent-identifying field in this codebase's hooks lives on the separate `SubagentStop` event, not `PreToolUse`. Treat \"the calling context is a subagent\" as an empirical Task-0 question, not a settled fact: at implementation time, inspect the actual PreToolUse hook payload shape (dump it from a real subagent-originated tool call) to confirm whether a usable field exists; if none does, this record's first code task is adding one to the hook dispatcher (`plugin/bin/hooks.js`) before the gate itself can be written, and that added-field work becomes part of this record's own scope, not a silent assumption.\n- `docs/hooks.md` documents the existing gate family; this record adds this gate's own entry there.\n- #1894, #1501, and #1441 are open, unscored/`needs:decision` records that also edit `pre-tool-use.js` — check each one's current state (`gh issue view` / `gh pr list`) before starting, and rebase this record's new gate onto whichever of them lands first, per the same rebase discipline U2 established.\n\n## Deliverables\n\n- [ ] **Go/no-go read (do this first, before any code):** read U8's reported before/after subagent-read numbers for the switched shared-contract files. If U8 already achieved a ≥10× reduction (its own stated target), close this record as not-needed: post a closing comment quoting U8's exact before/after numbers and the reasoning that the enforcement gate is not required, and stop — none of the deliverables below are built.\n- [ ] (If the go/no-go above says \"still needed\") A new deny gate, `checkSharedSkillReadGate` (or the sibling-check naming convention this file already uses), firing only when: (a) the tool is `Read`, or a Bash invocation whose ENTIRE command string is exactly one of `cat <path>`, `sed ... <path>`, or `head ... <path>` against a single `plugin/skills/_shared/**/*.md` path (no pipe, `&&`/`;` chaining, redirection, or multi-file argument — any of those shapes falls through ungated as an accepted, documented limitation of this gate's first version, not silently swallowed); (b) the calling context is a subagent, confirmed via whatever field the Task-0 payload inspection above establishes (fail CLOSED on this condition specifically: a call this gate cannot conclusively classify as subagent-originated — including the fork case, which inherits the orchestrator's own session id and identity — is treated as NOT a subagent and is never denied, per this file's existing indeterminate-fails-closed discipline; a fixture test proves the fork case passes through ungated); and (c) `{run}/context/{step}.md` exists for the specific step the current tool call belongs to (the bundle filename pattern U1 (#1988) defines — not merely \"some file exists under `{run}/context/`\").\n- [ ] Deny message names the specific bundle path the subagent should read instead.\n- [ ] Enumerate, at plan time, every sanctioned caller of a `_shared/**` Read from a subagent context and every non-destructive/safe mode of the gated tool (per `spec-template.md`'s Gate-Authoring Deliverables) — confirm none is denied by the proposed condition before implementation begins. Record this enumerated list durably in `docs/hooks.md` itself (a roster table alongside the gate's own entry), not only in a plan file that may not survive past this record's own PR merging.\n- [ ] Apply the absolute-path-only guard, leaf-symlink resolution (mirroring `realTarget()`), and fail-closed-on-indeterminate discipline this file's existing gates already establish — reuse the existing helpers, don't reimplement them.\n- [ ] Fixture regression tests for each sanctioned caller enumerated above, proving they pass through the gate untouched, plus a test proving the gate denies the exact shape it targets and nothing broader — every new test proven to fail on revert (`git checkout -- {file}` on the implementation only, confirm only the new test goes red, then restore).\n- [ ] `docs/hooks.md` gains this gate's entry, following the existing documentation convention for the gate family.\n\n## Acceptance Criteria\n\n1. If the go/no-go read finds U8 already achieved its target: this record closes with a comment quoting the numbers, and no code ships.\n2. If the gate ships: it denies the enumerated shape (subagent + `_shared/**` Read/single-file cat-sed-head + an existing bundle for the current step) and only that shape — proven by fixture tests for each sanctioned caller passing through untouched, plus a fixture proving a piped/chained/multi-file Bash invocation of the same three verbs passes through ungated (the documented first-version limitation).\n3. The gate never fires in the main agent, never fires on a fork (which is treated as indeterminate-subagent-status and fails closed, per the fail-closed discipline), and never fires when no bundle exists for the current step — proven by fixture tests for all three cases.\n4. `docs/hooks.md` documents the gate.\n5. `npm test` passes, including every new fixture test, each shown to fail on revert of the implementation alone.\n\n## Technical Approach\n\n### Key Files\n\n- `plugin/bin/lib/hooks/pre-tool-use.js` — edit (only if the gate ships): add the new deny gate following the existing exemption discipline.\n- `tests/hooks-pre-tool-use.test.js` (or the sibling suite that already covers this gate family — confirm the exact file at plan time rather than assuming this name) — edit: add fixture tests for the gate and every sanctioned caller.\n- `docs/hooks.md` — edit (only if the gate ships): document the new gate.\n\n## Gotchas\n\n- Read U8's numbers before writing any code — this record's very first deliverable can end the record entirely; do not start on the gate implementation until that read has actually happened and the decision is recorded.\n- Every unprovable answer in this file fails CLOSED, and a conclusive exemption must never be gated on an unrelated inconclusive one (`[IL-149]`) — `wtDetect.repoInfo()`/`mainCheckoutRoot()` returning `indeterminate: true` or `null` is a different fact from a definitive negative, never read as \"not applicable.\"\n- Resolve the leaf symlink before deciding, mirroring `realTarget()` (`[IL-150]`) — a path-based decision made on the raw literal target can be defeated by a symlink whose target resolves outside the intended scope; never call a path-answering function on a literal path without checking for a leaf symlink first.\n- A Bash-shaped exemption (or, here, a Bash-shaped deny condition) must match the ENTIRE command string against a grammar — no partial match on a flag or filename lets a differently-shaped command slip past. Prove the staged set with `git diff --name-status`, never `--name-only`, when verifying the fix's own diff.\n- #1894, #1501, and #1441 all edit `pre-tool-use.js` — rebase this record's new gate onto whichever lands first, and re-run the sanctioned-caller enumeration against the current file state at implementation time, not against a stale read from spec time.\n- Every new exemption/gate needs a regression test proven to fail on revert — a green suite alone is not evidence the test discriminates; this is the same discipline the pre-tool-use-gate-exemptions skill documents for every existing gate in this file.\n\n\n<!-- work-fingerprint: 2026-09-06-skill-context-composer-design:subagent-skill-tree-read-gate-pre-tool-use-denies-a-subagent -->\nwork-fingerprint: 2026-09-06-skill-context-composer-design:subagent-skill-tree-read-gate-pre-tool-use-denies-a-subagent",
-        "labels": [
-          "ready",
-          "size:low",
-          "type:feature",
-          "auto:build",
-          "priority:high",
-          "risk:medium",
-          "ceremony:standard"
-        ],
-        "createdAt": "2026-09-06T10:11:08Z",
-        "updatedAt": "2026-09-07T14:30:20Z",
-        "state": "open",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "low",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
@@ -756,7 +633,7 @@
         ],
         "createdAt": "2026-09-06T08:15:50Z",
         "updatedAt": "2026-09-07T11:56:23Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -799,7 +676,7 @@
         ],
         "createdAt": "2026-09-06T06:05:28Z",
         "updatedAt": "2026-09-07T11:56:17Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
@@ -841,7 +718,7 @@
         ],
         "createdAt": "2026-09-06T05:18:39Z",
         "updatedAt": "2026-09-07T11:56:11Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "harness-health",
           "risk": "medium",
@@ -882,7 +759,7 @@
         ],
         "createdAt": "2026-09-06T00:28:17Z",
         "updatedAt": "2026-09-07T11:56:05Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "medium",
@@ -924,7 +801,7 @@
         ],
         "createdAt": "2026-09-06T00:28:08Z",
         "updatedAt": "2026-09-07T11:55:44Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -937,165 +814,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "number": 1912,
-        "title": "Model tier by diff facts: a diff-size ceiling in resolve-profile.js so a small diff's whole-branch review and reflect do not resolve to Capable by label alone",
-        "body": "Origin: brainstorm on #1904 (docs/superpowers/specs/2026-09-05-pipeline-ceremony-cost-design.md, \"Filed separately\")\nDefer-reason: tangential\n\n## Current State\n\n`build/dispatch.md` resolves SDD's final whole-branch review via `resolve-profile.js capable` unconditionally, and reflect's full mode runs on the session default; on record #1535 that was an Opus review of a ~20-line diff (its decisions.md line: \"opus review: Ready to merge = Yes, 0 Critical, 0 Important, 4 Minor\"). `resolve-profile.js` resolves a requested profile against `model-ceiling`, `frontier-run-cap`, and stance, but reads nothing about the diff. `bin/lib/dispatch/ceremony-derive.js`'s `computeDiffFacts` (file count, implementation vs test vs docs files, total lines) already exists and is what `wrap-up/ceremony-derivation.md` uses to narrow ceremony; the same facts can bound model tier. Review Step 3's lens dispatches already scale model by `review-effort`, so this gap is specific to the two Capable-pinned singleton slots.\n\n## Deliverables\n\n- [ ] `resolve-profile.js` accepts `--diff-facts <json>` (the `computeDiffFacts` shape) and applies a stated ceiling table: `implFiles <= 1 and totalLines < 60` caps `capable` to `standard`; anything larger resolves as today. The ceiling never raises a tier and never applies to `frontier` (a singleton-slot judgment, unchanged) or to lens fan-outs (already effort-scaled).\n- [ ] `build/dispatch.md`'s whole-branch review resolution and `wrap-up/SKILL.md`'s reflect dispatch pass the run's diff facts; the resolver's `source` field records `diff-ceiling` when it applied, and the existing `AUTO … Whole-branch review dispatched on {model}` log line shows it.\n- [ ] Rationale recorded in `docs/decisions/` alongside #361's declined UI-surface signal: this is a downward bound from measured diff size, not an upward risk signal.\n\n## Acceptance Criteria\n\n- [ ] Unit tests on the resolver: the ceiling applies at the stated thresholds, never raises, never touches `frontier`, and is inert when `--diff-facts` is absent.\n- [ ] On a one-file sub-60-line diff the whole-branch review dispatches on the Standard profile and the log line says so; on a 3-file diff it dispatches on Capable as today.\n- [ ] Review verdicts on the next ten small-diff records show no new Critical/Important findings that the Standard-tier whole-branch review missed and the second call's lens review caught (the escape check).\n\n## Technical Approach\n\n### Key Files\n\n- `plugin/bin/resolve-profile.js`\n- `plugin/bin/lib/model-profiles/`\n- `plugin/bin/lib/dispatch/ceremony-derive.js`\n- `plugin/skills/build/dispatch.md`\n- `plugin/skills/wrap-up/SKILL.md`\n- `plugin/skills/_shared/subagent-output-contract.md` (Model Selection section)\n- `plugin/skills/review/review-effort-derivation.md` (#361 decision cross-reference)\n- `tests/bin-lib/model-profiles/`",
-        "labels": [
-          "ready",
-          "size:low",
-          "by:capture",
-          "type:task",
-          "auto:build",
-          "priority:medium",
-          "risk:medium"
-        ],
-        "createdAt": "2026-09-05T16:43:18Z",
-        "updatedAt": "2026-09-07T11:54:16Z",
-        "state": "open",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      },
-      {
-        "number": 1911,
-        "title": "Micro-plan for single-file fast-lane records: build composes a one-task brief instead of invoking writing-plans and plan audit",
-        "body": "Origin: brainstorm on #1904 (docs/superpowers/specs/2026-09-05-pipeline-ceremony-cost-design.md, \"Filed separately\")\nDefer-reason: tangential\n\n## Current State\n\n`/claude-tweaks:build` always invokes `/superpowers:writing-plans` and then (unless fast-lane or trivial) `plan-audit.md` before handing the plan to `/superpowers:subagent-driven-development`. On record #1535 (`size:low`, one CLI file plus its test) plan writing took ~5 min and produced a plan whose single task restated the materialized spec's Deliverables. The value of a plan is its cross-task structure — task ordering, shared-file conflicts, the pre-execution conflict scan SDD runs over task pairs; a one-file, one-task record has none of that structure to capture. `[IL-120]` (a 7-task plan) and the whole-branch-review incident cluster all involve multi-task plans; nothing in the incident log records a single-file fast-lane record whose plan step caught something.\n\n## Deliverables\n\n- [ ] A `build/micro-plan.md` procedure: when the materialized header carries `ceremony: fast-lane` and `size: low`, and the record's `### Key Files` names at most one implementation file (tests excluded), compose a one-task plan file directly from the spec (task = the Deliverables, tests = the Acceptance Criteria, files = Key Files) in the plan format SDD's `scripts/task-brief` reads, skipping `/superpowers:writing-plans` and `plan-audit.md`; log a `SKIP` decision naming the condition.\n- [ ] Any other header shape falls through to today's path unchanged; a Key Files list that names more than one implementation file always takes the full path even under fast-lane.\n- [ ] The escape hatch: if SDD's implementer reports `NEEDS_CONTEXT` on a micro-plan, build re-runs the full `writing-plans` path once and logs it — the micro-plan is a bet with a stated fallback, the same shape as `architecture-alignment.md`'s fast-lane skip.\n\n## Acceptance Criteria\n\n- [ ] A `fast-lane` + `size:low` + one-implementation-file record builds without a `superpowers:writing-plans` `skill_invoked` event, and its SDD task loop, task review, and Common Step 5 verification run unchanged.\n- [ ] A two-implementation-file fast-lane record still invokes `writing-plans` (test on the condition with the orthogonal case present).\n- [ ] Build time on such records drops by the plan-writing segment (from Phase 6 `timing.json`), with zero change in review verdicts over the next ten such records.\n\n## Technical Approach\n\n### Key Files\n\n- `plugin/skills/build/SKILL.md` (Common Step 1/2 branch)\n- `plugin/skills/build/micro-plan.md` (new)\n- `plugin/skills/build/plan-audit.md`\n- `plugin/skills/build/dispatch.md`\n- `plugin/skills/flow/materialize.md` (header fields read)\n- `docs/skill-graph.md`\n- `tests/` (prose conformance for the new branch)",
-        "labels": [
-          "ready",
-          "size:medium",
-          "by:capture",
-          "type:feature",
-          "auto:build",
-          "priority:medium",
-          "risk:medium"
-        ],
-        "createdAt": "2026-09-05T16:43:14Z",
-        "updatedAt": "2026-09-07T11:54:12Z",
-        "state": "open",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      },
-      {
-        "number": 1909,
-        "title": "Instruction-prose diet: operative skill text states the rule and the IL tag, provenance narrative moves out, per-pipeline-step loaded-bytes budget",
-        "body": "Origin: brainstorm on #1904 (docs/superpowers/specs/2026-09-05-pipeline-ceremony-cost-design.md, \"Filed separately\")\nDefer-reason: genuinely-larger\n\n**Related:** #1987\n\n## Current State\n\nA `/claude-tweaks:flow` second call (`review,polish,wrap-up`) loads several hundred KB of skill prose before doing any work: `plugin/skills/_shared/` is 1.3 MB, `wrap-up/` alone is 408 KB, `flow/` 348 KB, and each 40 KB file is roughly 10k tokens. Reading the operative files shows that roughly half of most of them is provenance rather than procedure: which record moved a paragraph (\"extracted for #887\", \"split out per #635\"), which commit deleted a design doc (\"deleted `70849915`\"), and retold incident narratives that `docs/incident-log.md` already holds under their `[IL-nn]` tag. The context-cost test (`bin/lib/skill-audit/tests/context-cost.test.js`) caps bytes per file but nothing measures bytes loaded per pipeline step, so the procedure-vs-provenance ratio is invisible. #1765 (fast-lane digest) addresses the same waste for the fast-lane path only; this record is the general case. Tokens, not minutes: prose loading costs money and context headroom (compaction pressure), not wall-clock.\n\nThis record is Phase 5 of #1987 (Skill context composer — per-run bundles composed by resolved condition, not per-file ceilings): #1987's Phases 1-4 ship the composer mechanism and its per-step measurement; this record consumes that measurement and does the prose-diet and scaffolding-dedupe pass on top of it.\n\n## Deliverables\n\n- [ ] A stated authoring rule in `docs/skill-authoring.md`: operative text (`## Step N` bodies, gate tables, Next Actions) states the rule and cites the `[IL-nn]` tag or record number; the narrative of why lives in `docs/incident-log.md` or `docs/decisions/`, never restated inline. One sentence of rationale per rule is allowed; a paragraph is not.\n- [ ] Per-step composed-bytes measurement is delivered by #1990 (Per-step composed-bytes measurement in context-cost.js) — this record consumes that measurement, not builds it.\n- [ ] A first trimming pass over the five pipeline skills plus the `_shared` files they cite, moving provenance out per the rule, with the conformance tests that pin the moved prose updated in the same change (the real cost of this record — every trim moves pins).\n- [ ] Before/after bytes per step recorded in the PR description.\n- [ ] Inject the Interaction-style directive once from the `SessionStart` hook (`plugin/bin/lib/hooks/session-start.js`) and delete the 35 verbatim copies (501 B each) from every SKILL.md, with the conformance tests that pin that paragraph retargeted to the hook output.\n- [ ] Audit the per-skill `## Input`/`## Anti-Patterns`/`## Component-Skill Contract`/`## Next Actions` scaffolding (~260 KB of the 888 KB SKILL.md payload) with `bloat.js`'s existing provenance signals and trim author-facing narration.\n\n## Acceptance Criteria\n\n- [ ] `docs/skill-authoring.md` carries the rule and `harness-health` reports loaded bytes per pipeline step.\n- [ ] The five pipeline skills' default-path loaded bytes drop by at least 25% with no change to which steps execute, verified by the existing conformance suites passing after pin updates.\n- [ ] No `[IL-nn]` narrative is lost: every trimmed retelling still resolves to its incident-log entry by tag.\n\n## Technical Approach\n\n### Key Files\n\n- `docs/skill-authoring.md`\n- `plugin/bin/lib/skill-audit/`\n- `plugin/skills/flow/SKILL.md`, `plugin/skills/flow/steps-and-gates.md`\n- `plugin/skills/build/SKILL.md`\n- `plugin/skills/review/SKILL.md`, `plugin/skills/review/code-mode-steps.md`\n- `plugin/skills/wrap-up/SKILL.md`\n- `plugin/skills/test/verification.md`\n- `plugin/skills/_shared/subagent-output-contract.md`, `plugin/skills/_shared/pipeline-run-dir.md`\n- `plugin/bin/lib/hooks/session-start.js`\n- `plugin/bin/lib/skill-audit/bloat.js`\n- `tests/` (prose conformance suites pinning the trimmed text)\n",
-        "labels": [
-          "ready",
-          "risk:low",
-          "by:capture",
-          "type:task",
-          "auto:build",
-          "size:high",
-          "priority:medium"
-        ],
-        "createdAt": "2026-09-05T16:43:07Z",
-        "updatedAt": "2026-09-07T11:54:06Z",
-        "state": "open",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "high",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      },
-      {
-        "number": 1794,
-        "title": "init: Port Isolation step — detect literal ports, propose the env rewrite, set port-services",
-        "body": "Surface: backend\n\n## Overview\n\nThe injection half, made a one-time `/init` step. After Step 6 (Worktree Configuration), a new Step 6.5 detects literal dev-server ports in the project's config, presents a reviewable rewrite diff that replaces each literal with an env read defaulting to the old value, queues `port-services` for the deferred write to `.claude-tweaks/policy.yml` (same mechanism as `worktree-always`), adds `.env.local`/`.env` to the gitignore suggestions, and runs the first `allocate`. Known-hard cases are reported for manual action, never rewritten. Update mode reports drift (a literal port that crept back in).\n\n**Complexity:** Medium\n**Estimated tasks:** 5\n\n## Non-Goals\n\n- The registry/CLI/hook (Units 1-3)\n- dev-url-detection (Unit 5)\n- Rewriting anything the table below marks report-only\n- Running the project's dev server\n\n## Current State\n\n- `plugin/skills/init/SKILL.md` Phase 0 lists Steps 1-20 as 2-4-line stubs each pointing at `bootstrap/step-NN-*.md` (`step-08-5-dependency-read-permissions.md` is the existing half-step naming precedent).\n- Step 4 (`bootstrap/step-04-gitignore-suggestions.md`) owns gitignore suggestions and \"never modify `.gitignore` without asking\".\n- Step 6 queues the `worktree-always` policy write and defers it to \"Finalizing the worktree-always Decision\" (`worktree-policy-finalization.md`) — the same deferral mechanism must carry `port-services`, since a `worktree-always` run denies its own later writes.\n- Detection inputs already enumerated in `plugin/skills/_shared/dev-url-detection.md` Step 2 (CLAUDE.md Commands, package.json scripts, `vite.config.*` `server.port`, `next.config.*`, `angular.json`, `vue.config.*`, `.env`/`.env.local` `PORT=`).\n- Update mode: `plugin/skills/init/update-mode.md` (drift report).\n- `docs/skill-graph.md` `## init` section holds every init edge; `docs/getting-started.md` is the user-facing walkthrough.\n\n## Deliverables\n\n- [ ] `plugin/skills/init/bootstrap/step-06-5-port-isolation.md` (new) containing: the detection list (dev-url-detection's Step 2 list plus `docker-compose.yml`/`compose.yml` host `ports:` mappings, `app.listen(<int>)`/`.listen(<int>)` in JS/TS server entry files, `runserver <int>`/`uvicorn --port <int>`/`flask run -p <int>` in README/Makefile/scripts — see `docs/superpowers/specs/2026-09-02-port-isolation-design.md` Section 4 for the source table this deliverable transposes verbatim, before that doc is deleted), the rewrite table (before → after) exactly as the design doc's Section 4 table, the report-only hard cases (shell expansion in `package.json` scripts — no Windows `cmd` support; `angular.json` `serve.options.port` cannot read env; literal ports in README/Makefile Python commands) plus a catch-all: a detected literal port matching none of the six rewrite rows and none of the three named hard cases defaults to report-only, never a guessed rewrite; the service-name derivation (`web` for the frontend dev server, `api` for a backend, `db` for a Compose database, confirmed via one `AskUserQuestion` listing the detected services with Recommended pre-filled; a second service in the same category gets a numeric suffix — `web2`, `api2` — offered as a pre-filled option in the same `AskUserQuestion` rather than silently colliding), a zero-detected-services outcome (no config file matches the detection list — Step 6.5 reports nothing found and skips the rewrite/`port-services`/`allocate` sequence entirely; no policy write, no lease), the syntax-validity check on every proposed rewrite before it is shown in the diff (parse the rewritten JS/TS/YAML/Compose snippet with the language's own parser; a snippet that fails to parse is downgraded to report-only for that location rather than offered in the diff), the reviewable-diff gate (one `AskUserQuestion`: Apply all / Choose files / Skip rewrite — every mode, including auto, because it edits the user's own config outside the always-reversible floor; a declined rewrite still sets `port-services` and leases a block *from the free pool*, not matched to whatever literal port remains hardcoded — the resulting mismatch between the registry's block and the surviving literal is exactly what `update-mode.md`'s port-literal-drift check exists to catch on a later run), and the first `node \"${CLAUDE_PLUGIN_ROOT}/bin/ports.js\" allocate --services {list}` run with the resulting block echoed.\n- [ ] `plugin/skills/init/SKILL.md`: a `### Step 6.5: Port Isolation` stub (≤ 4 lines) after Step 6, plus a one-line entry in the \"Phases at a Glance\" table if it enumerates steps; the `port-services` write joins the deferred-write mechanism named in \"Finalizing the worktree-always Decision\".\n- [ ] `plugin/skills/init/worktree-policy-finalization.md`: add `port-services` to the deferred-write list this file already carries `worktree-always` through, so Step 6.5's policy write queues here exactly like `worktree-always`'s does rather than firing directly.\n- [ ] `bootstrap/step-04-gitignore-suggestions.md`: `.env.local` and `.env` added to the suggested block with a one-line reason (managed ports region).\n- [ ] `plugin/skills/_shared/auto-mode-contract.md`: add the Step 6.5 rewrite-diff gate to the HARD-GATE exemption list (it must stop even in `auto`, matching the existing `.gitignore`-write-style exemption already enumerated there) — per this file's own \"Adding a new policy lever\" checklist item for gates that stop in every mode.\n- [ ] `plugin/skills/init/update-mode.md`: one drift row — a file from the detection list containing a literal port where the rewrite was previously applied → \"port literal drift\" finding pointing at Step 6.5.\n- [ ] `docs/skill-graph.md` `## init`: one edge row `bin/ports.js` (Step 6.5 runs the first allocate) and one `_shared/dev-url-detection.md` row (Step 6.5 reuses its Step 2 detection list, read live).\n- [ ] `docs/getting-started.md`: one short paragraph on port isolation (what `port-services` does, where the block shows up).\n- [ ] `tests/init-port-isolation-conformance.test.js` (new prose test).\n\n## Acceptance Criteria\n\n1. `init/SKILL.md` contains a `### Step 6.5: Port Isolation` heading between Step 6 and Step 7 whose body cites `bootstrap/step-06-5-port-isolation.md`; the sub-file contains the rewrite table with all six rows from the design doc and the three report-only hard cases by name (Windows `cmd` shell expansion, `angular.json`, README/Makefile Python commands).\n2. The sub-file states the diff gate runs in every mode including `auto`, and that a declined rewrite still writes `port-services` and runs `allocate`.\n3. The `port-services` write is routed through the same deferred-write mechanism as `worktree-always` (the sub-file names \"Finalizing the worktree-always Decision\" and `worktree-policy-finalization.md` names `port-services`).\n4. `step-04-gitignore-suggestions.md` lists `.env.local` and `.env`.\n5. `update-mode.md` contains the port-literal drift row; `docs/skill-graph.md` `## init` has the two new rows; `docs/getting-started.md` mentions `port-services`.\n6. `tests/bin-lib/skill-audit/context-cost.test.js` passes — `init/SKILL.md` gains no more than the stub (it is already at 41,360 B; see Gotchas).\n7. A byte-pinned snippet test runs the `allocate` command line from the sub-file against a tmp `home` and asserts exit 0 (proves the documented command is executable, per `skill-prose-conformance-tests`) — this test, and Step 6.5 itself, are blocked on #1791 and #1792 shipping first (this unit only consumes `bin/ports.js` and `port-services`; it does not build either).\n8. The sub-file states a rewrite is syntax-checked before being shown in the diff, and that a snippet failing that check falls back to report-only rather than being offered.\n9. `_shared/auto-mode-contract.md`'s HARD-GATE exemption list names the Step 6.5 rewrite-diff gate.\n\n## Technical Approach\n\nAll detection and rewrite logic is LLM-driven skill prose (grep/read/propose), in line with every other `/init` step; the only executable is Unit 1's CLI. The rewrite forms per file type: JS/TS config `Number(process.env.PORT ?? 5173)`; proxy targets as template strings using `process.env.API_PORT ?? 8000`; Compose `\"${DB_PORT:-5432}:5432\"` (host side only — container-internal URLs stay); `.env.example` unchanged plus a comment pointing at the managed region.\n\n### Key Files\n\n- `plugin/skills/init/bootstrap/step-06-5-port-isolation.md` — new\n- `plugin/skills/init/SKILL.md` — stub\n- `plugin/skills/init/bootstrap/step-04-gitignore-suggestions.md` — two entries\n- `plugin/skills/init/worktree-policy-finalization.md` — carry `port-services` in the deferred write\n- `plugin/skills/init/update-mode.md` — drift row\n- `docs/skill-graph.md` — `## init` rows\n- `docs/getting-started.md` — paragraph\n- `plugin/skills/_shared/auto-mode-contract.md` — HARD-GATE exemption row\n- `tests/init-port-isolation-conformance.test.js` — new\n\n### Package Dependencies\n\n- none\n\n## Gotchas\n\n- `init/SKILL.md` is already over the 40 KB ceiling and `update-mode.md` has ~1.5 KB headroom — the stub is ≤ 4 lines and the drift row one line; if `context-cost.test.js` trips, trim redundant prose in the same file by the same byte count rather than dropping the stub.\n- `/init` runs under `worktree-always` on many projects — the policy write must be deferred exactly like `worktree-always`'s, or the run denies its own write (precedent in \"Finalizing the worktree-always Decision\").\n- Never edit `.gitignore` directly (Step 4's rule).\n- `docker compose` reads `.env`, not `.env.local`.\n- A skill reference in Step text must use the fully-qualified `/claude-tweaks:{skill}` form (CLAUDE.md Cross-references).\n\n## Decision Rationale\n\nSee #1791 Decision Rationale.\n\n\n<!-- work-fingerprint: port-isolation:init-port-isolation-step-detect-literal-ports-propose-the-en -->",
-        "labels": [
-          "ready",
-          "risk:low",
-          "size:medium",
-          "type:feature",
-          "auto:build",
-          "priority:medium",
-          "ceremony:standard",
-          "needs:decision"
-        ],
-        "createdAt": "2026-09-02T15:25:22Z",
-        "updatedAt": "2026-09-07T10:25:40Z",
-        "state": "open",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
@@ -1124,11 +842,52 @@
         ],
         "createdAt": "2026-09-05T16:43:10Z",
         "updatedAt": "2026-09-07T11:54:09Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "medium",
           "size": "medium",
+          "ceremony": null,
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "number": 1909,
+        "title": "Instruction-prose diet: operative skill text states the rule and the IL tag, provenance narrative moves out, per-pipeline-step loaded-bytes budget",
+        "body": "Origin: brainstorm on #1904 (docs/superpowers/specs/2026-09-05-pipeline-ceremony-cost-design.md, \"Filed separately\")\nDefer-reason: genuinely-larger\n\n**Related:** #1987\n\n## Current State\n\nA `/claude-tweaks:flow` second call (`review,polish,wrap-up`) loads several hundred KB of skill prose before doing any work: `plugin/skills/_shared/` is 1.3 MB, `wrap-up/` alone is 408 KB, `flow/` 348 KB, and each 40 KB file is roughly 10k tokens. Reading the operative files shows that roughly half of most of them is provenance rather than procedure: which record moved a paragraph (\"extracted for #887\", \"split out per #635\"), which commit deleted a design doc (\"deleted `70849915`\"), and retold incident narratives that `docs/incident-log.md` already holds under their `[IL-nn]` tag. The context-cost test (`bin/lib/skill-audit/tests/context-cost.test.js`) caps bytes per file but nothing measures bytes loaded per pipeline step, so the procedure-vs-provenance ratio is invisible. #1765 (fast-lane digest) addresses the same waste for the fast-lane path only; this record is the general case. Tokens, not minutes: prose loading costs money and context headroom (compaction pressure), not wall-clock.\n\nThis record is Phase 5 of #1987 (Skill context composer — per-run bundles composed by resolved condition, not per-file ceilings): #1987's Phases 1-4 ship the composer mechanism and its per-step measurement; this record consumes that measurement and does the prose-diet and scaffolding-dedupe pass on top of it.\n\n## Deliverables\n\n- [ ] A stated authoring rule in `docs/skill-authoring.md`: operative text (`## Step N` bodies, gate tables, Next Actions) states the rule and cites the `[IL-nn]` tag or record number; the narrative of why lives in `docs/incident-log.md` or `docs/decisions/`, never restated inline. One sentence of rationale per rule is allowed; a paragraph is not.\n- [ ] Per-step composed-bytes measurement is delivered by #1990 (Per-step composed-bytes measurement in context-cost.js) — this record consumes that measurement, not builds it.\n- [ ] A first trimming pass over the five pipeline skills plus the `_shared` files they cite, moving provenance out per the rule, with the conformance tests that pin the moved prose updated in the same change (the real cost of this record — every trim moves pins).\n- [ ] Before/after bytes per step recorded in the PR description.\n- [ ] Inject the Interaction-style directive once from the `SessionStart` hook (`plugin/bin/lib/hooks/session-start.js`) and delete the 35 verbatim copies (501 B each) from every SKILL.md, with the conformance tests that pin that paragraph retargeted to the hook output.\n- [ ] Audit the per-skill `## Input`/`## Anti-Patterns`/`## Component-Skill Contract`/`## Next Actions` scaffolding (~260 KB of the 888 KB SKILL.md payload) with `bloat.js`'s existing provenance signals and trim author-facing narration.\n\n## Acceptance Criteria\n\n- [ ] `docs/skill-authoring.md` carries the rule and `harness-health` reports loaded bytes per pipeline step.\n- [ ] The five pipeline skills' default-path loaded bytes drop by at least 25% with no change to which steps execute, verified by the existing conformance suites passing after pin updates.\n- [ ] No `[IL-nn]` narrative is lost: every trimmed retelling still resolves to its incident-log entry by tag.\n\n## Technical Approach\n\n### Key Files\n\n- `docs/skill-authoring.md`\n- `plugin/bin/lib/skill-audit/`\n- `plugin/skills/flow/SKILL.md`, `plugin/skills/flow/steps-and-gates.md`\n- `plugin/skills/build/SKILL.md`\n- `plugin/skills/review/SKILL.md`, `plugin/skills/review/code-mode-steps.md`\n- `plugin/skills/wrap-up/SKILL.md`\n- `plugin/skills/test/verification.md`\n- `plugin/skills/_shared/subagent-output-contract.md`, `plugin/skills/_shared/pipeline-run-dir.md`\n- `plugin/bin/lib/hooks/session-start.js`\n- `plugin/bin/lib/skill-audit/bloat.js`\n- `tests/` (prose conformance suites pinning the trimmed text)\n",
+        "labels": [
+          "ready",
+          "risk:low",
+          "by:capture",
+          "type:task",
+          "auto:build",
+          "size:high",
+          "priority:medium"
+        ],
+        "createdAt": "2026-09-05T16:43:07Z",
+        "updatedAt": "2026-09-08T01:20:59Z",
+        "state": "OPEN",
+        "facets": {
+          "origin": "capture",
+          "risk": "low",
+          "size": "high",
           "ceremony": null,
           "solutionUnjustified": false,
           "needsDefinition": false,
@@ -1166,7 +925,7 @@
         ],
         "createdAt": "2026-09-05T14:43:28Z",
         "updatedAt": "2026-09-07T11:54:03Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -1208,7 +967,7 @@
         ],
         "createdAt": "2026-09-05T13:47:11Z",
         "updatedAt": "2026-09-07T10:24:43Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -1250,7 +1009,7 @@
         ],
         "createdAt": "2026-09-05T12:48:46Z",
         "updatedAt": "2026-09-07T10:24:46Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -1292,7 +1051,7 @@
         ],
         "createdAt": "2026-09-05T09:42:23Z",
         "updatedAt": "2026-09-07T10:25:04Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": null,
           "risk": "medium",
@@ -1335,7 +1094,7 @@
         ],
         "createdAt": "2026-09-05T06:14:23Z",
         "updatedAt": "2026-09-07T10:24:51Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
@@ -1378,7 +1137,7 @@
         ],
         "createdAt": "2026-09-05T06:05:21Z",
         "updatedAt": "2026-09-07T10:24:54Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
@@ -1419,7 +1178,7 @@
         ],
         "createdAt": "2026-09-05T05:20:56Z",
         "updatedAt": "2026-09-07T10:24:58Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -1432,88 +1191,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "number": 1795,
-        "title": "dev-url-detection: lease-first probe, lease-based MATCH/FOREIGN, ephemeral start on the leased block",
-        "body": "Surface: backend\n\n## Overview\n\nMakes the pipeline's own browser work use the same block the human's terminal uses. `_shared/dev-url-detection.md` gains a Step 0.5 that probes `http://localhost:{PORT}` from this checkout's lease first; Step 2.7's worktree check becomes lease-based (a responding port is MATCH iff it is in this checkout's lease), demoting the POSIX-only `lsof` heuristic to the no-lease fallback; \"Ephemeral server start\" uses the leased block and passes the managed env through instead of probing upward; wrap-up Section D stops the server by PID and no longer needs `lsof` when a lease exists.\n\n**Complexity:** Low\n**Estimated tasks:** 4\n\n## Non-Goals\n\n- Any code change (Units 1-3 own the CLI/hook/statusline)\n- `/init`\n- Changing which skills call this procedure\n- Removing the `lsof` fallback for unleased projects\n\n## Current State\n\n- `plugin/skills/_shared/dev-url-detection.md` — Step 0 (persisted `stories/servers.yml`), Step 1 (probe common ports), Step 2 (config), Step 2.7 (worktree awareness via `lsof` PID→cwd comparison; the `repoInfo()` linked-worktree check via `bin/lib/hooks/worktree-detect.js` stays), Step 3 (resolve; \"Ephemeral server start\" probes upward from the framework default and records `{run-dir}/ephemeral-server.txt` as `{pid} {port} {worktree-root}`), Step 4 (persist), Cleanup.\n- `plugin/skills/wrap-up/cleanup-procedures-execution.md` Section D reads `ephemeral-server.txt`, `kill {pid}`, falls back to `lsof -ti tcp:{port} | xargs kill`.\n- Consumers of the procedure: `/stories`, `/test`, `/flow`, `/visual-review`, `/demo` (listed in the file's header — none need edits; the procedure's outputs `APP_URL`/`SERVER_STARTED` are unchanged).\n\n## Deliverables\n\n- [ ] Step 0.5 \"Lease-first probe\": run `node \"${CLAUDE_PLUGIN_ROOT}/bin/ports.js\" env` in the checkout; when no lease exists for this checkout, the command prints nothing and exits 0 (#1791's own contract for that case) — treat that as \"no lease,\" fall through to Step 1. Otherwise parse every printed `KEY=value` line into `LEASE_PORTS` (the full set of port *values* across all lines — `PORT`, and every `{NAME}_PORT`, not just `PORT`); HTTP-probe `http://localhost:{PORT}` (the value from the `PORT` line specifically) with the Step 1 check; on 2xx/3xx set `APP_URL` and skip Steps 1-2.7 (the lease *is* the worktree-awareness proof); on no response continue to Step 1 with `LEASE_PORTS` (the full set already parsed) remembered.\n- [ ] Step 2.7 rewritten: when `LEASE_PORTS` is set, MATCH iff the responding port ∈ `LEASE_PORTS`, else FOREIGN — no `lsof`; when no lease, the existing `lsof` block stays, now explicitly labelled POSIX-only with the Windows outcome stated (PID unresolvable → FOREIGN, i.e. start an ephemeral server) — this is an accepted, stated trade-off: on Windows, an unleased project never reuses an already-running dev server and always starts a fresh ephemeral one, unlike POSIX where `lsof` can still find a same-cwd match.\n- [ ] \"Ephemeral server start\" step 1 replaced: with a lease, re-run `node \"${CLAUDE_PLUGIN_ROOT}/bin/ports.js\" env` at start time (not the value cached from Step 0.5, to avoid acting on a stale snapshot) for `PORT` and pass every printed `KEY=value` line into the spawned server's environment verbatim — no allowlist beyond \"whatever this checkout's own managed region currently contains\" — so sibling services resolve to their own block; without a lease, keep the probe-upward rule. `ephemeral-server.txt` gains no new fields.\n- [ ] Step 0's persisted-URL acceptance updated to the same lease-first rule: a persisted `stories/servers.yml` URL is accepted only when its port is a member of this checkout's `LEASE_PORTS` (or, with no lease, passes the existing worktree-awareness check); on mismatch, discard the persisted URL and fall through to Step 1's fresh probe rather than trusting it. Cleanup's standalone kill updated the same way (`kill {pid}` from `ephemeral-server.txt`; `lsof` fallback only when no lease) — cleanup always trusts the PID captured in `ephemeral-server.txt` at start time and never re-reads the live lease, so a lease that has since changed or expired cannot desync the kill.\n- [ ] wrap-up Section D: `lsof` fallback wording qualified as no-lease/POSIX-only; with a lease the port is known and the PID kill is sufficient.\n- [ ] `tests/dev-url-detection-lease-conformance.test.js` (new prose test) proving each assertion can go red per `skill-prose-conformance-tests`.\n\n## Acceptance Criteria\n\n1. `dev-url-detection.md` contains a `### Step 0.5` heading whose body invokes `bin/ports.js env` and states the skip rule for Steps 1-2.7 on a responding leased port.\n2. Step 2.7's MATCH rule is stated in terms of `LEASE_PORTS` membership, and the `lsof` block is inside an explicit \"no lease\" branch labelled POSIX-only with the Windows outcome (FOREIGN → ephemeral start).\n3. \"Ephemeral server start\" names the managed env pass-through and no longer says \"probe upward\" for the leased case.\n4. Section D of `cleanup-procedures-execution.md` qualifies the `lsof` fallback as no-lease only.\n5. The procedure's `## Output` variables are unchanged (`APP_URL`, `SERVER_STARTED`) — the conformance test asserts the Output table is byte-identical to today's.\n6. `dev-url-detection.md` stays under the 40 KB ceiling (11.6 KB today).\n\n## Technical Approach\n\nProse-only change to a `_shared` contract with five consumers — follow the repo's `shared-contract-extraction` skill's consumer-migration discipline for the citation sweep (grep every consumer for \"Step 2.7\"/\"lsof\"/\"probe upward\" and confirm none restates the retired mechanics).\n\n### Key Files\n\n- `plugin/skills/_shared/dev-url-detection.md` — Step 0.5, 2.7, ephemeral start, cleanup\n- `plugin/skills/wrap-up/cleanup-procedures-execution.md` — Section D\n- `tests/dev-url-detection-lease-conformance.test.js` — new\n\n### Package Dependencies\n\n- none\n\n## Gotchas\n\n- `cleanup-procedures-execution.md` is also edited by Unit 3 (Section C) — this unit is Blocked by Unit 3; rebase before editing.\n- Keep `stories/servers.yml` semantics: a persisted URL is still subject to the lease MATCH rule, never trusted on its own.\n- The `worktree-detect.js` `repoInfo()` check stays as the linked-worktree detector; only the PID→cwd comparison is replaced.\n- The procedure's \"Permissions required\" note (writes in Step 4) is unchanged.\n- This unit's interface with `bin/ports.js env` is pinned by #1791 AC12 (leased path: managed lines only; no lease: prints nothing, exits 0) — that contract, not this record, is authoritative if the two ever disagree; this unit is Blocked by #1791 (and #1792, #1793) precisely because it consumes that CLI and `port-services` without building either.\n- Lease membership is accepted as sufficient proof of MATCH with no PID-level cross-check, unlike the retained `lsof` no-lease path — this is a deliberate trade-off, not an oversight: a lease can theoretically go stale between a process dying and Unit 1's gc or Unit 3's reap clearing it, but that window is no wider than the gaps `lsof`'s own PID→cwd comparison already has, and the lease-first path is what makes worktree-awareness work at all on Windows.\n\n## Decision Rationale\n\nSee #1791 Decision Rationale — in short: a machine-wide lease registry (chosen over a path-hash or OS-assigned-port-0 scheme) hands each checkout a verified-free 10-port block; this unit makes the pipeline's own browser tooling prefer that same block over guessing, so a human's terminal and the pipeline's ephemeral server never disagree about which backend a frontend is proxying to.\n\n\n<!-- work-fingerprint: port-isolation:dev-url-detection-lease-first-probe-lease-based-match-foreig -->",
-        "labels": [
-          "ready",
-          "risk:low",
-          "size:low",
-          "type:feature",
-          "auto:build",
-          "priority:medium",
-          "ceremony:standard",
-          "needs:decision"
-        ],
-        "createdAt": "2026-09-02T15:25:27Z",
-        "updatedAt": "2026-09-07T10:25:38Z",
-        "state": "open",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      },
-      {
-        "number": 1793,
-        "title": "ports: statusline segment and lease release at every worktree-removal site",
-        "body": "Surface: backend\n\n**Related:** #1235\n\n## Overview\n\nMakes each terminal show its own ports and stops leases from outliving their worktrees. A statusline segment renders the block base for the current cwd; both worktree reapers and the two skill-driven removal sites release the lease after a successful `git worktree remove`. Release failure is logged, never fatal — Unit 1's gc is the backstop.\n\n**Complexity:** Medium\n**Estimated tasks:** 6\n\n## Non-Goals\n\n- SessionStart/ensure (Unit 2)\n- `/init`\n- dev-url-detection\n- Changing any reaper eligibility predicate (release runs only after a removal the existing predicate already approved)\n\n## Current State\n\n- `plugin/bin/claude-tweaks-statusline.js` builds `segments = [renderProject, renderModel, renderContext, renderEffort, renderGit, renderRateLimit×2, findActiveSpec, findOpenLedger, renderAccount].filter(...)` joined by `SEPARATOR`; each renderer returns `''`/null when inapplicable; tests in `tests/statusline.test.js` and `tests/install-statusline-wrapper.test.js` (the wrapper source `plugin/bin/lib/statusline-wrapper-source.js` is byte-pinned — do not touch it).\n- Reapers: `plugin/bin/lib/hooks/worktree-reap.js` `reapWorktrees()` calls `runGit(['worktree','remove', real], root)` (~line 284) and `plugin/bin/lib/reconcile/reap-merged.js` `reapMerged()` does the same (~line 133); both fail closed and are tested by `tests/hooks-worktree-reap.test.js` and `tests/bin-lib/reconcile/reap-merged.test.js` with frozen fixtures.\n- Skill-side removal: `plugin/skills/tidy/scan-procedures.md` line ~154 and `plugin/skills/tidy/SKILL.md` line ~165 (`git -C \"{REPO_ROOT}\" worktree remove {path}`), and `plugin/skills/wrap-up/cleanup-procedures-execution.md` Section C (worktree teardown, `ExitWorktree` for own cwd).\n\n## Deliverables\n\n- [ ] `renderPorts(cwd, {home})` in `claude-tweaks-statusline.js`: reads the registry degrade-open, finds the lease whose `path` equals the realpath of the git toplevel of `cwd` (walk up to the nearest `.git` file/dir rather than spawning git — the statusline must stay spawn-free beyond what it already does; for a linked worktree the nearest `.git` is a *file* pointing at the real gitdir, not a directory — the toplevel is still the directory containing that `.git` file, not a path derived from the gitdir it points to, and the result must be realpath'd with the exact same normalization Unit 1's `registry.allocate`/`registryPath` uses for `path` — same casing, same symlink resolution — or a leased worktree's segment silently never matches), renders `:{base}` (e.g. `:20010`), `''` when none; inserted after `renderGit`. The registry read (including a present-but-malformed/throwing `readRegistry`, not just a missing `ports` module) is wrapped in one try/catch that degrades to `''` — AC1's \"unreadable registry ⇒ byte-identical output\" covers both the missing-module and the bad-data case, not just the require.\n- [ ] `release(real, {home})` — imported from Unit 1's `plugin/bin/lib/ports/registry.js` (#1791) — call in both reapers immediately after a successful `worktree remove` (rm exit 0), wrapped so a throw is recorded in the result as `portsRelease: 'failed: {msg}'` and never changes the reap outcome. `release` on a path with no lease (not every worktree acquires one — Unit 2/`ensure` is out of scope here) is a no-op that reports nothing, matching #1791 AC6's release contract — this is the common case, not the exceptional one. Use one consistent identifier for the seam across the Deliverable and Technical Approach — the injectable option key is `releasePorts`, defaulting to `release` from `registry.js`; a test's injected spy binds to `releasePorts`, never to a separately-named `release`.\n- [ ] `plugin/skills/tidy/scan-procedures.md` + `plugin/skills/tidy/SKILL.md`: one added line each after the `worktree remove` instruction: `node \"${CLAUDE_PLUGIN_ROOT}/bin/ports.js\" release --path {path}` (best-effort: on failure, print to stderr only — never blocks the finding, and no other visibility surface exists for the skill-side call, unlike the reaper's structured `portsRelease` field).\n- [ ] `plugin/skills/wrap-up/cleanup-procedures-execution.md` Section C: the same release line as the step after removal, always with an explicit `--path {path}` flag rather than relying on the CLI's cwd-based default — `release(path)` only needs the path string, not a live process cwd, but the CLI's automatic `--path` default (`git rev-parse --show-toplevel` of cwd) stops resolving once the worktree directory is gone or the session has `cd`'d out of it. Passing `--path` explicitly removes the ordering dependency: for the own-cwd path, release the captured worktree path either just before or just after `ExitWorktree` — the explicit flag makes both orders equally correct.\n- [ ] Tests for each of the above.\n\n## Acceptance Criteria\n\n1. Statusline with a registry leasing the test cwd's toplevel renders a `:20010` segment between the git and rate-limit segments; with no registry, no lease, or an unreadable registry, output is byte-identical to today. Includes a linked-worktree fixture (a `.git` file, not directory) proving the toplevel resolution matches the registry's own realpath normalization.\n2. `reapWorktrees` on a fixture where removal succeeds calls the injected `releasePorts` spy with the removed realpath; when removal fails, it is not called; when it throws, the reap result is unchanged except for the `portsRelease` note; when the removed path had no lease, it returns its no-op success with no note.\n3. Same four cases for `reapMerged`.\n4. Prose conformance tests (per the repo's `skill-prose-conformance-tests` skill): the release line is present after each of the three skill-side `worktree remove` sites, and the wrap-up own-cwd ordering (release before `ExitWorktree`) is stated.\n5. `tests/install-statusline-wrapper.test.js` still passes unchanged.\n\n## Technical Approach\n\nStatusline reads `registry.readRegistry({home})` from Unit 1 (require the module lazily inside `renderPorts` so a missing module — older wrapper install — degrades to `''`). Reapers import `release` from `plugin/bin/lib/ports/registry.js` with an injectable seam `{ releasePorts = release }` in their options object, mirroring how `runGit` is injected today.\n\n### Key Files\n\n- `plugin/bin/claude-tweaks-statusline.js` — renderPorts + segment\n- `tests/statusline.test.js`\n- `plugin/bin/lib/hooks/worktree-reap.js` — release after remove\n- `plugin/bin/lib/reconcile/reap-merged.js` — release after remove\n- `tests/hooks-worktree-reap.test.js`\n- `tests/bin-lib/reconcile/reap-merged.test.js`\n- `plugin/skills/tidy/scan-procedures.md` — one line\n- `plugin/skills/tidy/SKILL.md` — one line\n- `plugin/skills/wrap-up/cleanup-procedures-execution.md` — Section C step\n- `tests/ports-release-sites-conformance.test.js` — new prose test\n\n### Package Dependencies\n\n- none\n\n## Gotchas\n\n- `tidy/SKILL.md` (41,216 B) and `tidy/scan-procedures.md` (41,232 B) are already over the 40 KB ceiling `tests/bin-lib/skill-audit/context-cost.test.js` enforces — check how that test currently treats them (allowance or exemption) before adding; if the addition trips it, add the one line and trim an equal number of bytes of redundant prose in the same file rather than skipping the line.\n- Reapers fail CLOSED on every predicate — release must sit strictly after the successful removal and must not introduce a new predicate.\n- `reap-merged.js` overlaps open #1235 (Related, `needs:decision`); keep the edit to the lines strictly after the successful `worktree remove` call — that scoping is what makes this edit resilient to #1235's own eventual, still-undecided change landing before or after this one.\n- The statusline runs on every prompt render — no `execFileSync` for git, no lock acquisition, degrade-open reads only.\n\n## Decision Rationale\n\nSee #1791 Decision Rationale.\n\n\n<!-- work-fingerprint: port-isolation:ports-statusline-segment-and-lease-release-at-every-worktree -->",
-        "labels": [
-          "ready",
-          "size:medium",
-          "type:feature",
-          "auto:build",
-          "priority:medium",
-          "risk:medium",
-          "ceremony:standard",
-          "needs:decision"
-        ],
-        "createdAt": "2026-09-02T15:25:17Z",
-        "updatedAt": "2026-09-07T10:25:43Z",
-        "state": "open",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
@@ -1543,7 +1220,7 @@
         ],
         "createdAt": "2026-09-02T06:16:37Z",
         "updatedAt": "2026-09-07T10:23:42Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
@@ -1584,7 +1261,7 @@
         ],
         "createdAt": "2026-08-28T05:24:03Z",
         "updatedAt": "2026-09-07T12:00:19Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -1627,7 +1304,7 @@
         ],
         "createdAt": "2026-08-23T14:22:15Z",
         "updatedAt": "2026-09-07T10:25:01Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -1668,7 +1345,7 @@
         ],
         "createdAt": "2026-08-16T18:22:45Z",
         "updatedAt": "2026-09-07T10:23:45Z",
-        "state": "open",
+        "state": "OPEN",
         "facets": {
           "origin": null,
           "risk": "medium",
