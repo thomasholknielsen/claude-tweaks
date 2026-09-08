@@ -24,6 +24,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
+const { ghAvailable: sharedGhAvailable } = require('../repo-resolve');
 
 // Shared factory (not two hand-duplicated functions) so defaultGit and
 // defaultGh can never again drift on their execFileSync options the way
@@ -369,13 +370,15 @@ registerCheck('reference-repairs', ({ runDir, base, deps, cwd }) => {
 });
 
 // ---- gh availability probe ------------------------------------------------
+// Delegates to the shared plugin/bin/lib/repo-resolve.js helper (the
+// six-call-site consolidation, #2017) via a one-call adapter: this module's
+// own deps.gh(args, cwd) seam takes a cwd the shared helper's
+// deps.execFileSync(cmd, args, opts) shape has no slot for, so the adapter
+// closes over cwd and discards the shared helper's own cmd/opts arguments
+// (deps.gh always means "gh", and this module's own makeDefaultRunner
+// already carries the timeout bound).
 function ghAvailable(deps, cwd) {
-  try {
-    deps.gh(['--version'], cwd);
-    return true;
-  } catch {
-    return false;
-  }
+  return sharedGhAvailable({ execFileSync: (_cmd, args) => deps.gh(args, cwd) });
 }
 
 // ---- parent resolution + pr-first pointer helpers ---------------------------
