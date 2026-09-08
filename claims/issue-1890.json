@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-08T142220-record-1301",
-  "sessionId": "84acd72e-0fa3-55ac-898a-c22120d37949",
-  "claimedAt": "2026-09-08T14:27:32.458Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "reason": "failed: blocked-dependency (create_webhook_trigger tool unavailable in this build session; ToolSearch found no matching tool)",
+  "releasedAt": "2026-09-08T14:40:12.156Z"
 }
