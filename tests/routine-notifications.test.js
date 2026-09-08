@@ -13,10 +13,21 @@ const createAndUpdate = fs.readFileSync(
 test('create-and-update.md #68: Step 6 body template sets notifications unconditionally', () => {
   // Sibling of cron_expression, top-level, not nested under job_config.
   assert.ok(
-    /"cron_expression":[^\n]*\n\s*"notifications":\s*\{"channel":\s*\{"email":\s*true,\s*"push":\s*false,\s*"slack":\s*false\}\}/.test(
+    /"cron_expression":[^\n]*\n\s*"notifications":\s*\{"email":\s*true,\s*"push":\s*false\}/.test(
       createAndUpdate
     ),
     'notifications field must sit directly below cron_expression, before job_config'
+  );
+});
+
+test('create-and-update.md #1301: notifications body is flat (no channel wrapper, no slack key) — confirmed live', () => {
+  assert.ok(
+    !/"channel":\s*\{"email"/.test(createAndUpdate),
+    'a channel-wrapped notifications body does not match the tool\'s accepted shape (confirmed live, #1301)'
+  );
+  assert.ok(
+    !/"slack":\s*(true|false)/.test(createAndUpdate),
+    'the tool\'s notifications shape has no slack key (confirmed live, #1301)'
   );
 });
 
@@ -39,11 +50,18 @@ test('create-and-update.md #68: Step 7 preview states an email fires on every fi
   );
 });
 
-test('create-and-update.md #68: Step 8 guided-creation path issues a follow-up RemoteTrigger update with notifications', () => {
+test('create-and-update.md #68/#1301: Step 8 guided-creation path issues a follow-up RemoteTrigger update pairing notifications with name', () => {
   assert.ok(
     createAndUpdate.includes(
-      'RemoteTrigger {action: "update", trigger_id, body: {"notifications": {"channel": {"email": true, "push": false, "slack": false}}}}'
+      'RemoteTrigger {action: "update", trigger_id, body: {"name": PREFIXED_NAME, "notifications": {"email": true, "push": false}}}'
     )
   );
   assert.ok(/immediately after receiving `trigger_id` back/.test(createAndUpdate));
+});
+
+test('create-and-update.md #1301: doc explains a notifications-only update body is rejected, confirmed live', () => {
+  assert.ok(
+    /notifications-only follow-up call \*\*always fails\*\*/.test(createAndUpdate),
+    'the notifications-only-update-rejected finding (#1301) must be documented'
+  );
 });
