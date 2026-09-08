@@ -96,6 +96,11 @@ If your first commit is denied by the working-directory hook even though `pwd` a
 assignment once with `node "{plugin-root}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
 and retry the commit. If it is denied a second time, STOP and report BLOCKED.
 
+Never run `git stash` or `git stash pop` -- the stash stack is shared repo-wide across every
+worktree of this checkout, so it can pop or clobber a sibling worktree's in-flight work. To
+compare against a baseline without mutating the tree, use `git show <rev>:<path>`; to set your
+own work aside, make a temporary WIP commit instead.
+
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
 
@@ -173,6 +178,11 @@ If your first commit is denied by the working-directory hook even though `pwd` a
 `git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
 assignment once with `node "{plugin-root}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
 and retry the commit. If it is denied a second time, STOP and report BLOCKED.
+
+Never run `git stash` or `git stash pop` -- the stash stack is shared repo-wide across every
+worktree of this checkout, so it can pop or clobber a sibling worktree's in-flight work. To
+compare against a baseline without mutating the tree, use `git show <rev>:<path>`; to set your
+own work aside, make a temporary WIP commit instead.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
