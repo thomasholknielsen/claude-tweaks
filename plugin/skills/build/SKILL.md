@@ -107,6 +107,8 @@ If the ledger doesn't exist, create it using the ledger skill's create operation
 
 ### Spec Step 3: Create the Plan
 
+**Micro-plan check first (#1911):** before invoking `/superpowers:writing-plans`, check the applicability gate in `micro-plan.md` in this skill's directory — a `ceremony: fast-lane` + `size: low` header whose `### Key Files` names at most one implementation file composes a one-task plan directly, skipping this skill and `plan-audit.md` entirely. Read that file for the full gate, the composed plan's exact shape, the skip-logging call, and the NEEDS_CONTEXT escape hatch. Any other header shape falls through to the normal path below unchanged.
+
 Invoke the `/superpowers:writing-plans` skill. After it saves the plan file, **stop the skill and return here** — do not let it present an execution choice or invoke an execution skill. `/build` controls execution strategy.
 
 Context to provide to `/superpowers:writing-plans`:
