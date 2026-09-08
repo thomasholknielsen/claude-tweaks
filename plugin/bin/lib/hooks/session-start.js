@@ -78,7 +78,7 @@ async function run(ctx) {
   try { parts.push(...deps.collect()); } catch { /* best-effort */ }
   try {
     const buildLine = resolveBuildLine();
-    if (buildLine) parts.push(`claude-tweaks: ${buildLine}`);
+    if (buildLine) parts.push(buildLine);
   } catch { /* best-effort */ }
   try {
     // Only the newest MAX_REPORTED entries are ever shown — pull from the

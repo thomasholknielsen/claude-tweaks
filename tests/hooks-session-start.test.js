@@ -251,7 +251,8 @@ test('run() includes the resolved-build line in additionalContext, unconditional
   try {
     process.env.CLAUDE_PLUGIN_ROOT = root;
     const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
-    assert.match(out.json.hookSpecificOutput.additionalContext, /claude-tweaks: claude-tweaks v9\.9\.9 @ /);
+    assert.match(out.json.hookSpecificOutput.additionalContext, /claude-tweaks v9\.9\.9 @ /);
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /claude-tweaks: claude-tweaks v/);
   } finally {
     if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
     else process.env.CLAUDE_PLUGIN_ROOT = orig;
