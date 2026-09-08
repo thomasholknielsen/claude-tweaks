@@ -21,7 +21,7 @@
 //   3  the walk itself failed (unresolvable ref, git not on PATH, etc.) —
 //      stderr names the failure, nothing meaningful on stdout
 'use strict';
-const { checkArtifactOverwrite } = require('./lib/flow/artifact-overwrite-check.js');
+const { checkArtifactOverwrite, ArtifactOverwriteCheckError } = require('./lib/flow/artifact-overwrite-check.js');
 
 const USAGE = 'usage: check-artifact-overwrite.js --base <ref> [--head <ref>] [--path <pathspec>]...';
 
@@ -59,6 +59,11 @@ function run(argv, deps = {}) {
   try {
     result = check(opts);
   } catch (err) {
+    // Only a walk failure (unresolvable ref, git not on PATH -- an
+    // ArtifactOverwriteCheckError) is this CLI's own exit 3. Anything else
+    // is a real bug in the check itself and must crash loud, not be
+    // misreported as an environment problem (refs #2014 review).
+    if (!(err instanceof ArtifactOverwriteCheckError)) throw err;
     stderr.write(`check-artifact-overwrite: ${err.message}\n`);
     return 3;
   }

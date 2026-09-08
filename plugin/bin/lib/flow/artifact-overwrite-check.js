@@ -38,13 +38,30 @@ const { execFileSync } = require('child_process');
 
 const GIT_TIMEOUT_MS = 10000;
 
+// Thrown only for an actual git-command failure (unresolvable ref, git not
+// on PATH, a real environment problem) -- never for a bug in this module's
+// own parsing logic, which must propagate as a raw Error/TypeError and
+// crash loud rather than being misreported as "the walk failed" (refs
+// #2014 review). Same shape as bin/lib/merge-size-probe.js's
+// MergeSizeProbeError.
+class ArtifactOverwriteCheckError extends Error {
+  constructor(...args) {
+    super(...args);
+    this.name = 'ArtifactOverwriteCheckError';
+  }
+}
+
 function defaultGit(args, cwd) {
-  return execFileSync('git', args, {
-    cwd,
-    encoding: 'utf8',
-    timeout: GIT_TIMEOUT_MS,
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  try {
+    return execFileSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+      timeout: GIT_TIMEOUT_MS,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch (err) {
+    throw new ArtifactOverwriteCheckError(`git ${args.join(' ')} failed: ${err.message}`);
+  }
 }
 
 // Every `#(\d+)` following the word `refs`, e.g. "refs #2014" on its own
@@ -185,7 +202,7 @@ function checkArtifactOverwrite(opts) {
   const {
     base,
     head = 'HEAD',
-    paths = ['docs/journeys/', 'stories/'],
+    paths: rawPaths,
     cwd = process.cwd(),
     git = defaultGit,
   } = opts;
@@ -193,6 +210,14 @@ function checkArtifactOverwrite(opts) {
   if (!base) {
     throw new Error('checkArtifactOverwrite: opts.base is required');
   }
+
+  // An empty array is treated the same as `paths` unset (falls back to the
+  // default scope) rather than as git's own "no pathspec after --" meaning
+  // ("match everything") -- an empty array reads as "restrict to nothing"
+  // to a caller of this module, and silently widening to the whole repo
+  // instead would contradict this module's own fail-closed design intent
+  // (refs #2014 review).
+  const paths = (rawPaths && rawPaths.length > 0) ? rawPaths : ['docs/journeys/', 'stories/'];
 
   const nameStatusOut = git(
     ['log', '--reverse', '--diff-filter=AM', '--name-status', '--format=%H', `${base}..${head}`, '--', ...paths],
@@ -281,4 +306,5 @@ module.exports = {
   parseHunks,
   isListReflow,
   defaultGit,
+  ArtifactOverwriteCheckError,
 };

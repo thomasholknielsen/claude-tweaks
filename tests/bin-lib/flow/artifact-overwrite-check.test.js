@@ -24,6 +24,7 @@ const {
   extractRefs,
   parseHunks,
   isListReflow,
+  ArtifactOverwriteCheckError,
 } = require(MOD);
 
 const FIXTURE_TIMEOUT_MS = 30000;
@@ -200,6 +201,28 @@ test('a path with no add-then-modify shape in range is ignored (modify-only, no 
 
   const result = checkArtifactOverwrite({ base: rangeBase, paths: ['docs/journeys/'], cwd: fx.dir });
   assert.strictEqual(result.clean, true);
+});
+
+test('a git-command failure (e.g. an unresolvable --base) throws ArtifactOverwriteCheckError, not a raw Error', () => {
+  const fx = repo();
+  assert.throws(
+    () => checkArtifactOverwrite({ base: 'not-a-real-ref-anywhere', paths: ['docs/journeys/'], cwd: fx.dir }),
+    ArtifactOverwriteCheckError,
+  );
+});
+
+test('paths: [] falls back to the default scope (docs/journeys/, stories/) rather than matching every path', () => {
+  const fx = repo();
+  write(fx.dir, 'docs/journeys/demo.md', '# Demo\n\n## Step 1\nFirst content.\n');
+  commit(fx, 'Add demo journey step 1 (refs #10)');
+  write(fx.dir, 'src/unrelated.js', 'module.exports = 1;\n');
+  commit(fx, 'Add unrelated source file (refs #11)');
+  write(fx.dir, 'src/unrelated.js', 'module.exports = 2;\n'); // modifies, but never "added" within range for this path — irrelevant either way
+  commit(fx, 'Modify unrelated source file (refs #11)');
+
+  const withEmptyArray = checkArtifactOverwrite({ base: fx.base, paths: [], cwd: fx.dir });
+  const withUnset = checkArtifactOverwrite({ base: fx.base, cwd: fx.dir });
+  assert.deepStrictEqual(withEmptyArray, withUnset, 'an empty paths array must behave identically to paths being unset');
 });
 
 test('the real #1988-#1997 journey history in this repo passes with no manual ruling (AC1)', () => {

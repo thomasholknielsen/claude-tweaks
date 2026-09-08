@@ -13,6 +13,8 @@ const { execFileSync } = require('child_process');
 
 const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'check-artifact-overwrite.js');
 const { run } = require(CLI);
+const LIB = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'flow', 'artifact-overwrite-check.js');
+const { ArtifactOverwriteCheckError } = require(LIB);
 
 function fakeIo() {
   let out = '';
@@ -77,11 +79,22 @@ test('a walk failure (unresolvable ref) -> exit 3, stderr names it, nothing on s
   const io = fakeIo();
   const code = run(
     ['node', 'check-artifact-overwrite.js', '--base', 'not-a-ref'],
-    { ...io, check: () => { throw new Error('unknown revision or path not in the working tree'); } },
+    { ...io, check: () => { throw new ArtifactOverwriteCheckError('unknown revision or path not in the working tree'); } },
   );
   assert.strictEqual(code, 3);
   assert.match(io.err(), /unknown revision/);
   assert.strictEqual(io.out(), '');
+});
+
+test('a bug in the check itself (not an ArtifactOverwriteCheckError) crashes loud, never reported as exit 3', () => {
+  const io = fakeIo();
+  assert.throws(
+    () => run(
+      ['node', 'check-artifact-overwrite.js', '--base', 'HEAD~1'],
+      { ...io, check: () => { throw new TypeError("Cannot read properties of undefined (reading 'lineNo')"); } },
+    ),
+    TypeError,
+  );
 });
 
 test('end-to-end against a real repo (no fake check) — clean walk exits 0', () => {
