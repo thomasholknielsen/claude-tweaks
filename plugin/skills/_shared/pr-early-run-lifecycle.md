@@ -259,11 +259,17 @@ marks the PR ready after gates pass.
 run was invoked with (`#{n}` or the bundle's comma-joined list). `{next-step}` is the step this
 run is *about* to execute — `build` at run start, since this procedure runs before any phase.
 
-Write the body to `/tmp/pr-early-body-{n}.md`, then:
+Write the body to `/tmp/pr-early-body-{run-id}-{n}.md` — scoped by this run's own `{run-id}`
+(the run-dir basename), not just the issue number, so a retried run's fresh write can never
+land on a stale file a prior attempt left at a fixed `{n}`-only path (worse on Windows, where
+`Write` and `Bash` can resolve `/tmp` differently). Before invoking `gh pr create`, re-read the
+file's first line back and confirm it is `<!-- claude-tweaks-run: {run-id} -->` for *this run's*
+`{run-id}` — second line of defense; hard-stop this step on a mismatch rather than push a wrong
+body.
 
 ```bash
 gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {branch} \
-  --title "{record title} (#{n})" --body-file /tmp/pr-early-body-{n}.md
+  --title "{record title} (#{n})" --body-file /tmp/pr-early-body-{run-id}-{n}.md
 ```
 
 `{record title}` — the lowest-numbered record's title for a bundle; `{n}` likewise the
@@ -343,10 +349,13 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
   above, even though it still exists in the stored body). Flip that phase's checklist row from
   `- [ ] {phase}` to `- [x] {phase}` inside whichever span was found, leaving everything else —
   including the *other* delimiter pair, which this read may not even show — untouched, then
-  write back through the same transport that did the read:
+  write back through the same transport that did the read, to
+  `/tmp/pr-checklist-{run-id}-{n}.md` — scoped by `{run-id}`, same reason as Step 3's path
+  above. Re-read that file's first line back before `gh pr edit` and confirm it still names
+  this run's `{run-id}`; hard-stop this update on a mismatch rather than push a wrong body:
 
   ```bash
-  gh pr edit {number} --repo {owner}/{repo} --body-file /tmp/pr-checklist-{n}.md
+  gh pr edit {number} --repo {owner}/{repo} --body-file /tmp/pr-checklist-{run-id}-{n}.md
   ```
 
 <!-- when: transport=mcp -->
