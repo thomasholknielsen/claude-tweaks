@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-08T161952-record-1301",
-  "sessionId": "03d20201-bd28-56b0-bcef-28bce471762e",
-  "claimedAt": "2026-09-08T16:32:21.586Z",
-  "ttlHours": 72,
-  "host": "vm"
+  "reason": "failed: blocked-dependency (create_webhook_trigger tool unreachable in this session; 5th consecutive miss)",
+  "releasedAt": "2026-09-08T16:51:03.169Z"
 }
