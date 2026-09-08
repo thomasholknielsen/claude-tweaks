@@ -1,6 +1,6 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (`#N`/`#N,#M,...` still resolve them normally — a human present, explicitly naming one, is itself the required surfacing); only bare drain's auto-selection (SKILL.md Step 3, reusing the `next`-alias ranking script) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent. It also produces `dispatch-open-pr-excluded.json` (#1224) — every candidate already covered by an open, unmerged PR that will close it (GitHub's own `closedByPullRequestsReferences` connection, a closing keyword in the PR body), each entry naming the linked PR (`{number, pr}[]`) — via `record.js`'s `partitionByOpenLinkedPR`. Unlike the blocked-by check above, this one runs unconditionally, independent of `work-links`, and unlike the cross-PR overlap report below it DOES remove excluded candidates from `dispatch-groups.json` before any selection form reads it — a record with an in-flight PR is not a warning, it is not re-dispatch-eligible at all. SKILL.md Step 3's Blocked-exclusion report reads this file too, under the same non-silent convention.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (`#N`/`#N,#M,...` still resolve them normally — a human present, explicitly naming one, is itself the required surfacing); only bare drain's auto-selection (SKILL.md Step 3, reusing the `next`-alias ranking script) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent. Before the size guard runs, `grouping.js`'s `bundleFastLaneSingletons` (#1910) merges up to `dispatch-fastlane-bundle-cap` (default 3, `policy.yml`) non-overlapping `ceremony:fast-lane` singleton groups — same `auto:merge` state, same `priority:*` band, oldest-first — into one multi-spec group each, so the pool `dispatch-groups.json` carries already reflects any bundling; it also writes `dispatch-fastlane-bundles.json` (`{records: number[]}[]`), naming exactly the groups this pass created, so the Reporting section can call out a fast-lane bundle distinctly from an ordinary file-overlap group. It also produces `dispatch-open-pr-excluded.json` (#1224) — every candidate already covered by an open, unmerged PR that will close it (GitHub's own `closedByPullRequestsReferences` connection, a closing keyword in the PR body), each entry naming the linked PR (`{number, pr}[]`) — via `record.js`'s `partitionByOpenLinkedPR`. Unlike the blocked-by check above, this one runs unconditionally, independent of `work-links`, and unlike the cross-PR overlap report below it DOES remove excluded candidates from `dispatch-groups.json` before any selection form reads it — a record with an in-flight PR is not a warning, it is not re-dispatch-eligible at all. SKILL.md Step 3's Blocked-exclusion report reads this file too, under the same non-silent convention.
 
 ```bash
 eval "$(node -e "
@@ -20,6 +20,7 @@ eval "$(node -e "
     DISPATCH_GROUPS: 'dispatch-groups.json',
     DISPATCH_BLOCKED_EXCLUDED: 'dispatch-blocked-excluded.json',
     DISPATCH_OVERSIZED_EXCLUDED: 'dispatch-oversized-excluded.json',
+    DISPATCH_FASTLANE_BUNDLES: 'dispatch-fastlane-bundles.json',
     DISPATCH_DEP_FRESHNESS: 'dispatch-dep-freshness.json',
     DISPATCH_OPEN_PRS: 'dispatch-open-prs.json',
     DISPATCH_CROSSPR_OVERLAP: 'dispatch-crosspr-overlap.json',
@@ -58,6 +59,11 @@ DISPATCH_DEP_NUMBERS=$(node -e "
   console.log(depOnly.map((i) => i.number).join(','));
 " "$DISPATCH_QUEUE_RAW")
 echo '[]' > "$DISPATCH_DEP_FRESHNESS"
+# Cache-hit default: a cache hit reuses persisted.groups, which already
+# reflects whatever bundling ran when that cache entry was written -- this
+# file is only re-derived on a cache miss (below), so default it to empty
+# here rather than leaving it stale or missing on a hit.
+echo '[]' > "$DISPATCH_FASTLANE_BUNDLES"
 if [ -n "$DISPATCH_DEP_NUMBERS" ]; then
   gh issue list --search "$(echo "$DISPATCH_DEP_NUMBERS" | tr ',' ' ' | sed 's/[0-9][0-9]*/#&/g')" --state all --json number,updatedAt,state --limit 500 > "$DISPATCH_DEP_FRESHNESS" 2>/dev/null || echo '[]' > "$DISPATCH_DEP_FRESHNESS"
 fi
@@ -90,6 +96,7 @@ if [ "$CACHE_HIT" != "1" ]; then
 gh issue list --state open --json number --limit 200 > "$DISPATCH_OPEN_NUMBERS"
 WORK_LINKS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values work-links)
 DISPATCH_GROUP_SIZE_GUARD=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-group-size-guard)
+DISPATCH_FASTLANE_BUNDLE_CAP=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-fastlane-bundle-cap)
 node -e "
   const { parseRecordFacets, parseDependencies } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/record.js');
   const issues = require(process.argv[1]);
@@ -137,7 +144,7 @@ if [ "$WORK_LINKS" = "native" ]; then
 fi
 node -e "
   const fs = require('fs');
-  const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap, partitionGroupsBySizeGuard } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
+  const { extractKeyFiles, expectsKeyFilesSection, groupByFileOverlap, partitionGroupsBySizeGuard, bundleFastLaneSingletons } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const eligible = require(process.argv[1]);
   const nativeDeps = require(process.argv[2]);
   const finalEligible = [];
@@ -155,8 +162,15 @@ node -e "
       console.error('Warning: eligible record #' + item.id + ' has no ### Key Files subsection — overlap detection disabled for it.');
     }
   }
-  const groups = groupByFileOverlap(items).map((ids) => ids.map((id) => byId.get(id)));
+  const rawGroups = groupByFileOverlap(items).map((ids) => ids.map((id) => byId.get(id)));
+  // Fast-lane bundling (#1910): runs after file-overlap grouping, before the
+  // size guard -- a bundle tops out at bundleCap (default 3), always well
+  // under the size guard's own default of 10, so ordering here never
+  // interacts with that gate.
+  const bundleCap = parseInt(process.argv[7], 10);
+  const { groups, bundles } = bundleFastLaneSingletons(rawGroups, { bundleCap });
   console.log(JSON.stringify(groups));
+  fs.writeFileSync(process.argv[8], JSON.stringify(bundles));
   const excludedBody = require(process.argv[3]);
   fs.writeFileSync(process.argv[4], JSON.stringify([...excludedBody, ...excludedNative]));
   // Size guard (#1228): flagged, never removed from DISPATCH_GROUPS -- bare
@@ -169,7 +183,7 @@ node -e "
   const groupSizeGuard = parseInt(process.argv[6], 10);
   const { oversized, threshold } = partitionGroupsBySizeGuard(groups, { groupSizeGuard });
   fs.writeFileSync(process.argv[5], JSON.stringify(oversized.map((g) => ({ records: g.map((i) => i.number), size: g.length, threshold }))));
-" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" "$DISPATCH_BLOCKED_EXCLUDED_BODY" "$DISPATCH_BLOCKED_EXCLUDED" "$DISPATCH_OVERSIZED_EXCLUDED" "$DISPATCH_GROUP_SIZE_GUARD" > "$DISPATCH_GROUPS"
+" "$DISPATCH_ELIGIBLE" "$DISPATCH_NATIVE_DEPS" "$DISPATCH_BLOCKED_EXCLUDED_BODY" "$DISPATCH_BLOCKED_EXCLUDED" "$DISPATCH_OVERSIZED_EXCLUDED" "$DISPATCH_GROUP_SIZE_GUARD" "$DISPATCH_FASTLANE_BUNDLE_CAP" "$DISPATCH_FASTLANE_BUNDLES" > "$DISPATCH_GROUPS"
 
 # #1571: write-back (cache-miss path only — a hit's persisted blob already
 # reflects current state, so re-persisting it would be a wasted, byte-
