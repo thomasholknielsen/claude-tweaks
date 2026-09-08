@@ -192,7 +192,7 @@ Two conditional branches that don't run on the common clean pending-review path 
 
 ## Reporting
 
-Read `reporting.md` in this skill's directory for the per-firing output shape (one block per dispatched group, no consolidated console), the per-group timing line rendered from `timing.json`, headless self-report behavior, `pending-review` parking under `pr-first`/other integration models, resuming a parked run (the `AskUserQuestion` confirmation and re-adoption mechanism), and `PushNotification` firing rules.
+Read `reporting.md` in this skill's directory for the per-firing output shape, the per-group timing line, headless self-report behavior, `pending-review` parking, resuming a parked run, and `PushNotification` firing rules.
 
 ## Configuration
 
