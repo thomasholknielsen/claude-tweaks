@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-09-08T122121-record-1301",
-  "reason": "failed: blocked-dependency (RemoteTrigger tool unavailable — no unified tool, no get-by-trigger-id, update_trigger lacks notifications)",
-  "releasedAt": "2026-09-08T12:36:00.000Z"
+  "runId": "2026-09-08T142220-record-1301",
+  "sessionId": "84acd72e-0fa3-55ac-898a-c22120d37949",
+  "claimedAt": "2026-09-08T14:27:32.458Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
