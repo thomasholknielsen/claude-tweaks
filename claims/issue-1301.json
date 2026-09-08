@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-08T085400-record-1301",
-  "sessionId": "0035382e-24ae-4a83-bb5b-d826f3d63c72",
-  "claimedAt": "2026-09-08T08:55:35.327Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "failed: blocked-dependency (RemoteTrigger tool unavailable in build session)",
+  "releasedAt": "2026-09-08T08:56:07.150Z"
 }
