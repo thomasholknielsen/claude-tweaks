@@ -1428,9 +1428,13 @@ this entry.
 
 **Removal condition:** reintroduce a per-file pin only for a file that (i) has crossed 40,960 raw
 bytes, (ii) has no compose call site whose composed gate covers it, and (iii) shows a measured
-per-invocation cost regression — a warning-band residency alone is not that state.
+per-invocation cost regression — a warning-band residency alone is not that state — **except
+invocation units, which keep the central ceiling** (#2020, below): a `SKILL.md` never needs an
+ad-hoc pin reintroduced under this condition, because `context-cost.test.js` already asserts every
+shipped `SKILL.md` under `CEILING_BYTES` as a standing hard gate, not a reactive one.
 `context-cost.test.js`'s warning tier and `plan-audit`'s headroom check are the reporting channels
-that surface (i) and the file's trajectory without needing a hard per-file test to do it.
+that surface (i) and the file's trajectory for every other file (sub-files, `_shared/*.md`) without
+needing a hard per-file test to do it.
 
 At retirement, six files sat within 1,000 B of the 40,960 B raw ceiling with no hard `npm test`
 guard: `dispatch/SKILL.md` (40,948 B), `flow/SKILL.md` (40,810 B), `wrap-up/SKILL.md` (40,708 B),
@@ -1439,5 +1443,13 @@ guard: `dispatch/SKILL.md` (40,948 B), `flow/SKILL.md` (40,810 B), `wrap-up/SKIL
 `_shared/github-pr-scan.md` (40,131 B) is in the same band but guarded by the `pr-scan` composed gate.
 All are reported only by the warning tier now. `flow/manifesto.md` keeps its raw single-read budget
 (21,760 B) alongside its composed gate, because `flow/SKILL.md` Step 3 still reads it directly on
-every fresh run. Whether invocation-unit `SKILL.md` files should keep one central hard ceiling is a
-staged decision for the parent (#1987), not this entry's.
+every fresh run. Whether invocation-unit `SKILL.md` files should keep one central hard ceiling was a
+staged decision for the parent (#1987); **#2020 resolved it: yes.** A `SKILL.md` loads in full on
+every invocation and has no lazy path around its own bytes the way a sub-file (composed or
+lazily-read) does, so the composed-bytes gate that replaced per-file pins for sub-files doesn't cover
+it either — leaving it warning-only let three files (the ones above still near the ceiling) sit a
+single paragraph away from a silent regression with zero enforcement. `context-cost.test.js` gained
+one central assertion — every `plugin/skills/*/SKILL.md` under `CEILING_BYTES` via `measuredBytes`
+— replacing the thirteen deleted ad-hoc pins with one gate instead of zero. Sub-files and
+`_shared/*.md` remain warning-tier only (they are either composed or lazily read, so raw bytes are
+never the true per-invocation cost).
