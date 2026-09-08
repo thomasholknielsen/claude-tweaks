@@ -53,7 +53,6 @@ function run(argv, deps = {}) {
     stderr.write(`check-artifact-overwrite: --base is required\n${USAGE}\n`);
     return 2;
   }
-  if (opts.paths.length === 0) delete opts.paths; // let the lib default apply
 
   let result;
   try {

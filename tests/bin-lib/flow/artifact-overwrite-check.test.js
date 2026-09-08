@@ -215,14 +215,19 @@ test('paths: [] falls back to the default scope (docs/journeys/, stories/) rathe
   const fx = repo();
   write(fx.dir, 'docs/journeys/demo.md', '# Demo\n\n## Step 1\nFirst content.\n');
   commit(fx, 'Add demo journey step 1 (refs #10)');
+  // Outside the default scope, but deliberately carrying the full overwrite
+  // shape (added under #11, then a *different* spec deletes its non-list
+  // content): widening to "match every path" would report it, so this test
+  // goes red the moment the empty-array guard is lost.
   write(fx.dir, 'src/unrelated.js', 'module.exports = 1;\n');
   commit(fx, 'Add unrelated source file (refs #11)');
-  write(fx.dir, 'src/unrelated.js', 'module.exports = 2;\n'); // modifies, but never "added" within range for this path — irrelevant either way
-  commit(fx, 'Modify unrelated source file (refs #11)');
+  write(fx.dir, 'src/unrelated.js', 'module.exports = 2;\n');
+  commit(fx, 'Rewrite unrelated source file (refs #12)');
 
   const withEmptyArray = checkArtifactOverwrite({ base: fx.base, paths: [], cwd: fx.dir });
   const withUnset = checkArtifactOverwrite({ base: fx.base, cwd: fx.dir });
   assert.deepStrictEqual(withEmptyArray, withUnset, 'an empty paths array must behave identically to paths being unset');
+  assert.strictEqual(withEmptyArray.clean, true, 'the src/ overwrite is outside the default scope and must not be walked');
 });
 
 test('the real #1988-#1997 journey history in this repo passes with no manual ruling (AC1)', () => {
