@@ -162,7 +162,7 @@ node -e "
   // Size guard (#1228): flagged, never removed from DISPATCH_GROUPS -- bare
   // and #N/#N,#M still resolve an oversized group normally (a human present,
   // explicitly naming/picking it, is itself the required surfacing). Only
-  // the drain's ranking script (Step 3 — bare, or its deprecated `next`
+  // the drain's ranking script (Step 3 — bare, or its deprecated next
   // alias) reads this file to exclude an oversized group from its own
   // candidate pool, since nobody is present there to see a table row or
   // answer a prompt.
