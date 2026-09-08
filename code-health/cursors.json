@@ -158,5 +158,9 @@
   "plugin/bin/lib/journey-health": {
     "lastSweptMs": 1788750756974,
     "lastHash": "f54e24e490254bdd0f99e13377a379733db4345d"
+  },
+  "plugin/bin/lib/compose-context": {
+    "lastSweptMs": 1788836999026,
+    "lastHash": "5fd1fadea95bc64f174d74a3637fd2a5d3695837"
   }
 }
