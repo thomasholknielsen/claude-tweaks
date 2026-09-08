@@ -120,6 +120,7 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
      `__ABSENT__` sentinel), that file holds the **wrapper object** `{content, sha}` from the
      `gh api` call's `-q` filter — step 2's classifier needs the **`.content` field's value**
      (the decoded claim-blob text itself), never the wrapper object. Extract it first:
+<!-- when: transport=gh -->
      ```bash
      if [ "$CONTENT_PATH_OR_ABSENT_SENTINEL" = "__ABSENT__" ]; then
        CLASSIFY_INPUT="__ABSENT__"
@@ -128,6 +129,11 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
        CLASSIFY_INPUT="/tmp/claim-content-${ISSUE}.txt"
      fi
      ```
+<!-- /when -->
+<!-- when: transport=mcp -->
+     Step 1's MCP bullet already wrote the tool's returned content itself, not a wrapper —
+     nothing to extract: `CLASSIFY_INPUT="$CONTENT_PATH_OR_ABSENT_SENTINEL"` as-is.
+<!-- /when -->
      Then classify:
      ```bash
      node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
@@ -274,8 +280,16 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
   console.log(c.claimPayload({issueNumber:Number(process.argv[1]),
   runId:process.argv[2],sessionId:process.env.CLAUDE_CODE_SESSION_ID||'',
   host:require('os').hostname(),now:Date.now()}).commentBody)" "$ISSUE" "$RUN_ID" > /tmp/claim-${ISSUE}.md
+```
+<!-- when: transport=gh -->
+```bash
 gh issue comment "$ISSUE" --body-file /tmp/claim-${ISSUE}.md
 ```
+<!-- /when -->
+<!-- when: transport=mcp -->
+`add_issue_comment` with the issue number and `body` = the contents of
+`/tmp/claim-${ISSUE}.md` (`_shared/github-write-transport.md`'s Comment row).
+<!-- /when -->
 
 Marker shapes (emitted by `claimPayload` / `releasePayload` — the same JSON shape the blob
 content itself carries, so the comment is a legible copy of the blob, not a second source):
@@ -328,7 +342,9 @@ is atomic regardless of whether the label add/remove succeeds.
 This is the single source of truth for whether an issue is claimed, by whom, and whether the
 claim is breakable. As in "The lock" step 2 above, the path passed below is the already-extracted
 claim-blob content (or `__ABSENT__`) — never the raw `{content, sha}` wrapper object a fresh
-`gh api` read produces; run "The lock" step 2's extraction first if reading fresh here.
+`gh api` read produces; run "The lock" step 2's extraction first if reading fresh here on the
+`gh` transport. On MCP, step 1's read already writes this same extracted content directly (no
+wrapper to extract), so the path passed below is that file as-is.
 
 ```bash
 node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
