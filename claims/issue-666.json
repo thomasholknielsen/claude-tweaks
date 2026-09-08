@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-08T084845-record-666",
-  "sessionId": "0035382e-24ae-4a83-bb5b-d826f3d63c72",
-  "claimedAt": "2026-09-08T08:50:07.699Z",
-  "ttlHours": 72,
-  "host": "Djoef-PC-WE8Swd"
+  "reason": "failed: not-yet-due (backstop 2026-11-16 not reached; today 2026-09-08)",
+  "releasedAt": "2026-09-08T08:50:22.681Z"
 }
