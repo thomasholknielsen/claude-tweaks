@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-09-08T142220-record-1301",
-  "reason": "failed: bundle-partner-hard-gate (#1890 blocked-dependency)",
-  "releasedAt": "2026-09-08T14:46:29.520Z"
+  "runId": "2026-09-08T161952-record-1301",
+  "sessionId": "03d20201-bd28-56b0-bcef-28bce471762e",
+  "claimedAt": "2026-09-08T16:32:19.106Z",
+  "ttlHours": 72,
+  "host": "vm"
 }
