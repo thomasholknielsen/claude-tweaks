@@ -36,7 +36,7 @@ node "${CLAUDE_PLUGIN_ROOT}/bin/ports.js" env
 ```
 
 - **No lease** (the command prints nothing and exits 0 — `bin/ports.js env`'s own documented contract for an unleased path): treat this as "no lease" and fall through to Step 1 as before. No `LEASE_PORTS` is set.
-- **A lease exists**: parse every printed `KEY=value` line into `LEASE_PORTS` — the full *set* of port values across every line (`PORT`, and every `{NAME}_PORT`), not just the `PORT` line. Then HTTP-probe `http://localhost:{PORT}` (the value from the `PORT` line specifically) with the same check Step 1 uses:
+- **A lease exists**: parse every printed `KEY=value` line into `LEASE_PORTS` — the full *set* of port values across every line (`PORT`, and every `{NAME}_PORT`), plus the leading `CLAUDE_TWEAKS_LEASE` line — the block's base, numerically equal to `PORT`, not an extra port, not just the `PORT` line. Then HTTP-probe `http://localhost:{PORT}` (the value from the `PORT` line specifically) with the same check Step 1 uses:
   - **Responds (2xx/3xx)** → set `APP_URL = http://localhost:{PORT}`. Skip Steps 1 through 2.7 entirely.
   - **No response** → continue to Step 1, carrying `LEASE_PORTS` forward (Step 2.7 below reads it).
 

@@ -64,9 +64,37 @@ function archiveStatus(pipelinesRoot, runId) {
   }
 }
 
+function readRunStateSafe(dir) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dir, 'run-state.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+// #1962: a matching run dir whose own bookkeeping shows it's already dead —
+// `interrupted`, or `active` with a stamped worktree that no longer exists on
+// disk — must never be silently adopted by step 2's slug match below.
+// Adopting it inherits a closed PR number, a stale config.yml, stale staged/
+// items and a foreign claim runId (observed 3 times in one dispatch firing —
+// this record's own Current State). Returns false (not dead) when
+// run-state.json is absent/unreadable — a bare mkdir-only mint (no
+// run-state.json written yet) is never itself "dead," just not yet adopted.
+function isDeadRunDir(dir) {
+  const state = readRunStateSafe(dir);
+  if (!state) return false;
+  if (state.status === 'interrupted') return true;
+  if (state.status === 'active' && typeof state.worktree === 'string' && state.worktree) {
+    return !fs.existsSync(state.worktree);
+  }
+  return false;
+}
+
 // Step 2 (`_shared/pipeline-run-dir.md`'s resolution order): the most recent
 // directory under `{pipelinesRoot}` whose name contains `specSlug`, matching
-// the reference snippet's `find ... -name "*${SPEC_SLUG}*" | sort | tail -n 1`.
+// the reference snippet's `find ... -name "*${SPEC_SLUG}*" | sort | tail -n 1`
+// — except a dead candidate (#1962, `isDeadRunDir` above) is skipped in favor
+// of the next-newest match, rather than being adopted as-is.
 function newestMatch(pipelinesRoot, specSlug) {
   let entries;
   try { entries = fs.readdirSync(pipelinesRoot, { withFileTypes: true }); } catch { return null; }
@@ -74,8 +102,11 @@ function newestMatch(pipelinesRoot, specSlug) {
     .filter((e) => e.isDirectory() && e.name.includes(specSlug))
     .map((e) => e.name)
     .sort();
-  if (!names.length) return null;
-  return path.join(pipelinesRoot, names[names.length - 1]);
+  for (let i = names.length - 1; i >= 0; i -= 1) {
+    const dir = path.join(pipelinesRoot, names[i]);
+    if (!isDeadRunDir(dir)) return dir;
+  }
+  return null;
 }
 
 // opts: { cwd, env, specSlug, mode, standalone, create, rootOnly, now }
@@ -217,4 +248,4 @@ function resolve(opts = {}) {
   );
 }
 
-module.exports = { resolve, formatTimestamp };
+module.exports = { resolve, formatTimestamp, isDeadRunDir };

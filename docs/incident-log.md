@@ -1428,9 +1428,13 @@ this entry.
 
 **Removal condition:** reintroduce a per-file pin only for a file that (i) has crossed 40,960 raw
 bytes, (ii) has no compose call site whose composed gate covers it, and (iii) shows a measured
-per-invocation cost regression — a warning-band residency alone is not that state.
+per-invocation cost regression — a warning-band residency alone is not that state — **except
+invocation units, which keep the central ceiling** (#2020, below): a `SKILL.md` never needs an
+ad-hoc pin reintroduced under this condition, because `context-cost.test.js` already asserts every
+shipped `SKILL.md` under `CEILING_BYTES` as a standing hard gate, not a reactive one.
 `context-cost.test.js`'s warning tier and `plan-audit`'s headroom check are the reporting channels
-that surface (i) and the file's trajectory without needing a hard per-file test to do it.
+that surface (i) and the file's trajectory for every other file (sub-files, `_shared/*.md`) without
+needing a hard per-file test to do it.
 
 At retirement, six files sat within 1,000 B of the 40,960 B raw ceiling with no hard `npm test`
 guard: `dispatch/SKILL.md` (40,948 B), `flow/SKILL.md` (40,810 B), `wrap-up/SKILL.md` (40,708 B),
@@ -1439,5 +1443,31 @@ guard: `dispatch/SKILL.md` (40,948 B), `flow/SKILL.md` (40,810 B), `wrap-up/SKIL
 `_shared/github-pr-scan.md` (40,131 B) is in the same band but guarded by the `pr-scan` composed gate.
 All are reported only by the warning tier now. `flow/manifesto.md` keeps its raw single-read budget
 (21,760 B) alongside its composed gate, because `flow/SKILL.md` Step 3 still reads it directly on
-every fresh run. Whether invocation-unit `SKILL.md` files should keep one central hard ceiling is a
-staged decision for the parent (#1987), not this entry's.
+every fresh run. Whether invocation-unit `SKILL.md` files should keep one central hard ceiling was a
+staged decision for the parent (#1987); **#2020 resolved it: yes.** A `SKILL.md` loads in full on
+every invocation and has no lazy path around its own bytes the way a sub-file (composed or
+lazily-read) does, so the composed-bytes gate that replaced per-file pins for sub-files doesn't cover
+it either — leaving it warning-only let three files (the ones above still near the ceiling) sit a
+single paragraph away from a silent regression with zero enforcement. `context-cost.test.js` gained
+one central assertion — every `plugin/skills/*/SKILL.md` under `CEILING_BYTES` via `measuredBytes`
+— replacing the thirteen deleted ad-hoc pins with one gate instead of zero. Sub-files and
+`_shared/*.md` remain warning-tier only (they are either composed or lazily read, so raw bytes are
+never the true per-invocation cost).
+
+## IL-154 — A safe path-passing pattern used earlier in an edit was not used later in the same edit
+
+`plugin/skills/dispatch/settle-and-merge.md`'s #1963 fix added two new inline `node -e "..."`
+blocks in the same Step 4 edit. The first (unmodified from a pre-existing block) correctly passed
+a session-tmp file path as `require(process.argv[1])`. The second, new block — three lines later,
+authored in the same edit — instead wrote `require('$DISPATCH_LINKED_PRS')`, shell-interpolating
+the bash variable directly into the JS string literal. Reproduced live on this repo's own Windows
+dev environment: `node -e "console.log('C:\Users\thn\AppData\Local\Temp\...\dispatch-linked-prs-1963.json')"`
+prints `C:Users	hnAppData...` — the backslashes are silently swallowed as (mis-recognized)
+JS string-escape sequences, corrupting the path into garbage, so `require()` throws "Cannot find
+module" and crashes the whole retry-count step on Windows. Not a first occurrence of this class:
+the same release's own whole-branch review had already fixed a Windows-native-path regex bug in
+`extract.js`'s TAP-frame matching (#2033) earlier in the same release cycle. Caught only by a
+review lens agent's finding plus independent live reproduction during `/claude-tweaks:review`
+(#1963) — nothing in this repo statically checks an inline `node -e` block embedded in skill
+`.md` prose, so an inconsistency between two adjacent blocks in one hand-authored edit survives
+until an agent actually executes the broken one.

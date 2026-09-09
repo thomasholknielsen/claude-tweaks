@@ -135,9 +135,12 @@ These steps appear as visible, numbered Cleanup actions rows in the console temp
 
 1. **Tear down the shared ephemeral dev server** if one was started (`{parent-run-dir}/ephemeral-server.txt` — see `wrap-up/cleanup-procedures-execution.md` Section D). It was kept up across all specs (per-spec wrap-ups deferred it under `MULTISPEC_REVIEW_DEFER=1`); kill it once here.
 2. **Finish the shared branch.** `integration-model: pr-first` (`_shared/integration-model.md`): run
-   `_shared/pr-first-merge.md`'s procedure now — `tag: fast-lane`, `issue-list` every record from
-   `manifest.yml`'s `specs[].id`, `summary` a bundle one-liner — no checkout needed and no prompt,
-   the same split `flow/worktree-merge.md`'s own reconciliation already states. Which of the
+   `_shared/pr-first-merge.md`'s procedure now — `tag: fast-lane`, `issue-list` the manifest's
+   `complete` specs only (#2015 — never the full `specs[].id` list; a `not-run`/`failed` spec must
+   never close on this merge, and step 3 below already releases that set separately with its own
+   `never-started:`/`abandoned:` reason, so it needs no `Fixes`/`Refs` line here), `summary` a
+   bundle one-liner — no checkout needed and no prompt, the same split `flow/worktree-merge.md`'s
+   own reconciliation already states. Which of the
    terminal decision's two Approve-all variants was chosen (above) governs the outcome: "leave PR
    open" skips the merge attempt entirely (Step 3), landing on `pending-review` with the PR left
    ready. `integration-model: local-merge`: complete it via `/superpowers:finishing-a-development-branch`

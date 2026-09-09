@@ -1447,6 +1447,97 @@ test('archiveMerged: a status:clean run dir with no recoverable branch is skippe
   assert.equal(fs.existsSync(runDir), true);
 });
 
+// #1962: a stamped worktree that's confirmably gone AND whose branch has
+// since been deleted (no branch left for fallbackBranch to recover) used to
+// skip 'no-branch' forever, even though the run's closed PR is still
+// knowable by number (run-state.json's `pr.number`, stamped once and never
+// cleared). The sweep now probes that PR directly and archives once its
+// console is resolved.
+test('archiveMerged: a run dir whose stamped worktree is gone and branch is unrecoverable is archived once its closed PR is confirmed by number', () => {
+  const root = fs.realpathSync(makeRepo());
+  const runId = '2026-08-01T090000-record-1962-nobranch-closedpr';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({
+    status: 'active',
+    worktree: path.join(root, '.claude', 'worktrees', 'gone-record-1962'), // stamped, but never created here
+    pr: { number: 1962, branch: 'worktree-record-1962-gone' }, // branch does not exist in this repo
+  }));
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ resolved: true }));
+
+  const wrapper = installGhWrapper({ number: 1962, state: 'CLOSED', mergedAt: null, updatedAt: '2026-08-01T00:00:00Z', mergeCommit: null });
+  let result;
+  try {
+    result = archiveMerged({ cwd: root });
+  } finally {
+    wrapper.restore();
+  }
+  assert.ok(result.archived.includes(runDir), `expected ${runDir} archived, got ${JSON.stringify(result)}`);
+  assert.equal(fs.existsSync(runDir), false, 'original run dir must have been archived away');
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  assert.equal(fs.existsSync(archiveDir), true);
+});
+
+test('archiveMerged: same shape as above, but console is unresolved — stays in place, never archived', () => {
+  const root = fs.realpathSync(makeRepo());
+  const runId = '2026-08-01T090000-record-1962-nobranch-closedpr-unresolved';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({
+    status: 'active',
+    worktree: path.join(root, '.claude', 'worktrees', 'gone-record-1962b'),
+    pr: { number: 1963, branch: 'worktree-record-1962-gone-b' },
+  }));
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ resolved: false }));
+
+  const wrapper = installGhWrapper({ number: 1963, state: 'CLOSED', mergedAt: null, updatedAt: '2026-08-01T00:00:00Z', mergeCommit: null });
+  let result;
+  try {
+    result = archiveMerged({ cwd: root });
+  } finally {
+    wrapper.restore();
+  }
+  assert.ok(!result.archived.includes(runDir));
+  const skip = result.skipped.find((s) => s.runDir === runDir);
+  assert.ok(skip, `expected ${runDir} reported in skipped, got ${JSON.stringify(result)}`);
+  assert.equal(skip.reason, 'console-unresolved');
+  assert.equal(fs.existsSync(runDir), true);
+});
+
+test('archiveMerged: same shape as above, but the PR-by-number probe reports OPEN — falls back to the ordinary no-branch skip', () => {
+  const root = fs.realpathSync(makeRepo());
+  const runId = '2026-08-01T090000-record-1962-nobranch-openpr';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({
+    status: 'active',
+    worktree: path.join(root, '.claude', 'worktrees', 'gone-record-1962c'),
+    pr: { number: 1964, branch: 'worktree-record-1962-gone-c' },
+  }));
+
+  const wrapper = installGhWrapper({ number: 1964, state: 'OPEN', mergedAt: null, updatedAt: '2026-08-01T00:00:00Z', mergeCommit: null });
+  let result;
+  try {
+    result = archiveMerged({ cwd: root });
+  } finally {
+    wrapper.restore();
+  }
+  assert.ok(!result.archived.includes(runDir));
+  const skip = result.skipped.find((s) => s.runDir === runDir);
+  assert.ok(skip, `expected ${runDir} reported in skipped, got ${JSON.stringify(result)}`);
+  assert.equal(skip.reason, 'no-branch');
+  assert.equal(fs.existsSync(runDir), true);
+});
+
 test('isAbandonedInterrupted: false for a non-interrupted status', () => {
   assert.equal(isAbandonedInterrupted('/x', { status: 'active' }, 'sess-1', Date.now()), false);
+});
+
+test('#1854: an auto-resolve console.json ({resolved:true, mode:"auto-resolve", …}) reads as resolved and archives, never console-never-rendered (#1932 AC6)', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-merged-auto-resolve-'));
+  fs.writeFileSync(path.join(runDir, 'console.json'), JSON.stringify({ resolved: true, mode: 'auto-resolve', at: '2026-09-06T12:00:00.000Z', ceiling: 'unattended', items: [], merge: { resolution: 'merge', reason: 'x' } }));
+  assert.strictEqual(readConsoleState(runDir), 'resolved');
+  const decision = decideArchive({ state: 'MERGED' }, readConsoleState(runDir));
+  assert.notStrictEqual(decision.reason, 'console-never-rendered');
+  assert.deepStrictEqual(decision, { action: 'archive' });
 });

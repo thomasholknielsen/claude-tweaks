@@ -7,16 +7,11 @@
 //    begins with a spec-compliance verdict) is logged here even though
 //    nothing was actually violated — STATUS_RE has no way to know a dispatch
 //    declared a different contract.
-// 2. A session running as a background job (dispatched via the Agent tool by
-//    an outer orchestrator, e.g. a /claude-tweaks:dispatch two-call handoff)
-//    has every one of its own turn boundaries checked independently while it
-//    waits on its own parallel Task-tool dispatches — including its
-//    legitimate interim narration turns, which the subagent-output-contract's
-//    status-line requirement never applies to (that requirement is scoped to
-//    a dispatched subagent's own *final* reply). Each such narration turn is
-//    logged as a contract-violation even though the orchestrating session
-//    itself never violated the contract; only its own dispatched subagents'
-//    final replies are subject to that check.
+// 2. (fixed, #1928) The parent session's own transcript used to be graded
+//    whenever agent_transcript_path was absent, so an orchestrator's interim
+//    narration turns were logged as violations. Absent agent_transcript_path
+//    is now a no-op; a harness that stops sending the field silently
+//    disables this check rather than flooding the log.
 'use strict';
 const fs = require('fs');
 const ctxLib = require('./context');
@@ -109,7 +104,10 @@ function run(ctx) {
   const ownedRun = ctx.ownedRun || {};
   if (!ownedRun.dir) return {};
   if (isExemptAgentType(ctx.input.agent_type)) return {}; // third-party agent — never governed by this contract; checked before the transcript read below so an exempt stop never pays that I/O cost
-  const transcriptPath = ctx.input.agent_transcript_path || ctx.input.transcript_path;
+  // #1928: only a real agent transcript is graded. The former fallback to
+  // the parent session's transcript_path scored the orchestrator's own
+  // narration as a subagent reply — the bulk of the corpus's false fires.
+  const transcriptPath = ctx.input.agent_transcript_path;
   if (typeof transcriptPath !== 'string' || !transcriptPath) return {};
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op

@@ -20,7 +20,7 @@ How this repo renames a work-record facet and the GitHub label / frontmatter lin
 - **Emit one spelling, read two — forever.** Read-side fallbacks are PERMANENT cross-project support, commented `[IL-85]`-style ("removable only at a major version that drops pre-rename repo support"). `record.js` and `local-store.js` each carry all three today.
 - **Held-aside precedence, not OR, in the frontmatter driver.** An explicit new line of either value must beat a legacy line whichever comes first; the OR form loses `new: false` + `legacy: true`.
 - **The emit side rejects the retired parameter name.** `recordPayload` throws on `effort` and on `framing`, naming the field and the replacement, so a caller composing a payload from pre-rename facets fails loud instead of silently dropping the label. Add the guard for the newly retired name in the same commit as the rename.
-- **Presence-only flags keep the "show the call without the flag" idiom** in `shaping-mode.md`'s `gh issue edit` block (`[IL-103]`) — document when to add the flag, never default it present.
+- **Presence-only flags keep the "show the call without the flag" idiom** in `shaping-mode-stamping.md`'s `gh issue edit` block (`[IL-103]`) — document when to add the flag, never default it present.
 - **Historical files keep the old spelling:** `CHANGELOG.md`, `docs/incident-log.md`, archived pipeline `work/*.md`, `docs/superpowers/plans/*`.
 
 ## Gotchas

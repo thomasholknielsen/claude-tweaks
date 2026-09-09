@@ -51,7 +51,15 @@ const DESCRIPTION_CEILING_CHARS = 260;
 // unrelated skills' tuned trigger phrases, is the correct fix here. Bumped
 // to 7700 (not the bare 7613 minimum) to leave the next legitimate addition
 // some room too.
-const DESCRIPTION_TOTAL_CEILING_CHARS = 7700;
+//
+// 7700 -> 7900, #44 (new `/claude-tweaks:pipeline-smoke-test` skill, 251
+// chars). Corpus was at 7864/7700 once this description was added -- the
+// same shape as the #1704 bump above: an already-tight per-skill description
+// (Keywords tokens for a genuinely new trigger vocabulary — "smoke test",
+// "integration test", "claim race", "cross-session" — nothing spare to trim
+// without weakening skill selection). Bumped to 7900, not the bare 7864
+// minimum, for the same next-legitimate-addition headroom reason.
+const DESCRIPTION_TOTAL_CEILING_CHARS = 7900;
 
 function skillsDir(repoRoot) {
   return path.join(repoRoot, 'skills');

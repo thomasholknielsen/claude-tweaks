@@ -26,6 +26,33 @@ const MAX_REPORTED = 3;
 // whose whole point is to report what it did).
 const FAST_CHECKS = ['mirror', 'red-tip', 'console'];
 
+// #137: complements (never replaces) the seven-copy routine preamble
+// paragraph (skills/_shared/routine-template-schema.md) that reports the
+// resolved build in a routine firing's own *output* -- readable back from a
+// transcript or filed issue later. This puts the same fact in every OTHER
+// entry point's *context* instead (interactive session, /flow run, dispatched
+// subagent) -- the agent knows it, even if it never says it out loud. Read
+// unconditionally, not gated on differing from the marketplace catalog: this
+// hook is a real Node process already running from the resolved plugin root,
+// so CLAUDE_PLUGIN_ROOT is simply this process's own env, never a guess the
+// way the preamble's multi-rung LLM-executed fallback ladder has to be for an
+// agent reading its own context -- a catalog read here would add a network
+// dependency to every session start for a diagnostic only ever consulted when
+// something already looks wrong (decided, not left open, per the record's own
+// Deliverables). `env` is injectable for tests; production omits it.
+function resolveBuildLine(env = process.env) {
+  const pluginRoot = env.CLAUDE_PLUGIN_ROOT;
+  if (!pluginRoot) return null;
+  let pkg;
+  try {
+    pkg = JSON.parse(fs.readFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!pkg || typeof pkg.version !== 'string' || !pkg.version) return null;
+  return `claude-tweaks v${pkg.version} @ ${pluginRoot}`;
+}
+
 async function run(ctx) {
   const parts = [];
   // Per-invocation cache (#381): memoizes `git worktree list --porcelain` and
@@ -49,6 +76,10 @@ async function run(ctx) {
     ? ctx.input.session_id
     : undefined;
   try { parts.push(...deps.collect()); } catch { /* best-effort */ }
+  try {
+    const buildLine = resolveBuildLine();
+    if (buildLine) parts.push(buildLine);
+  } catch { /* best-effort */ }
   try {
     // Only the newest MAX_REPORTED entries are ever shown — pull from the
     // lazy iterator and stop early instead of materializing (and reading
@@ -412,7 +443,10 @@ async function run(ctx) {
             const result = await portsEnsure.ensure(ctx.cwd, { policyServices: services });
             if (result.active) {
               const range = `${result.base}-${result.base + result.ports.length - 1}`;
-              const vars = result.vars.map(([k, v]) => `${k}=${v}`).join(' ');
+              // #1927: CLAUDE_TWEAKS_LEASE rides in vars for the env file, not in this line (#1792 AC3's shape).
+              const vars = result.vars
+                .filter(([k]) => k === 'PORT' || k.endsWith('_PORT'))
+                .map(([k, v]) => `${k}=${v}`).join(' ');
               // Reallocation moves URLs — this line must never be silent
               // (see #1792's Gotchas: "never make the reallocation silent").
               parts.push(result.reallocated
@@ -431,4 +465,4 @@ async function run(ctx) {
   return { json: { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: parts.join('\n\n') } } };
 }
 
-module.exports = { run, FAST_CHECKS };
+module.exports = { run, FAST_CHECKS, resolveBuildLine };

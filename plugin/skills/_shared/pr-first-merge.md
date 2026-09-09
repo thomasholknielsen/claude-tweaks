@@ -284,8 +284,10 @@ label, or `manifesto-authorized` for the same short-circuit triggered instead by
 `merge-authorization` Manifesto lever with no label present (`wrap-up/review-console.md`,
 `wrap-up/manifesto-authorized-merge.md`) — preserving all three tags' meanings — `/help`'s
 auto-merged-this-week metric (`_shared/github-pr-scan.md` `triage-queue` item 3) keys on all
-three. `{issue-list}` is one `Fixes #{n}` per record — the exact same set the PR body's own
-`Fixes` lines already carry (`_shared/pr-early-run-lifecycle.md`), restated here because the
+three. `{issue-list}` is one `Fixes #{n}` per record — the manifest's `complete` specs only for a
+bundle (#2015; rest release via their own `never-started:`/`abandoned:` reason). Same set the
+PR body's own `Fixes` lines already carry
+(`_shared/pr-early-run-lifecycle.md`'s pre-merge refresh), restated here because the
 merge commit's own message is what GitHub scans for closing keywords on a non-default
 integration branch, where the PR body's keywords don't fire (GitHub only auto-closes from a
 merge commit's message, or a PR body merged into the *default* branch — an explicit merge

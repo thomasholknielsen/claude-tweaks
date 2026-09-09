@@ -1173,3 +1173,40 @@ test('CT_HOOKS_DEBUG_CAPTURE: an unwritable target never breaks the real gate ca
     delete process.env.CT_HOOKS_DEBUG_CAPTURE;
   }
 });
+
+// #1967: git-stash worktree-hazard warn — the stash stack is repository-wide,
+// shared by every linked worktree of the same main checkout, so a bare
+// `git stash`/`git stash pop` from a linked worktree can push onto or pop a
+// SIBLING worktree's stash entry (the #1864 review call did exactly this).
+// Warn only, never deny, and needs no active pipeline run — runDir/runState
+// are both null in every case below.
+test('#1967: bare `git stash` from a linked worktree emits the warning line', () => {
+  const { wt } = mainAndWorktree();
+  const out = pre.run({ input: bashInput('git stash', wt), runDir: null, runState: null, cwd: wt });
+  assert.ok(!(out.json && out.json.hookSpecificOutput), 'must warn, never deny');
+  assert.match(out.json.systemMessage, /git stash is repository-wide/);
+  assert.match(out.json.systemMessage, /SIBLING worktree/);
+});
+
+test('#1967: `git stash pop` from a linked worktree emits the warning line', () => {
+  const { wt } = mainAndWorktree();
+  const out = pre.run({ input: bashInput('git stash pop', wt), runDir: null, runState: null, cwd: wt });
+  assert.match(out.json.systemMessage, /git stash is repository-wide/);
+});
+
+test('#1967: `git stash` from the main checkout (not a linked worktree) is silent', () => {
+  const { main } = mainAndWorktree();
+  const out = pre.run({ input: bashInput('git stash', main), runDir: null, runState: null, cwd: main });
+  assert.deepStrictEqual(out, {});
+});
+
+test('#1967: read-only `git stash list`/`git stash show` from a linked worktree is silent', () => {
+  const { wt } = mainAndWorktree();
+  assert.deepStrictEqual(pre.run({ input: bashInput('git stash list', wt), runDir: null, runState: null, cwd: wt }), {});
+  assert.deepStrictEqual(pre.run({ input: bashInput('git stash show', wt), runDir: null, runState: null, cwd: wt }), {});
+});
+
+test('#1967: an unrelated git command from a linked worktree is silent', () => {
+  const { wt } = mainAndWorktree();
+  assert.deepStrictEqual(pre.run({ input: bashInput('git status', wt), runDir: null, runState: null, cwd: wt }), {});
+});

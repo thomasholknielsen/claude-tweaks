@@ -200,6 +200,79 @@ test('worktree-always nudge appears when policy is on and session is not yet iso
   assert.match(out.json.hookSpecificOutput.additionalContext, /using-git-worktrees/);
 });
 
+// --- #137: resolved-build line, complementing (not replacing) the routine preamble ---
+
+function tmpPluginRoot(version) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-plugin-'));
+  fs.mkdirSync(path.join(dir, '.claude-plugin'), { recursive: true });
+  if (version !== undefined) {
+    fs.writeFileSync(path.join(dir, '.claude-plugin', 'plugin.json'), JSON.stringify({ version }));
+  }
+  return dir;
+}
+
+test('resolveBuildLine reads the version from plugin.json under the given CLAUDE_PLUGIN_ROOT', () => {
+  const root = tmpPluginRoot('6.114.1');
+  try {
+    const line = sessionStart.resolveBuildLine({ CLAUDE_PLUGIN_ROOT: root });
+    assert.strictEqual(line, `claude-tweaks v6.114.1 @ ${root}`);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveBuildLine returns null when CLAUDE_PLUGIN_ROOT is unset', () => {
+  assert.strictEqual(sessionStart.resolveBuildLine({}), null);
+});
+
+test('resolveBuildLine returns null when plugin.json is missing or unreadable', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ct-ss-noplugin-'));
+  try {
+    assert.strictEqual(sessionStart.resolveBuildLine({ CLAUDE_PLUGIN_ROOT: root }), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('resolveBuildLine returns null when plugin.json has no string version field', () => {
+  const root = tmpPluginRoot();
+  fs.writeFileSync(path.join(root, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'claude-tweaks' }));
+  try {
+    assert.strictEqual(sessionStart.resolveBuildLine({ CLAUDE_PLUGIN_ROOT: root }), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('run() includes the resolved-build line in additionalContext, unconditionally, alongside other checks', async () => {
+  const project = tmpProject();
+  const root = tmpPluginRoot('9.9.9');
+  const orig = process.env.CLAUDE_PLUGIN_ROOT;
+  try {
+    process.env.CLAUDE_PLUGIN_ROOT = root;
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    assert.match(out.json.hookSpecificOutput.additionalContext, /claude-tweaks v9\.9\.9 @ /);
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /claude-tweaks: claude-tweaks v/);
+  } finally {
+    if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
+    else process.env.CLAUDE_PLUGIN_ROOT = orig;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('run() emits no build line (and no crash) when CLAUDE_PLUGIN_ROOT is unset, same as before #137', async () => {
+  const project = tmpProject();
+  const orig = process.env.CLAUDE_PLUGIN_ROOT;
+  try {
+    delete process.env.CLAUDE_PLUGIN_ROOT;
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    if (out.json) assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /claude-tweaks v/);
+  } finally {
+    if (orig === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
+    else process.env.CLAUDE_PLUGIN_ROOT = orig;
+  }
+});
+
 test('worktree-always nudge is absent when policy is off', async () => {
   const project = gitProject();
   const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
@@ -906,6 +979,26 @@ test('#1792 AC7: more than BLOCK_SIZE valid services disables port isolation for
       out.json.hookSpecificOutput.additionalContext,
       new RegExp(`claude-tweaks: ports — port-services lists ${names.length} services, more than one block \\(${portsRegistryMod.BLOCK_SIZE}\\) can hold`),
     );
+  } finally {
+    portsEnsureMod.ensure = original;
+  }
+});
+
+// #1927: the lease pair travels in vars but never in the rendered ports line (#1792 AC3's shape stays).
+test('#1927: the SessionStart ports line omits CLAUDE_TWEAKS_LEASE from the parenthesised list (#1792 AC3 shape stays)', async () => {
+  const project = gitProject();
+  withPolicy(project, 'port-services: web,api\n');
+  const original = portsEnsureMod.ensure;
+  portsEnsureMod.ensure = async () => ({
+    active: true, base: 20000, ports: [20000, 20001, 20002, 20003, 20004, 20005, 20006, 20007, 20008, 20009],
+    vars: [['CLAUDE_TWEAKS_LEASE', '20000'], ['PORT', '20000'], ['API_PORT', '20001']], reallocated: null, envWriteError: null, leaseLineAdded: false,
+  });
+  try {
+    const out = await sessionStart.run({ input: {}, runDir: null, runState: null, cwd: project });
+    const lines = out.json.hookSpecificOutput.additionalContext.split('\n\n');
+    const portsLine = lines.find((l) => l.startsWith('claude-tweaks: ports '));
+    assert.match(portsLine, /^claude-tweaks: ports 20000-20009 \(PORT=20000 API_PORT=20001\)$/);
+    assert.doesNotMatch(out.json.hookSpecificOutput.additionalContext, /CLAUDE_TWEAKS_LEASE/);
   } finally {
     portsEnsureMod.ensure = original;
   }

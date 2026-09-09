@@ -84,34 +84,54 @@ it.
 
 4. Fetch existing comments and compute this attempt's number and whether it hits the ceiling (read `dispatch-retry-ceiling` via the canonical resolver), in one pass — fetching comments *before* posting this attempt's comment is what makes the attempt number and ceiling check correct.
 
-   **Comment source routes on the pr-first gate** (`_shared/pr-run-comments.md`): when `run-state.json` carries a `pr` object, the "Attempt N failed" comments this step counts live on the **PR**, not the issue — step 5 below posts the full failure comment there, not to the issue. Fetch from `repos/{owner}/{repo}/issues/{pr-number}/comments` (PRs are issues under the REST model, so the identical endpoint shape applies, just with the PR's number). Absent a `pr` object, fetch from the issue exactly as today.
+   **Comment sources: the issue, plus every PR ever linked to it, open or closed** (`_shared/pr-run-comments.md`) — step 5 below always posts the full failure comment to the **issue** now, regardless of pr-first, but a record whose attempts predate this fix, or whose PR closed between runs, can still have earlier "Attempt N failed" comments scattered across the issue and one or more now-closed PRs (`#1963`: record 1302 showed exactly this split — an `attempt=1` marker on PR 1783 and a second independent `attempt=1` marker on the issue, so the ceiling of 3 was never reached). Merge comments from the issue and every linked PR before counting, rather than trusting one source alone — this is what makes the count immune to which source any individual past attempt happened to land on.
 
-   Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`) — these two also carry the existing `${ISSUE}` suffix, since two different records settling concurrently (a dispatch loop over a bundle group's members) still need per-record disjoint files even within one session, exactly as `_shared/session-tmp-root.md`'s "Record-suffixed callers keep both suffixes" section states:
+   Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`) — these carry the existing `${ISSUE}` suffix, since two different records settling concurrently (a dispatch loop over a bundle group's members) still need per-record disjoint files even within one session, exactly as `_shared/session-tmp-root.md`'s "Record-suffixed callers keep both suffixes" section states:
 
    ```bash
    eval "$(node -e "
      const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
      const os = require('os'); const path = require('path');
      const issue = process.argv[1];
-     const files = { DISPATCH_COMMENTS: 'dispatch-comments-' + issue + '.json', ATTEMPT_INFO: 'attempt-info-' + issue + '.json' };
+     const files = {
+       DISPATCH_COMMENTS: 'dispatch-comments-' + issue + '.json',
+       DISPATCH_LINKED_PRS: 'dispatch-linked-prs-' + issue + '.json',
+       DISPATCH_PR_COMMENTS_DIR: 'dispatch-pr-comments-' + issue,
+       ATTEMPT_INFO: 'attempt-info-' + issue + '.json',
+     };
      for (const [varName, filename] of Object.entries(files)) {
        const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
        console.log(varName + '=' + JSON.stringify(p));
      }
    " "$ISSUE")"
    DISPATCH_RETRY_CEILING=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-retry-ceiling)
-   gh api "repos/{owner}/{repo}/issues/${COMMENT_SOURCE}/comments?per_page=100" > "$DISPATCH_COMMENTS"
+   gh api "repos/{owner}/{repo}/issues/${ISSUE}/comments?per_page=100" > "$DISPATCH_COMMENTS"
+   gh pr list --repo {owner}/{repo} --state all --json number,closingIssuesReferences --limit 200 \
+     --jq "[.[] | select(.closingIssuesReferences[]?.number == ${ISSUE}) | .number]" > "$DISPATCH_LINKED_PRS" 2>/dev/null \
+     || echo '[]' > "$DISPATCH_LINKED_PRS"
+   rm -rf "$DISPATCH_PR_COMMENTS_DIR" && mkdir -p "$DISPATCH_PR_COMMENTS_DIR"
+   for PRN in $(node -e "console.log(require(process.argv[1]).join(' '))" "$DISPATCH_LINKED_PRS"); do
+     gh api "repos/{owner}/{repo}/issues/${PRN}/comments?per_page=100" > "$DISPATCH_PR_COMMENTS_DIR/${PRN}.json" 2>/dev/null \
+       || echo '[]' > "$DISPATCH_PR_COMMENTS_DIR/${PRN}.json"
+   done
    node -e "
+     const fs = require('fs');
      const { countFailedAttempts } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
-     const comments = require(process.argv[1]);
+     const issueComments = require(process.argv[1]);
+     const prDir = process.argv[2];
+     const path = require('path');
+     const prComments = fs.existsSync(prDir)
+       ? fs.readdirSync(prDir).flatMap((f) => JSON.parse(fs.readFileSync(path.join(prDir, f), 'utf8')))
+       : [];
+     const comments = issueComments.concat(prComments);
      const attemptNumber = countFailedAttempts(comments) + 1;
-     const ceiling = Number(process.argv[2] || 3);
+     const ceiling = Number(process.argv[3] || 3);
      const ceilingHit = attemptNumber >= ceiling; // equivalent to hasHitRetryCeiling if comments included this attempt's own (not-yet-posted) comment
      console.log(JSON.stringify({ attemptNumber, ceilingHit }));
-   " "$DISPATCH_COMMENTS" "$DISPATCH_RETRY_CEILING" > "$ATTEMPT_INFO"
+   " "$DISPATCH_COMMENTS" "$DISPATCH_PR_COMMENTS_DIR" "$DISPATCH_RETRY_CEILING" > "$ATTEMPT_INFO"
    ```
 
-**MCP path** (`gh` unavailable, same live-as-of-Task-10 status as `dispatch/SKILL.md`'s Step 4): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md` in place of the `gh api` call above — `countFailedAttempts` and the rest of this step's logic consume the same comment-body-string shape regardless of transport.
+**MCP path** (`gh` unavailable, same live-as-of-Task-10 status as `dispatch/SKILL.md`'s Step 4): use the confirmed "list issue comments" mapping from `_shared/github-write-transport.md` for the issue's own comments. Linked-PR discovery and per-PR comment fetches have no MCP equivalent (`_shared/github-pr-scan.md`'s Transport note on PR-backed items) — count from the issue's comments alone in that case, and log the degrade to `decisions.md` (a record with genuinely split legacy attempts may undercount until a `gh`-present run re-settles it) rather than silently treating it as a full count. `countFailedAttempts` and the rest of this step's logic consume the same comment-body-string shape regardless of transport or source count.
 
 5. Compose the failure comment, using the `attemptNumber` and `ceilingHit` just computed — content unchanged regardless of routing below. Resolve this run's session-scoped temp paths first (`_shared/session-tmp-root.md`; `ATTEMPT_INFO` re-derived here since a fresh bash invocation does not inherit step 4's shell variables — `sessionTmpPath` is idempotent per session+filename, so this resolves to the same path):
 
@@ -144,65 +164,39 @@ it.
    " "$ATTEMPT_INFO" "$REASON" "$CLASSIFICATION" > "$ATTEMPT_COMMENT_BODY"
    ```
 
-   **`run-state.json` has no `pr` object** (`local-merge`, or a degraded `pr-first` run —
-   `_shared/pr-run-comments.md`'s gate): post to the issue exactly as today.
+   **Post the full comment to the issue, always** (`#1963`) — regardless of `run-state.json`
+   carrying a `pr` object or not. This is what keeps every attempt discoverable from one place
+   no matter which run posted it, and what step 4 above now counts from directly (merged with
+   every linked PR, for the legacy-split records that predate this fix). `bin/lib/issues/trust.js`
+   — which reads only the record issue's comments and is not modified by this design — sees the
+   `trust-negative-evidence` marker (when present) the same way, with no separate extraction step
+   needed:
 
    ```bash
    gh issue comment "$ISSUE" --body-file "$ATTEMPT_COMMENT_BODY"
    ```
 
    **`run-state.json` carries a `pr` object — this is the failure tombstone** (`_shared/pr-run-comments.md`):
-   prepend the `failure` kind's marker, post-or-update it on the PR by the canonical procedure,
-   then close the PR — a visible tombstone with a resume command (the PR body's own `### Resume`
-   section from `_shared/pr-early-run-lifecycle.md`) instead of an invisible dead worktree. Leave
-   the branch and worktree in place; nothing else in this step tears them down.
+   post a short pointer comment to the PR — never the full attempt narrative, which already landed
+   on the issue above — then close the PR: a visible tombstone with a resume command (the PR
+   body's own `### Resume` section from `_shared/pr-early-run-lifecycle.md`) instead of an
+   invisible dead worktree. Leave the branch and worktree in place; nothing else in this step tears
+   them down.
 
    ```bash
    eval "$(node -e "
      const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
      const os = require('os'); const path = require('path');
      const issue = process.argv[1];
-     const files = {
-       ATTEMPT_COMMENT_BODY: 'attempt-comment-body-' + issue + '.md',
-       FAILURE_COMMENT: 'failure-comment-' + issue + '.md',
-     };
+     const files = { FAILURE_POINTER: 'failure-pointer-' + issue + '.md' };
      for (const [varName, filename] of Object.entries(files)) {
        const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
        console.log(varName + '=' + JSON.stringify(p));
      }
    " "$ISSUE")"
-   printf '<!-- run-comment: failure -->\n\n' | cat - "$ATTEMPT_COMMENT_BODY" > "$FAILURE_COMMENT"
+   printf '<!-- run-comment: failure -->\n\nAttempt failed — see the full comment on #%s.\n' "$ISSUE" > "$FAILURE_POINTER"
    # find-or-create per _shared/pr-run-comments.md's post-or-update procedure, kind=failure
    gh pr close {pr-number} --repo {owner}/{repo}
-   ```
-
-   Then, **separately**, extract just the trust-negative-evidence marker line (when the comment
-   carries one — `classification` was `correctness`/`ambiguous`, never `transient`) and post it
-   standalone to the **issue**, so `bin/lib/issues/trust.js` — which reads only the record
-   issue's comments and is not modified by this design — still sees it:
-
-   ```bash
-   eval "$(node -e "
-     const { sessionTmpPath } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/session-tmp.js');
-     const os = require('os'); const path = require('path');
-     const issue = process.argv[1];
-     const files = {
-       ATTEMPT_COMMENT_BODY: 'attempt-comment-body-' + issue + '.md',
-       MARKER_LINE: 'marker-line-' + issue + '.md',
-     };
-     for (const [varName, filename] of Object.entries(files)) {
-       const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
-       console.log(varName + '=' + JSON.stringify(p));
-     }
-   " "$ISSUE")"
-   node -e "
-     const { extractNegativeEvidenceMarker } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/retry.js');
-     const fs = require('fs');
-     const marker = extractNegativeEvidenceMarker(fs.readFileSync(process.argv[1], 'utf8'));
-     if (marker) console.log(marker);
-   " "$ATTEMPT_COMMENT_BODY" > "$MARKER_LINE"
-   # Only post when non-empty (a transient-classified attempt produces no marker at all):
-   [ -s "$MARKER_LINE" ] && gh issue comment "$ISSUE" --body-file "$MARKER_LINE"
    ```
 
 6. **If `ceilingHit` was `true`:** bootstrap `bot:blocked` if it doesn't already exist:
@@ -237,6 +231,12 @@ When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check
    procedure — the `evaluateMaturation`/promotion code, both phases' log-line shapes, and the
    interleaving hazard in full: `grant-maturation-gate.md` in this skill's directory.
 2. **Content judgment** — for each member of the group, invoke `/claude-tweaks:assess-agent-autonomy` in `merge-check` mode: `Skill(skill: "claude-tweaks:assess-agent-autonomy", args: "merge-check #{n}")`. This weighs the diff's content, `/review`'s findings, and a test-exclusion-aware blast-radius summary (`bin/lib/issues/blast-radius.js`) holistically, replacing the old three independent mechanical checks (scoring eligibility, runtime cleanliness, blast radius) that stood in for one real question — was `docs/superpowers/specs/2026-08-03-mechanical-vs-substantive-merge-judgment-design.md`, deleted `d83f0720`. **Every member's verdict must be `auto-merge`** for the group to proceed — a single `needs-human` verdict anywhere in the group falls the whole group back to the normal pending-review path. That verdict is authoritative all the way down: it survives into the Review Console's Auto-resolution short-circuit, where `consoleAutoResolve`'s default-merge never overrides it (the Needs-human carve-out in `wrap-up/review-console.md` and `flow/multispec-review-console.md`).
+
+   **Log the fall-back when a verdict is `needs-human`,** before falling back — one entry per such member, written to `{run-dir}/decisions.md` via `node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js"` (`_shared/auto-decision-log.md`'s "One command per entry," the sole append path). Unlogged, the verdict never reaches `decisions.md`, and the Review Console's own short-circuit — `wrap-up/review-console.md`, mechanized by `bin/console-resolve.js`'s `needsHumanVerdict` read — finds no verdict to honour and resolves the merge half to `merge`, exactly the override the carve-out exists to prevent. The same shape `wrap-up/auto-merge-short-circuit.md` writes on its own single-record path, with this path's own step and outcome:
+
+   ```
+   AUTO {time} — Auto-merge gate: #{n} assess-agent-autonomy verdict needs-human — group falls back to the Review Console. Reversibility: n/a.
+   ```
 
 **Both layers pass — acceptance labeling runs first, for every member of the group.** This gate bypasses `/wrap-up`'s Phase 4 execution step, which is where acceptance labeling normally happens, so this gate must perform it itself. For each record in the group, run `wrap-up/verification-brief.md` starting from its **Routing** section — **one record at a time, never batched or concurrent.** Sequencing is what makes the once-per-parent idempotence below hold: each invocation re-reads the parent's labels, so a second member of the same parent sees the first's `demo:pending` and no-ops. Run two concurrently and both read no label, both compose, and both post — two briefs on one parent. That file owns the routing: a record with a resolvable parent goes to its Parent-Gate Procedure (the parent gets the one gate; this sub-issue gets none), and everything else goes through its Steps 1-4 — bootstrap, observation-plan authoring, the safety-net gate, sourcing, posting, then `demo:pending`. Do not apply `demo:pending` to a group member independently of that routing: an `auto:merge`'d sub-issue is exactly the population `_shared/github-pr-scan-acceptance.md`'s `parent-gate` backstop scope exists to catch. One brief and one label per record with no resolvable parent — the merge decision is group-wide, but acceptance is a per-record judgment and a group's members can differ in observation-plan kind and in what shipped for each. A parent-linked sub-issue is routed to the Parent-Gate Procedure instead. **Pass the whole group's record numbers as `$CLOSING_SUB_ISSUES` on every one of these per-member invocations** — not just the member in hand. That is the set `verification-brief.md`'s **Self-inclusion rule** reads: every number in it counts as `CLOSED` when the parent's `leaves` array is built (it overrides state, never adds sub-issues — a group member from another parent, or from none, is simply irrelevant to this parent). The whole group is the correct set here because the single merge below carries one `Fixes #{issue}` line per record, so the group closes together; every record is still open at this point (label before merge, below), and counting only the member in hand would make a group holding two or more sub-issues of one parent evaluate `incomplete` on every one of them, labeling nothing at all — sub-issue or parent — and leaving the parent to `/tidy`'s backstop that the eager gate exists to pre-empt. With the group's set passed, the first such member reaches `due` and gates the parent; the parent's remaining members re-fetch the parent's labels, read `gated`, and no-op — one brief and one `demo:pending` per parent, never a second. `/tidy`'s `parent-gate` sweep stays the backstop for parents this gate never sees at all: a sub-issue closed by hand, or a dispatch run that ended before this gate.
 

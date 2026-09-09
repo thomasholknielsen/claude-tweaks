@@ -21,18 +21,28 @@
 // `--worktree` defaults to process.cwd() — the caller (reflect, running
 // inside the worktree it's evaluating) does not usually need to pass it
 // explicitly.
-// Output: one JSON array on stdout, each element the parsed events.jsonl
-// entry plus `_source` ("primary" | "adhoc") and `_runDir` (which run dir
-// it came from) — so the lens's Evidence line can name where a given
-// finding was actually logged. Malformed lines are skipped, never thrown.
-// Exit 0 on success (including an empty array — no events is not an
-// error); 1 on a malformed invocation (missing --run); 2 when --run does
-// not resolve to a real, readable directory.
+// Output: one JSON array on stdout, filtered to the five event types
+// skills/reflect/full-mode.md's friction-lens-vocab block declares the
+// Friction Lens reads (`wd-deny`, `gate-denial`, `bookkeeping-stamp-deny`,
+// `contract-violation`, `ask-user-question` — bin/lib/friction-lens-vocab.js
+// is the shared source of truth for that list, #2016). Every other event
+// type the run logged (`commit`, `push`, `pre-compact`, `session-end`,
+// `skill_invoked`, …) is dropped here rather than left for each lens run to
+// re-filter. Each surviving element is the parsed events.jsonl entry plus
+// `_source` ("primary" | "adhoc") and `_runDir` (which run dir it came
+// from) — so the lens's Evidence line can name where a given finding was
+// actually logged. Malformed lines are skipped, never thrown. Exit 0 on
+// success (including an empty array — no events is not an error); 1 on a
+// malformed invocation (missing --run); 2 when --run does not resolve to a
+// real, readable directory.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const ctxLib = require('./lib/hooks/context');
+const { FRICTION_EVENT_TYPES } = require('./lib/friction-lens-vocab');
+
+const FRICTION_TYPES = new Set(FRICTION_EVENT_TYPES);
 
 const USAGE = 'usage: friction-events.js --run <run-dir> [--worktree <path>] [--help]\n';
 
@@ -113,11 +123,12 @@ function run(argv, deps = realDeps) {
   for (const { runDir: siblingDir } of siblings) {
     events.push(...deps.readEvents(siblingDir, 'adhoc'));
   }
+  const friction = events.filter((e) => FRICTION_TYPES.has(e.type));
 
-  deps.stdout(`${JSON.stringify(events)}\n`);
+  deps.stdout(`${JSON.stringify(friction)}\n`);
   return 0;
 }
 
-module.exports = { run, parseArgs, readEvents };
+module.exports = { run, parseArgs, readEvents, FRICTION_EVENT_TYPES };
 
 if (require.main === module) process.exitCode = run(process.argv.slice(2), realDeps);

@@ -106,8 +106,13 @@ test('POLICY_KEYS entries are unique', () => {
   // 64 -> 65, #1792 (port isolation): port-services — names the services
   // that get a port from this checkout's leased block; read directly by
   // SessionStart, not an auto-mode lever.
-  assert.strictEqual(POLICY_KEYS.length, 65);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 65);
+  // 65 -> 66, #1910 (fast-lane bundling): dispatch-fastlane-bundle-cap —
+  // caps how many non-overlapping ceremony:fast-lane singleton dispatch
+  // groups queue-pull-script.md folds into one multi-spec group; 0 disables
+  // bundling, grouping.js's FASTLANE_BUNDLE_CAP_DEFAULT stays the unset
+  // fallback (sibling of #1654's dispatch-group-size-guard above).
+  assert.strictEqual(POLICY_KEYS.length, 66);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 66);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {

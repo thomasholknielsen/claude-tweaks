@@ -69,6 +69,12 @@ once, comma-joined. Stop after the test gate -- do not proceed to review, polish
 a separate Task call handles those. If you reference any of these issue numbers in an
 intermediate commit message, write "refs #N" -- never "closes #N" or "fixes #N".
 
+Foreground execution (required): run `npm test` and every other long-running command in the
+foreground of this turn, output redirected to a file if it's long -- never with
+`run_in_background`. Never end this turn waiting on a background test run, fix-round, or child
+agent's completion notification; a dispatched agent that yields this way is never re-woken and
+the run stalls silently (#1965).
+
 {context-pack}
 
 If the build or test step hits a HARD-GATE, handle it per
@@ -95,6 +101,11 @@ If your first commit is denied by the working-directory hook even though `pwd` a
 `git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
 assignment once with `node "{plugin-root}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
 and retry the commit. If it is denied a second time, STOP and report BLOCKED.
+
+Never run `git stash` or `git stash pop` -- the stash stack is shared repo-wide across every
+worktree of this checkout, so it can pop or clobber a sibling worktree's in-flight work. To
+compare against a baseline without mutating the tree, use `git show <rev>:<path>`; to set your
+own work aside, make a temporary WIP commit instead.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.
@@ -136,6 +147,12 @@ _shared/pipeline-run-dir.md's resolution order step 1 (the env var, its document
 path) feeding flow/SKILL.md Step 3's adopt-if-set branch. You need no other input about what
 the prior call did or found.
 
+Foreground execution (required): run `npm test` and every other long-running command in the
+foreground of this turn, output redirected to a file if it's long -- never with
+`run_in_background`. Never end this turn waiting on a background test run, fix-round, or child
+agent's completion notification; a dispatched agent that yields this way is never re-woken and
+the run stalls silently (#1965).
+
 {context-pack}
 
 CRITICAL: your review step must re-derive its verdict from raw artifacts -- the actual diff,
@@ -143,6 +160,8 @@ the actual test-output log in the run directory -- never from a prior claim, whe
 claim lives in conversation (you have none from the first call) or in a file the first call
 wrote (decisions.md, ledger entries, staged proposals). Treat every such file's claims as
 unverified until checked against the artifact it claims to summarize.
+
+A runner-written pass stamp matching HEAD (`verify.js --stamp-status`) is the raw artifact `artifact-verdict.js` describes — read it and its `report.json`; re-execute only when it does not match.
 
 Handle any HARD-GATE failure per skills/dispatch/settle-and-merge.md's Settle procedure
 (retry ceiling / classification-driven auto:merge revocation) before finishing -- do not
@@ -171,6 +190,11 @@ If your first commit is denied by the working-directory hook even though `pwd` a
 `git rev-parse --show-toplevel` both resolve to the worktree above, re-stamp the run's worktree
 assignment once with `node "{plugin-root}/bin/hooks.js" record-worktree --run "<RUN_DIR>" "<WORKTREE>"`
 and retry the commit. If it is denied a second time, STOP and report BLOCKED.
+
+Never run `git stash` or `git stash pop` -- the stash stack is shared repo-wide across every
+worktree of this checkout, so it can pop or clobber a sibling worktree's in-flight work. To
+compare against a baseline without mutating the tree, use `git show <rev>:<path>`; to set your
+own work aside, make a temporary WIP commit instead.
 
 Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
 / NEEDS_CONTEXT / BLOCKED.

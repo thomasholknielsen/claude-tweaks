@@ -12,7 +12,7 @@ const path = require('path');
 
 const registry = require('./registry');
 const { blockFree } = require('./probe');
-const { readManagedRegion } = require('./env-file');
+const { readManagedRegion, LEASE_KEY, writeEnvFiles } = require('./env-file');
 const { runGit } = require('../hooks/git-exec');
 
 function defaultResolveRoot(cwd) {
@@ -46,7 +46,7 @@ function isRegionCurrent(checkoutRoot, base, leaseServices, policyServices) {
 }
 
 // (cwd, { home, policyServices, probe, resolveRoot }) ->
-//   Promise<{ active: false } | { active: true, base, ports, vars, reallocated: {from,to}|null, envWriteError }>
+//   Promise<{ active: false } | { active: true, base, ports, vars, reallocated: {from,to}|null, envWriteError, leaseLineAdded }>
 async function ensure(cwd, {
   home = os.homedir(),
   policyServices = [],
@@ -67,6 +67,14 @@ async function ensure(cwd, {
   const realPath = fs.realpathSync(checkoutRoot);
   const existing = registry.status({ home });
   const existingEntry = Object.entries(existing.leases).find(([, lease]) => lease.path === realPath);
+
+  // #1927: read the managed region BEFORE the registry touches the file, so
+  // "did a pre-existing region lack the lease line" is judged on the same
+  // untouched evidence as staleness. registry.allocate's own env write
+  // (idempotent, skips byte-identical content) is what puts the line in.
+  let regionBefore = null;
+  try { regionBefore = readManagedRegion(fs.readFileSync(path.join(checkoutRoot, '.env.local'), 'utf8')); } catch { regionBefore = null; }
+  const hadLeaseLine = Array.isArray(regionBefore) && regionBefore.some(([k]) => k === LEASE_KEY);
 
   let reallocated = null;
   let result;
@@ -89,13 +97,41 @@ async function ensure(cwd, {
     }
   }
 
+  // Completeness (#1927): a region that existed before this call, lacked the
+  // lease line, and kept its base (no reallocation, and the registry handed
+  // back the same base the region already carried) has just been completed
+  // in place by the registry's write — report it. Belt and braces: if the
+  // line is still absent (an env write error left the old region), write the
+  // same-base vars once more; never the reallocation path. A failed fallback
+  // write reports `false` (the line is not there) and its message in
+  // `envWriteError`, the same field the registry's own write failure uses.
+  const portBefore = Array.isArray(regionBefore) ? (regionBefore.find(([k]) => k === 'PORT') || [])[1] : undefined;
+  let leaseLineAdded = false;
+  let envWriteError = result.envWriteError;
+  if (regionBefore !== null && !hadLeaseLine && reallocated === null && portBefore !== undefined && Number(portBefore) === result.base) {
+    let regionAfter = null;
+    try { regionAfter = readManagedRegion(fs.readFileSync(path.join(checkoutRoot, '.env.local'), 'utf8')); } catch { regionAfter = null; }
+    if (Array.isArray(regionAfter) && regionAfter.some(([k]) => k === LEASE_KEY)) {
+      leaseLineAdded = true;
+    } else {
+      try {
+        writeEnvFiles(checkoutRoot, result.vars);
+        leaseLineAdded = true;
+      } catch (err) {
+        leaseLineAdded = false;
+        envWriteError = err && err.message ? err.message : String(err);
+      }
+    }
+  }
+
   return {
     active: true,
     base: result.base,
     ports: result.ports,
     vars: result.vars,
     reallocated,
-    envWriteError: result.envWriteError,
+    envWriteError,
+    leaseLineAdded,
   };
 }
 
