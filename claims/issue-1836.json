@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-09T145100-sweep-standalone",
-  "sessionId": "2e159584-5a24-4dd6-b571-6590fa32b37f",
-  "claimedAt": "2026-09-09T18:32:00.748Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: shaping — already implemented by #1923 (pipeline QA story scoping + non-frontend skip); staged Close (tidy-close-issue-7) + needs:decision marker",
+  "releasedAt": "2026-09-09T18:33:10.040Z"
 }
