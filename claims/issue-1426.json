@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-09T145100-sweep-standalone",
-  "sessionId": "2e159584-5a24-4dd6-b571-6590fa32b37f",
-  "claimedAt": "2026-09-09T19:27:18.977Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: shaping — digest container (#1426) is not a work record; never shaped",
+  "releasedAt": "2026-09-09T19:27:54.625Z"
 }
