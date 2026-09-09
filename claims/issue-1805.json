@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-09T145100-sweep-standalone",
-  "sessionId": "2e159584-5a24-4dd6-b571-6590fa32b37f",
-  "claimedAt": "2026-09-09T18:25:53.196Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: shaping — resolved: PR #1799 merged, subjects closed, queue-pull gap shipped as #1224; row added to staged tidy-close-issue-5 + needs:decision marker",
+  "releasedAt": "2026-09-09T18:27:03.227Z"
 }
