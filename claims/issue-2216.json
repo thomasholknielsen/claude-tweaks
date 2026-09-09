@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-09T145100-sweep-standalone",
-  "sessionId": "2e159584-5a24-4dd6-b571-6590fa32b37f",
-  "claimedAt": "2026-09-09T21:37:39.644Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: shaping — operational alert (claim-in-flight self-report), routed to needs:decision, not a backlog spec",
+  "releasedAt": "2026-09-09T21:38:45.548Z"
 }
