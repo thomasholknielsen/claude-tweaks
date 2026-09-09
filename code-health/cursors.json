@@ -166,5 +166,9 @@
   "plugin/bin/lib/console": {
     "lastSweptMs": 1788837146935,
     "lastHash": "1e8d5d59306dbc1604d75057753e1861161c2f76"
+  },
+  "plugin/bin/lib/log-decision": {
+    "lastSweptMs": 1788923617008,
+    "lastHash": "f8601be46cced299abe3e88cf88e065c8ecbbac9"
   }
 }
