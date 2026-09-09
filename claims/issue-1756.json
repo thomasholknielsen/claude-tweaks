@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-09T145100-sweep-standalone",
-  "sessionId": "2e159584-5a24-4dd6-b571-6590fa32b37f",
-  "claimedAt": "2026-09-09T18:06:46.465Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: shaping — absorbed into #1868 (same class, needs:definition); prompt half already landed in 314d736d9; staged Absorb (tidy-absorb-7) + needs:decision marker",
+  "releasedAt": "2026-09-09T18:07:54.991Z"
 }
