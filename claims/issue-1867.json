@@ -1,7 +1,6 @@
 {
+  "released": true,
   "runId": "2026-09-09T145100-sweep-standalone",
-  "sessionId": "2e159584-5a24-4dd6-b571-6590fa32b37f",
-  "claimedAt": "2026-09-09T15:38:01.708Z",
-  "ttlHours": 72,
-  "host": "Thomass-MacBook-Pro-3376.local"
+  "reason": "failed: shaping — absorbed into #1785 (harness worktree-guard class); staged absorb proposal + needs:decision marker",
+  "releasedAt": "2026-09-09T15:39:24.900Z"
 }
