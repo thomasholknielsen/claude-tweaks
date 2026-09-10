@@ -170,5 +170,9 @@
   "plugin/bin/lib/log-decision": {
     "lastSweptMs": 1788923617008,
     "lastHash": "f8601be46cced299abe3e88cf88e065c8ecbbac9"
+  },
+  "plugin/bin/lib/model-profiles": {
+    "lastSweptMs": 1789010041980,
+    "lastHash": "e48436464142e5c3b4e436c4efff40ee424f7d2a"
   }
 }
