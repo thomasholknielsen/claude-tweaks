@@ -13,7 +13,7 @@ const { execFileSync } = require('node:child_process');
 
 const { parseArgs, UsageError, USAGE } = require('./lib/plan-audit/args');
 const {
-  extractFileEntries, extractScopeKeywords, extractVerificationChecks, countTasks,
+  extractFileEntries, extractScopeKeywords, extractVerificationChecks, extractUnparseableStep2s, countTasks,
 } = require('./lib/plan-audit/parser');
 const { checkA, checkB, checkC, headroomCheck } = require('./lib/plan-audit/checks');
 
@@ -31,6 +31,7 @@ function summaryLine(report) {
   if (!report.checkA.ok) parts.push(`Check A: ${report.checkA.missing.length} missing path(s)`);
   if (!report.checkB.ok) parts.push(`Check B: ${report.checkB.unplanned.length} unplanned file(s)`);
   if (!report.checkC.ok) parts.push(`Check C: ${report.checkC.findings.length} non-discriminating command(s)`);
+  if (report.checkC.warnings.length) parts.push(`Check C: ${report.checkC.warnings.length} unparseable Step 2(s)`);
   if (!report.headroom.ok) parts.push(`Headroom: ${report.headroom.breaches.length} breach(es)`);
   if (report.headroom.nearCeiling.length) parts.push(`Headroom: ${report.headroom.nearCeiling.length} near-ceiling`);
   const composedOver = report.headroom.composed.filter((c) => c.over > 0).length;
@@ -82,11 +83,12 @@ function main() {
   const entries = extractFileEntries(text);
   const scopeKeywords = extractScopeKeywords(text);
   const verificationChecks = extractVerificationChecks(text);
+  const unparseableStep2s = extractUnparseableStep2s(text);
 
   const report = {
     checkA: checkA(entries, repoRoot),
     checkB: checkB(scopeKeywords, entries.map((e) => e.path), repoRoot),
-    checkC: checkC(verificationChecks, repoRoot),
+    checkC: checkC(verificationChecks, repoRoot, {}, unparseableStep2s),
     headroom: headroomCheck(entries, repoRoot),
   };
 

@@ -165,6 +165,42 @@ test('AC6: a fixture plan whose Step 2 command already passes despite declaring 
   }
 });
 
+// AC1/AC2/AC3 from #1594's own spec — the real drift shape recovered from
+// docs/superpowers/plans/2026-08-26-sweep-residue-needs-decision-marker.md
+// (deleted at commit a9d11d408; recovered from commit 3abba9020) before its
+// own regex-matching fix: a Step 2 heading worded "confirm FAIL" whose
+// command sits in a fenced ```bash code block with no `Run:` label.
+test('#1594: a fixture plan reproducing the real fenced-code-block Step 2 drift produces a checkC warning, not a silent no-op, and still exits 0', () => {
+  const repo = makeTmpRepo();
+  try {
+    const plan = writePlan(repo, [
+      '### Task 1: Add the needs:decision label',
+      '**Files:**',
+      '- Modify: `plan.md`',
+      '',
+      '- [ ] **Step 2: Run it to confirm FAIL**',
+      '',
+      '```bash',
+      'node --test tests/work-record-needs-decision-conformance.test.js',
+      '```',
+      '',
+      'Expected: FAIL on the first four tests (the go-red control test passes immediately).',
+      '',
+      '- [ ] **Step 3: Add the row**',
+    ].join('\n'));
+    const { exitCode, stdout } = runCli(plan, repo);
+    assert.strictEqual(exitCode, 0);
+    const report = JSON.parse(stdout.split('\n')[0]);
+    assert.strictEqual(report.checkC.ok, true);
+    assert.deepStrictEqual(report.checkC.findings, []);
+    assert.strictEqual(report.checkC.warnings.length, 1);
+    assert.strictEqual(report.checkC.warnings[0].task, '1');
+    assert.match(report.checkC.warnings[0].raw, /Step 2: Run it to confirm FAIL/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('a task declaring Expected: FAIL whose command genuinely fails pre-dispatch is not a Check C finding', () => {
   const repo = makeTmpRepo();
   try {
