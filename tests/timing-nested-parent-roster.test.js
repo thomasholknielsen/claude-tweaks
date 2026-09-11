@@ -47,13 +47,13 @@ const ALLOWLIST = Object.freeze({
   feedback: 'real nested invocation (wrap-up/flow Review Console upstream-feedback filing) not yet in NESTED_PARENT — tracked as follow-up #2249, not silently rostered here',
 });
 
-function walk(dir, out = []) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) walk(p, out);
-    else if (e.name.endsWith('.md')) out.push(p);
-  }
-  return out;
+function walk(dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) return walk(p);
+    if (entry.name.endsWith('.md')) return [p];
+    return [];
+  });
 }
 
 // Scan one file's lines, tracking the current `##`-level heading (to
@@ -66,26 +66,26 @@ function scanFile(file) {
   const hits = [];
   let inNextActions = false;
   let inFence = false;
-  const headingRe = /^#{1,6}\s+(.*)$/;
-  const skillRe = /\/claude-tweaks:([a-zA-Z][a-zA-Z0-9-]*)/g;
   lines.forEach((line, i) => {
     if (/^\s*```/.test(line)) { inFence = !inFence; return; }
-    const h = headingRe.exec(line);
-    if (h) inNextActions = /next actions/i.test(h[1]);
+    const heading = /^#{1,6}\s+(.*)$/.exec(line);
+    if (heading) inNextActions = /next actions/i.test(heading[1]);
     if (inFence || inNextActions) return;
-    let m;
-    skillRe.lastIndex = 0;
-    while ((m = skillRe.exec(line))) {
+    for (const m of line.matchAll(/\/claude-tweaks:([a-zA-Z][a-zA-Z0-9-]*)/g)) {
       hits.push({ file: rel, line: i + 1, skill: m[1] });
     }
   });
   return hits;
 }
 
-const allHits = SCAN_DIRS.flatMap((d) => walk(d)).flatMap(scanFile);
+const allHits = SCAN_DIRS.flatMap(walk).flatMap(scanFile);
+
+function isRostered(skill) {
+  return PHASES.includes(skill) || skill in NESTED_PARENT || skill in ALLOWLIST;
+}
 
 test('every /claude-tweaks:{name} call site outside Next Actions/fenced examples is a PHASES member, a NESTED_PARENT key, or a rostered allowlist mention (#2030)', () => {
-  const offenders = allHits.filter((h) => !PHASES.includes(h.skill) && !(h.skill in NESTED_PARENT) && !(h.skill in ALLOWLIST));
+  const offenders = allHits.filter((h) => !isRostered(h.skill));
   assert.deepStrictEqual(
     offenders.map((o) => `${o.file}:${o.line}: /claude-tweaks:${o.skill}`),
     [],
