@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T13:53:44.863Z",
+  "computedAt": "2026-09-11T14:31:20.727Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -30,7 +30,7 @@
       },
       {
         "number": 2070,
-        "updatedAt": "2026-09-11T04:15:36Z",
+        "updatedAt": "2026-09-11T14:29:29Z",
         "state": "OPEN"
       },
       {
@@ -95,7 +95,7 @@
       },
       {
         "number": 2029,
-        "updatedAt": "2026-09-11T04:16:06Z",
+        "updatedAt": "2026-09-11T14:27:04Z",
         "state": "OPEN"
       },
       {
@@ -105,12 +105,12 @@
       },
       {
         "number": 2027,
-        "updatedAt": "2026-09-11T04:16:08Z",
+        "updatedAt": "2026-09-11T14:29:27Z",
         "state": "OPEN"
       },
       {
         "number": 2026,
-        "updatedAt": "2026-09-11T04:15:27Z",
+        "updatedAt": "2026-09-11T14:26:45Z",
         "state": "OPEN"
       },
       {
@@ -432,186 +432,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "## Current State\n`plugin/bin/lib/hooks/session-start.js`'s `run()` (line 56) reads `process.env.CLAUDE_PLUGIN_ROOT` twice: once implicitly via `resolveBuildLine()` (line 80, called with no args so it defaults to `process.env` — the function's own signature at line 43 is `resolveBuildLine(env = process.env)`), and again explicitly at line 97 (`const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';`) for the stale-runs report line. The two reads currently agree at runtime (nothing mutates the env var between them), but a future normalization fix (trimming, validation) applied to one read has no shared place to land and is easy to apply to only one of the two.\n\n## Deliverables\n- [ ] Capture `process.env.CLAUDE_PLUGIN_ROOT` once as a local (e.g. `const pluginRootEnv = process.env.CLAUDE_PLUGIN_ROOT;`) near the top of `run()`.\n- [ ] Pass that single captured value into `resolveBuildLine`'s call at line 80 as `resolveBuildLine({ CLAUDE_PLUGIN_ROOT: pluginRootEnv })`, preserving `resolveBuildLine`'s existing `(env = process.env)` signature unchanged (it is exported and directly unit-tested with `env`-object arguments in `tests/hooks-session-start.test.js` — lines 217, 225, 231, 241 — so the signature itself must not change).\n- [ ] Derive line 97's fallback from the same captured value: `pluginRootEnv || '${CLAUDE_PLUGIN_ROOT}'`.\n\n## Acceptance Criteria\n1. A single `process.env.CLAUDE_PLUGIN_ROOT` read feeds both the build-line message and the stale-runs report line (verify by inspection, or by a test injecting a custom `ctx`/env stand-in and confirming both derived values track a single source).\n2. All four existing `resolveBuildLine` tests (`tests/hooks-session-start.test.js:214-243`) pass unchanged — the function's signature and behavior are untouched, only its caller changes.\n3. `run()`'s existing stale-runs report tests are unaffected by the fallback expression's source change (same literal fallback string, same value when the env var is set).\n\n## Technical Approach\n`resolveBuildLine`'s null-fallback (skip the build line when plugin root is unknown) and line 97's display-placeholder fallback (`'${CLAUDE_PLUGIN_ROOT}'`, a shell-substitutable token shown in a copy-pasteable report command) serve genuinely different purposes for genuinely different consumers — this isn't a case where the two fallback *values* should be unified into one. What should be shared is the single upstream read of the env var itself, so a future validation/trimming step has exactly one place to apply, per the record's own stated risk (a fix applied to one site and missed on the other). Capturing the raw value once and threading it into both consumers (rather than changing `resolveBuildLine`'s tested signature) is the surgical fix.\n\n### Key Files\n- `plugin/bin/lib/hooks/session-start.js` — `resolveBuildLine` (line 43, signature must stay stable), its call site (line 80), the second read (line 97)\n- `tests/hooks-session-start.test.js` — existing `resolveBuildLine` tests (lines 214-243) that must keep passing unchanged\n\n## Gotchas\n- Do not change `resolveBuildLine`'s `(env = process.env)` signature to take a raw string — it is exported and its existing tests call it with `env`-shaped objects (`{CLAUDE_PLUGIN_ROOT: root}`, `{}`). Wrap the shared value in a one-key object at the call site instead.\n- Line 97's comment (\"Hoisted once and reused below\") already documents a *different*, already-fixed duplicate-computation issue (the `.map` previously computing the same expression twice) — don't conflate that with this record's two-separate-functions issue.\n\n## Original request\nOrigin: whole-branch review (e4fd2b2a8..884ed7ea, gating v6.120.0) — in #137's SessionStart build-line feature.\n",
-        "createdAt": "2026-09-08T07:18:59Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 2070,
-        "state": "OPEN",
-        "title": "session-start.js resolves CLAUDE_PLUGIN_ROOT twice in run() with different, disagreeing fallbacks",
-        "updatedAt": "2026-09-11T04:15:36Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`plugin/bin/lib/ports/ensure.js`'s `ensure()` resolves `{ active, base, ports, vars, reallocated, envWriteError, leaseLineAdded }`; `envWriteError` carries the message of a failed registry env-file write or of the fallback `.env.local` lease-line write (commit 2856593e6, review lens 3c of #1927). `plugin/bin/lib/ports/cli.js` (the `ports.js` CLI) reads it and prints `ports.js: could not write env file(s) ({error}) — lease recorded in the registry regardless…` to stderr. `plugin/bin/lib/hooks/session-start.js`, the hook-side caller, renders its ports banner from `result.active`, `base`, `ports`, `vars`, and `reallocated` only (the block around its `portsEnsure.ensure(ctx.cwd, { policyServices: services })` call), so a session whose `.env.local` is unwritable gets a normal `claude-tweaks: ports {range} ({vars})` line and no sign that the lease line did not persist. The `ensure()` throw path is already caught and rendered (`ports ensure failed — …`); the non-throwing partial failure is the silent one.\n\nTests: `tests/hooks-session-start.test.js` pins the ports banner (#1792 AC2/AC3/AC6: no policy → no call; policy → one line; throw → caught); `tests/bin-lib/ports/ensure.test.js` and `cli.test.js` cover `envWriteError` on the library and CLI sides.\n\n## Deliverables\n\n- [ ] `session-start.js`: after the ports line, when `result.active` and `result.envWriteError` is a non-empty string, push one more part — `claude-tweaks: ports — env file write failed ({envWriteError}); the lease is recorded in the registry, re-run `node \"${CLAUDE_PLUGIN_ROOT}/bin/ports.js\" env` after fixing the file` — the same wording family the CLI uses, so the two surfaces agree. Never a throw; the existing ports line still renders first.\n- [ ] `tests/hooks-session-start.test.js`: one case with `ensure()` stubbed to return an active result carrying `envWriteError`, asserting both the ports line and the warning line render in order; the #1792 cases unchanged (no `envWriteError` → no extra line).\n\n## Acceptance Criteria\n\n1. With `port-services` policy set and `.env.local` unwritable, the session-start banner shows the ports line followed by the env-file-write warning naming the error.\n2. With a writable env file, the banner is byte-identical to today; the #1792 AC2/AC3/AC6 cases pass unchanged.\n3. The hook never throws on this path (the existing never-break-a-session posture holds).\n4. `npm test` green.\n\n## Technical Approach\n\nRead the field the library already computes and render it in the caller that already renders the rest of the result; mirror the CLI's wording so a user who sees both recognizes the same condition. No change to `ensure.js`.\n\n### Key Files\n\n- `plugin/bin/lib/hooks/session-start.js` — ports banner: warning line on `envWriteError`\n- `tests/hooks-session-start.test.js` — new case beside the #1792 cases\n\n## Gotchas\n\n- `envWriteError` is set on the `active: true` branch only; guard on `active` first so an inactive result never renders the warning.\n- The banner is a list of `parts` joined into `additionalContext`; add a part, do not replace the ports line.\n- The CLI's stderr message is the wording source; keep the hook's line one sentence so the banner cap on parts is respected.\n\n## Original request\n\n## Current State\n`plugin/bin/lib/ports/ensure.js`'s `ensure()` computes `envWriteError` when a fallback write to `.env.local` fails (added this release, commit 2856593e6) — but `plugin/bin/lib/hooks/session-start.js`, its only caller, never reads that field anywhere in the codebase. When port-services policy is set and `.env.local` becomes unwritable after an existing managed region loses its `CLAUDE_TWEAKS_LEASE` line, `ensure()` sets `envWriteError` to the fs error message, but `session-start.js`'s banner only inspects `result.active`/`base`/`ports`/`vars`/`reallocated`. The user sees a normal \"ports ready\" line with no indication the lease line failed to persist.\n\n## Deliverables\n- [ ] `session-start.js` reads `result.envWriteError` and surfaces it in the session-start banner (a warning line) when present.\n- [ ] A regression test forcing `.env.local` unwritable and asserting the banner surfaces the warning.\n\n## Acceptance Criteria\n1. A failed `.env.local` fallback write is visible to the user at session start, not silent.\n2. Existing session-start banner tests pass unchanged when `envWriteError` is absent.\n\n## Original request\nFound by the pre-v6.119.0 whole-branch review (range e7d6d9331..4db32e020): `envWriteError` is computed but has no consumer.\n\nDefer-reason: tangential\n\n",
-        "createdAt": "2026-09-07T10:31:49Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACq41dsw",
-            "name": "backlog:category-technical",
-            "description": "technical-category backlog item",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 2027,
-        "state": "OPEN",
-        "title": "session-start.js never surfaces ports/ensure.js's envWriteError — a failed .env.local write is silent",
-        "updatedAt": "2026-09-11T04:16:08Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
         }
       }
     ],
@@ -1661,186 +1481,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n`bin/lib/verify/flaky.js`'s `planRetry` builds `new Set(flaky.files)` and treats a failing file as allowlisted only when `listed.has(file)` — exact string equality against the declaration's `flaky.files` entries. The same `verify-scope.json` file's `rules[].match` entries are globs, compiled by `bin/lib/issues/blast-radius.js`'s `globToRegExp` (memoized, `**` spans segments, `*` stays segment-bound, every other character escaped) and applied in `scope.js`. So one schema carries two matching semantics: a project can write `tests/**` in a rule but must enumerate `tests/flaky/a.test.js`, `tests/flaky/b.test.js`, … in the allowlist and edit the list every time a flaky file is added. `declaration.js` validates `flaky.files` only as \"an array of path strings\", and `test/verification.md`'s Flake handling paragraph documents the entries as \"exact repo-relative paths\" that \"must match the failing-file paths exactly as the suite's own output prints them\".\n\n## Deliverables\n- [ ] `planRetry` matches each failing file against `flaky.files` with `globToRegExp(entry).test(file)` (any entry matching allowlists the file), keeping the `unlisted: [...]` reason and the fail-safe on any unmatched file; an entry with no glob metacharacter compiles to an anchored literal, so existing exact-path lists behave byte-for-byte as today.\n- [ ] `declaration.js`'s `flaky.files` validation message reads \"an array of path or glob strings\"; no schema change.\n- [ ] `test/verification.md`'s Flake handling paragraph: \"exact repo-relative paths\" becomes \"repo-relative paths or globs (the same `**`/`*` forms `rules[].match` accepts)\", and the sentence that entries must match the suite's printed paths keeps its warning about package-relative output — a glob is matched against the same printed path.\n- [ ] Tests in `tests/bin-lib/verify/flaky.test.js`: a `tests/flaky/**` entry allowlists a new file under that directory; an exact entry still matches only itself; `tests/*.test.js` does not match a nested file (segment-bound `*`); an entry that matches nothing leaves the unlisted reason naming the file. `tests/bin-lib/verify/declaration.test.js` gets the message text update if it pins the old wording.\n\n## Acceptance Criteria\n1. Existing exact-path `flaky.files` entries produce the same `planRetry` decisions as before (the existing flaky cases pass unmodified).\n2. A glob entry allowlists every failing file it matches, with `**` and `*` behaving exactly as they do for `rules[].match`.\n3. A failing file matched by no entry still blocks the retry with `unlisted:` naming it.\n4. The `flakyHits` counter and the `flaky-allowlist` escalation CAVEAT stay keyed by the concrete file path, never by the glob; `npm test` is green.\n\n## Technical Approach\nReuse the engine the file already shares a schema with: `scope.js` imports `globToRegExp` from `bin/lib/issues/blast-radius.js`; `flaky.js` imports the same function and replaces the `Set` lookup with a `some(entry => globToRegExp(entry).test(file))` pass. The regex builder escapes every non-glob character, so backward compatibility for exact paths is a property of the compiler, not a special case. The retry command template still substitutes the concrete file, so nothing downstream sees a glob.\n\n### Key Files\n- `plugin/bin/lib/verify/flaky.js` — `planRetry` (the `listed` Set and `unlisted` filter).\n- `plugin/bin/lib/issues/blast-radius.js` — `globToRegExp` (read-only, imported).\n- `plugin/bin/lib/verify/declaration.js` — `flaky.files` validation message.\n- `plugin/skills/test/verification.md` — Flake handling paragraph.\n- `tests/bin-lib/verify/flaky.test.js`, `tests/bin-lib/verify/declaration.test.js`.\n\n## Gotchas\n- `globToRegExp` has no `?` wildcard (it escapes `?`); say \"the same forms `rules[].match` accepts\" rather than promising full glob syntax.\n- The escalation counter is what tells a maintainer which concrete file keeps flaking; a glob allowlist must not blur that, so the per-file `flakyHits` key is unchanged and the `flaky-allowlist` CAVEAT still names the file.\n- `/claude-tweaks:wrap-up`'s leftover routing files an escalation as a backlog record per file; a glob entry does not change that shape.\n\n## Original request\nFound by the pre-v6.119.0 whole-branch review (range e7d6d9331..4db32e020).\n\nDefer-reason: tangential\n\n",
-        "createdAt": "2026-09-07T10:32:04Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACq41dsw",
-            "name": "backlog:category-technical",
-            "description": "technical-category backlog item",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 2029,
-        "state": "OPEN",
-        "title": "flaky.js's allowlist match is exact-string only — doesn't reuse verify-scope.json's own glob engine",
-        "updatedAt": "2026-09-11T04:16:06Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`plugin/skills/test/verification.md`'s \"Flake handling (tests check only)\" section makes the runner the owner of listed-flaky retries (#1925) and keeps one agent-performed isolation step for a failure in an **unlisted** file: re-run that one file (`node --test path/to/file.test.js`), isolated pass → flake, isolated fail → regression. That step presupposes a file name. `bin/lib/verify/flaky.js`'s `planRetry` returns `{ retry: false, reason: 'no-parse' }` when `extractFailingFiles` yields nothing (`sniffFamily` classified the output as `generic`, or the family's failing-file pattern did not match), and `bin/verify.js` records that decision without acting on it; the prose has no branch for it, so a `no-parse` failure is presented as a flat regression with no flake adjudication. Before #1925, the isolate-and-rerun-once rule was unconditional.\n\n\"Isolating pre-existing failures by file, not by keyword grep\" (the section above the flake handling) is the other half of the same rule and likewise assumes extractable paths. `report.json`'s check entry already carries the retry decision as `retryDecision` (`{ retry: false, reason: 'no-parse' | 'unlisted: […]' | 'no-template' | 'max-retries-0' | 'unreadable-log' }`, written by `verify.js` and carried by `report.js`), so the signal the prose needs exists; nothing in the prose or the stdout summary reads it.\n\n## Deliverables\n\n- [ ] **Two named isolation paths.** `verification.md`'s Flake handling section states them explicitly: **named-file isolation** (today's unlisted-file rule, unchanged) and **whole-suite re-run** for a `no-parse` failure: re-run the `tests` check once through the runner (`node \"${CLAUDE_PLUGIN_ROOT}/bin/verify.js\" --cmd tests=\"{command}\"` with the same scope and `--no-stamp`-equivalent posture so a second pass never records a pass stamp on its own), then adjudicate: second run passes → **flake** (reported exactly as the named-file flake is, verdict unchanged); fails again → **regression**. One re-run, never more; the whole-suite cost is stated as the reason this path is the fallback, not the default.\n- [ ] **The prose and the summary read the existing decision.** `verification.md` tells the agent to read `retryDecision.reason` from `report.json` (`no-parse` → whole-suite path; an `unlisted:` reason → named-file path) instead of re-deriving the extractor's outcome; `bin/verify.js`'s stdout summary for a failed `tests` check gains the clause `(retry: no-parse — whole-suite re-run applies)` so the path is visible without opening the report.\n- [ ] **Pre-existing-failures section cross-reference.** \"Isolating pre-existing failures by file\" gains one sentence pointing at the whole-suite path for output with no extractable paths, so the two sections agree.\n- [ ] **Tests.** `tests/bin-lib/verify/cli.test.js`: stdout carries the no-parse clause for a generic-family failing fixture and no clause for a passing check; the existing `retryDecision` report cases stay unchanged. A prose pin (sized like `tests/verify-scope-declaration.test.js`) asserting the two path names and the one-re-run cap in `verification.md`.\n\n## Acceptance Criteria\n\n1. `verification.md` names both isolation paths, the `no-parse` trigger, the single whole-suite re-run, and the flake/regression adjudication for it; the named-file paragraph is byte-identical to today apart from the new heading.\n2. `verification.md` names `retryDecision.reason` as the selector between the two paths; the stdout summary shows the no-parse clause for a `no-parse` failure and nothing for a passing check.\n3. A generic-family failing fixture run through `verify.js` twice, with the second run passing, is adjudicated as a flake by the documented procedure and never records a pass stamp from the re-run alone.\n4. `npm test` green; existing `tests/bin-lib/verify/*` cases pass with only additive assertions.\n\n## Technical Approach\n\nRestore the old rule's universality without losing #1925's precision: keep named-file isolation as the cheap first path and add the whole-suite re-run only where no file can be named. Read the runner's existing `retryDecision` rather than adding new detection, so the prose and the report agree on which path is in force. Do not add a runner-owned whole-suite retry: a full-suite re-run is minutes of work the agent should choose consciously, per the section's own cost note.\n\n### Key Files\n\n- `plugin/skills/test/verification.md` — Flake handling: two named paths; pre-existing-failures cross-reference\n- `plugin/bin/verify.js` — stdout summary clause for a `no-parse` retry decision\n- `tests/bin-lib/verify/cli.test.js`, a prose-pin sibling of `tests/verify-scope-declaration.test.js` — new cases\n\n## Gotchas\n\n- The re-run must not write a pass stamp by itself (`stamp.js`'s dirty-tree rule and #1921's stamp semantics stay authoritative); the adjudication is the agent's, the stamp is the runner's.\n- `looksPassing` and `extractFailingFiles` are separate: a `no-parse` decision can coexist with a clearly failing exit code, which is exactly the case this record covers. The retry path already strips ANSI before extracting (`verify.js`), so colour alone does not produce `no-parse`; an unknown runner format does.\n- `#1837` (shaped in this sweep) adds a vitest dialect and ANSI stripping; once it lands, fewer failures are `no-parse`, but the path still exists for unknown runners.\n- Keep the one-re-run cap in prose and in the pin; an unbounded re-run loop is the failure this rule exists to prevent.\n\n## Original request\n\n## Current State\n`plugin/skills/test/verification.md` line 151's mandatory isolate-and-rerun-once rule is scoped only to a failure `extractFailingFiles` can name a file for (an \"unlisted file\" case). A `no-parse` failure (`sniffFamily` returns `generic`, or the extractor can't match the runner's output format) has no isolation procedure at all — it's reported as a flat regression with no flake adjudication, unlike the old universal rule that applied regardless of whether a file could be named.\n\n## Deliverables\n- [ ] Extend `verification.md`'s isolate-and-rerun-once procedure to cover the `no-parse` case — e.g. re-running the full suite once (since no single file can be named) before treating a failure as a confirmed regression.\n- [ ] Document the distinction between \"named-file isolation\" and \"whole-suite re-run\" as the two isolation paths, so a reader can tell which applies.\n\n## Acceptance Criteria\n1. `verification.md`'s isolation rule explicitly covers both the named-file and no-parse cases.\n2. No change to the named-file path's existing behavior.\n\n## Original request\nFound by the pre-v6.119.0 whole-branch review (range e7d6d9331..4db32e020): the isolate-and-rerun-once rule regressed from unconditional to named-file-only when #1925's extractor-driven isolation replaced the old universal recipe.\n\nDefer-reason: tangential\n\n",
-        "createdAt": "2026-09-07T10:31:33Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACq41dsw",
-            "name": "backlog:category-technical",
-            "description": "technical-category backlog item",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 2026,
-        "state": "OPEN",
-        "title": "verification.md's isolate-and-rerun-once rule has no procedure for a no-parse test failure",
-        "updatedAt": "2026-09-11T04:15:27Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
