@@ -174,7 +174,7 @@ must not lean on it. That is why the pending column below keys on `mergeStateSta
 | Value | Green | Pending | Red |
 |---|---|---|---|
 | `merge-when-green` | Step 3 as written — arm/merge (identical outcome when checks are already green) | `mergeStateStatus: BLOCKED` → Step 3 as written — arm `--auto` (the forge holds it; outcome `armed`). Any other value (`CLEAN`, `UNSTABLE`, `BEHIND`, `UNKNOWN`, …) → arming would merge immediately: **degrade to the `wait` row** — never to an immediate merge | Red path |
-| `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`); if `headRefOid` changed since the first read or `state` is no longer `OPEN`, re-enter this step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`) — never merge blind; otherwise merge via Step 3's immediate `--merge` form | **Bounded watch** below | Red path |
+| `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`); if `headRefOid` changed since the first read or `state` is no longer `OPEN`, re-enter this step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`) — never merge blind; otherwise merge via Step 3's immediate `--squash` form | **Bounded watch** below | Red path |
 | `off` | Step 3 as written (today's behavior, unchanged) | Step 3 as written (today's behavior — this is the #540-shaped race the lever exists to close; a repo derives `off` only when it has no PR CI or a non-default integration branch, `_shared/policy-schema-coverage.md`'s coverage block) | Step 3 as written; the red read is logged for the summary |
 
 **Bounded watch (`wait`, and `merge-when-green` when arming would not hold) — 15 minutes, fixed.**
@@ -202,7 +202,7 @@ done
 - `RC=0` → **green**: re-read state (`gh pr view … --json state,mergeStateStatus,headRefOid`); if
   `headRefOid` changed since the first read (a new push landed) or `state` is not `OPEN`, re-enter this
   step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`)
-  — never merge blind; otherwise merge via Step 3's immediate `--merge` form (outcome `merged`,
+  — never merge blind; otherwise merge via Step 3's immediate `--squash` form (outcome `merged`,
   then Step 4).
 - `RC=1` (a check failed during the watch) → **Red path**, reason `check-failed:{names}` (names from
   the `fail` rows of `/tmp/pr-checks-{n}.txt`).
@@ -320,7 +320,7 @@ the result:
 2. **Command failed with a checks-pending or checks-failing signature** (stderr contains
    `not mergeable` alongside `required status check`, `review`, or `checks`): checks are red or
    still running and this repo has no auto-merge to arm around it (already ruled out by reaching
-   here from branch 1, or `--auto` itself isn't what failed — a plain `--merge` attempt hit this
+   here from branch 1, or `--auto` itself isn't what failed — a plain `--squash` attempt hit this
    directly). → **degrade to ready+comment** (Step 5), outcome `pending-review`. If Step 2.5's
    state read had shown `mergeStateStatus: BLOCKED` with a green rollup, this rejection is the
    Forge-cooperation case — arm `--auto` per Step 2.5 (the forge holds the merge until it is
