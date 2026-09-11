@@ -107,7 +107,7 @@ function isAdHocStandaloneSuperseded(dir, state, worktrees, now = Date.now()) {
 function hasTrackedContent(root, dir) {
   const listed = runGit(['ls-files', '--', dir], root);
   if (listed.failure) return true;
-  return String(listed.stdout || '').trim().length > 0;
+  return (listed.stdout || '').length > 0;
 }
 
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
