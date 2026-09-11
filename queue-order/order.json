@@ -1,6 +1,6 @@
 {
-  "computedAt": "2026-09-11T22:16:47.176Z",
-  "runId": "2026-09-11T221257-dispatch-standalone",
+  "computedAt": "2026-09-11T22:16:50.728Z",
+  "runId": null,
   "freshnessSignal": {
     "issues": [
       {
@@ -168,35 +168,56 @@
   "groups": [
     [
       {
-        "number": 2218,
-        "title": "specify drain: exclude digest-labeled container issues from bare-drain eligibility",
         "body": "Defer-reason: tangential\n\n## Current State\n\n`specify/next-mode.md`'s eligibility rule excludes `ready`, `parked`, `parent-issue`, `bot:in-progress`, and `needs:*` only; the digest container (label `digest`, `_shared/materiality-floor.md`) passes the filter and is claimed, read, and refused every run — one wasted claim/release cycle and two log lines per drain.\n\n## Deliverables\n\nAdd `digest` to the excluded label set in `next-mode.md` (and any queue-pull helper that mirrors it); a conformance assertion that the exclusion list names `digest`.\n\n## Acceptance Criteria\n\nA bare drain against a queue whose only unshaped open issue is the digest container reports remaining 0 without claiming it; existing exclusions unchanged.\n\n_Filed by `capture` via specShapedBody._",
+        "createdAt": "2026-09-10T05:47:48Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:low"
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
-            "name": "by:capture"
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
           },
           {
-            "name": "type:task"
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           }
         ],
-        "createdAt": "2026-09-10T05:47:48Z",
-        "updatedAt": "2026-09-11T04:15:11Z",
+        "number": 2218,
         "state": "OPEN",
+        "title": "specify drain: exclude digest-labeled container issues from bare-drain eligibility",
+        "updatedAt": "2026-09-11T04:15:11Z",
         "facets": {
           "origin": "capture",
           "risk": "low",
@@ -223,35 +244,56 @@
     ],
     [
       {
-        "number": 2081,
-        "title": "set-config.js: support writing multiple config.yml levers in one invocation",
         "body": "Filed by wrap-up reflect (light mode, record #1971's run, refs #1971).\n\n## Current State\n\n`bin/set-config.js` writes exactly one `config.yml` lever per invocation (`--key <lever> --value\n<value>`). The documented recovery path for an inherited run directory that reached `/flow`'s Step\n3 with no `config.yml` yet (`flow/steps-and-gates.md`'s \"Adopting an inherited run directory\", case\n3) requires computing and writing all 13 canonical Manifesto levers before the pipeline can\nproceed. Record #1971's own wrap-up run hit exactly that case and needed 13 sequential\n`set-config.js` invocations to backfill the Manifesto.\n\nEvidence: run `2026-09-08T115203-record-1971`'s own Step 3 recovery — 13 separate\n`node bin/set-config.js --run ... --key ... --value ...` Bash calls to write `mode`,\n`scope-creep`, `overlap`, `design-intent`, `leftover-default`, `auto-fix-threshold`,\n`review-auto-apply-ceiling`, `tidy-aggressiveness`, `ceremony-profile`, `model-stance`,\n`merge-verification`, `design-critique`, `merge-authorization`.\n\n## Deliverables\n\n- [ ] `bin/set-config.js` accepts a batch form (e.g. repeated `--key X --value Y` pairs, or a\n      `--from-json <file>` of `{lever: value}` pairs) that validates and writes every pair in one\n      invocation, using the same per-lever validation (`validateLever`) it already runs today.\n- [ ] The single-pair form (`--key <lever> --value <value>`) keeps working unchanged — this is\n      additive, not a breaking CLI change.\n- [ ] `flow/steps-and-gates.md`'s case 3 recovery procedure references the batch form once it\n      exists.\n\n## Acceptance Criteria\n\n- A caller can write all 13 canonical Manifesto levers via one `set-config.js` invocation instead\n  of 13.\n- Existing single-key callers (the Ceremony escape hatch, `flow/manifesto.md`'s per-lever writes)\n  are unaffected.\n\nDefer-reason: tangential",
+        "createdAt": "2026-09-08T12:42:32Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:low"
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
-            "name": "type:task"
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "auto:merge"
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           }
         ],
-        "createdAt": "2026-09-08T12:42:32Z",
-        "updatedAt": "2026-09-11T04:15:34Z",
+        "number": 2081,
         "state": "OPEN",
+        "title": "set-config.js: support writing multiple config.yml levers in one invocation",
+        "updatedAt": "2026-09-11T04:15:34Z",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -278,41 +320,68 @@
     ],
     [
       {
-        "number": 2069,
-        "title": "pipeline-smoke-test/SKILL.md Steps 4 and 6 describe verify calls only in prose, with no literal invocation or conformance test",
         "body": "## Current State\n`plugin/skills/pipeline-smoke-test/SKILL.md` Step 4 (line 71) already cites its verify function with a full call signature in prose — \"`bin/lib/smoke-test/verify-claim-race.js`'s `verifyClaimRaceOutcome(attemptRunIds, liveClaim, inProgressLabelCount)` is this verdict's mechanical reference implementation\" — matching the established sibling pattern (`composeFixesBlock`, `crossReferenceKeyFiles`), which also cite function name in descriptive prose rather than a literal executable `node -e` shell block (confirmed: neither sibling actually has a literal `node -e` invocation in its skill file either — `pr-early-run-lifecycle.md`'s `composeFixesBlock` citation and `record-creation-subissues.md`'s `crossReferenceKeyFiles(units, grep)` citation are both prose name+signature mentions). Step 6 (line 89), however, cites `verifyCleanupTable`/`renderCleanupTable` by name only, without the call-signature parens Step 4 uses. Neither citation is pinned by a prose-conformance test the way the siblings are: `tests/bundle-fixes-reconciliation-2015.test.js` pins `composeFixesBlock`'s citation (`assert.match(section, /composeFixesBlock/)`), and `tests/specify-decomposition-crossref-prose.test.js` pins `crossReferenceKeyFiles(units, grep)`'s citation and separately asserts the cited module actually exports it. Nothing pins Steps 4/6's citations here, so a rename or removal of either function reference would go undetected.\n\n## Deliverables\n- [ ] Add the full call signature to Step 6's `verifyCleanupTable` citation, matching Step 4's style: `verifyCleanupTable(rows)` (and `renderCleanupTable(rows)`, both exported from `bin/lib/smoke-test/verify-cleanup.js`).\n- [ ] Add a prose-conformance test (new file, e.g. `tests/pipeline-smoke-test-verify-prose.test.js`) mirroring `tests/specify-decomposition-crossref-prose.test.js`'s pattern: assert Step 4 cites `verifyClaimRaceOutcome(attemptRunIds, liveClaim, inProgressLabelCount)`, assert Step 6 cites `verifyCleanupTable(rows)`, and assert both cited modules actually export those functions (`require('../plugin/bin/lib/smoke-test/verify-claim-race')`/`verify-cleanup`).\n\n## Acceptance Criteria\n1. `pipeline-smoke-test/SKILL.md` Steps 4 and 6 each cite their verify function with its full call signature in prose (matching the sibling `composeFixesBlock`/`crossReferenceKeyFiles` citation style — a named prose citation, not a literal `node -e` shell block, since neither sibling uses one either).\n2. A new prose-conformance test fails if either citation string is removed, or if the cited function is renamed/no longer exported by its module.\n\n## Technical Approach\nThe raw finding's framing (\"siblings have a literal `node -e` invocation snippet\") doesn't hold on inspection — neither `composeFixesBlock` nor `crossReferenceKeyFiles` has one; both use a prose name+signature citation pinned by a conformance test. The real gap here is narrower: Step 6's citation is missing its call-signature parens (Step 4's already has them), and neither Step 4 nor Step 6's citation is test-pinned at all. Mirror `specify-decomposition-crossref-prose.test.js`'s two-part pattern (citation-string match + module-export assertion) rather than inventing a new test shape.\n\n### Key Files\n- `plugin/skills/pipeline-smoke-test/SKILL.md` — Step 4 citation (line 71, already has the right shape), Step 6 citation (line 89, needs the signature added)\n- `plugin/bin/lib/smoke-test/verify-claim-race.js` — exports `verifyClaimRaceOutcome`\n- `plugin/bin/lib/smoke-test/verify-cleanup.js` — exports `verifyCleanupTable`, `renderCleanupTable`\n- `tests/specify-decomposition-crossref-prose.test.js` — the pattern to mirror for the new test\n\n## Original request\nOrigin: whole-branch review (e4fd2b2a8..884ed7ea, gating v6.120.0) — in #44's pipeline-smoke-test skill.\n",
+        "createdAt": "2026-09-08T07:18:56Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:low"
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
-            "name": "type:task"
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "auto:merge"
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           },
           {
-            "name": "ceremony:fast-lane"
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
           },
           {
-            "name": "shaped:headless"
+            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
+            "name": "shaped:headless",
+            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
+            "color": "ededed"
           }
         ],
-        "createdAt": "2026-09-08T07:18:56Z",
-        "updatedAt": "2026-09-11T04:15:39Z",
+        "number": 2069,
         "state": "OPEN",
+        "title": "pipeline-smoke-test/SKILL.md Steps 4 and 6 describe verify calls only in prose, with no literal invocation or conformance test",
+        "updatedAt": "2026-09-11T04:15:39Z",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -337,41 +406,68 @@
         }
       },
       {
-        "number": 2068,
-        "title": "verify-cleanup.js's renderCleanupTable doesn't escape pipe characters, unlike engine-verify.js's sanitizeCell",
         "body": "## Current State\n`plugin/bin/lib/smoke-test/verify-cleanup.js`'s `renderCleanupTable` (line 40) interpolates `row.artifact` directly into a markdown table row with no pipe-character escaping: `` `| ${row.artifact} | ${row.claimed ? 'yes' : 'no'} | ${row.verifiedAbsent ? 'yes' : 'no'} |` `` (line 41). `plugin/bin/lib/wrap-up/engine-verify.js` has a `sanitizeCell` function (line 640, `String(text).replace(/\\s+/g, ' ').replace(/\\|/g, '\\\\|').trim()`) built for the identical purpose and already used by that file's own `renderVerifyTable` — but `sanitizeCell` is a private function, not currently in `engine-verify.js`'s `module.exports` (line 656, which lists `runVerify`, `renderVerifyTable`, `resolveArchivedRunDir`, `registerCheck`, `defaultGit`, `defaultGh`, `resolveParent`, `resolvePrNumber` — no `sanitizeCell`). An artifact string containing a literal `|` (e.g. a branch/PR-title-derived description) splits the generated row into extra columns, breaking the Step 6 report table's rendering.\n\n## Deliverables\n- [ ] Add `sanitizeCell` to `engine-verify.js`'s `module.exports` (it already exists as a private function; this just makes it importable).\n- [ ] In `verify-cleanup.js`, `require('../wrap-up/engine-verify')` and call `sanitizeCell(row.artifact)` before interpolating it into `renderCleanupTable`'s row string.\n\n## Acceptance Criteria\n1. A test with an artifact string containing a literal `|` renders a well-formed 3-column table row (verify via `renderCleanupTable`'s output split on `|` producing exactly the expected column count for that row).\n2. `engine-verify.js`'s own existing tests and usages of `sanitizeCell`/`renderVerifyTable` are unaffected by adding it to `module.exports` (a pure additive export, no signature change).\n\n## Technical Approach\nReuse rather than duplicate: `sanitizeCell` already does exactly what's needed (pipe-escaping plus whitespace collapsing, consistent with how `renderVerifyTable` already sanitizes its own cells), so exporting it and importing it in `verify-cleanup.js` is a two-file, additive-only change — no new escaping logic to write or independently verify.\n\n### Key Files\n- `plugin/bin/lib/smoke-test/verify-cleanup.js` — `renderCleanupTable` (line 40)\n- `plugin/bin/lib/wrap-up/engine-verify.js` — `sanitizeCell` (line 640), `module.exports` (line 656)\n\n## Original request\nOrigin: whole-branch review (e4fd2b2a8..884ed7ea, gating v6.120.0).\n",
+        "createdAt": "2026-09-08T07:18:49Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:low"
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
-            "name": "type:bug"
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: defect in existing behavior",
+            "color": "d73a4a"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "auto:merge"
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           },
           {
-            "name": "ceremony:fast-lane"
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
           },
           {
-            "name": "shaped:headless"
+            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
+            "name": "shaped:headless",
+            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
+            "color": "ededed"
           }
         ],
-        "createdAt": "2026-09-08T07:18:49Z",
-        "updatedAt": "2026-09-11T04:15:41Z",
+        "number": 2068,
         "state": "OPEN",
+        "title": "verify-cleanup.js's renderCleanupTable doesn't escape pipe characters, unlike engine-verify.js's sanitizeCell",
+        "updatedAt": "2026-09-11T04:15:41Z",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -398,41 +494,156 @@
     ],
     [
       {
-        "number": 2059,
-        "title": "Doc staleness: plans/2026-09-05-record-1775-ledger — Freshness",
+        "body": "## Current State\nIn `plugin/bin/lib/issues/decomposition-crossref.js`'s `crossReferenceKeyFiles` (line 57), sibling-title matching uses a plain lowercased substring test (`line.toLowerCase().includes(titleLower)`, line 72) with no word-boundary check — a short/generic sibling title can appear as a substring inside an unrelated longer word or phrase in another unit's Gotchas/Prerequisites text, wrongly attaching that unit's grep hits to the wrong sibling's Key Files list. Separately, `extractSection(other.body, 'Gotchas'/'Prerequisites')` (line 68) is recomputed inside the inner `for (const other of list)` loop on every outer `unit` iteration, even though each `other`'s section text doesn't depend on the outer unit — O(N^2) re-parsing for a decomposition batch of N sub-issues — and the injected `grep(ident)` subprocess call (line ~76) has no memoization across outer units sharing the same identifier, real avoidable subprocess-spawn cost that scales with batch size.\n\n## Deliverables\n- [ ] Add a word-boundary check to the sibling-title substring match, reusing the existing `escapeRegExp` helper (`plugin/bin/lib/shared-primitives.js`) to build a `\\b{escaped title}\\b` regex rather than writing a new escaper — the title is user-authored text and may itself contain regex metacharacters.\n- [ ] Hoist the `extractSection(other.body, 'Gotchas')` / `extractSection(other.body, 'Prerequisites')` computation for each `other` outside the outer `unit` loop (compute once per `other`, into a map keyed by `other`, not once per unit×other pair).\n- [ ] Memoize `grep(ident)` results (a `Map<string, string[]>`) across outer units within one `crossReferenceKeyFiles` call, so the same identifier is grepped at most once per batch regardless of how many units reference it.\n\n## Acceptance Criteria\n1. A test with a short generic sibling title (e.g. \"Fix\") that also appears as a substring of an unrelated word in another unit's Gotchas text does not wrongly cross-reference.\n2. A test confirms `extractSection` is called at most once per distinct `other` unit within one batch (not once per unit×other pair) — e.g. via a call-counting wrapper or spy on a batch of 3+ units.\n3. A test confirms the injected `grep` is called at most once per distinct identifier within one batch, even when multiple units' Gotchas reference the same identifier.\n4. All six existing tests in `tests/bin-lib/issues/decomposition-crossref.test.js` pass unchanged.\n\n## Technical Approach\nReuse `escapeRegExp` from `plugin/bin/lib/shared-primitives.js` (already used the same way in `claim-store.js:415` to build a safe dynamic regex from untrusted text) rather than introducing a second escaping implementation. For the two performance fixes, restructure the double loop so the `other`-keyed work (section extraction) happens once per `other` before the outer `unit` loop runs, and thread a shared `Map` for grep memoization through the whole `crossReferenceKeyFiles` call.\n\n### Key Files\n- `plugin/bin/lib/issues/decomposition-crossref.js` — `crossReferenceKeyFiles` (line 57), `extractSection` (line 33), the substring match (line 72), the `grep(ident)` call (line ~76)\n- `plugin/bin/lib/shared-primitives.js` — `escapeRegExp` (line 43), to reuse rather than reimplement\n- `tests/bin-lib/issues/decomposition-crossref.test.js` — 129 lines, 6 existing tests, all must stay green\n\n## Original request\nOrigin: whole-branch review (e4fd2b2a8..884ed7ea, gating v6.120.0) — in #490's decomposition cross-reference feature.\n",
+        "createdAt": "2026-09-08T07:18:45Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: defect in existing behavior",
+            "color": "d73a4a"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
+            "name": "shaped:headless",
+            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
+            "color": "ededed"
+          }
+        ],
+        "number": 2067,
+        "state": "OPEN",
+        "title": "crossReferenceKeyFiles: sibling-title substring match lacks word boundaries, and re-parses/re-greps per outer unit",
+        "updatedAt": "2026-09-11T04:15:43Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "low",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": true
+        }
+      }
+    ],
+    [
+      {
         "body": "**Doc:** plans/2026-09-05-record-1775-ledger | **Section:** Freshness | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b497a80931452e03ceda09f1a1f5d2119acf850b\n\n## Current State\n\nLive check via GitHub API: PR #1939 state=closed merged=true (merged_at 2026-09-05T20:21:14Z); issue #1775 state=closed state_reason=completed, closed_by PR #1939 (verified 2026-09-08). The ledger's one row already carries status `accepted` — a terminal status per `_shared/ledger-format.md`'s Status Lifecycle — with a stated reason, so no `open` item remains, yet the file still exists under `docs/plans/`, which this skill's own scope note describes as \"live ephemeral pipeline state,\" not a permanent record. This is the exact failure mode issue #1775 itself was filed and merged to fix for a different ledger (`docs/plans/2026-08-25-record-1424-ledger.md`) — an all-terminal ledger left undeleted. A repo-wide spot check found 8 of 12 ledger files currently under `docs/plans/` have no remaining `open` rows, suggesting the wrap-up Phase 4 delete-on-terminal step is not consistently reached; this finding is scoped to the audited target only.\n\n## Deliverables\n\n**Current:**\n```\n# Open Items — Doc staleness: plans/2026-08-25-record-1424-ledger — Freshness (#1775)\n\n| # | Phase | Item | Status | Resolution |\n|---|-------|------|--------|------------|\n| 1 | wrap-up | pr — PR #1939 (this run's own head branch `worktree-dispatch-record-1775`) — residue sweep at close time (`bin/residue.js --scope blast-radius`) reports it open, remedy: record | accepted | This is this run's own in-flight PR under the pr-first integration model; its merge/hold disposition is decided by this same wrap-up's Phase 4 Auto-merge short-circuit / Review Console immediately following this gate, not by the ledger resolve gate itself. |\n\n```\n\n**Proposed:**\n```\n(file deleted — `git rm docs/plans/2026-09-05-record-1775-ledger.md`, per `plugin/skills/ledger/SKILL.md`'s Delete operation)\n```\n\n## Acceptance Criteria\n\nThis ledger's single Open Items row (status: `accepted`) is terminal. Live GitHub checks confirm the resolution it recorded actually landed: PR #1939 is merged and issue #1775 is closed (closed by PR #1939). With no `open` rows remaining, the resolve gate has passed. Per `plugin/skills/ledger/SKILL.md`'s Delete operation (\"Delete the ledger file after all items are resolved... Only delete when the resolve gate has passed — all items must have terminal statuses\"), delete `docs/plans/2026-09-05-record-1775-ledger.md`.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-fd99741a -->",
-        "labels": [
-          {
-            "name": "ready"
-          },
-          {
-            "name": "risk:low"
-          },
-          {
-            "name": "size:low"
-          },
-          {
-            "name": "type:task"
-          },
-          {
-            "name": "auto:build"
-          },
-          {
-            "name": "auto:merge"
-          },
-          {
-            "name": "priority:low"
-          },
-          {
-            "name": "by:docs-health"
-          },
-          {
-            "name": "docs-health:additive"
-          }
-        ],
         "createdAt": "2026-09-08T06:15:23Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
+            "description": "",
+            "color": "ededed"
+          }
+        ],
+        "number": 2059,
+        "state": "OPEN",
+        "title": "Doc staleness: plans/2026-09-05-record-1775-ledger — Freshness",
         "updatedAt": "2026-09-11T04:15:48Z",
-        "state": "OPEN",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
@@ -459,41 +670,68 @@
     ],
     [
       {
-        "number": 2058,
-        "title": "Doc staleness: plans/2026-09-05-record-1687-ledger — Open Items table, row 1",
         "body": "**Doc:** plans/2026-09-05-record-1687-ledger | **Section:** Open Items table, row 1 | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b497a80931452e03ceda09f1a1f5d2119acf850b\n\n## Current State\n\nThe row states PR #1872 'is still open', but GitHub shows PR #1872 was merged 2026-09-05T05:26:46Z and issue #1687 was closed the same day (state: closed, state_reason: completed). Verified via mcp__github__pull_request_read/issue_read live lookups.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | wrap-up | Residue sweep: PR #1872 (this run's own head branch worktree-record-1687) is still open | accepted | This run's own not-yet-merged draft PR — resolved by Phase 4's Auto-merge/Review Console step, not by this ledger; not residue in the \"leftover\" sense. |\n```\n\n**Proposed:**\n```\n| 1 | wrap-up | Residue sweep: PR #1872 (this run's own head branch worktree-record-1687) was open at run time | accepted | This run's own draft PR, resolved by Phase 4's Auto-merge/Review Console step as designed — merged 2026-09-05T05:26:46Z, closing #1687; not residue in the \"leftover\" sense. |\n```\n\n## Acceptance Criteria\n\nUpdate the row-1 Item/Resolution text to reflect that PR #1872 has since merged (2026-09-05T05:26:46Z) and closed #1687, rather than describing the PR as still open.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-5c466902 -->\nwork-fingerprint: docshealth-5c466902",
+        "createdAt": "2026-09-08T06:06:28Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:low"
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
-            "name": "type:task"
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "auto:merge"
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           },
           {
-            "name": "by:docs-health"
+            "id": "LA_kwDORUwzVM8AAAACverRqw",
+            "name": "by:docs-health",
+            "description": "",
+            "color": "ededed"
           },
           {
-            "name": "docs-health:additive"
+            "id": "LA_kwDORUwzVM8AAAACverRrA",
+            "name": "docs-health:additive",
+            "description": "",
+            "color": "ededed"
           }
         ],
-        "createdAt": "2026-09-08T06:06:28Z",
-        "updatedAt": "2026-09-11T04:15:51Z",
+        "number": 2058,
         "state": "OPEN",
+        "title": "Doc staleness: plans/2026-09-05-record-1687-ledger — Open Items table, row 1",
+        "updatedAt": "2026-09-11T04:15:51Z",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
@@ -520,41 +758,68 @@
     ],
     [
       {
-        "number": 2056,
-        "title": "Skill drift: run-directory-fact-packs — The shape",
         "body": "**Skill:** run-directory-fact-packs | **Section:** The shape | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b497a80931452e03ceda09f1a1f5d2119acf850b\n\n## Current State\n\ngrep confirms wrap-up-pack.js's USAGE string includes `[--only <probe,...>]` and pack.js exports/filters by PROBE_NAMES, while flow-preflight.js's USAGE string is `--run <dir> --steps <a,b,c> [--json <path>]` (no --only) and flow/preflight.js's gatherPreflight runs `Promise.all(names.map(...))` over every key of `probes` with no filtering — its own parseArgs error text states --steps is 'metadata — every field is computed regardless.'\n\n## Deliverables\n\n**Current:**\n```\n- **`--only <probe,...>`** so a consumer that needs one field does not pay for eight.\n```\n\n**Proposed:**\n```\n- **`--only <probe,...>`** so a consumer that needs one field does not pay for eight — `wrap-up-pack.js`/`pack.js` only; `flow-preflight.js` has no `--only` flag, and `flow/preflight.js`'s `gatherPreflight` computes every probe unconditionally regardless of `--steps` (its own parse-error text calls `--steps` \"metadata — every field is computed regardless\"), since `/flow`'s second call always needs the full set.\n```\n\n## Acceptance Criteria\n\nThe skill claims the two shipped fact packs \"agree on every rule below,\" including the `--only <probe,...>` selective-probe rule, but `flow-preflight.js`/`flow/preflight.js` implements no such flag and always computes every probe. Fix the `--only` bullet to scope the rule to `pack.js`/`wrap-up-pack.js`, and soften the opening paragraph's blanket \"agree on every rule below\" claim to note this one exception.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-00c84acc -->",
+        "createdAt": "2026-09-08T05:19:48Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:low"
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
-            "name": "type:task"
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "auto:merge"
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           },
           {
-            "name": "by:harness-health"
+            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
+            "name": "by:harness-health",
+            "description": "",
+            "color": "ededed"
           },
           {
-            "name": "harness-health:additive"
+            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
+            "name": "harness-health:additive",
+            "description": "",
+            "color": "ededed"
           }
         ],
-        "createdAt": "2026-09-08T05:19:48Z",
-        "updatedAt": "2026-09-11T04:15:53Z",
+        "number": 2056,
         "state": "OPEN",
+        "title": "Skill drift: run-directory-fact-packs — The shape",
+        "updatedAt": "2026-09-11T04:15:53Z",
         "facets": {
           "origin": "harness-health",
           "risk": "low",
@@ -581,32 +846,50 @@
     ],
     [
       {
-        "number": 1570,
-        "title": "/claude-tweaks:review's flow-context full-mode default isn't self-enforcing",
         "body": "Origin: reflect light from #1143\nDefer-reason: tangential\n\n## Current State\n\n`skills/review/SKILL.md`'s Overview states: \"When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (code + visual).\" But the Input resolution section's actual mode-selection rules (1-8) are purely token-based — the literal word `full` appearing in `$ARGUMENTS` is the only thing that selects full mode. There is no rule that checks `$PIPELINE_RUN_DIR` (or any other flow-context signal) and defaults to full mode when no explicit mode token is present. A flow executor who invokes `/claude-tweaks:review {spec}` without typing `full` explicitly silently gets **code** mode instead — no warning, no divergence from the documented default surfaced anywhere. This run (#1143's own flow continuation) hit exactly this gap: `/claude-tweaks:review #1143` was invoked without the `full` token, resolving to code mode per the skill's own Input resolution rule 1. No actual harm occurred this run (the record's `surface: backend`, so visual review would have been skipped by Step 6's own detection regardless of mode) — but on a frontend record, the same omission would silently skip the browser visual-review pass in a context where the skill's own documentation promises it always runs.\n\n## Deliverables\n\n- [ ] Add a rule to `skills/review/SKILL.md`'s Input resolution (or its own note) that defaults to full mode when `$PIPELINE_RUN_DIR` is set (or an equivalent flow-context signal is present) and no explicit mode token (`full`/`visual`/`journey:`/`discover`) appears in `$ARGUMENTS` — making the documented \"flow invokes review in full mode by default\" promise self-enforcing rather than dependent on the flow executor remembering to type `full`.\n- [ ] Audit `skills/flow/SKILL.md`'s own Step 4 invocation prose for the same gap — it also just says \"Flow invokes `/claude-tweaks:review` in full mode by default\" without specifying the mechanism that makes this true.\n\n## Acceptance Criteria\n\n1. `/claude-tweaks:review {spec}` invoked with `$PIPELINE_RUN_DIR` set and no explicit mode token resolves to full mode (verifiable by reading the updated Input resolution rule).\n2. `/claude-tweaks:review {spec}` invoked standalone (no `$PIPELINE_RUN_DIR`) and no explicit mode token still resolves to code mode, unchanged — the fix must not alter standalone behavior.\n3. An explicit mode token (`full`/`visual`/`journey:`/`discover`) still always wins over the flow-context default, in either context.\n\n_Filed by `reflect` via specShapedBody._\n",
+        "createdAt": "2026-08-27T18:02:08Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:medium"
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Size: medium effort",
+            "color": "fbca04"
           },
           {
-            "name": "type:bug"
+            "id": "LA_kwDORUwzVM8AAAACry2nbg",
+            "name": "type:bug",
+            "description": "Type: defect in existing behavior",
+            "color": "d73a4a"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           }
         ],
-        "createdAt": "2026-08-27T18:02:08Z",
-        "updatedAt": "2026-09-09T04:52:08Z",
+        "number": 1570,
         "state": "OPEN",
+        "title": "/claude-tweaks:review's flow-context full-mode default isn't self-enforcing",
+        "updatedAt": "2026-09-09T04:52:08Z",
         "facets": {
           "origin": null,
           "risk": "low",
@@ -633,41 +916,68 @@
     ],
     [
       {
-        "number": 1537,
-        "title": "CLAUDE.md drift: CLAUDE — Auto-Mode Contract + Bookend Architecture (v4.6+)",
         "body": "**Related:** #1634\n\n**CLAUDE.md:** CLAUDE | **Section:** Auto-Mode Contract + Bookend Architecture (v4.6+) | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b3962148502d70e2970b7591c55634d62dc74162\n\n## Current State\n\n`plugin/skills/_shared/auto-mode-contract.md` line 30 states verbatim: \"Begin stop is opt-in under `auto`. `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** ... so the everyday auto pipeline has effectively **one** user-facing stop ... The 'at most two stops' promise is a ceiling, not a floor.\" CLAUDE.md's own paragraph omits this distinction entirely, leaving a reader (or an agent acting on CLAUDE.md alone) to assume the Manifesto is normally an interactive stop in default `auto`, which it is not.\n\n## Deliverables\n\n**Current:**\n```\nclaude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.\n```\n\n**Proposed:**\n```\nclaude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). The two-stop ceiling isn't a floor: in default `auto`, the Manifesto renders as a **read-only FYI** (displays levers, doesn't gate), so the everyday run has effectively **one** user-facing stop — the end Review Console. Pass `confirm` (or `hybrid`) to turn the Manifesto into a real approval gate. Everything in between is policy-driven automation logged to the auto-decision log.\n```\n\n## Acceptance Criteria\n\nCLAUDE.md's Auto-Mode Contract paragraph presents \"at most two stops\" as if both stops normally occur in `auto` mode, but the canonical `plugin/skills/_shared/auto-mode-contract.md` (the file this paragraph cites as single source of truth) now explicitly clarifies that the ceiling is not a floor: in default `auto`, the Manifesto renders as a read-only FYI and never gates, so the everyday auto run has effectively only one user-facing stop (the end Review Console) — the Manifesto only becomes a real stop under `confirm`/`hybrid`.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-1ee082ad -->",
+        "createdAt": "2026-08-27T05:23:55Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:low"
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
-            "name": "type:task"
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "auto:merge"
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           },
           {
-            "name": "by:harness-health"
+            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
+            "name": "by:harness-health",
+            "description": "",
+            "color": "ededed"
           },
           {
-            "name": "harness-health:additive"
+            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
+            "name": "harness-health:additive",
+            "description": "",
+            "color": "ededed"
           }
         ],
-        "createdAt": "2026-08-27T05:23:55Z",
-        "updatedAt": "2026-09-09T04:52:00Z",
+        "number": 1537,
         "state": "OPEN",
+        "title": "CLAUDE.md drift: CLAUDE — Auto-Mode Contract + Bookend Architecture (v4.6+)",
+        "updatedAt": "2026-09-09T04:52:00Z",
         "facets": {
           "origin": "harness-health",
           "risk": "low",
@@ -694,102 +1004,68 @@
     ],
     [
       {
-        "number": 2067,
-        "title": "crossReferenceKeyFiles: sibling-title substring match lacks word boundaries, and re-parses/re-greps per outer unit",
-        "body": "## Current State\nIn `plugin/bin/lib/issues/decomposition-crossref.js`'s `crossReferenceKeyFiles` (line 57), sibling-title matching uses a plain lowercased substring test (`line.toLowerCase().includes(titleLower)`, line 72) with no word-boundary check — a short/generic sibling title can appear as a substring inside an unrelated longer word or phrase in another unit's Gotchas/Prerequisites text, wrongly attaching that unit's grep hits to the wrong sibling's Key Files list. Separately, `extractSection(other.body, 'Gotchas'/'Prerequisites')` (line 68) is recomputed inside the inner `for (const other of list)` loop on every outer `unit` iteration, even though each `other`'s section text doesn't depend on the outer unit — O(N^2) re-parsing for a decomposition batch of N sub-issues — and the injected `grep(ident)` subprocess call (line ~76) has no memoization across outer units sharing the same identifier, real avoidable subprocess-spawn cost that scales with batch size.\n\n## Deliverables\n- [ ] Add a word-boundary check to the sibling-title substring match, reusing the existing `escapeRegExp` helper (`plugin/bin/lib/shared-primitives.js`) to build a `\\b{escaped title}\\b` regex rather than writing a new escaper — the title is user-authored text and may itself contain regex metacharacters.\n- [ ] Hoist the `extractSection(other.body, 'Gotchas')` / `extractSection(other.body, 'Prerequisites')` computation for each `other` outside the outer `unit` loop (compute once per `other`, into a map keyed by `other`, not once per unit×other pair).\n- [ ] Memoize `grep(ident)` results (a `Map<string, string[]>`) across outer units within one `crossReferenceKeyFiles` call, so the same identifier is grepped at most once per batch regardless of how many units reference it.\n\n## Acceptance Criteria\n1. A test with a short generic sibling title (e.g. \"Fix\") that also appears as a substring of an unrelated word in another unit's Gotchas text does not wrongly cross-reference.\n2. A test confirms `extractSection` is called at most once per distinct `other` unit within one batch (not once per unit×other pair) — e.g. via a call-counting wrapper or spy on a batch of 3+ units.\n3. A test confirms the injected `grep` is called at most once per distinct identifier within one batch, even when multiple units' Gotchas reference the same identifier.\n4. All six existing tests in `tests/bin-lib/issues/decomposition-crossref.test.js` pass unchanged.\n\n## Technical Approach\nReuse `escapeRegExp` from `plugin/bin/lib/shared-primitives.js` (already used the same way in `claim-store.js:415` to build a safe dynamic regex from untrusted text) rather than introducing a second escaping implementation. For the two performance fixes, restructure the double loop so the `other`-keyed work (section extraction) happens once per `other` before the outer `unit` loop runs, and thread a shared `Map` for grep memoization through the whole `crossReferenceKeyFiles` call.\n\n### Key Files\n- `plugin/bin/lib/issues/decomposition-crossref.js` — `crossReferenceKeyFiles` (line 57), `extractSection` (line 33), the substring match (line 72), the `grep(ident)` call (line ~76)\n- `plugin/bin/lib/shared-primitives.js` — `escapeRegExp` (line 43), to reuse rather than reimplement\n- `tests/bin-lib/issues/decomposition-crossref.test.js` — 129 lines, 6 existing tests, all must stay green\n\n## Original request\nOrigin: whole-branch review (e4fd2b2a8..884ed7ea, gating v6.120.0) — in #490's decomposition cross-reference feature.\n",
-        "labels": [
-          {
-            "name": "ready"
-          },
-          {
-            "name": "risk:low"
-          },
-          {
-            "name": "size:low"
-          },
-          {
-            "name": "type:bug"
-          },
-          {
-            "name": "auto:build"
-          },
-          {
-            "name": "auto:merge"
-          },
-          {
-            "name": "priority:low"
-          },
-          {
-            "name": "ceremony:fast-lane"
-          },
-          {
-            "name": "shaped:headless"
-          }
-        ],
-        "createdAt": "2026-09-08T07:18:45Z",
-        "updatedAt": "2026-09-11T04:15:43Z",
-        "state": "OPEN",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "number": 1301,
-        "title": "Confirm RemoteTrigger update persists notifications, then close #68's guided-creation path",
         "body": "Surface: infra\n\n## Current State\n\nRefs #68. `skills/routine/create-and-update.md` now sets `notifications` unconditionally on the direct-create path (Step 6 body template), documents the field, and adds a Step 7 preview line stating a routine emails on every firing — all implemented and pinned by `tests/routine-notifications.test.js`. Step 8's guided-creation branch was also extended with a follow-up `RemoteTrigger {action: \"update\", trigger_id, body: {notifications: {...}}}` call, but its correctness for the `notifications` field specifically is unconfirmed: Task 0's empirical premise-check (does `RemoteTrigger update` actually persist `notifications` the same way `create` was already confirmed live) requires the `RemoteTrigger` tool, which was unavailable in both the original build session and this ledger-resolution session (`ToolSearch select:RemoteTrigger` returns no match in either).\n\n**Shaping-time fact-check (2026-08-23):** the `RemoteTrigger` tool, previously unavailable in both prior sessions, is now available in this session (`ToolSearch select:RemoteTrigger` resolves it) — the same finding as sibling record #1302, filed from the same ledger-resolution pass. This shaping session did **not** attempt Task 0's actual premise-check: creating a throwaway routine via `RemoteTrigger` and confirming `notifications` persists is a real external-service mutation with no delete API to clean it up afterward (per the record's own Deliverables), which is build-time work requiring the build session's own judgment and authorization, not something to run speculatively during shaping. The build session should re-verify `RemoteTrigger` availability in its own environment before assuming this blocker is fully resolved — tool availability may be session-type-dependent (interactive vs. cloud/routine).\n\n## Deliverables\n\n- Re-verify `RemoteTrigger` availability via `ToolSearch select:RemoteTrigger` in the build session's own environment.\n- Run Task 0's premise-check: create a disabled, cron-less throwaway routine, call `RemoteTrigger {action: \"update\", trigger_id, body: {notifications: {...}}}` on it, `get` it back to confirm the value stuck, then remove the throwaway by hand at claude.ai/code/routines (no delete API exists).\n- If confirmed: mark #68 AC2/AC3 met — the guided-path follow-up call in `create-and-update.md` Step 8 is already implemented and needs no further code change.\n- If NOT confirmed: redesign the guided-path follow-up around whatever mechanism the probe finds actually works, and update `create-and-update.md` Step 8 accordingly.\n\n## Acceptance Criteria\n\n- Task 0's premise-check result (confirmed / not confirmed) is recorded in this record's resolution.\n- `RemoteTrigger {action: \"get\"}` against a just-created routine (guided path) confirms it carries the same `notifications` value as the direct-create path — this is #68's own AC2.\n- If Task 0 found the `update` mechanism does not work as assumed, `create-and-update.md` Step 8 is corrected and `tests/routine-notifications.test.js` (or a new test) pins the corrected behavior.\n\n## Technical Approach\n\nRe-confirm `RemoteTrigger` availability first (tool access may differ from this shaping session's environment). With the tool available, create a disabled, cron-less throwaway routine via the guided-creation path, call `RemoteTrigger {action: \"update\", trigger_id, body: {notifications: {...}}}`, then `RemoteTrigger {action: \"get\"}` to confirm the value persisted — matching the same confirmation already done for the direct-create path. Clean up the throwaway routine manually at claude.ai/code/routines afterward (no delete API exists — do not leave it dangling). Branch on the result exactly as the Deliverables state: no further code change if confirmed; a Step 8 redesign plus a pinning test if not.\n\n### Key Files\n\n- `plugin/skills/routine/create-and-update.md` — Step 8's guided-creation follow-up call, the thing being verified (and, conditionally, corrected)\n- `tests/routine-notifications.test.js` — existing pins for the direct-create path; extend if Step 8 needs correction\n\n## Gotchas\n\n- The throwaway-routine creation is a real external-service mutation with no automated cleanup (no delete API) — this is exactly the kind of action that needs the build session's own explicit judgment, not something to attempt speculatively or headlessly without care.\n- Tool availability was confirmed only in this shaping session, not the build session that will actually run the premise-check — re-verify via `ToolSearch select:RemoteTrigger` first; it may be environment-dependent (interactive vs. cloud/routine).\n- Do not forget the manual cleanup step — a stray throwaway routine left in the account is a small but avoidable leftover.\n\n## Original request\n\nConfirm RemoteTrigger update persists notifications, then close #68's guided-creation path\n\nOrigin: ledger resolve gate\n\nDefer-reason: blocked-dependency\n\n## Current State\n\nRefs #68. `skills/routine/create-and-update.md` now sets `notifications` unconditionally on the direct-create path (Step 6 body template), documents the field, and adds a Step 7 preview line stating a routine emails on every firing — all implemented and pinned by `tests/routine-notifications.test.js`. Step 8's guided-creation branch was also extended with a follow-up `RemoteTrigger {action: \"update\", trigger_id, body: {notifications: {...}}}` call, but its correctness for the `notifications` field specifically is unconfirmed: Task 0's empirical premise-check (does `RemoteTrigger update` actually persist `notifications` the same way `create` was already confirmed live) requires the `RemoteTrigger` tool, which was unavailable in both the original build session and this ledger-resolution session (`ToolSearch select:RemoteTrigger` returns no match in either).\n\n## Deliverables\n\n- [ ] Run Task 0's premise-check: create a disabled, cron-less throwaway routine, call `RemoteTrigger {action: \"update\", trigger_id, body: {notifications: {...}}}` on it, `get` it back to confirm the value stuck, then remove the throwaway by hand at claude.ai/code/routines (no delete API exists).\n- [ ] If confirmed: mark #68 AC2/AC3 met — the guided-path follow-up call in `create-and-update.md` Step 8 is already implemented and needs no further code change.\n- [ ] If NOT confirmed: redesign the guided-path follow-up around whatever mechanism the probe finds actually works, and update `create-and-update.md` Step 8 accordingly.\n\n## Acceptance Criteria\n\n1. Task 0's premise-check result (confirmed / not confirmed) is recorded in this record's resolution.\n2. `RemoteTrigger {action: \"get\"}` against a just-created routine (guided path) confirms it carries the same `notifications` value as the direct-create path — this is #68's own AC2.\n3. If Task 0 found the `update` mechanism does not work as assumed, `create-and-update.md` Step 8 is corrected and `tests/routine-notifications.test.js` (or a new test) pins the corrected behavior.\n\n_Filed by `ledger resolve gate` via specShapedBody. Refs #68 — routed from that record's ledger item #1 (`docs/plans/2026-08-23-record-68-211-ledger.md`)._\n",
+        "createdAt": "2026-08-23T14:22:15Z",
         "labels": [
           {
-            "name": "ready"
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
           },
           {
-            "name": "risk:low"
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
-            "name": "size:low"
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
           },
           {
-            "name": "type:task"
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
           },
           {
-            "name": "auto:build"
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
           },
           {
-            "name": "priority:low"
+            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
+            "name": "priority:low",
+            "description": "Priority: dispatch picks last among prioritized records",
+            "color": "5319E7"
           },
           {
-            "name": "demo:pending"
+            "id": "LA_kwDORUwzVM8AAAACsXTZ8w",
+            "name": "demo:pending",
+            "description": "Acceptance: built and verified — awaiting human sign-off via /claude-tweaks:demo",
+            "color": "1D76DB"
           },
           {
-            "name": "ceremony:fast-lane"
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
           },
           {
-            "name": "shaped:headless"
+            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
+            "name": "shaped:headless",
+            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
+            "color": "ededed"
           }
         ],
-        "createdAt": "2026-08-23T14:22:15Z",
-        "updatedAt": "2026-09-08T16:51:30Z",
+        "number": 1301,
         "state": "OPEN",
+        "title": "Confirm RemoteTrigger update persists notifications, then close #68's guided-creation path",
+        "updatedAt": "2026-09-08T16:51:30Z",
         "facets": {
           "origin": null,
           "risk": "low",
