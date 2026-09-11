@@ -1,7 +1,7 @@
 // bin/lib/ports/ensure.js — turns Unit 1's registry on for a project (#1792).
 // Called from SessionStart when the `port-services` policy resolves
 // non-empty: allocates (idempotently) a block for this checkout, then
-// decides whether that block is still trustworthy — see isRegionCurrent's
+// decides whether that block is still trustworthy — see regionIsCurrent's
 // header comment for the "stale region vs bound port" rule this exists to
 // implement.
 'use strict';

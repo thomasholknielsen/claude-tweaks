@@ -86,22 +86,18 @@ test('ensure: reads .env.local at most once for the managed-region check on the 
 
   const envPath = path.join(checkout, '.env.local');
   const server = await listenOn(first.base);
+  const originalReadFileSync = fs.readFileSync;
+  let envLocalReads = 0;
+  fs.readFileSync = function (target, ...rest) {
+    if (target === envPath) envLocalReads += 1;
+    return originalReadFileSync.call(fs, target, ...rest);
+  };
   try {
-    const originalReadFileSync = fs.readFileSync;
-    let envLocalReads = 0;
-    fs.readFileSync = function patched(target, ...rest) {
-      if (typeof target === 'string' && target === envPath) envLocalReads += 1;
-      return originalReadFileSync.call(fs, target, ...rest);
-    };
-    let second;
-    try {
-      second = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout });
-    } finally {
-      fs.readFileSync = originalReadFileSync;
-    }
+    const second = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout });
     assert.equal(second.reallocated, null);
     assert.equal(envLocalReads, 1, '.env.local should be read exactly once for the managed-region check');
   } finally {
+    fs.readFileSync = originalReadFileSync;
     server.close();
   }
 });
