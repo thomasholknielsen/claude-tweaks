@@ -134,8 +134,9 @@ only: no `config.yml`, no `decisions.md`, and no claim written here either). The
 `{ISO-timestamp}` prefix is UTC, per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule
 (`date -u`) — `resolve-run-dir` mints it, this step never composes it by hand. Call the result
 `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
-`decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
-{$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed directory is reclaimed by
+`decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted {$GROUP_RUN_DIR} for group [{issue list}]{, naming it a fast-lane bundle when this group's member set
+matches an entry in dispatch-fastlane-bundles.json — see reporting.md for the full wording}.`
+A minted-but-never-claimed directory is reclaimed by
 the reconciler's archive sweep (`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint`
 criterion) once its TTL elapses.
 
