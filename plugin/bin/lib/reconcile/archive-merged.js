@@ -125,13 +125,15 @@ function archiveOrphanedMint(root, dir) {
   try {
     fs.mkdirSync(archiveDir, { recursive: true });
   } catch (err) {
-    return { ok: false, reason: 'move-failed', lastError: err && err.message };
+    const lastError = err && err.message;
+    return refusal('move-failed', { lastError, hint: lastError });
   }
   let entries;
   try {
     entries = fs.readdirSync(dir);
   } catch (err) {
-    return { ok: false, reason: 'move-failed', lastError: err && err.message };
+    const lastError = err && err.message;
+    return refusal('move-failed', { lastError, hint: lastError });
   }
   const movedThisPass = [];
   for (const name of entries) {
@@ -142,11 +144,8 @@ function archiveOrphanedMint(root, dir) {
       fs.renameSync(src, dest);
     } catch (err) {
       const fullyReverted = revertPlainMoves(movedThisPass);
-      return {
-        ok: false,
-        reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert',
-        lastError: err && err.message,
-      };
+      const lastError = err && err.message;
+      return refusal(fullyReverted ? 'move-failed' : 'move-failed-partial-revert', { lastError, hint: lastError });
     }
     movedThisPass.push([src, dest]);
   }
@@ -411,13 +410,26 @@ function isTracked(root, targetPath) {
   return !untracked.failure && !untracked.stdout;
 }
 
+// #1982: every `{ ok: false, reason, ... }` this file (and archiveOrphanedMint
+// above) returns goes through this constructor, so each carries a `hint` key
+// (string, naming a concrete recovery step, or `null`) beside its `reason` —
+// letting hooks.js's archive-run verb print a specific recovery line without
+// a hardcoded reason-string match keeping the two files in sync by hand. A
+// renamed/removed reason code here no longer silently downgrades to the
+// generic message: the hint travels with the reason automatically. `extra`
+// (e.g. `lastError`, `untrackedAuditFiles`) passes through unchanged — this
+// only adds `hint` to whatever the caller already built.
+function refusal(reason, { hint = null, ...extra } = {}) {
+  return { ok: false, reason, hint, ...extra };
+}
+
 function archiveRunDir(root, runDir) {
   const runId = path.basename(runDir);
   const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
   try {
     fs.mkdirSync(archiveDir, { recursive: true });
   } catch {
-    return { ok: false, reason: 'mkdir-failed' };
+    return refusal('mkdir-failed');
   }
   // #1103 follow-up: mkdirSync above is the earliest point a second,
   // concurrent, UNLOCKED `reconcile` invocation (dispatch/tidy's own
@@ -505,7 +517,16 @@ function archiveRunDir(root, runDir) {
   // unpulled — exactly what happened in practice, #1494's follow-up), or
   // recognize the content never made it into any commit and needs re-filing.
   if (untrackedAuditFiles.length) {
-    return { ok: false, reason: 'audit-untracked', untrackedAuditFiles };
+    // Verbatim recovery text, co-located with the detection that produces
+    // it — moved from hooks.js's own `audit-untracked` special-case branch
+    // (#1982) so a rename of this reason code can't silently strand the
+    // prose 400 lines away from the code that understands the failure.
+    const hint = `(${untrackedAuditFiles.join(', ')} exist here but are not tracked by this checkout's `
+      + 'git index). A pr-first standalone run\'s decisions.md/report.md/staged only become tracked once '
+      + 'their worktree copy has merged AND this checkout has pulled that merge — sync this checkout with '
+      + 'origin (git pull, or reconcile\'s own mirror-ff) and retry. If no such merge exists (the content '
+      + 'was never committed anywhere), it is not recoverable from git history — re-run whatever produced it.';
+    return refusal('audit-untracked', { untrackedAuditFiles, hint });
   }
   for (const specName of specDirs) {
     const specWork = path.join(runDir, specName, 'work');
@@ -514,7 +535,7 @@ function archiveRunDir(root, runDir) {
     try {
       fs.mkdirSync(specArchiveDir, { recursive: true });
     } catch {
-      return { ok: false, reason: 'mkdir-failed' };
+      return refusal('mkdir-failed');
     }
     workMoves.push([specWork, path.join(specArchiveDir, 'work')]);
   }
@@ -534,7 +555,8 @@ function archiveRunDir(root, runDir) {
       const mv = runGit(['mv', src, dest], root);
       if (mv.failure) {
         const fullyReverted = revertWorkMoves(root, succeededMoves);
-        return { ok: false, reason: fullyReverted ? 'git-mv-failed' : 'git-mv-failed-partial-revert' };
+        const hint = mv.stderr && mv.stderr.trim() ? mv.stderr.trim() : null;
+        return refusal(fullyReverted ? 'git-mv-failed' : 'git-mv-failed-partial-revert', { hint });
       }
       succeededMoves.push([src, dest]);
       movedEntries.push(path.relative(runDir, src));
@@ -552,7 +574,7 @@ function archiveRunDir(root, runDir) {
       // makes that distinction visible to callers/logs rather than
       // collapsing both into the same reason string.
       const fullyReverted = revertWorkMoves(root, workMoves);
-      return { ok: false, reason: fullyReverted ? 'commit-failed' : 'commit-failed-partial-revert' };
+      return refusal(fullyReverted ? 'commit-failed' : 'commit-failed-partial-revert');
     }
   }
 
@@ -567,14 +589,14 @@ function archiveRunDir(root, runDir) {
   // tidy-standalone run or any other — still refuses exactly as before.
   if (fs.existsSync(runDir)) {
     const lsFiles = runGit(['ls-files', runDir], root);
-    if (lsFiles.failure) return { ok: false, reason: 'ls-files-failed' };
+    if (lsFiles.failure) return refusal('ls-files-failed');
     const trackedOutsideWork = (lsFiles.stdout || '')
       .split('\n')
       .filter(Boolean)
       .map((p) => path.relative(runDir, path.join(root, p)))
       .filter((rel) => rel && !rel.startsWith('work' + path.sep) && rel !== 'work');
     if (trackedOutsideWork.length > 0) {
-      return { ok: false, reason: 'tracked-entry' };
+      return refusal('tracked-entry');
     }
 
     // TOCTOU: runDir could be deleted between the fs.existsSync(runDir) guard
@@ -586,7 +608,7 @@ function archiveRunDir(root, runDir) {
     try {
       entries = fs.readdirSync(runDir);
     } catch {
-      return { ok: false, reason: 'readdir-failed' };
+      return refusal('readdir-failed');
     }
     // spec-{N}/ dirs are excluded here — their archive twins may already
     // exist (created by the workMoves batch above), so a whole-dir rename
@@ -601,11 +623,8 @@ function archiveRunDir(root, runDir) {
         fs.renameSync(src, dest);
       } catch (err) {
         const fullyReverted = revertPlainMoves(movedThisPass);
-        return {
-          ok: false,
-          reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert',
-          lastError: err && err.message,
-        };
+        const lastError = err && err.message;
+        return refusal(fullyReverted ? 'move-failed' : 'move-failed-partial-revert', { lastError, hint: lastError });
       }
       movedThisPass.push([src, dest]);
       movedEntries.push(name);
@@ -628,7 +647,7 @@ function archiveRunDir(root, runDir) {
     try {
       specEntries = fs.readdirSync(specDir);
     } catch {
-      return { ok: false, reason: 'readdir-failed' };
+      return refusal('readdir-failed');
     }
     const specRemaining = specEntries.filter((n) => n !== 'work');
     if (specRemaining.length) {
@@ -639,7 +658,8 @@ function archiveRunDir(root, runDir) {
       try {
         fs.mkdirSync(specArchiveDir, { recursive: true });
       } catch (err) {
-        return { ok: false, reason: 'move-failed', lastError: err && err.message };
+        const lastError = err && err.message;
+        return refusal('move-failed', { lastError, hint: lastError });
       }
     }
     const specMovedThisPass = [];
@@ -651,11 +671,8 @@ function archiveRunDir(root, runDir) {
         fs.renameSync(src, dest);
       } catch (err) {
         const fullyReverted = revertPlainMoves(specMovedThisPass);
-        return {
-          ok: false,
-          reason: fullyReverted ? 'move-failed' : 'move-failed-partial-revert',
-          lastError: err && err.message,
-        };
+        const lastError = err && err.message;
+        return refusal(fullyReverted ? 'move-failed' : 'move-failed-partial-revert', { lastError, hint: lastError });
       }
       specMovedThisPass.push([src, dest]);
       movedEntries.push(path.join(specName, name));
@@ -671,7 +688,7 @@ function archiveRunDir(root, runDir) {
   // (archived) location, not the original runDir — writeRunState reads and
   // preserves whatever state already moved there.
   const result = writeRunState(archiveDir, { status: 'clean', worktree: null });
-  if (!result) return { ok: false, reason: 'close-failed' };
+  if (!result) return refusal('close-failed');
 
   // Late-write guard (#990 — reproduced live during #893's own wrap-up even
   // with #902's dynamic enumeration already in place): the top-level
@@ -1058,4 +1075,5 @@ module.exports = {
   localHasMerge, lastOwnEventMs, isAbandonedInterrupted, STALE_INTERRUPTED_TTL_MS,
   isAdHocStandaloneSuperseded, ADHOC_SUPERSEDED_TTL_MS,
   isStructurallyStuck, trackStuckSkip, STRUCTURALLY_STUCK_TTL_MS, STRUCTURALLY_STUCK_REASONS,
+  refusal,
 };
