@@ -7,7 +7,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { runGit } = require('../hooks/git-exec');
+const { runGit, isIndeterminate } = require('../hooks/git-exec');
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const {
@@ -97,8 +97,15 @@ function isAdHocStandaloneSuperseded(dir, state, worktrees, now = Date.now()) {
 // archiveRunDir's git mv + commit is what tracked content needs, and it
 // does not require run-state.json. `git ls-files -- <dir>` lists nothing
 // for a genuinely untracked mint, which keeps that case on the fs-only path.
+// An indeterminate probe (timeout/spawn/no-git — git-exec.js's
+// isIndeterminate) is not an answer of "untracked": assume tracked and let
+// archiveRunDir refuse visibly rather than silently take the fs-only path.
 function hasTrackedContent(root, dir) {
   const listed = runGit(['ls-files', '--', dir], root);
+  // An unanswered probe (timeout/spawn/no-git — git-exec.js's isIndeterminate)
+  // is not "untracked": assume tracked and let archiveRunDir refuse visibly
+  // rather than fall back to the bare fs rename this guard exists to prevent.
+  if (isIndeterminate(listed.failure)) return true;
   return !listed.failure && String(listed.stdout || '').trim().length > 0;
 }
 

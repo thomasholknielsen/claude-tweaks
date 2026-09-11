@@ -1081,6 +1081,46 @@ test('archiveMerged: a refused git-aware archival of a tracked orphaned mint sur
   );
 });
 
+// #2227 review finding: an unanswered `git ls-files` probe (timeout / spawn /
+// no-git — git-exec.js's isIndeterminate) must not read as "untracked". That
+// conflation would route a tracked spec back to the bare fs rename under
+// exactly the parallel-suite load that makes probes time out. Assume tracked
+// instead: archiveRunDir runs (here it succeeds — its own ls-files probes
+// are not mocked), and the archival lands as a commit, never as an unstaged
+// deletion.
+test('archiveMerged: an indeterminate ls-files probe on an orphaned mint assumes tracked and still archives via a commit', (t) => {
+  const root = fs.realpathSync(makeRepo());
+  const runId = '2026-01-01T000000-record-2227-indeterminate';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/work/2227-spec.md`, '# 2227\n');
+  const backdated = new Date(Date.now() - ORPHAN_MINT_TTL_MS * 2);
+  fs.utimesSync(runDir, backdated, backdated);
+  const headBefore = git(root, 'rev-parse', 'HEAD').trim();
+
+  let probeCalls = 0;
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    const isTrackedProbe = cmd === 'git' && Array.isArray(args) && args[2] === 'ls-files' && args[3] === '--';
+    if (isTrackedProbe) {
+      probeCalls += 1;
+      const err = new Error('simulated timeout: git ls-files');
+      err.killed = true;
+      err.signal = 'SIGTERM';
+      throw err;
+    }
+    return execFileSync(cmd, args, opts);
+  });
+
+  const result = archiveMerged({ cwd: root });
+
+  assert.equal(probeCalls, 1, 'the tracked-content probe must have been the call that timed out');
+  assert.ok(result.archived.includes(runDir), `expected ${runDir} in archived, got ${JSON.stringify(result)}`);
+  assert.notEqual(git(root, 'rev-parse', 'HEAD').trim(), headBefore, 'an indeterminate probe must still archive via a commit, never the bare fs rename');
+  assert.ok(
+    trackedFiles(root).includes(`.claude-tweaks/pipelines/archive/${runId}/work/2227-spec.md`),
+    'archived spec must be tracked at its new path',
+  );
+});
+
 // #644 Deliverable 2 — trackArchiveResult is archiveMerged's one choke
 // point for the move-failed consecutive-failure counter and escalation.
 test('trackArchiveResult: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls', () => {
