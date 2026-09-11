@@ -111,12 +111,13 @@ it literally into the next call; never carry it in a shell variable across calls
    ends in an explicit, logged outcome.
 
    ```bash
-   git merge --no-ff {feature-branch} -m "[auto-finish] {one-line summary}
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue} --tag auto-finish --shell)"
+   git merge --no-ff {feature-branch} -m "$SUBJECT_TITLE
 
-   Fixes #{issue}"
+$SUBJECT_BODY"
    ```
 
-   `--no-ff` guarantees a real merge commit exists to carry the `Fixes #{issue}` closing keyword —
+   `--no-ff` guarantees a real merge commit exists to carry the composer's `Fixes #{issue}` closing keyword (`bin/compose-subject.js` — Conventional-Commits subject, `[auto-finish]` body tag) —
    the same reason `cleanup-procedures-execution.md` Section C step 2's own carrier commit exists.
    That carrier commit already guarantees closure regardless, so this is redundant-but-safe, never
    harmful.

@@ -60,10 +60,10 @@ For each completed branch (in order):
    issue (see "Close-via-merge" in `_shared/issue-claims.md`):
 
    ```bash
-   git merge --no-ff {branch} -m "Merge {branch} — specs {list}
+   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue} {second-issue} --shell)"
+   git merge --no-ff {branch} -m "$SUBJECT_TITLE
 
-   Fixes #{issue}
-   Fixes #{second-issue}"
+$SUBJECT_BODY"
    ```
 
    Otherwise a plain `git merge {branch}` is fine. The issues close when the user pushes the

@@ -327,10 +327,10 @@ if [ "$CURRENT" != "{integration-branch}" ]; then
   echo "Main checkout is on '$CURRENT', not '{integration-branch}' — a concurrent session switched it. Abort, do not merge." >&2
   exit 1
 fi
-git merge --no-ff {branch} -m "[auto-merge] {one-line summary}
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue} {second-issue} --tag auto-merge --shell)"
+git merge --no-ff {branch} -m "$SUBJECT_TITLE
 
-Fixes #{issue}
-Fixes #{second-issue}"
+$SUBJECT_BODY"
 ```
 
 The guard's job is catching a concurrent session switching the shared checkout out from under this merge.
@@ -341,7 +341,7 @@ The guard's job is catching a concurrent session switching the shared checkout o
 git -C "{group-worktree}" push origin {integration-branch}
 ```
 
-One `Fixes #{issue}` line per record in the group. The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise fast-forward — this is what the `[auto-merge]` tag lands on, and the same commit message carries the closing keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate carrier commit is needed for this path.
+The composer emits one `Fixes #{issue}` line per record passed. The explicit `--no-ff` guarantees a real merge commit exists even when the branch would otherwise fast-forward — this is what the `[auto-merge]` tag lands on, and the same commit message carries the closing keyword per "Close-via-merge" in `_shared/issue-claims.md`, so no separate carrier commit is needed for this path.
 
 After the push, run `_shared/pr-first-merge-post-merge.md` Step 4.1 against the local merge commit (`git rev-parse {integration-branch}` immediately after the merge) with `--ref {integration-branch}` — same outcomes and staged file, closing-report line only (no PR to comment on).
 

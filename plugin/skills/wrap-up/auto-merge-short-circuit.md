@@ -215,9 +215,10 @@ if [ "$CURRENT" != "{integration-branch}" ]; then
   echo "Main checkout is on '$CURRENT', not '{integration-branch}' — a concurrent session switched it. Abort, do not merge." >&2
   exit 1
 fi
-git merge --no-ff {branch} -m "[{tag}] {one-line summary}
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue} --tag {tag} --shell)"
+git merge --no-ff {branch} -m "$SUBJECT_TITLE
 
-Fixes #{issue}"
+$SUBJECT_BODY"
 ```
 
 **Second call — push, from inside the worktree.** Both placeholders are the
