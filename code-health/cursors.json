@@ -174,5 +174,9 @@
   "plugin/bin/lib/model-profiles": {
     "lastSweptMs": 1789010041980,
     "lastHash": "e48436464142e5c3b4e436c4efff40ee424f7d2a"
+  },
+  "plugin/bin/lib/plan-audit": {
+    "lastSweptMs": 1789096345304,
+    "lastHash": "a0f590567c26b6668fe128741943ec657b7069d0"
   }
 }
