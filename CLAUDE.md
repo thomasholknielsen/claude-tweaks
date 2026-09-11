@@ -34,7 +34,7 @@ SKILL.md structure, Interaction patterns (incl. the canonical CSC template), Fro
 
 - Version lives in `plugin/.claude-plugin/plugin.json`
 - Bump minor version for feature additions, patch for fixes
-- Commit message style: `{Verb} {what} — {detail}` (imperative, no conventional commit prefixes)
+- Commit message style: `{Verb} {what} — {detail}` (imperative, no conventional commit prefixes) — for hand-written commits; merge commits the plugin composes at merge time are Conventional-Commits shaped (`bin/compose-subject.js`, #2251)
 
 ### Releasing (two repos)
 
