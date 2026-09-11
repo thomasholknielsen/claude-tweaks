@@ -928,18 +928,14 @@ async function main(argv) {
     // is the exact fixed-list drift this whole record eliminates.
     const result = archiveRunDir(mainRoot, runDir);
     if (!result.ok) {
-      if (result.reason === 'audit-untracked') {
-        process.stdout.write(
-          `claude-tweaks: archival refused — audit-untracked (${result.untrackedAuditFiles.join(', ')} ` +
-          'exist here but are not tracked by this checkout\'s git index). A pr-first standalone run\'s ' +
-          'decisions.md/report.md/staged only become tracked once their worktree copy has merged AND this ' +
-          'checkout has pulled that merge — sync this checkout with origin (git pull, or reconcile\'s own ' +
-          'mirror-ff) and retry. If no such merge exists (the content was never committed anywhere), it is ' +
-          'not recoverable from git history — re-run whatever produced it.\n',
-        );
-        return 0;
-      }
-      process.stdout.write(`claude-tweaks: archival refused — ${result.reason}\n`);
+      // #1982: the dispatcher stays dumb — it reads only `ok`/`reason`/`hint`/
+      // `movedEntries`, never a specific reason string. Recovery prose (when
+      // any exists for this reason) travels with the result itself via
+      // `hint`, co-located in archive-merged.js's `refusal()` with the code
+      // that detects the failure, instead of a hardcoded `if (reason === …)`
+      // match here that a renamed reason code could silently desync from.
+      const hintSuffix = typeof result.hint === 'string' && result.hint ? ` — ${result.hint}` : '';
+      process.stdout.write(`claude-tweaks: archival refused — ${result.reason}${hintSuffix}\n`);
       return 0;
     }
     for (const name of result.movedEntries) {

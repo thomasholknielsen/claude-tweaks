@@ -12,7 +12,7 @@ const path = require('path');
 const {
   archiveRunDir, listSpecDirs, decideArchive, readConsoleState, isOrphanedMint, trackArchiveResult,
   archiveMerged, lastOwnEventMs, isAbandonedInterrupted, archiveOrphanedMint,
-  isStructurallyStuck, trackStuckSkip, STRUCTURALLY_STUCK_TTL_MS,
+  isStructurallyStuck, trackStuckSkip, STRUCTURALLY_STUCK_TTL_MS, refusal,
 } = require('../../../plugin/bin/lib/reconcile/archive-merged');
 const { RESIDUE_ESCALATE_THRESHOLD, listResidueFailures } = require('../../../plugin/bin/lib/reconcile/cache');
 
@@ -1540,4 +1540,68 @@ test('#1854: an auto-resolve console.json ({resolved:true, mode:"auto-resolve", 
   const decision = decideArchive({ state: 'MERGED' }, readConsoleState(runDir));
   assert.notStrictEqual(decision.reason, 'console-never-rendered');
   assert.deepStrictEqual(decision, { action: 'archive' });
+});
+
+// --- #1982: refusal() constructor — every archiveRunDir/archiveOrphanedMint
+// refusal carries a hint key, and no bare { ok: false, reason: … } literal
+// bypasses the constructor ---
+
+test('refusal(): always yields a hint key, defaulting to null when no hint is given', () => {
+  const r = refusal('mkdir-failed');
+  assert.deepStrictEqual(r, { ok: false, reason: 'mkdir-failed', hint: null });
+});
+
+test('refusal(): an explicit hint and other extra fields pass through unchanged', () => {
+  const r = refusal('move-failed', { lastError: 'boom', hint: 'boom' });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'move-failed');
+  assert.equal(r.hint, 'boom');
+  assert.equal(r.lastError, 'boom');
+});
+
+test('#1982: audit-untracked refusal\'s hint names its untracked files and the recovery step', () => {
+  const root = makeRepo();
+  const runId = '2026-08-30T090000-tidy-standalone';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(path.join(runDir, 'staged'), { recursive: true });
+  fs.writeFileSync(path.join(runDir, 'decisions.md'), '# decisions\n');
+  fs.writeFileSync(path.join(runDir, 'staged', 'proposal-1.md'), '# proposal\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.reason, 'audit-untracked');
+  assert.equal(typeof result.hint, 'string');
+  assert.match(result.hint, /decisions\.md/);
+  assert.match(result.hint, /staged/);
+  assert.match(result.hint, /sync this checkout with origin/);
+});
+
+test('#1982: a code-scan reason (e.g. tracked-entry) starts with hint: null — no invented prose', () => {
+  const root = makeRepo();
+  const runId = '2026-08-30T090000-tracked-entry';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/tracked-stray.md`, 'oops\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.reason, 'tracked-entry');
+  assert.strictEqual(result.hint, null);
+});
+
+test('#1982: archive-merged.js has no bare { ok: false, reason: … } literal outside refusal() — a source scan', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'reconcile', 'archive-merged.js'),
+    'utf8',
+  );
+  // refusal()'s own body returns `{ ok: false, reason, hint, ...extra }` —
+  // the bare `reason` shorthand, never `reason:` — so this pattern matches
+  // only a literal that bypasses the constructor. decideArchive's `{ action:
+  // 'skip', reason: … }` results are a deliberately different shape (never
+  // `ok: false`) and are not matched by this pattern either.
+  const bareLiteral = /\{\s*ok:\s*false,\s*reason:/;
+  assert.ok(
+    !bareLiteral.test(src),
+    'every { ok: false, reason: … } literal must go through refusal() instead of being constructed inline',
+  );
 });
