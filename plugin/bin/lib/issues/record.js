@@ -44,6 +44,9 @@ const LABELS = {
   // Read-side legacy fallback — PERMANENT cross-project support (other repos' records keep framing:baked labels, pre-rename); removable only at a major version that drops pre-rename repo support. [IL-85] Never emitted.
   FRAMING_BAKED: 'framing:baked',
   NEEDS_DEFINITION: 'needs:definition',
+  // Compatibility axis (#2251) — presence-only, like SOLUTION_UNJUSTIFIED. Read by
+  // bin/lib/release/subject.js's merge-subject composer (! suffix + BREAKING CHANGE footer).
+  BREAKING: 'breaking',
   DEMO_PENDING: 'demo:pending',
   DEMO_APPROVED: 'demo:approved',
   DEMO_CHANGES_REQUESTED: 'demo:changes-requested',
@@ -351,6 +354,10 @@ function parseRecordFacets(labels) {
     }
     if (name === LABELS.NEEDS_DEFINITION) {
       facets.needsDefinition = true;
+      continue;
+    }
+    if (name === LABELS.BREAKING) {
+      facets.breaking = true;
       continue;
     }
     if (name === LABELS.PARENT_ISSUE) {

@@ -4,7 +4,7 @@
 // style bin/lib/policy.js uses — the plugin ships zero runtime npm deps, so there
 // is no YAML library here. `facets` is a superset of record.js's parseRecordFacets
 // shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
-// risk, size, ceremony, solutionUnjustified, priority, stage, grants{build,merge}, bot{inProgress,
+// risk, size, ceremony, solutionUnjustified, breaking, priority, stage, grants{build,merge}, bot{inProgress,
 // blocked}, acceptance, isParentIssue — plus type, parent, blockedBy, unsynced, closed,
 // closedAt, which are local-files-only); the github driver's callers get
 // type/parent/blockedBy from the issue JSON itself, not from labels. No network calls.
@@ -126,6 +126,7 @@ function parseFrontmatterLines(fmLines) {
     if ((m = /^framing:\s*(true|false)$/.exec(line))) { legacyFramingFallback = m[1] === 'true'; continue; }
     if ((m = /^not-planned:\s*(true|false)$/.exec(line))) { facets.notPlanned = m[1] === 'true'; continue; }
     if ((m = /^needs-definition:\s*(true|false)$/.exec(line))) { facets.needsDefinition = m[1] === 'true'; continue; }
+    if ((m = /^breaking:\s*(true|false)$/.exec(line))) { facets.breaking = m[1] === 'true'; continue; }
     if ((m = /^priority:\s*(.+)$/.exec(line))) { facets.priority = m[1].trim(); continue; }
     if ((m = /^stage:\s*(.+)$/.exec(line))) { facets.stage = m[1].trim(); continue; }
     if ((m = /^closed:\s*(true|false)$/.exec(line))) { facets.closed = m[1] === 'true'; continue; }
@@ -207,6 +208,7 @@ function serializeFrontmatter(facets) {
   if (facets.size) lines.push(`size: ${facets.size}`);
   if (facets.ceremony) lines.push(`ceremony: ${facets.ceremony}`);
   if (facets.solutionUnjustified) lines.push('solution-unjustified: true');
+  if (facets.breaking) lines.push('breaking: true');
   if (facets.notPlanned) lines.push('not-planned: true');
   if (facets.needsDefinition) lines.push('needs-definition: true');
   if (facets.priority) lines.push(`priority: ${facets.priority}`);

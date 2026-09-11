@@ -238,7 +238,7 @@ function rec(number, facetOverrides = {}, extra = {}) {
   return {
     number,
     facets: {
-      origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false,
+      origin: null, risk: null, size: null, ceremony: null, solutionUnjustified: false, breaking: false,
       priority: null, stage: 'backlog',
       grants: { build: false, merge: false },
       bot: { inProgress: false, blocked: false },

@@ -22,7 +22,7 @@ test('writeRecord then readRecord round-trips facets, id, slug, title, and body'
   const dir = tmp(t);
   const filePath = path.join(dir, '14-bar.md');
   const facets = {
-    type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', solutionUnjustified: true, needsDefinition: false, priority: null,
+    type: 'feature', origin: 'capture', risk: 'medium', size: 'low', ceremony: 'fast-lane', solutionUnjustified: true, breaking: false, needsDefinition: false, priority: null,
     stage: 'parked', grants: { build: false, merge: false }, bot: { inProgress: false, blocked: false },
     parent: 12, isParentIssue: false, notPlanned: false, blockedBy: [12, 7], unsynced: true, acceptance: null, closed: false, closedAt: null,
   };
@@ -376,6 +376,22 @@ test('writeRecord writes solution-unjustified: true, readRecord reads it back, a
   const rawWithout = fs.readFileSync(withoutFlag, 'utf8');
   assert.ok(!/^solution-unjustified:/m.test(rawWithout));
   assert.strictEqual(readRecord(withoutFlag).facets.solutionUnjustified, false);
+});
+
+// breaking mirrors solutionUnjustified's presence-only convention (#2251): written
+// only when true, read as false when the line is absent.
+test('writeRecord writes breaking: true, readRecord reads it back, and a false value writes no line', (t) => {
+  const dir = tmp(t);
+  const withFlag = path.join(dir, '1-brk.md');
+  writeRecord(withFlag, { title: 'A', body: 'b', facets: baseFacets({ breaking: true }) });
+  const rawWith = fs.readFileSync(withFlag, 'utf8');
+  assert.ok(/^breaking: true$/m.test(rawWith));
+  assert.strictEqual(readRecord(withFlag).facets.breaking, true);
+
+  const withoutFlag = path.join(dir, '2-nobrk.md');
+  writeRecord(withoutFlag, { title: 'B', body: 'b', facets: baseFacets() });
+  assert.ok(!/^breaking:/m.test(fs.readFileSync(withoutFlag, 'utf8')));
+  assert.strictEqual(readRecord(withoutFlag).facets.breaking, false);
 });
 
 test('readRecord: legacy framing: true line reads as solutionUnjustified true (permanent read-side fallback)', (t) => {
