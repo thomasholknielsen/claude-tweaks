@@ -128,6 +128,8 @@ Procedure: `git status --porcelain --untracked-files=all`, diffed against the ca
 
 Never delete anything here — report only. A path under `{ctx-dir}` is a sibling agent's or the skill's own scratch output, not a leftover, and is excluded from the diff. A reviewer cannot distinguish its own dispatched agents' leftovers from a concurrent implementer's in-flight untracked work in the same worktree, so the controller — not this sweep — decides what happens to a reported file.
 
+**Agent-scratch cleanup check.** The `{ctx-dir}` exclusion above covers the skill's own scratch files (`lens-*.json`, `findings-by-lens.json`, the pre/post-fan-out status snapshots) — it does not exempt `{ctx-dir}/agent-scratch/**` from scrutiny, because the Scratch rule's "delete what it created before its status word" is a self-reported promise (`_shared/subagent-output-contract.md`) with no verification elsewhere. As part of this same sweep, run `find {ctx-dir}/agent-scratch -type f 2>/dev/null`: any file still present means a dispatched agent did not honor that promise. Report it exactly like an untracked leftover above — named in the `Fan-out leftovers` section, logged to `decisions.md`, and excluded as sole evidence for a `confirmed` finding — the only difference is the path lives under `agent-scratch/` instead of outside `{ctx-dir}`.
+
 ## Lens definitions (3a-3f)
 
 ### 3a: Convention Compliance

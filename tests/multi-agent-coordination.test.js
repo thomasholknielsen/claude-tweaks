@@ -904,6 +904,7 @@ test('the refutation template gains a SCRATCH line, the debate template does not
   const refutationStart = REVIEW_SKILL.indexOf('You are trying to FALSIFY this finding');
   assert.notStrictEqual(refutationStart, -1, 'refutation template must exist');
   const refutationEnd = REVIEW_SKILL.indexOf('[Use: Capable — refutation agent', refutationStart);
+  assert.notStrictEqual(refutationEnd, -1, 'refutation template end marker must exist');
   const refutationBlock = REVIEW_SKILL.slice(refutationStart, refutationEnd);
   assert.match(
     refutationBlock,
@@ -914,6 +915,7 @@ test('the refutation template gains a SCRATCH line, the debate template does not
   const debateStart = REVIEW_SKILL.indexOf('Two lenses disagreed on this region');
   assert.notStrictEqual(debateStart, -1, 'debate template must exist');
   const debateEnd = REVIEW_SKILL.indexOf('[Use: Frontier — debate agent', debateStart);
+  assert.notStrictEqual(debateEnd, -1, 'debate template end marker must exist');
   const debateBlock = REVIEW_SKILL.slice(debateStart, debateEnd);
   assert.doesNotMatch(
     debateBlock,
@@ -926,6 +928,7 @@ test('the gap-sweep template gains a SCRATCH line (#2022)', () => {
   const gapSweepStart = REVIEW_SKILL.indexOf('You are a fresh-eyes reviewer');
   assert.notStrictEqual(gapSweepStart, -1, 'gap-sweep template must exist');
   const gapSweepEnd = REVIEW_SKILL.indexOf('[Use: Frontier — gap-sweep agent', gapSweepStart);
+  assert.notStrictEqual(gapSweepEnd, -1, 'gap-sweep template end marker must exist');
   const gapSweepBlock = REVIEW_SKILL.slice(gapSweepStart, gapSweepEnd);
   assert.match(
     gapSweepBlock,
