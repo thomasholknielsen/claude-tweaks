@@ -34,6 +34,7 @@ After per-lens reproduction completes, scan for contradictions across lenses bef
 >
 >    [Use: Frontier — debate agent. Independent run; do not see the other judge's reasoning.
 >    Degrades per the resolver's preconditions (contract § Model Selection).]
+>    Read-only.
 >    ```
 
 4. **Resolve.** Apply `resolveDebate`:

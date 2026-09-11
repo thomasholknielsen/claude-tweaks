@@ -119,10 +119,10 @@ Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_
 
 ## Post-fan-out untracked-file sweep
 
-Run once per review, comparing against the pre-dispatch listing captured above (`{ctx-dir}/pre-dispatch-status.txt`) — never once per lens or per agent. At **`low`/`medium`** tier, this file's own Step 3 reproduction/single-read dispatch is the only fan-out this review runs (`step3-debate-and-refutation.md` never loads at these tiers) — run the sweep now, before returning to Step 3 Routing. At **`high` and above**, skip running it here — `step3-debate-and-refutation.md`'s own closing section runs it once, after Step 3.5/3.6, using this same pre-dispatch listing.
+Run once per review, comparing against the pre-dispatch listing captured above (`{ctx-dir}/pre-dispatch-status.txt`) — never once per lens or per agent. At **`low`/`medium`** tier, this file's own Step 3 reproduction/single-read dispatch is the only fan-out this review runs (`step3-debate-and-refutation.md` never loads at these tiers) — run the sweep now, before returning to Step 3 Routing. At **`high` and above**, skip running it here **only if `step3-debate-and-refutation.md` was actually loaded and read this run** — its own closing section runs the sweep once, after Step 3.5/3.6, using this same pre-dispatch listing. If, for any reason, that file was not loaded this run despite the tier resolving `high`+, run the sweep here instead rather than skipping it silently.
 
 Procedure: `git status --porcelain --untracked-files=all`, diffed against the captured pre-dispatch listing. Any new untracked path outside `{ctx-dir}` is:
-- reported by name in this step's summary,
+- reported by name in the review summary's `Fan-out leftovers` section (`review-summary-template.md`), rendered in the compact form too,
 - logged to `decisions.md`: `STAGED {HH:MM:SS} — Review fan-out left {n} untracked file(s): {paths}. Not deleted. Reversibility: n/a.`,
 - excluded from evidence a reviewer trusts — a finding whose only supporting evidence is one of these paths is downgraded to `unconfirmed`, with that reason noted in its entry.
 

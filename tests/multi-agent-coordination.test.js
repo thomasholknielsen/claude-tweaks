@@ -839,14 +839,22 @@ test('the CALIBRATION filter is byte-identical between criteria-review-quality.m
 });
 
 test('step3-lens-dispatch.md gives each dispatched lens agent a scratch path (#2022)', () => {
+  // Read step3-lens-dispatch.md directly rather than via the concatenated REVIEW_SKILL constant:
+  // step3-debate-and-refutation.md's refutation template carries a byte-identical
+  // "SCRATCH: {ctx-dir}/agent-scratch/{agent-id}" line, so matching against REVIEW_SKILL would
+  // still pass even if step3-lens-dispatch.md's own SCRATCH line were deleted.
+  const lensDispatch = fs.readFileSync(
+    path.join(__dirname, '..', 'plugin', 'skills', 'review', 'step3-lens-dispatch.md'),
+    'utf8',
+  );
   assert.match(
-    REVIEW_SKILL,
+    lensDispatch,
     /SCRATCH: \{ctx-dir\}\/agent-scratch\/\{agent-id\}/,
     'step3-lens-dispatch.md must give each dispatched lens agent a ' +
       'SCRATCH: {ctx-dir}/agent-scratch/{agent-id} line, minted per dispatch',
   );
-  const contractRef = REVIEW_SKILL.slice(
-    REVIEW_SKILL.indexOf('SCRATCH: {ctx-dir}/agent-scratch/{agent-id}'),
+  const contractRef = lensDispatch.slice(
+    lensDispatch.indexOf('SCRATCH: {ctx-dir}/agent-scratch/{agent-id}'),
   );
   assert.match(
     contractRef.slice(0, 400),
@@ -955,5 +963,23 @@ test('step3-routing.md\'s post-dispatch diff audit names the post-fan-out sweep 
     /post-fan-out (untracked-file )?sweep/i,
     'the post-dispatch diff audit paragraph must name the post-fan-out sweep ' +
       '(step3-lens-dispatch.md) as its sibling — one rule applied at two points',
+  );
+});
+
+test('review-summary-template.md has a Fan-out leftovers slot, full and compact (#2022)', () => {
+  const summaryTemplate = fs.readFileSync(
+    path.join(__dirname, '..', 'plugin', 'skills', 'review', 'review-summary-template.md'),
+    'utf8',
+  );
+  assert.match(
+    summaryTemplate,
+    /### Fan-out leftovers/,
+    'the full template must carry a "### Fan-out leftovers" section for the post-fan-out ' +
+      'sweep\'s reported paths (step3-lens-dispatch.md)',
+  );
+  assert.match(
+    summaryTemplate,
+    /Fan-out leftovers 0/,
+    'the compact-form clean-PASS block must carry a "Fan-out leftovers 0" status fact',
   );
 });
