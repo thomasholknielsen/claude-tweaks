@@ -11,6 +11,7 @@ const RECORDS = {
   2262: { number: 2262, title: "It's quoted", body: '## Overview\n\nHas a quote.\n', labels: [{ name: 'type:bug' }], issueType: null },
   2263: { number: 2263, title: 'No type', body: '## Overview\n\nNo type label.\n', labels: [{ name: 'ready' }], issueType: null },
   2264: { number: 2264, title: 'Breaking, no section', body: '## Overview\n\nOops.\n', labels: [{ name: 'type:feature' }, { name: 'breaking' }], issueType: null },
+  2265: { number: 2265, title: 'Unrecognized native type', body: '## Overview\n\nEpic-typed but stale-labeled.\n', labels: [{ name: 'type:feature' }], issueType: { name: 'Epic' } },
 };
 
 function fakeDeps({ records = RECORDS, ghAvailable = () => true, remoteUrl = () => 'git@github.com:acme/repo.git', failView = false } = {}) {
@@ -77,12 +78,42 @@ test('native issueType wins over a type:* label', () => {
   assert.equal(JSON.parse(out.stdout).title, 'fix: Native-typed (#2261)');
 });
 
-test('--shell prints eval-able single-quoted assignments with embedded quotes escaped', () => {
+test('an unrecognized native issueType is decided from it alone — no fallback to a stale type:* label', () => {
+  const { deps, out } = fakeDeps();
+  assert.equal(run(['2265'], deps), 1);
+  assert.match(out.stderr, /type must be one of/);
+});
+
+test('--shell prints two eval-able sh assignments; a real eval round-trip recovers title and body verbatim', () => {
+  const { deps: jsonDeps, out: jsonOut } = fakeDeps();
+  assert.equal(run(['2262'], jsonDeps), 0, jsonOut.stderr);
+  const jsonComposed = JSON.parse(jsonOut.stdout);
+
   const { deps, out } = fakeDeps();
   assert.equal(run(['2262', '--shell'], deps), 0, out.stderr);
   const lines = out.stdout.trimEnd().split('\n');
   assert.equal(lines[0], "SUBJECT_TITLE='fix: It'\\''s quoted (#2262)'");
-  assert.ok(lines[1].startsWith("SUBJECT_BODY='Has a quote."));
+  // Exactly two eval-able sh assignments, not exactly two physical lines: SUBJECT_BODY='...'
+  // appears exactly once, and this fixture's body itself spans several physical lines —
+  // proving the contract is "two assignments", never "two lines".
+  assert.ok(out.stdout.startsWith('SUBJECT_TITLE='));
+  const bodyAt = out.stdout.indexOf('\nSUBJECT_BODY=');
+  assert.ok(bodyAt > 0, 'SUBJECT_BODY= assignment not found on its own line');
+  assert.equal(out.stdout.indexOf('\nSUBJECT_BODY=', bodyAt + 1), -1, 'SUBJECT_BODY= must appear exactly once');
+  assert.ok(lines.length > 2, 'this fixture must actually exercise the multi-physical-line body case');
+
+  const result = require('child_process').spawnSync(
+    'sh',
+    ['-c', 'eval "$1"; printf "%s\n---\n%s" "$SUBJECT_TITLE" "$SUBJECT_BODY"', '_', out.stdout],
+    { encoding: 'utf8' },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const [recoveredTitle, recoveredBody] = result.stdout.split('\n---\n');
+  assert.equal(recoveredTitle, "fix: It's quoted (#2262)");
+  assert.equal(recoveredBody, 'Has a quote.\n\nFixes #2262');
+  assert.equal(recoveredTitle, jsonComposed.title);
+  assert.equal(recoveredBody, jsonComposed.body);
+
   assert.equal(shellQuote("a'b"), "'a'\\''b'");
 });
 

@@ -10,8 +10,10 @@
 // Usage: compose-subject.js <n>[,<m>...] [<k>...] [--repo owner/name] [--tag <tag>] [--shell] [--help]
 // Numbers may be comma-joined and/or space-separated; the subject record is
 // the lowest number, and the body carries one `Fixes #n` line per number.
-// Output: JSON {"title","body"} by default; `--shell` prints SUBJECT_TITLE='…'
-// and SUBJECT_BODY='…' (single-quoted, ' escaped as '\'') for `eval "$(…)"`.
+// Output: JSON {"title","body"} by default; `--shell` prints two POSIX sh
+// assignments, SUBJECT_TITLE='…' then SUBJECT_BODY='…' (single-quoted, '
+// escaped as '\''); the body value spans physical lines, so consume it with
+// `eval "$(…)"`, never by line splitting.
 // Exit codes (Split-1/2, mirroring bin/resolve-blockers.js): 0 composed; 1
 // malformed invocation OR a record that cannot be composed (no resolvable
 // Type, `breaking` label with no ## Breaking Change section — the composer's
@@ -85,7 +87,7 @@ function typeOf(record) {
   const native = record.issueType;
   if (native && typeof native === 'object' && typeof native.name === 'string') {
     const name = native.name.toLowerCase();
-    if (RECOGNIZED_TYPES.includes(name)) return name;
+    return RECOGNIZED_TYPES.includes(name) ? name : null;
   }
   const names = (Array.isArray(record.labels) ? record.labels : []).map((l) => (typeof l === 'string' ? l : l && l.name)).filter(Boolean);
   for (const t of RECOGNIZED_TYPES) if (names.includes(`type:${t}`)) return t;
