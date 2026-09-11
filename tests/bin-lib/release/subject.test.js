@@ -76,3 +76,13 @@ test('truncation: a single over-long word is hard-cut rather than reduced to the
   assert.ok(title.length <= SUBJECT_BUDGET);
   assert.match(title, /^chore: x+… \(#12\)$/);
 });
+
+test('truncation: trailing punctuation is trimmed when the word-boundary cut lands right after it', () => {
+  // The word before the dropped tail ends in a comma ("bug,"), so the untrimmed cut would end
+  // "...bug,… (#1)" — a bare .replace trim proves it strips the comma before the ellipsis.
+  const title = 'word '.repeat(5) + 'bug,' + ' ' + 'y'.repeat(50);
+  const { title: subject } = composeSubject({ type: 'bug', title, number: 1 });
+  assert.ok(!subject.includes(',…'), subject);
+  assert.ok(subject.length <= SUBJECT_BUDGET, `${subject.length} > 72: ${subject}`);
+  assert.ok(subject.endsWith(' (#1)'), subject);
+});
