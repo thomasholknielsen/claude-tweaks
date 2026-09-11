@@ -68,13 +68,9 @@ companion line, mirroring this file's own dual-marker scheme) rather than restat
 
 ### Step 1: Resolve identity and check for an existing PR
 
-Resolve `{host}`/`{owner}`/`{repo}` once: `gh repo view --json nameWithOwner,url` —
-`{owner}/{repo}` from `nameWithOwner`, `{host}` from the returned `url`'s authority. Every
-`--repo` in this file is the host-qualified `{host}/{owner}/{repo}` form `gh` accepts — a bare
-`OWNER/REPO` value is resolved against `gh`'s default host, `github.com`, regardless of which
-host the checkout's remote actually points at. Then check `run-state.json`'s own `pr` field
-first (a resumed run already recorded one) — if present, skip straight to "Resume: reconcile a
-recorded PR" below instead of re-deriving from scratch.
+Resolve `{host}/{owner}/{repo}` once: `gh repo view --json nameWithOwner,url`. Then check
+`run-state.json`'s `pr` field first (a resumed run already recorded one) — if present, skip
+straight to "Resume: reconcile a recorded PR" below instead of re-deriving from scratch.
 
 No recorded `pr` field: check GitHub directly before creating anything, so a resumed or retried
 run against the same branch never duplicates:

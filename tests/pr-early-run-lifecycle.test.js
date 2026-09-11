@@ -57,11 +57,7 @@ test('run start checks for an existing PR by state before creating one, and dist
 });
 
 test('identity resolution is host-qualified, so every --repo in this file works on GitHub Enterprise (#2021)', () => {
-  assert.match(LIFECYCLE, /Resolve `\{host\}`\/`\{owner\}`\/`\{repo\}` once: `gh repo view --json nameWithOwner,url`/);
-  assert.match(
-    LIFECYCLE,
-    /a bare\s*\n?\s*`OWNER\/REPO` value is resolved against `gh`'s default host, `github\.com`/s,
-  );
+  assert.match(LIFECYCLE, /Resolve `\{host\}\/\{owner\}\/\{repo\}` once: `gh repo view --json nameWithOwner,url`/);
   assert.match(LIFECYCLE, /gh pr create --repo \{host\}\/\{owner\}\/\{repo\} --draft --base \{integration-branch\}/);
   assert.doesNotMatch(
     LIFECYCLE,
