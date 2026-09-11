@@ -59,10 +59,10 @@ DISPATCH_DEP_NUMBERS=$(node -e "
   console.log(depOnly.map((i) => i.number).join(','));
 " "$DISPATCH_QUEUE_RAW")
 echo '[]' > "$DISPATCH_DEP_FRESHNESS"
-# Cache-hit default: a cache hit reuses persisted.groups, which already
-# reflects whatever bundling ran when that cache entry was written -- this
-# file is only re-derived on a cache miss (below), so default it to empty
-# here rather than leaving it stale or missing on a hit.
+# Cache-hit default: computed before cache-hit/miss is known, so this is
+# only the pre-computation placeholder -- the CACHE_HIT node -e block below
+# overwrites it with persisted.bundles (#2066) once it confirms a hit; a
+# cache miss re-derives it from scratch further down instead.
 echo '[]' > "$DISPATCH_FASTLANE_BUNDLES"
 if [ -n "$DISPATCH_DEP_NUMBERS" ]; then
   gh issue list --search "$(echo "$DISPATCH_DEP_NUMBERS" | tr ',' ' ' | sed 's/[0-9][0-9]*/#&/g')" --state all --json number,updatedAt,state --limit 500 > "$DISPATCH_DEP_FRESHNESS" 2>/dev/null || echo '[]' > "$DISPATCH_DEP_FRESHNESS"
@@ -84,8 +84,12 @@ CACHE_HIT=$(node -e "
   const { partitionGroupsBySizeGuard } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/grouping.js');
   const { oversized, threshold } = partitionGroupsBySizeGuard(persisted.groups, { groupSizeGuard });
   fs.writeFileSync(process.argv[6], JSON.stringify(oversized.map((g) => ({ records: g.map((i) => i.number), size: g.length, threshold }))));
+  // #2066: a cache hit's persisted bundle membership replaces the
+  // pre-computation '[]' default above -- a persisted record from before
+  // this field existed has no `bundles` key, so this falls back to [].
+  fs.writeFileSync(process.argv[7], JSON.stringify(persisted.bundles || []));
   console.log('1');
-" "$DISPATCH_QUEUE_RAW" "$DISPATCH_DEP_FRESHNESS" "$DISPATCH_GROUPS" "$DISPATCH_BLOCKED_EXCLUDED" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-group-size-guard)" "$DISPATCH_OVERSIZED_EXCLUDED")
+" "$DISPATCH_QUEUE_RAW" "$DISPATCH_DEP_FRESHNESS" "$DISPATCH_GROUPS" "$DISPATCH_BLOCKED_EXCLUDED" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-group-size-guard)" "$DISPATCH_OVERSIZED_EXCLUDED" "$DISPATCH_FASTLANE_BUNDLES")
 
 if [ "$CACHE_HIT" = "1" ]; then
   echo "Queue-order cache hit — using persisted groups/excluded, skipping dependency verification and native blocker query (#1571)." >&2
@@ -210,15 +214,16 @@ node -e "
   const depFreshness = require(process.argv[2]);
   const groups = require(process.argv[3]);
   const excluded = require(process.argv[4]);
+  const bundles = require(process.argv[5]);
   const freshnessSignal = buildFreshnessSignal([...autoBuild, ...depFreshness]);
   const blob = composeOrderBlob({
     computedAt: new Date().toISOString(),
     runId: process.env.PIPELINE_RUN_DIR ? path.basename(process.env.PIPELINE_RUN_DIR) : null,
-    freshnessSignal, groups, excluded,
+    freshnessSignal, groups, excluded, bundles,
   });
   const result = writeOrder(root, blob);
   if (!result.ok) console.error('Queue-order cache write-back failed (non-blocking): ' + result.error);
-" "$DISPATCH_QUEUE_RAW" "$DISPATCH_DEP_FRESHNESS" "$DISPATCH_GROUPS" "$DISPATCH_BLOCKED_EXCLUDED"
+" "$DISPATCH_QUEUE_RAW" "$DISPATCH_DEP_FRESHNESS" "$DISPATCH_GROUPS" "$DISPATCH_BLOCKED_EXCLUDED" "$DISPATCH_FASTLANE_BUNDLES"
 
 fi
 
