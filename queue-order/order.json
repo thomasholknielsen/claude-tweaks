@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T19:39:11.618Z",
+  "computedAt": "2026-09-11T20:28:56.548Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -81,11 +81,6 @@
       {
         "number": 2031,
         "updatedAt": "2026-09-11T04:16:01Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2030,
-        "updatedAt": "2026-09-11T04:16:04Z",
         "state": "OPEN"
       },
       {
@@ -1012,100 +1007,6 @@
         "state": "OPEN",
         "title": "ports/ensure.js reads and parses .env.local's managed region twice per call",
         "updatedAt": "2026-09-11T04:16:01Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n`plugin/bin/lib/timing/derive.js` attributes a `skill_invoked` event to a phase by name: a `claude-tweaks:*` skill that is one of the ten `PHASES` opens that phase, a skill listed in `NESTED_PARENT` (`simplify`, `reflect`, `visual-review`, `capture`, `design-wrapper`, `challenge`, `assess-agent-autonomy`, `ledger`, `journeys`, all mapped to `'enclosing'`) attributes to the phase that is already open, and — by the file's own comment — \"an un-mapped `claude-tweaks:*` skill_invoked event opens a new top-level phase named after the skill\", so that \"a maintainer adding a new nested-skill call site inside review/wrap-up/build must add its name here, or every run will grow a spurious top-level phase.\" Nothing enforces that sentence. The only test touching the roster is `tests/bin-lib/timing/derive.test.js`'s `NESTED_PARENT.journeys === 'enclosing'` pin. The sibling roster for ceremony skip tags is pinned by `tests/ceremony-profile-roster.test.js`, which walks `plugin/skills/**` and asserts every fast-lane skip mention in the corpus carries a rostered tag — the shape this record asks for.\n\n## Deliverables\n- [ ] `tests/timing-nested-parent-roster.test.js`: walks the phase-skill directories (`build`, `test`, `review`, `design-wrapper`, `wrap-up`, `flow`, and their `_shared/` contracts) and collects every `/claude-tweaks:{name}` invocation that appears *outside* a `## Next Actions` block (Next Actions lines are human launchers, not nested Skill-tool calls) and outside fenced code blocks that render commands for a human; each collected `{name}` must be a `PHASES` member, a `NESTED_PARENT` key, or on a small, commented allowlist of skills that are named descriptively but never invoked from a phase (e.g. `specify` cited as the upstream, `sweep` as the orchestrator). The assertion message names the file, line, and skill so the fix is one roster entry.\n- [ ] A second assertion in the same file: every `NESTED_PARENT` key is invoked somewhere in that scan, so a stale entry (a nested skill that no phase skill calls any more) is reported rather than carried forever.\n- [ ] A comment on `NESTED_PARENT` pointing at the test by name, replacing the \"must add its name here\" sentence's implicit trust with the explicit pin.\n- [ ] The existing `derive.test.js` pin stays; `npm test` picks the new file up via the recursive glob (no registration).\n\n## Acceptance Criteria\n1. Deleting any current `NESTED_PARENT` key makes the new test fail naming a real call site in the corpus (each of the nine keys is exercised).\n2. Adding a `/claude-tweaks:{new}` invocation inside a phase skill's step body without a roster entry makes the test fail with file, line, and skill name; adding the entry makes it pass.\n3. A `/claude-tweaks:{name}` under a `## Next Actions` heading or inside a human-facing fenced command block does not trip the test.\n4. The test passes on the current corpus; `npm test` is green.\n\n## Technical Approach\nScan the corpus the way the ceremony roster test does (walk `plugin/skills`, read each file, regex per line) rather than parsing `docs/skill-graph.md`: the graph rows are prose and describe every relationship kind, while the timing roster cares only about what a phase skill *invokes* mid-phase, which is exactly what the phase directories' step bodies say. The `## Next Actions` exclusion is the load-bearing heuristic — every phase skill ends with a launcher block naming skills it does not invoke — so the scanner tracks the current `##` heading while walking lines. The stale-key assertion is the half the ceremony test lacks and the cheap half to add, since the scan already produces the invoked set.\n\n### Key Files\n- `plugin/bin/lib/timing/derive.js` — `PHASES`, `NESTED_PARENT`, `isTopLevel`, the roster comment.\n- `tests/ceremony-profile-roster.test.js` — the corpus-walk template (`walk`, per-line regex, heading tracking).\n- `tests/bin-lib/timing/derive.test.js` — existing pin (unchanged).\n- `plugin/skills/{build,test,review,design-wrapper,wrap-up,flow}/**` and `plugin/skills/_shared/**` — the scanned corpus.\n\n## Gotchas\n- `skill_invoked` events exist only for model-initiated Skill calls, so a skill a phase names only in prose (\"see `/claude-tweaks:specify`\") never produces an event; that is why the scan needs an allowlist for descriptive mentions and why the allowlist must stay short and commented — a growing allowlist is the roster problem moved.\n- `PHASES` names (`test`, `review`, `polish`, `wrap-up`) are themselves skills invoked by `/flow`; they are top-level by design and must be excluded from the nested check, not added to `NESTED_PARENT`.\n- `design-wrapper` is invoked as the `polish` phase by `/flow` (top-level there) and as a nested call from `/review` (Step 3.8 craft critics); `NESTED_PARENT` maps it to `'enclosing'` and `derive.js` resolves the polish phase separately — the test asserts roster membership only, never phase semantics.\n- Keep the scan to the phase directories; `backlog`, `tidy`, and `sweep` invoke many skills but never run inside a timed pipeline phase.\n\n## Original request\nFound by the pre-v6.119.0 whole-branch review (range e7d6d9331..4db32e020).\n\nDefer-reason: tangential\n\n",
-        "createdAt": "2026-09-07T10:32:06Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACq41dsw",
-            "name": "backlog:category-technical",
-            "description": "technical-category backlog item",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 2030,
-        "state": "OPEN",
-        "title": "timing/derive.js's NESTED_PARENT roster has no corpus-scanning conformance test",
-        "updatedAt": "2026-09-11T04:16:04Z",
         "facets": {
           "origin": null,
           "risk": "low",
