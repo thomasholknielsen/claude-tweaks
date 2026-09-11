@@ -899,8 +899,8 @@ test('the refutation template gains a SCRATCH line, the debate template does not
   const refutationBlock = REVIEW_SKILL.slice(refutationStart, refutationEnd);
   assert.match(
     refutationBlock,
-    /SCRATCH: \{ctx-dir\}\/agent-scratch\//,
-    'the refutation template must carry a SCRATCH: {ctx-dir}/agent-scratch/... line before its [Use: ...] tag',
+    /SCRATCH: \{ctx-dir\}\/agent-scratch\/\{agent-id\}/,
+    'the refutation template must carry a SCRATCH: {ctx-dir}/agent-scratch/{agent-id} line before its [Use: ...] tag',
   );
 
   const debateStart = REVIEW_SKILL.indexOf('Two lenses disagreed on this region');
@@ -921,8 +921,14 @@ test('the gap-sweep template gains a SCRATCH line (#2022)', () => {
   const gapSweepBlock = REVIEW_SKILL.slice(gapSweepStart, gapSweepEnd);
   assert.match(
     gapSweepBlock,
-    /SCRATCH: \{ctx-dir\}\/agent-scratch\//,
-    'the gap-sweep template must carry a SCRATCH: {ctx-dir}/agent-scratch/... line before its [Use: ...] tag',
+    /SCRATCH: \{ctx-dir\}\/agent-scratch\/gap-sweep\b/,
+    'the gap-sweep template must carry a SCRATCH: {ctx-dir}/agent-scratch/gap-sweep line before its [Use: ...] tag',
+  );
+  assert.doesNotMatch(
+    gapSweepBlock,
+    /\{agent-id\}/,
+    'the gap-sweep SCRATCH line must use the fixed literal "gap-sweep" suffix, not {agent-id} — ' +
+      'gap-sweep is always a single dispatch, unlike per-lens/per-candidate agents',
   );
 });
 
