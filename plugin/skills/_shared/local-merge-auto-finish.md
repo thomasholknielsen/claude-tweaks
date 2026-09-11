@@ -111,7 +111,8 @@ it literally into the next call; never carry it in a shell variable across calls
    ends in an explicit, logged outcome.
 
    ```bash
-   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue} --tag auto-finish --shell)"
+   SUBJECT_EXPORTS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue} --tag auto-finish --shell) || exit 1
+   eval "$SUBJECT_EXPORTS"
    git merge --no-ff {feature-branch} -m "$SUBJECT_TITLE
 
 $SUBJECT_BODY"

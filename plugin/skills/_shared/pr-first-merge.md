@@ -174,7 +174,7 @@ must not lean on it. That is why the pending column below keys on `mergeStateSta
 | Value | Green | Pending | Red |
 |---|---|---|---|
 | `merge-when-green` | Step 3 as written — arm/merge (identical outcome when checks are already green) | `mergeStateStatus: BLOCKED` → Step 3 as written — arm `--auto` (the forge holds it; outcome `armed`). Any other value (`CLEAN`, `UNSTABLE`, `BEHIND`, `UNKNOWN`, …) → arming would merge immediately: **degrade to the `wait` row** — never to an immediate merge | Red path |
-| `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`); if `headRefOid` changed since the first read or `state` is no longer `OPEN`, re-enter this step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`) — never merge blind; otherwise merge via Step 3's immediate `--squash` form | **Bounded watch** below | Red path |
+| `wait` | Re-read (`gh pr view … --json state,mergeStateStatus,headRefOid`); if `headRefOid` changed since the first read or `state` is no longer `OPEN`, re-enter this step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`) — never merge blind; otherwise merge via Step 3's immediate `--squash` form (re-run its composer call first) | **Bounded watch** below | Red path |
 | `off` | Step 3 as written (today's behavior, unchanged) | Step 3 as written (today's behavior — this is the #540-shaped race the lever exists to close; a repo derives `off` only when it has no PR CI or a non-default integration branch, `_shared/policy-schema-coverage.md`'s coverage block) | Step 3 as written; the red read is logged for the summary |
 
 **Bounded watch (`wait`, and `merge-when-green` when arming would not hold) — 15 minutes, fixed.**
@@ -202,7 +202,7 @@ done
 - `RC=0` → **green**: re-read state (`gh pr view … --json state,mergeStateStatus,headRefOid`); if
   `headRefOid` changed since the first read (a new push landed) or `state` is not `OPEN`, re-enter this
   step from the top (one re-entry; a second change reports `pending-review`, reason `moving-target`)
-  — never merge blind; otherwise merge via Step 3's immediate `--squash` form (outcome `merged`,
+  — never merge blind; otherwise merge via Step 3's immediate `--squash` form (re-run its composer call first) (outcome `merged`,
   then Step 4).
 - `RC=1` (a check failed during the watch) → **Red path**, reason `check-failed:{names}` (names from
   the `fail` rows of `/tmp/pr-checks-{n}.txt`).
@@ -273,7 +273,8 @@ merge (capture (a)), so the confirmation itself carries the choice: wait for gre
 **Creation-time caller:** `tidy/SKILL.md`'s Step 7.5 `pr-first` branch invokes only this step's initial `gh pr merge --auto` call at PR-creation time, with the degrade chain below replaced by leave-unarmed + report — see that step's own text for the full routing.
 
 ```bash
-eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue-list} --tag {tag} --shell)"
+SUBJECT_EXPORTS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue-list} --tag {tag} --shell) || exit 1
+eval "$SUBJECT_EXPORTS"
 gh pr merge {pr-number} --repo {owner}/{repo} --auto --squash \
   -t "$SUBJECT_TITLE" -b "$SUBJECT_BODY"
 ```
@@ -284,13 +285,11 @@ label, or `manifesto-authorized` for the same short-circuit triggered instead by
 `merge-authorization` Manifesto lever with no label present (`wrap-up/review-console.md`,
 `wrap-up/manifesto-authorized-merge.md`) — preserving all three tags' meanings — `/help`'s
 auto-merged-this-week metric (`_shared/github-pr-scan.md` `triage-queue` item 3) keys on all
-three. `{issue-list}` is the record number(s) — the manifest's `complete` specs only for a bundle
-(#2015; rest release via their own `never-started:`/`abandoned:` reason). The composer
-(`bin/compose-subject.js` → `bin/lib/release/subject.js`) writes a Conventional-Commits subject
-(`feat`/`fix`/`chore` from Type, `!` + `BREAKING CHANGE:` footer from the `breaking` label) and
-one `Fixes #{n}` body line per record — the PR body's set, restated in the merge commit
-because GitHub only auto-closes from a merge commit's message on a non-default integration
-branch. `--squash` keeps the integration branch to one conventional commit per PR.
+three. `{issue-list}` is the record numbers — the manifest's `complete` specs only for a bundle
+(#2015; rest release via their own `never-started:`/`abandoned:` reason). The composer writes
+the Conventional-Commits subject and one `Fixes #{n}` line per record, restated in the merge
+commit since GitHub only auto-closes from its message on a non-default integration branch.
+`--squash` keeps one conventional commit per PR.
 
 **This call always either arms or performs the merge — `--auto` never blocks or polls.** Classify
 the result:
@@ -306,6 +305,8 @@ the result:
      behavior):
 
      ```bash
+     SUBJECT_EXPORTS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue-list} --tag {tag} --shell) || exit 1
+     eval "$SUBJECT_EXPORTS"
      gh pr merge {pr-number} --repo {owner}/{repo} --squash \
        -t "$SUBJECT_TITLE" -b "$SUBJECT_BODY"
      ```

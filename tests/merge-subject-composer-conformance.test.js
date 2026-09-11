@@ -35,7 +35,7 @@ const PRE_WORKTREE_MERGE_SITE = `   git merge --no-ff {branch} -m "Merge {branch
    Fixes #{issue}
    Fixes #{second-issue}"`;
 
-const COMPOSER_CALL = /eval "\$\(node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/compose-subject\.js" [^\n]*--shell\)"/;
+const COMPOSER_CALL = /SUBJECT_EXPORTS=\$\(node "\$\{CLAUDE_PLUGIN_ROOT\}\/bin\/compose-subject\.js" [^\n]*--shell\) \|\| exit 1\n[ \t]*eval "\$SUBJECT_EXPORTS"/;
 const LOCAL_MERGE_FORM = /git merge --no-ff \{[a-z-]+\} -m "\$SUBJECT_TITLE\n\n\$SUBJECT_BODY"/;
 const STALE_LOCAL_FORM = /git merge --no-ff \{[a-z-]+\} -m "(\[|Merge \{branch\})/;
 const STALE_PR_FIRST_FORM = /gh pr merge \{pr-number\}[^\n]*--merge \\/;
@@ -45,6 +45,11 @@ test('pr-first-merge.md: both gh pr merge sites squash and take the composer out
   const squashSites = text.match(/gh pr merge \{pr-number\} --repo \{owner\}\/\{repo\} (--auto )?--squash \\\n\s+-t "\$SUBJECT_TITLE" -b "\$SUBJECT_BODY"/g) || [];
   assert.equal(squashSites.length, 2, 'expected exactly two squash merge sites');
   assert.match(text, COMPOSER_CALL);
+  // F1: the degrade fence (the `--squash` site under `merge-verification: off`) no longer relies
+  // on the first fence's shell state surviving into its own, separate Bash call — it guards its
+  // own composer call, same as the first fence.
+  const composerCalls = text.match(new RegExp(COMPOSER_CALL.source, 'g')) || [];
+  assert.equal(composerCalls.length, 2, 'expected both squash sites to run their own guarded composer call');
   assert.doesNotMatch(text, STALE_PR_FIRST_FORM);
   assert.doesNotMatch(text, /-t "\[\{tag\}\] \{one-line summary\}"/);
   // go-red proof

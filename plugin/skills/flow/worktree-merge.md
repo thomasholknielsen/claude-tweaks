@@ -60,7 +60,8 @@ For each completed branch (in order):
    issue (see "Close-via-merge" in `_shared/issue-claims.md`):
 
    ```bash
-   eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue} {second-issue} --shell)"
+   SUBJECT_EXPORTS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue} {second-issue} --shell) || exit 1
+   eval "$SUBJECT_EXPORTS"
    git merge --no-ff {branch} -m "$SUBJECT_TITLE
 
 $SUBJECT_BODY"
