@@ -74,6 +74,38 @@ test('ensure: a bound port with a current region keeps the lease (assumed to be 
   }
 });
 
+// #2031 AC1: on the existing-lease-not-free branch (the same branch the test
+// above exercises), ensure() must read .env.local at most once for the
+// managed-region check — regionBefore's own read, never a second independent
+// read+parse inside the isRegionCurrent/regionIsCurrent call.
+test('ensure: reads .env.local at most once for the managed-region check on the existing-lease-not-free branch', async () => {
+  const home = tmpHome();
+  const checkout = tmpCheckout(home, 'read-count');
+  const first = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout, probe: async () => true });
+  assert.equal(first.reallocated, null);
+
+  const envPath = path.join(checkout, '.env.local');
+  const server = await listenOn(first.base);
+  try {
+    const originalReadFileSync = fs.readFileSync;
+    let envLocalReads = 0;
+    fs.readFileSync = function patched(target, ...rest) {
+      if (typeof target === 'string' && target === envPath) envLocalReads += 1;
+      return originalReadFileSync.call(fs, target, ...rest);
+    };
+    let second;
+    try {
+      second = await ensure(checkout, { home, policyServices: ['web'], resolveRoot: () => checkout });
+    } finally {
+      fs.readFileSync = originalReadFileSync;
+    }
+    assert.equal(second.reallocated, null);
+    assert.equal(envLocalReads, 1, '.env.local should be read exactly once for the managed-region check');
+  } finally {
+    server.close();
+  }
+});
+
 // AC5: lease present, a port bound, and the region is absent -> reallocate.
 test('ensure: a bound port with no managed region reallocates to a fresh block', async () => {
   const home = tmpHome();
