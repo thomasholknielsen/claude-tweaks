@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T16:20:54.130Z",
+  "computedAt": "2026-09-11T16:53:40.181Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -110,7 +110,7 @@
       },
       {
         "number": 2021,
-        "updatedAt": "2026-09-11T04:16:11Z",
+        "updatedAt": "2026-09-11T16:23:26Z",
         "state": "OPEN"
       },
       {
@@ -125,7 +125,7 @@
       },
       {
         "number": 1981,
-        "updatedAt": "2026-09-11T04:16:22Z",
+        "updatedAt": "2026-09-11T16:23:20Z",
         "state": "OPEN"
       },
       {
@@ -1216,192 +1216,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n`_shared/pr-run-comments.md`'s post-or-update procedure resolves `{owner}/{repo}` once with `gh repo view --json nameWithOwner` and then passes it as `--repo {owner}/{repo}` to `gh pr view … --json comments` (find), `gh pr comment` (create), and runs `gh api graphql` with no host (update). `gh repo view` works on a GitHub Enterprise Server checkout because it reads the remote, but a bare `OWNER/REPO` value handed to `--repo` is resolved by `gh` against its default host, `github.com`, unless `GH_HOST` is set or the value carries the host as `HOST/OWNER/REPO`; `gh api` likewise targets `github.com` unless `--hostname` is given. On a GHE host the find step therefore queries the wrong server, returns nothing, and the procedure takes the create branch every time — a second review in the same run posts a duplicate verdict instead of updating the first, the exact duplicate the \"One comment per kind per run\" rule exists to prevent. The reporter confirmed the shape: `gh api repos/{owner}/{repo}/issues/{n}/comments` without `--hostname` 404s against github.com, while the same call with `--hostname {ghe-host}` lists the comment.\n\nThe reporter's suggestion (fall back to REST, store the numeric id, PATCH) treats the symptom; the cause is the missing host in every `gh` call the procedure makes. `gh api graphql` and `updateIssueComment` are available on GHE, so the GraphQL path can stay once the host is supplied. The same `github.com` assumption also sits in `bin/lib/repo-resolve.js`'s `parseRepo` regex (`/github\\.com[:/]…/`), used by twelve `bin/` CLIs to derive `{owner, repo}` from `origin`; on a GHE remote every one of them reports \"could not resolve owner/repo\". That is a wider gap than this record and is split out below.\n\n## Deliverables\n- [ ] `_shared/pr-run-comments.md` Step 1 resolves the host together with the name: `gh repo view --json nameWithOwner,url` → `{host}` from the URL's authority and `{owner}/{repo}` from `nameWithOwner`; every `--repo` in the procedure becomes `--repo {host}/{owner}/{repo}` (the `HOST/OWNER/REPO` form `gh` accepts), and the `gh api graphql` update call gains `--hostname {host}`. On `github.com` the rendered commands are equivalent to today's.\n- [ ] `_shared/pr-early-run-lifecycle.md`'s own \"Resolve `{owner}/{repo}` once\" paragraph (the same `nameWithOwner` idiom feeding its `gh pr create`/`gh pr edit` calls) is updated the same way, so the draft-PR lifecycle and the comment procedure agree on one resolution; `backlog/refine-headless.md`'s `gh search issues --repo \"$(gh repo view --json nameWithOwner -q .nameWithOwner)\"` line gets the same host-qualified value (the third and last `nameWithOwner` + `--repo` pairing in `plugin/skills/`; `feedback/SKILL.md`'s use is a self-reference comparison, not a `--repo` argument, and stays).\n- [ ] A one-line note in the procedure that `gh`'s bare `OWNER/REPO` defaults to `github.com`, so a host-less `--repo` is a github.com-only form — the fact that makes the change self-explaining.\n- [ ] `tests/pr-run-comments.test.js`: the `gh pr view {pr-number} --repo {owner}/{repo} --json comments` pin is updated to the `{host}/{owner}/{repo}` form and a new pin asserts `--hostname {host}` on the GraphQL update; `tests/pr-early-run-lifecycle.test.js` gains a matching pin (it has none on this paragraph today).\n- [ ] `parseRepo`'s `github.com` hard-coding (`bin/lib/repo-resolve.js`, twelve callers) is filed as its own record via `/claude-tweaks:capture` — \"repo-resolve.js: parseRepo rejects non-github.com remotes, so every bin/ CLI fails on GitHub Enterprise\" — and referenced from this record's closing comment; not fixed here.\n\n## Acceptance Criteria\n1. On a GHE checkout, the find step returns the existing verdict comment's node id and a second review updates that comment in place (no second `<!-- run-comment: verdict -->` comment on the PR).\n2. On a github.com checkout every rendered command is functionally identical to today's (`github.com/{owner}/{repo}` for `--repo`, `--hostname github.com` for `gh api`).\n3. No REST comment path is introduced; the numeric-id/`run-state.json` extension the reporter suggested is not needed and is not added.\n4. The two prose test suites pass with the updated pins; the `parseRepo` follow-up record exists and is linked; `npm test` is green.\n\n## Technical Approach\nSupply the host, keep the mechanism: `gh` already knows how to talk to GHE when told the host, and the URL `gh repo view` returns is the one place the host is already available inside the repo without parsing the remote by hand. Changing three `--repo` values and one `--hostname` flag fixes find, create, and update together; switching to REST would add a second identity (numeric id) to `run-state.json` and a second update path to keep in sync, for a problem that is host resolution, not API family. `parseRepo` is left to its own record because its twelve callers include claims, materialize, and release, a blast radius this documentation-level fix should not carry.\n\n### Key Files\n- `plugin/skills/_shared/pr-run-comments.md` — Step 1 (find), Step 2 (update), Step 3 (create).\n- `plugin/skills/_shared/pr-early-run-lifecycle.md` — the \"Resolve `{owner}/{repo}` once\" paragraph.\n- `plugin/skills/backlog/refine-headless.md` — the `gh search issues --repo` line.\n- `tests/pr-run-comments.test.js`, `tests/pr-early-run-lifecycle.test.js` — command-shape pins.\n- `plugin/bin/lib/repo-resolve.js` — `parseRepo` (read-only here; the follow-up record's target).\n\n## Gotchas\n- `gh repo view --json url` returns the web URL (`https://{host}/{owner}/{repo}`); take the host from it rather than from `git remote get-url`, whose SSH form (`git@host:owner/repo.git`) needs a second parser.\n- `_shared/github-write-transport.md`'s MCP path is unaffected: the MCP server is configured per host and takes `owner`/`repo` only.\n- Existing PRs on github.com projects keep working unchanged; the only behavior change is on hosts other than `github.com`, which today fail every call.\n- The `gh api graphql` mutation needs `--hostname` even when `--repo` is host-qualified elsewhere; the two flags are independent in `gh`.\n\n## Original request\n**Summary:** On a GitHub Enterprise Server host, the run-comment find step in `_shared/pr-run-comments.md` returns nothing even when the verdict comment already exists, so a second review in the same run posts a duplicate instead of updating it.\n\n**Kind:** Gap\n\n**Affected component:** `_shared/pr-run-comments.md` post-or-update procedure\n\n**Use case:** A multi-review pipeline run posts a verdict comment on a PR after the first review, then needs to find and update that same comment after a later review in the same run, on a GitHub Enterprise Server host.\n\n**Repro steps:**\n1. On a GHE host, post a run comment on a PR whose body starts with `<!-- run-comment: verdict -->`.\n2. Run the find step: `gh pr view {n} --repo {owner}/{repo} --json comments --jq '.comments[] | select(.body | startswith(\"<!-- run-comment: verdict -->\")) | .id'`.\n3. Observe it prints nothing, even though the comment is visible on the PR.\n4. Also try `gh api repos/{owner}/{repo}/issues/{n}/comments` without `--hostname` — it 404s against github.com instead of the GHE host.\n\n**Expected vs. actual:**\nExpected: the find step returns the existing comment's id so the update path runs.\nActual: the find step returns nothing on GHE, so a fresh comment is created instead of the existing one being updated.\n\nWhat worked instead: `gh api --hostname {ghe-host} repos/{owner}/{repo}/issues/{n}/comments` (REST) lists the comment with a numeric `id`, and `gh api --hostname {ghe-host} -X PATCH repos/{owner}/{repo}/issues/comments/{id} -F body=@file` updates it in place.\n\n**Suggestion:** in the find step, fall back to the REST listing (with `--hostname` derived from the repo's remote) when the GraphQL listing is empty, keep the numeric id in `run-state.json` next to the `pr` object, and use REST PATCH for the update.\n\n**Definition:** Clear\n\n**Plugin version:** 6.114.1\n\n\n",
-        "createdAt": "2026-09-07T04:41:13Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-KA",
-            "name": "enhancement",
-            "description": "New feature or request",
-            "color": "a2eeef"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: default depth — full review & wrap-up ceremony applies",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 2021,
-        "state": "OPEN",
-        "title": "PR run-comment find step returns nothing on GitHub Enterprise — verdict comment is re-created instead of updated",
-        "updatedAt": "2026-09-11T04:16:11Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n`plugin/bin/resolve-linked-prs.js` (115 lines) and `plugin/bin/resolve-blockers.js` (123 lines) are the same CLI with two names: identical `isPos`/`parseNumbers`/`parseArgs`, identical `realDeps` (the `ghAvailable`/`remoteUrl` pair from `bin/lib/repo-resolve.js`, a 30 s `execFileSync('gh', …)` runner with the same fetch-sub-issues precedent comment, stdout/stderr), identical `run()` control flow and exit-code map (0 ok, 1 malformed, 2 `gh` absent or unresolvable repo, 3 fetch threw), identical `--repo` override plus `origin` fallback, identical `module.exports` shape and `require.main` guard. `diff` reports 78 differing lines, all in the header comment, the `USAGE` string, the imported fetch function (`fetchNativeDependencies` vs `fetchLinkedPRs`), the error-message prefix, and the per-number result shape. The second file's own header says it mirrors the first \"exactly\".\n\nThe record's wider claim does not hold: `resolve-policy.js` (205 lines) and `resolve-profile.js` (176 lines) share none of this scaffold — no `--repo`, no runner timeout, no `realDeps`, no repo resolution, no `require.main` guard; they are key-resolver CLIs over `policy-schema.js` with their own argument grammar. What all four share is only the stated *shape* (\"thin argument-parsing shell over a `bin/lib/` function, injectable runner\"), which is a convention, not code. Two files duplicate; the other two do not.\n\n## Deliverables\n- [ ] `plugin/bin/lib/number-list-cli.js` exporting `makeNumberListCli({ name, usage, fetch, mapResult, requiresGh, runnerTimeoutMs })` → `{ run, parseArgs, parseNumbers, realDeps }`, holding the shared scaffold once: `isPos`/`parseNumbers`, `parseArgs` (positional comma list, `--repo`, `--help`), `realDeps` with the 30 s runner and its precedent comment, repo resolution via `bin/lib/repo-resolve.js`, the exit-code map, and the `{ [n]: value }` result assembly through `mapResult(n, fetched)`.\n- [ ] `resolve-blockers.js` and `resolve-linked-prs.js` reduced to a header comment, the factory call with their own `usage`, `fetch`, `mapResult`, and error prefix, `module.exports = { run, parseArgs, parseNumbers, parseRepo }` (the same four names each file exports today; the tests import `run`), and the `require.main` guard.\n- [ ] `tests/resolve-blockers-cli.test.js` and `tests/resolve-linked-prs-cli.test.js` pass unmodified; a new `tests/bin-lib/number-list-cli.test.js` covers the factory's parse/exit-code contract once (malformed list, `--repo` missing value, unknown flag, `gh` absent, unresolvable repo, fetch throw → 3, `--help` → 0).\n- [ ] `docs/plugin-structure.md`'s command reference keeps both CLIs listed; the `bin/lib/` convention line needs no change (a flat sibling module, not a nested `_shared/`).\n- [ ] `resolve-policy.js` and `resolve-profile.js` are named in the closing comment as out of scope (no shared code with the pair); no factory is forced on them.\n\n## Acceptance Criteria\n1. `diff` between the two CLIs after the change touches only the header comment and the factory-argument object; neither file defines `parseNumbers`, `parseArgs`, or `realDeps` itself.\n2. Both existing CLI test files pass byte-for-byte unmodified (each imports `run` and asserts the exit codes and messages); the four-name export shape is kept for API stability even though only `run` is imported today.\n3. The factory's own test covers every exit code the two CLIs document (0, 1, 2, 3) and the `--help` path.\n4. `npm test` is green; `resolve-policy.js` and `resolve-profile.js` are byte-identical to before.\n\n## Technical Approach\nExtract exactly the duplicated block and nothing else: the two files' `diff` is the specification of what stays per-CLI (usage, fetch, result shape, error prefix). `repo-resolve.js` already owns `parseRepo`/`ghAvailable`/`remoteUrl`, so the factory composes it rather than re-deriving repo resolution. Keeping the four-name export shape means the tests are the regression net without edits, which is also what proves \"pure extraction\". Widening to the policy/profile CLIs would mean inventing a shared abstraction over files that share no code; that is declined here and recorded in the closing comment so the review finding is answered rather than silently narrowed.\n\n### Key Files\n- `plugin/bin/resolve-blockers.js`, `plugin/bin/resolve-linked-prs.js` — the pair.\n- `plugin/bin/lib/repo-resolve.js` — `parseRepo`, `ghAvailable`, `remoteUrl` (composed, unchanged).\n- `plugin/bin/lib/issues/native-dependencies.js`, `plugin/bin/lib/issues/linked-prs.js` — the two fetch functions (unchanged).\n- `tests/resolve-blockers-cli.test.js`, `tests/resolve-linked-prs-cli.test.js` — must pass unmodified; `tests/bin-lib/` — new factory test.\n- `docs/plugin-structure.md` — command reference (listing unchanged).\n\n## Gotchas\n- The runner timeout comment (30 s, fetch-sub-issues precedent, not #1154's 5 s default) is load-bearing; move it into the factory verbatim rather than leaving a bare number.\n- `parseRepo` is re-exported from each CLI today; keep the re-export so any external caller of the four-name shape is unaffected, and do not wrap it.\n- The two CLIs' error prefixes (`resolve-blockers.js:` / `resolve-linked-prs.js:`) appear in test assertions; the factory takes the prefix as a parameter and never derives it from `process.argv`.\n- The record's pre-v6.117.0 review counted four scaffolds; the sanity check found two, so the title's \"4th near-identical\" framing is corrected in this body, not in the title.\n\n## Original request\n\n`plugin/bin/resolve-linked-prs.js` (parseNumbers, parseArgs, the realDeps runner, run) is a near byte-for-byte copy of `plugin/bin/resolve-blockers.js` — confirmed via diff — differing only in the imported fetch function, an output field name, and error-message text. The file's own header comment admits it is \"mirroring resolve-blockers.js's CLI shape exactly.\" This is now the 4th near-identical CLI scaffold in `bin/` (alongside `resolve-blockers.js`, `resolve-policy.js`, `resolve-profile.js`).\n\nDefer-reason: genuinely-larger — spans 4 separate CLI files, not a localized change; found by the pre-v6.117.0 whole-branch review.\n",
-        "createdAt": "2026-09-06T08:53:16Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACq41dsw",
-            "name": "backlog:category-technical",
-            "description": "technical-category backlog item",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Scoring: moderate change, may span several files",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1981,
-        "state": "OPEN",
-        "title": "bin/resolve-linked-prs.js is a near byte-for-byte copy of resolve-blockers.js",
-        "updatedAt": "2026-09-11T04:16:22Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
