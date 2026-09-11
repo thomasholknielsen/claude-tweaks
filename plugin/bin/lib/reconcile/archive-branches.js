@@ -5,8 +5,8 @@
 // this checkout — never a pushed deletion, never a pushed tag; different
 // checkouts converge independently. Origin-side cleanup belongs to PR
 // merges, tidy's remote-ref pruning, and — for plugin-owned branches
-// proven merged (MERGED PR + cherry-equivalence) — the sibling
-// prune-remote.js check, the family's one pushed mutation.
+// proven merged (MERGED PR + cherry-equivalence or squash provenance) —
+// the sibling prune-remote.js check, the family's one pushed mutation.
 //
 // Tags created here are annotated local tags (`git tag -a -f`), aged from
 // their own tagger date — the clock starts when the tag is created, not
@@ -16,9 +16,13 @@
 // its tagged commit's committer date.
 //
 // `git cherry {integration} {branch}` is the merged-in-substance evidence —
-// it catches squash merges that ancestry checks and `git branch -d` both
-// miss; that is why execution uses `-D` behind this decision table and
-// never trusts `-d`'s verdict.
+// it catches single-commit squash merges and rebases that ancestry checks
+// and `git branch -d` both miss; that is why execution uses `-D` behind
+// this decision table and never trusts `-d`'s verdict. It cannot see a
+// multi-commit branch squashed into one commit (#2251's `gh pr merge
+// --squash`): squash-provenance.js (#2252) is the second proof for that
+// shape — the confirmed PR's own mergeCommit on the bounded first-parent
+// history — evaluated only where cherry says no.
 //
 // Screen-then-confirm (#1083, adopting #1082's shape): in-scope branches are
 // screened in one bulk call (resolvePrStatesBulk) before any per-branch
@@ -39,6 +43,7 @@
 const { runGit } = require('../hooks/git-exec');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const { resolvePrState, resolvePrStatesBulk } = require('./pr-state');
+const { isSquashMerged } = require('./squash-provenance');
 
 const BRANCH_AGE_DAYS = 14; // hardcoded by design — no policy lever
 const TAG_AGE_DAYS = 90; // matches git's default reflog window: past it, the tag's marginal recovery value is zero
@@ -58,7 +63,9 @@ function inScope(branch, worktrees) {
 
 // One branch's evidence -> what to do. Pure — no I/O.
 //   { action: 'delete' | 'tag-and-delete' | 'skip', reason }
-function decideArchive({ branch, tipAgeDays, cherryEquivalent, prState }) {
+// squashMerged (#2252) is the second merged-in-substance proof, consulted
+// only where cherryEquivalent is false; screen-time callers omit it.
+function decideArchive({ branch, tipAgeDays, cherryEquivalent, squashMerged = false, prState }) {
   if (prState === 'gh-absent' || prState === 'network-failure') {
     return { action: 'skip', reason: prState }; // evidence unknown — fail closed
   }
@@ -67,6 +74,9 @@ function decideArchive({ branch, tipAgeDays, cherryEquivalent, prState }) {
   }
   if (cherryEquivalent) {
     return { action: 'delete', reason: 'cherry-equivalent' }; // merged in substance — no tag needed
+  }
+  if (squashMerged) {
+    return { action: 'delete', reason: 'squash-merged' }; // merged in substance via the confirmed PR's own squash commit
   }
   // No PR at all, or a PR closed without merging: nothing landed, so age alone decides.
   const nothingLanded = prState === null || (prState && prState.state === 'CLOSED');
@@ -77,8 +87,8 @@ function decideArchive({ branch, tipAgeDays, cherryEquivalent, prState }) {
     return { action: 'skip', reason: 'too-young' };
   }
   // Exhaustive: only a MERGED PR reaches here (gh-absent/network-failure, OPEN,
-  // and the no-PR/closed-unmerged pair all returned above), and its commits are
-  // not patch-equivalent to the integration branch.
+  // and the no-PR/closed-unmerged pair all returned above), and neither proof
+  // holds — not patch-equivalent, and no squash commit of its own on the tip.
   return { action: 'skip', reason: 'merged-pr-without-cherry-equivalence' }; // rebased remnant — human territory
 }
 
@@ -188,17 +198,24 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr, resolvePrBu
         continue;
       }
       const provisional = decideArchive({ branch, tipAgeDays, cherryEquivalent, prState: screenPr });
-      if (provisional.action === 'skip') {
+      // #2252: a MERGED-screened branch cherry could not prove is the
+      // squash-merge shape. Its verdict is not final on screen evidence —
+      // mergeCommit rides only on the per-branch confirm — so it joins the
+      // destructive candidates below instead of skipping here.
+      const squashCandidate = !cherryEquivalent && Boolean(screenPr) && screenPr.state === 'MERGED';
+      if (provisional.action === 'skip' && !squashCandidate) {
         entries.push({ name: branch, kind: 'branch', action: 'skip', reason: provisional.reason });
         continue;
       }
 
-      // Destructive candidate (delete or tag-and-delete): re-read PR state
-      // per-branch — today's exact evidence — and re-decide. Cherry is reused,
-      // not recomputed: same pass, same local refs, deterministically identical.
-      // Runs under dryRun too, so dry-run reasons are confirmed reasons.
+      // Destructive candidate (delete or tag-and-delete) or squash candidate:
+      // re-read PR state per-branch — today's exact evidence — and re-decide.
+      // Cherry is reused, not recomputed: same pass, same local refs,
+      // deterministically identical. Runs under dryRun too, so dry-run
+      // reasons are confirmed reasons.
       const prState = resolve(root, branch);
-      const decision = decideArchive({ branch, tipAgeDays, cherryEquivalent, prState });
+      const squashMerged = squashCandidate ? isSquashMerged(root, integration, branch, prState) : false;
+      const decision = decideArchive({ branch, tipAgeDays, cherryEquivalent, squashMerged, prState });
       if (decision.action === 'skip' || dryRun) {
         entries.push({ name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
         continue;

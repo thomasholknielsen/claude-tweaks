@@ -44,6 +44,16 @@ test('decideArchive: unmerged + merged PR (rebased remnant) -> skip', () => {
   assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, prState: { number: 3, state: 'MERGED' } }).action, 'skip');
 });
 
+// #2252: squash provenance is the second proof — delete without a tag,
+// exactly like cherry-equivalence, but never ahead of OPEN.
+test('decideArchive: squash-merged (not cherry-equivalent) + merged PR -> delete, reason squash-merged', () => {
+  const r = decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, squashMerged: true, prState: { number: 3, state: 'MERGED' } });
+  assert.strictEqual(r.action, 'delete');
+  assert.strictEqual(r.reason, 'squash-merged');
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, squashMerged: true, prState: { number: 3, state: 'OPEN' } }).action, 'skip');
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, squashMerged: false, prState: { number: 3, state: 'MERGED' } }).reason, 'merged-pr-without-cherry-equivalence');
+});
+
 // AC4 scope guard: namespaces + worktree attachment
 test('inScope: only build/*, worktree-*, demo/* namespaces', () => {
   assert.strictEqual(inScope('build/x', []), true);
@@ -169,6 +179,54 @@ test('archiveBranches: cherry-equivalent build/* branch is deleted; out-of-names
   assert.strictEqual(realEq.action, 'delete');
   assert.strictEqual(git(dir, 'branch', '--list', 'build/eq').trim(), ''); // gone
   assert.match(git(dir, 'branch', '--list', 'feature/keep'), /feature\/keep/); // out of scope, untouched
+});
+
+// #2252 — a two-commit local branch squash-merged into main: `git cherry`
+// cannot prove it (one squash commit, two branch patch-ids), so only the
+// confirm's mergeCommit oid can. Parity with prune-remote (AC 4): the same
+// squash-provenance.js helper, the same delete/skip outcome on the same shape.
+function makeSquashMergedRepo() {
+  const dir = makeRepo();
+  git(dir, 'checkout', '-b', 'build/squashed');
+  fs.writeFileSync(path.join(dir, 's1.txt'), 's1\n');
+  git(dir, 'add', 's1.txt');
+  git(dir, 'commit', '-m', 'first');
+  fs.writeFileSync(path.join(dir, 's2.txt'), 's2\n');
+  git(dir, 'add', 's2.txt');
+  git(dir, 'commit', '-m', 'second');
+  git(dir, 'checkout', 'main');
+  const preSquash = git(dir, 'rev-parse', 'HEAD').trim();
+  git(dir, 'merge', '--squash', 'build/squashed');
+  git(dir, 'commit', '-m', 'feat: squashed (#2251)');
+  const squash = git(dir, 'rev-parse', 'HEAD').trim();
+  return { dir, preSquash, squash };
+}
+const screenMerged = (root, branches) => new Map(branches.map((b) => [b, { number: 1, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }]));
+const confirmMergedVia = (oid) => () => ({ number: 1, state: 'MERGED', mergedAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', mergeCommit: { oid } });
+
+test('archiveBranches: squash-merged branch (MERGED screen, confirm carries mergeCommit on the tip) is deleted with reason squash-merged, no tag — AC 4', () => {
+  const { dir, squash } = makeSquashMergedRepo();
+  let confirms = 0;
+  const resolvePr = (...args) => { confirms += 1; return confirmMergedVia(squash)(...args); };
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr, resolvePrBulk: screenMerged });
+  const entry = r.entries.find((e) => e.name === 'build/squashed');
+  assert.strictEqual(entry.action, 'delete');
+  assert.strictEqual(entry.reason, 'squash-merged');
+  assert.strictEqual(confirms, 1); // the squash candidate is confirmed per-branch exactly once
+  assert.doesNotMatch(git(dir, 'branch', '--list', 'build/squashed'), /build\/squashed/); // really gone
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/*').trim(), ''); // no archive tag for a proven merge
+});
+
+test('archiveBranches: squash shape whose mergeCommit is no longer on the rewritten tip -> skip merged-pr-without-cherry-equivalence, branch kept — AC 5 parity', () => {
+  const { dir, preSquash, squash } = makeSquashMergedRepo();
+  git(dir, 'checkout', '--detach');
+  git(dir, 'branch', '-f', 'main', preSquash);
+  git(dir, 'checkout', 'main');
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: confirmMergedVia(squash), resolvePrBulk: screenMerged });
+  const entry = r.entries.find((e) => e.name === 'build/squashed');
+  assert.strictEqual(entry.action, 'skip');
+  assert.strictEqual(entry.reason, 'merged-pr-without-cherry-equivalence');
+  assert.match(git(dir, 'branch', '--list', 'build/squashed'), /build\/squashed/);
 });
 
 test('archiveBranches: unmerged aged branch gets archive tag then delete; young branch skipped', () => {
