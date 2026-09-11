@@ -30,7 +30,7 @@ A dispatched agent is a clean room. Don't pass the conversation. Pass exactly:
 
 Do NOT pass: prior messages, the user's original phrasing, your own findings so far, or "background context for completeness." Each of those compounds across N agents.
 
-**Scratch rule.** A file an agent creates to verify its own work (probe script, benchmark, fixture) goes under the scratch directory the prompt names, never under the repository tree. The agent deletes what it created there before its status word; a dispatch granting write access must name that path.
+**Scratch rule.** A file an agent creates to verify its own work (probe script, benchmark, fixture) goes under the scratch directory the prompt names, never under the repository tree. The agent deletes what it created there before its status word; a dispatch granting write access must name that path. Self-reported; sweep callers check their subdir too (`step3-lens-dispatch.md`).
 
 **`subagent_type: "fork"` is prohibited for a clean-room fan-out dispatch.** A fork inherits the dispatcher's full conversation context by construction — the exact inverse of the clean-room discipline above. Use a fresh (non-fork) agent type for every fan-out dispatch this contract governs; fork is for continuing a single prior agent with its own memory intact (see the Agent tool's own guidance), never for parallel dispatch. See "Session-inherit protection" below for the related, narrower model-override exemption this restriction is not.
 
