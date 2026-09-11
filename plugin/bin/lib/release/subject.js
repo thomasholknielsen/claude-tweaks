@@ -16,8 +16,15 @@ const TYPE_PREFIX = { feature: 'feat', bug: 'fix', task: 'chore' };
 const SUBJECT_BUDGET = 72;
 const ELLIPSIS = '…';
 
+class ComposeSubjectError extends Error {
+  constructor(message) {
+    super(`composeSubject: ${message}`);
+    this.name = 'ComposeSubjectError';
+  }
+}
+
 function usage(message) {
-  return new Error(`composeSubject: ${message}`);
+  return new ComposeSubjectError(message);
 }
 
 // Truncate `{prefix}: {title}` so that head + suffix fits SUBJECT_BUDGET —
@@ -35,15 +42,21 @@ function truncateHead(head, prefix, suffixLength) {
   return cut.replace(/[\s.,;:—-]+$/u, '') + ELLIPSIS;
 }
 
-// { type, title, number, breaking?, summary?, migrationNote?, fixes?, tag? } -> { title, body }
-function composeSubject({ type, title, number, breaking = false, summary, migrationNote, fixes, tag } = {}) {
-  const prefixBase = TYPE_PREFIX[type];
-  if (!prefixBase) throw usage(`type must be one of ${Object.keys(TYPE_PREFIX).join('|')}, got ${JSON.stringify(type)}`);
+// { type, title, number, breaking?, summary?, migrationNote?, fixes?, tag?, breakingRecords? } -> { title, body }
+function composeSubject({ type, title, number, breaking = false, summary, migrationNote, fixes, tag, breakingRecords } = {}) {
+  // number is validated first so the type/title usage errors below can cite "for #{number}".
   if (!Number.isInteger(number) || number <= 0) throw usage(`number must be a positive integer, got ${JSON.stringify(number)}`);
+  const prefixBase = TYPE_PREFIX[type];
+  if (!prefixBase) throw usage(`type must be one of ${Object.keys(TYPE_PREFIX).join('|')}, got ${JSON.stringify(type)} for #${number}`);
   const cleanTitle = typeof title === 'string' ? title.trim() : '';
-  if (!cleanTitle) throw usage('title must be a non-empty string');
+  if (!cleanTitle) throw usage(`title must be a non-empty string for #${number}`);
   const note = typeof migrationNote === 'string' ? migrationNote.trim() : '';
-  if (breaking && !note) throw usage(`breaking is true for #${number} but migrationNote is empty — the record needs a non-empty "## Breaking Change" section`);
+  if (breaking && !note) {
+    const who = Array.isArray(breakingRecords) && breakingRecords.length
+      ? breakingRecords.map((n) => `#${n}`).join(', ')
+      : `#${number}`;
+    throw usage(`breaking is true for ${who} but migrationNote is empty — the record needs a non-empty "## Breaking Change" section`);
+  }
 
   const prefix = breaking ? `${prefixBase}!` : prefixBase;
   const suffix = ` (#${number})`;
@@ -63,4 +76,4 @@ function composeSubject({ type, title, number, breaking = false, summary, migrat
   return { title: head + suffix, body: paragraphs.join('\n\n') };
 }
 
-module.exports = { composeSubject, TYPE_PREFIX, SUBJECT_BUDGET };
+module.exports = { composeSubject, ComposeSubjectError, TYPE_PREFIX, SUBJECT_BUDGET };

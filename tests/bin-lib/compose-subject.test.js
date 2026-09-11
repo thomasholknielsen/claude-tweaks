@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { run, parseArgs, shellQuote, extractSection, firstSentence } = require('../../plugin/bin/lib/compose-subject.js');
+const { ComposeSubjectError } = require('../../plugin/bin/lib/release/subject.js');
 
 const RECORDS = {
   2251: { number: 2251, title: 'Merge-time conventional subject', body: 'Surface: infra\n\n## Overview\n\nMakes the merge subject conventional. Second sentence.\n\n## Deliverables\n\n- x\n', labels: [{ name: 'type:feature' }, { name: 'ready' }], issueType: null },
@@ -113,6 +114,7 @@ test('an unrecognized native issueType is decided from it alone — no fallback 
   const { deps, out } = fakeDeps();
   assert.equal(run(['2265'], deps), 1);
   assert.match(out.stderr, /type must be one of/);
+  assert.ok(out.stderr.startsWith('compose-subject.js: composeSubject:'), out.stderr);
 });
 
 test('--shell prints two eval-able sh assignments; a real eval round-trip recovers title and body verbatim', () => {
@@ -152,9 +154,39 @@ test('exit 1: record with no resolvable type, or breaking without a ## Breaking 
   let r = fakeDeps();
   assert.equal(run(['2263'], r.deps), 1);
   assert.match(r.out.stderr, /type must be one of/);
+  assert.ok(r.out.stderr.startsWith('compose-subject.js: composeSubject:'), r.out.stderr);
   r = fakeDeps();
   assert.equal(run(['2264'], r.deps), 1);
   assert.match(r.out.stderr, /migrationNote|Breaking Change/);
+  assert.ok(r.out.stderr.startsWith('compose-subject.js: composeSubject:'), r.out.stderr);
+});
+
+test('usage errors cite the failing record number', () => {
+  let r = fakeDeps();
+  assert.equal(run(['2264'], r.deps), 1);
+  assert.match(r.out.stderr, /#2264/);
+
+  // Bundle: 2251 (subject record, not breaking) + 2264 (breaking, no Breaking Change section) —
+  // the usage error must cite the breaking record (#2264), never misattribute it to the
+  // bundle's subject record (#2251).
+  r = fakeDeps();
+  assert.equal(run(['2251,2264'], r.deps), 1);
+  assert.match(r.out.stderr, /#2264/);
+  assert.doesNotMatch(r.out.stderr, /#2251 but/);
+});
+
+test('ComposeSubjectError is a named Error subclass', () => {
+  // run()'s catch around composeSubject() is instanceof-gated on this class (only a
+  // ComposeSubjectError reads as exit 1; anything else propagates). A test that a genuine bug
+  // thrown from *inside* composeSubject actually propagates through run() was attempted per
+  // the brief (e.g. a record `title` whose toString throws) and found unreachable: every value
+  // run() hands to composeSubject comes from `JSON.parse(raw)` (plain JSON data only — no
+  // object can carry a throwing toString/valueOf), and every field composeSubject reads is
+  // guarded by a typeof/Number.isInteger check before use, so no crafted record can make it
+  // throw anything but a ComposeSubjectError. Covering the class contract only, as the brief's
+  // fallback allows.
+  assert.ok(new ComposeSubjectError('x') instanceof Error);
+  assert.equal(new ComposeSubjectError('x').name, 'ComposeSubjectError');
 });
 
 test('exit 2: gh absent, or owner/repo unresolvable without --repo', () => {

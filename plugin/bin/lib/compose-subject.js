@@ -28,7 +28,7 @@
 'use strict';
 
 const { execFileSync } = require('child_process');
-const { composeSubject, TYPE_PREFIX } = require('./release/subject');
+const { composeSubject, ComposeSubjectError, TYPE_PREFIX } = require('./release/subject');
 const { parseRecordFacets, normalizeLabelNames } = require('./issues/record');
 const { parseRepo, ghAvailable, remoteUrl } = require('./repo-resolve');
 
@@ -172,8 +172,10 @@ function run(argv, deps = realDeps) {
       migrationNote,
       fixes: opts.numbers,
       tag: opts.tag,
+      breakingRecords: breakingRecords.map((r) => r.number),
     });
   } catch (err) {
+    if (!(err instanceof ComposeSubjectError)) throw err;
     deps.stderr(`compose-subject.js: ${errMessage(err)}\n`);
     return 1;
   }

@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { composeSubject, TYPE_PREFIX, SUBJECT_BUDGET } = require('../../../plugin/bin/lib/release/subject.js');
+const { composeSubject, ComposeSubjectError, TYPE_PREFIX, SUBJECT_BUDGET } = require('../../../plugin/bin/lib/release/subject.js');
 
 test('type mapping: feature→feat, bug→fix, task→chore', () => {
   assert.equal(TYPE_PREFIX.feature, 'feat');
@@ -36,6 +36,32 @@ test('throws on breaking without a migration note, and on an unresolvable type',
   assert.throws(() => composeSubject({ type: undefined, title: 'T', number: 5 }), /type must be one of/);
   assert.throws(() => composeSubject({ type: 'feature', title: 'T', number: 0 }), /number/);
   assert.throws(() => composeSubject({ type: 'feature', title: '', number: 5 }), /title/);
+});
+
+test('usage errors are a named ComposeSubjectError subclass of Error', () => {
+  assert.ok(new ComposeSubjectError('x') instanceof Error);
+  assert.equal(new ComposeSubjectError('x').name, 'ComposeSubjectError');
+  assert.throws(() => composeSubject({ type: 'nope', title: 'T', number: 7 }), (err) => err instanceof ComposeSubjectError);
+});
+
+test('usage errors for an unresolvable type or empty title cite the record number', () => {
+  assert.throws(() => composeSubject({ type: 'nope', title: 'T', number: 7 }), /type must be one of[^]*#7/);
+  assert.throws(() => composeSubject({ type: 'feature', title: '', number: 9 }), /title must be a non-empty string[^]*#9/);
+});
+
+test('empty-migrationNote usage error cites breakingRecords when given, else the record number', () => {
+  assert.throws(
+    () => composeSubject({ type: 'feature', title: 'T', number: 2251, breaking: true, breakingRecords: [2264] }),
+    /breaking is true for #2264 but/,
+  );
+  assert.throws(
+    () => composeSubject({ type: 'feature', title: 'T', number: 2251, breaking: true, breakingRecords: [2264, 2265] }),
+    /breaking is true for #2264, #2265 but/,
+  );
+  assert.throws(
+    () => composeSubject({ type: 'feature', title: 'T', number: 5, breaking: true }),
+    /breaking is true for #5 but/,
+  );
 });
 
 test('truncation: word-boundary cut, … marker, (#N) suffix intact, total ≤ 72', () => {
