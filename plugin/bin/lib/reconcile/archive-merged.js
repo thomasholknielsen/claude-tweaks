@@ -102,9 +102,6 @@ function isAdHocStandaloneSuperseded(dir, state, worktrees, now = Date.now()) {
 // archiveRunDir refuse visibly rather than silently take the fs-only path.
 function hasTrackedContent(root, dir) {
   const listed = runGit(['ls-files', '--', dir], root);
-  // An unanswered probe (timeout/spawn/no-git — git-exec.js's isIndeterminate)
-  // is not "untracked": assume tracked and let archiveRunDir refuse visibly
-  // rather than fall back to the bare fs rename this guard exists to prevent.
   if (isIndeterminate(listed.failure)) return true;
   return !listed.failure && String(listed.stdout || '').trim().length > 0;
 }
