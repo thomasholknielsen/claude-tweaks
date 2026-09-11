@@ -127,3 +127,19 @@ test('a backticked file path (not an identifier) is never mistaken for a symbol 
   assert.deepStrictEqual(grepCalls, [], 'a path-shaped token (contains "/") must never be treated as a grep-able identifier');
   assert.deepStrictEqual(result, []);
 });
+
+test('a short generic sibling title does not wrongly match as a substring of an unrelated word', () => {
+  const bodyA = '## Gotchas\n\n- The word prefix here mentions `helper()` but not the sibling by name.\n\n### Key Files\n\n- `a.js`\n';
+  const bodyB = '## Deliverables\n\nBuild it.\n\n### Key Files\n\n- `unrelated.js`\n';
+  const units = [
+    { title: 'Origin task', body: bodyA },
+    { title: 'Fix', body: bodyB },
+  ];
+  const grepCalls = [];
+  const grep = (ident) => { grepCalls.push(ident); return ['should-not-appear.js']; };
+
+  const result = crossReferenceKeyFiles(units, grep);
+
+  assert.deepStrictEqual(grepCalls, [], 'title "Fix" must not match as a substring inside "prefix"');
+  assert.deepStrictEqual(result, [], 'no cross-reference should be produced from a substring-only match');
+});

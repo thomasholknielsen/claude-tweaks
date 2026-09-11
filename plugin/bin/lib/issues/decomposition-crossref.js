@@ -20,6 +20,7 @@
 // a human did by hand in the original incident.
 
 const { extractKeyFilesSection } = require('./grouping');
+const { escapeRegExp } = require('../shared-primitives');
 
 const ANY_HEADING_RE = /^#{1,6}[ \t]/;
 const BACKTICK_RE = /`([^`]+)`/g;
@@ -66,10 +67,10 @@ function crossReferenceKeyFiles(units, grep) {
       const title = String(unit.title || '');
       if (!title) continue;
       const text = `${extractSection(other.body, 'Gotchas')}\n${extractSection(other.body, 'Prerequisites')}`;
-      const titleLower = title.toLowerCase();
+      const titleRe = new RegExp(`\\b${escapeRegExp(title)}\\b`, 'i');
 
       for (const line of text.split('\n')) {
-        if (!line.toLowerCase().includes(titleLower)) continue;
+        if (!titleRe.test(line)) continue;
         const idents = [...line.matchAll(BACKTICK_RE)]
           .map((m) => m[1])
           .filter((token) => IDENTIFIER_LIKE_RE.test(token));
