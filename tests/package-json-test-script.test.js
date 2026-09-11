@@ -49,3 +49,10 @@ test('run-tests.js\'s listTestFiles actually discovers tests/ files when called 
   assert.ok(files.some((f) => f.endsWith('reconcile.test.js')), 'expected this very file\'s own sibling to be discovered');
   assert.ok(files.every((f) => f.endsWith('.test.js')), 'every discovered path must be a .test.js file');
 });
+
+test('listTestFiles treats a missing root as empty rather than throwing (ENOENT, not a check-then-act race)', () => {
+  // Neither ROOTS entry exists under this cwd — collectTestFiles must read each root
+  // directly and swallow ENOENT, never a pre-check that could race a concurrent delete.
+  const files = listTestFiles(path.join(ROOT, 'plugin', 'bin'));
+  assert.deepStrictEqual(files, []);
+});

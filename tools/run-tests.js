@@ -14,8 +14,19 @@ const { spawnSync } = require('child_process');
 
 const ROOTS = ['tests', path.join('tools', 'upstream-drift', 'tests')];
 
+// Reads `dir` directly and treats a missing directory as "no files here" — never
+// `fs.existsSync(dir)` first: that shape is a check-then-act race (the directory can vanish
+// between the check and the read) and, more to the point here, both `dir` values are static
+// repo-relative roots, so the only realistic way this ever throws ENOENT is a genuine absence,
+// which is exactly the case this function already needs to treat as empty.
 function collectTestFiles(dir, results) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (err) {
+    if (err.code === 'ENOENT') return;
+    throw err;
+  }
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
@@ -34,10 +45,7 @@ function listTestFiles(cwd) {
   const base = cwd || path.join(__dirname, '..');
   const files = [];
   for (const root of ROOTS) {
-    const full = path.join(base, root);
-    if (fs.existsSync(full)) {
-      collectTestFiles(full, files);
-    }
+    collectTestFiles(path.join(base, root), files);
   }
   files.sort();
   return files;
@@ -47,6 +55,19 @@ module.exports = { listTestFiles };
 
 if (require.main === module) {
   const files = listTestFiles().map((f) => path.relative(process.cwd(), f));
+
+  // `node --test` with zero file arguments falls back to its own default-pattern
+  // auto-discovery and can exit 0 having run nothing — "the suite gets quieter, not
+  // redder" (docs/incident-log.md:421). A rename/typo of either ROOTS entry must fail
+  // loudly here, not degrade into a silently-green `npm test`.
+  if (files.length === 0) {
+    console.error(
+      `run-tests.js: found zero *.test.js files under ${ROOTS.join(', ')} — refusing to run ` +
+        "`node --test` with no explicit files (it would silently discover its own defaults " +
+        'and exit 0 having run nothing). Check that these directories exist and are non-empty.',
+    );
+    process.exit(1);
+  }
 
   process.env.CT_HOOKS_GIT_TIMEOUT_MS = process.env.CT_HOOKS_GIT_TIMEOUT_MS || '60000';
 
