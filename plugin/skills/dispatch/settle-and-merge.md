@@ -300,7 +300,7 @@ Nothing is threaded back from the second Task call beyond its `OUTCOME: ready-to
 
 - **`{group-worktree}` and `{branch}`** — this session created and entered both for this group in Step 5; it is still inside it (or can `cd` back — the path was captured then). Neither is derived from the Task call's report.
 - **`{run-dir}`** — the same value this session minted for the group in Step 4 and passed as `PIPELINE_RUN_DIR` on both Task calls; nothing to derive from either call's report.
-- **the group's issue numbers and titles** — already in this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`; `queue-pull-script.md`'s Step 2 queue pull wrote it under the same session id). Use the lowest-numbered record's title as `{one-line summary}` for a singleton, or a semicolon-joined list of every member's title for a bundle — the same "issue title as summary" convention `_shared/pr-first-merge.md`'s own `summary` argument (line 128 above) uses for its PR title on the `pr-first` path.
+- **the group's issue numbers and titles** — already in this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`; `queue-pull-script.md`'s Step 2 queue pull wrote it under the same session id). The issue numbers are what `bin/compose-subject.js` takes as positional arguments below — the composer derives the subject and body itself; no title-derived summary is composed by hand.
 
 Clear this run's worktree assignment before merging, the same way `flow/worktree-merge.md`'s reconciliation does:
 
