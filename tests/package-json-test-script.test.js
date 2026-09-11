@@ -56,3 +56,36 @@ test('listTestFiles treats a missing root as empty rather than throwing (ENOENT,
   const files = listTestFiles(path.join(ROOT, 'plugin', 'bin'));
   assert.deepStrictEqual(files, []);
 });
+
+test('run-tests.js\'s listTestFiles is exactly the set an independent recursive walk finds (AC1 parity, not a loose count)', () => {
+  // AC1 requires the resolved file list be identical to the old `find tests
+  // tools/upstream-drift/tests -name '*.test.js' | sort` output — not merely "more than
+  // some threshold." A threshold like `> 50` would still pass if an entire subtree (e.g.
+  // tests/bin-lib/) silently disappeared. This walks the same two roots with a second,
+  // independently-implemented traversal (never calling into run-tests.js's own
+  // collectTestFiles) and asserts exact set equality against listTestFiles()'s output.
+  function independentWalk(dir, results) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      if (err.code === 'ENOENT') return;
+      throw err;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        independentWalk(full, results);
+      } else if (entry.isFile() && entry.name.endsWith('.test.js')) {
+        results.push(full);
+      }
+    }
+  }
+
+  const expected = [];
+  independentWalk(path.join(ROOT, 'tests'), expected);
+  independentWalk(path.join(ROOT, 'tools', 'upstream-drift', 'tests'), expected);
+  expected.sort();
+
+  assert.deepStrictEqual(listTestFiles(ROOT), expected);
+});
