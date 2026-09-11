@@ -481,7 +481,14 @@ async function main() {
   lines.push('| Check | Status | Duration | Summary |', '|---|---|---|---|');
   for (const check of results) {
     const duration = check.skipped ? '—' : `${(check.durationMs / 1000).toFixed(1)}s`;
-    const summary = check.skipped ? '—' : (check.summary || '—');
+    let summary = check.skipped ? '—' : (check.summary || '—');
+    // #2026: a `no-parse` retryDecision means extractFailingFiles could not
+    // name a file for this failure — the stdout summary surfaces that the
+    // whole-suite re-run isolation path applies, so it's visible without
+    // opening report.json.
+    if (!check.skipped && check.exitCode !== 0 && check.retryDecision && check.retryDecision.reason === 'no-parse') {
+      summary += ' (retry: no-parse — whole-suite re-run applies)';
+    }
     lines.push(`| ${check.name} | ${statusOf(check)} | ${duration} | ${summary} |`);
   }
   for (const check of results) {
