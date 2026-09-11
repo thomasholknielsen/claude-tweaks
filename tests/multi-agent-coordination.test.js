@@ -891,3 +891,47 @@ test('step3-lens-dispatch.md captures a pre-dispatch listing before Step 3\'s fi
     'the pre-dispatch listing must be captured before the first lens dispatch, not after',
   );
 });
+
+test('the refutation template gains a SCRATCH line, the debate template does not (#2022)', () => {
+  const refutationStart = REVIEW_SKILL.indexOf('You are trying to FALSIFY this finding');
+  assert.notStrictEqual(refutationStart, -1, 'refutation template must exist');
+  const refutationEnd = REVIEW_SKILL.indexOf('[Use: Capable — refutation agent', refutationStart);
+  const refutationBlock = REVIEW_SKILL.slice(refutationStart, refutationEnd);
+  assert.match(
+    refutationBlock,
+    /SCRATCH: \{ctx-dir\}\/agent-scratch\//,
+    'the refutation template must carry a SCRATCH: {ctx-dir}/agent-scratch/... line before its [Use: ...] tag',
+  );
+
+  const debateStart = REVIEW_SKILL.indexOf('Two lenses disagreed on this region');
+  assert.notStrictEqual(debateStart, -1, 'debate template must exist');
+  const debateEnd = REVIEW_SKILL.indexOf('[Use: Frontier — debate agent', debateStart);
+  const debateBlock = REVIEW_SKILL.slice(debateStart, debateEnd);
+  assert.doesNotMatch(
+    debateBlock,
+    /SCRATCH:/,
+    'debate judges write nothing and must get no SCRATCH line (spec Deliverables)',
+  );
+});
+
+test('the gap-sweep template gains a SCRATCH line (#2022)', () => {
+  const gapSweepStart = REVIEW_SKILL.indexOf('You are a fresh-eyes reviewer');
+  assert.notStrictEqual(gapSweepStart, -1, 'gap-sweep template must exist');
+  const gapSweepEnd = REVIEW_SKILL.indexOf('[Use: Frontier — gap-sweep agent', gapSweepStart);
+  const gapSweepBlock = REVIEW_SKILL.slice(gapSweepStart, gapSweepEnd);
+  assert.match(
+    gapSweepBlock,
+    /SCRATCH: \{ctx-dir\}\/agent-scratch\//,
+    'the gap-sweep template must carry a SCRATCH: {ctx-dir}/agent-scratch/... line before its [Use: ...] tag',
+  );
+});
+
+test('step3-debate-and-refutation.md runs the post-fan-out sweep after Step 3.5/3.6 (#2022)', () => {
+  const gapSweepSection = REVIEW_SKILL.slice(REVIEW_SKILL.indexOf('## Step 3.6: Gap-Sweep'));
+  assert.match(
+    gapSweepSection,
+    /post-fan-out (untracked-file )?sweep/i,
+    'step3-debate-and-refutation.md must point at step3-lens-dispatch.md\'s post-fan-out sweep ' +
+      'as this run\'s closing step, after its own Step 3.5/3.6 dispatches',
+  );
+});
