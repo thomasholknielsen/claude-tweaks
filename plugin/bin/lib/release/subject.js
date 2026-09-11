@@ -33,7 +33,14 @@ function usage(message) {
 function truncateHead(head, prefix, suffixLength) {
   if (head.length + suffixLength <= SUBJECT_BUDGET) return head;
   const budget = SUBJECT_BUDGET - suffixLength - ELLIPSIS.length;
-  let cut = head.slice(0, budget);
+  // A hard cut at `budget` can land between a surrogate pair's high and low
+  // units, leaving a lone high surrogate at the end. Back the cut off by one
+  // unit in that case so it never splits a code point.
+  let hardCut = budget;
+  if (hardCut > 0 && head.charCodeAt(hardCut - 1) >= 0xD800 && head.charCodeAt(hardCut - 1) <= 0xDBFF) {
+    hardCut -= 1;
+  }
+  let cut = head.slice(0, hardCut);
   const lastSpace = cut.lastIndexOf(' ');
   // `${prefix}: ` puts the first space at index prefix.length + 1; only cut
   // at a space *after* that, so a single over-long first word is hard-cut

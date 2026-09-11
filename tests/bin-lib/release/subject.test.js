@@ -103,6 +103,17 @@ test('truncation: a single over-long word is hard-cut rather than reduced to the
   assert.match(title, /^chore: x+… \(#12\)$/);
 });
 
+test('truncation: a hard cut through a surrogate pair never leaves a lone surrogate', () => {
+  // A single over-long "word" of astral emoji, no spaces, so the word-boundary
+  // branch cannot help — the hard cut is the only thing that can save this.
+  const title = '🚀'.repeat(60);
+  const { title: subject } = composeSubject({ type: 'task', title, number: 100 });
+  const lonelySurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u;
+  assert.ok(!lonelySurrogate.test(subject), subject);
+  assert.ok(subject.endsWith(' (#100)'), subject);
+  assert.ok(subject.length <= SUBJECT_BUDGET, `${subject.length} > 72: ${subject}`);
+});
+
 test('truncation: trailing punctuation is trimmed when the word-boundary cut lands right after it', () => {
   // The word before the dropped tail ends in a comma ("bug,"), so the untrimmed cut would end
   // "...bug,… (#1)" — a bare .replace trim proves it strips the comma before the ellipsis.
