@@ -88,6 +88,28 @@ function isAdHocStandaloneSuperseded(dir, state, worktrees, now = Date.now()) {
   return (now - mtimeMs) > ADHOC_SUPERSEDED_TTL_MS;
 }
 
+// #2227: a state-less run dir can still hold git-tracked content — a
+// materialized work/{n}-spec.md whose run-state.json only ever existed in
+// the worktree copy (record #1594's shape; materialize.md commits work/ on
+// the branch, and it reaches the main checkout by merge with none of the
+// gitignored state files alongside it). archiveOrphanedMint's bare
+// fs.renameSync would leave that as an unstaged deletion nothing commits;
+// archiveRunDir's git mv + commit is what tracked content needs, and it
+// does not require run-state.json. `git ls-files -- <dir>` lists nothing
+// for a genuinely untracked mint, which keeps that case on the fs-only path.
+// Only a successful, empty listing proves "untracked". Any probe failure —
+// indeterminate (timeout/spawn/no-git, git-exec.js's isIndeterminate) or a
+// definitive git-error (a corrupt index, an unreadable object store) — is
+// not that proof: assume tracked and let archiveRunDir refuse visibly (its
+// own ls-files guard fails closed on any failure, `ls-files-failed`) rather
+// than let this helper be the one place a failed probe quietly selects the
+// bare fs rename.
+function hasTrackedContent(root, dir) {
+  const listed = runGit(['ls-files', '--', dir], root);
+  if (listed.failure) return true;
+  return (listed.stdout || '').length > 0;
+}
+
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
 // is what writes it), not an ad-hoc-standalone mint (see above — that check
 // now reads run-state.json for corroboration, #1604), and older than the
@@ -104,10 +126,12 @@ function isOrphanedMint(dir, now = Date.now()) {
   return (now - mtimeMs) > ORPHAN_MINT_TTL_MS;
 }
 
-// An orphaned mint has nothing to git-mv (no work/, since flow never got far
-// enough to materialize into it) and nothing to finalize as terminal (no
-// run-state.json, since record-worktree never ran on it) — moving each
-// top-level entry into its archive twin is the whole operation.
+// An orphaned mint that reaches this function has nothing to git-mv and
+// nothing to finalize as terminal (no run-state.json, since record-worktree
+// never ran on it) — moving each top-level entry into its archive twin is
+// the whole operation. A state-less dir that DOES carry tracked content (a
+// materialized work/ spec) never gets here: archiveMerged's orphaned-mint
+// branch routes it to archiveRunDir instead (#2227, hasTrackedContent above).
 //
 // Entry-by-entry, not a single whole-dir fs.renameSync: the archive twin can
 // already exist and be non-empty by the time this runs — a prior attempt
@@ -851,7 +875,13 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
     // reached here is genuinely non-terminal.
     if (isOrphanedMint(dir)) {
       if (dryRun) { archived.push(dir); continue; }
-      const result = archiveOrphanedMint(root, dir);
+      // #2227: tracked content (a materialized work/ spec) needs archiveRunDir's
+      // git mv + commit — same (root, dir) signature and {ok, reason} contract,
+      // so the result handling below is shared. A bare mint with nothing
+      // tracked keeps the fs-only move; see hasTrackedContent above.
+      const result = hasTrackedContent(root, dir)
+        ? archiveRunDir(root, dir)
+        : archiveOrphanedMint(root, dir);
       trackArchiveResult(root, repoSlug, dir, result);
       if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }
       archived.push(dir);
@@ -932,12 +962,15 @@ function archiveMerged({ cwd, dryRun = false, sessionId = process.env.CLAUDE_COD
     // returns false while the worktree still resolves, regardless of age.
     if (isAdHocStandaloneSuperseded(dir, state, worktrees)) {
       if (dryRun) { archived.push(dir); continue; }
-      // archiveRunDir, not archiveOrphanedMint: unlike a true orphaned mint, an
-      // ad-hoc-standalone dir is a real dev session that can have materialized a
-      // spec (a git-tracked work/ subtree) before being abandoned. archiveOrphanedMint
-      // is a bare fs.renameSync with no tracked-entry guard — archiveRunDir's #593
-      // guard (git-mv work/ + commit, refuse on any other tracked entry) is what this
-      // path actually needs; same (root, dir) signature and {ok, reason} contract.
+      // archiveRunDir, not archiveOrphanedMint: an ad-hoc-standalone dir is a
+      // real dev session that can have materialized a spec (a git-tracked work/
+      // subtree) before being abandoned. archiveOrphanedMint is a bare
+      // fs.renameSync with no tracked-entry guard — archiveRunDir's #593 guard
+      // (git-mv work/ + commit, refuse on any other tracked entry) is what this
+      // path needs; same (root, dir) signature and {ok, reason} contract. The
+      // orphaned-mint branch above makes the same choice per-dir via
+      // hasTrackedContent (#2227) — this branch is unconditional because an
+      // ad-hoc dir is always a real session, tracked spec or not.
       const result = archiveRunDir(root, dir);
       trackArchiveResult(root, repoSlug, dir, result);
       if (!result.ok) { skipped.push({ runDir: dir, reason: result.reason }); continue; }

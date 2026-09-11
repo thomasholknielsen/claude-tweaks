@@ -172,7 +172,7 @@ Two of the 8 shared callers opt out of this requirement via `resolveOpts.allowUn
 (`dispatch/SKILL.md` Step 4 mkdir-only mints a run dir, `flow/steps-and-gates.md` case 2 adopts it
 with no `config.yml` yet, `worktree-setup.md` Step 4.5's `record-worktree` call performs the actual
 first write into it); and **`archive-run`**, whose own downstream logic reports a stale,
-never-claimed mint with a specific `archiveOrphanedMint` pointer rather than a generic rejection.
+never-claimed mint with a specific orphaned-mint-sweep pointer rather than a generic rejection.
 That opt-in is narrower than it sounds: an uninitialized target must also sit under
 `.claude-tweaks/pipelines/` at a run-id-shaped path (the same bar the `#280` fallback below already
 enforces) — without this, `allowUninitialized` would itself reopen `--run .`/`--run $RUN_ROOT`
