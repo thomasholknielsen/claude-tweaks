@@ -148,9 +148,32 @@ function extractUnparseableStep2s(text) {
     }));
 }
 
+// Within one task body, extracts the Step 1 text (heading through the next
+// Step heading or end of body) — #1999's Check C append-shape exception
+// needs Step 1's own prose to look for a named path, alongside Step 2's
+// Run:/Expected: pair. Returns null when the task carries no Step 1 heading.
+function extractStep1Text(taskBody) {
+  const stepRe = /\*\*Step\s+1:[^*\n]*\*\*/;
+  const stepMatch = stepRe.exec(taskBody);
+  if (!stepMatch) return null;
+  const rest = taskBody.slice(stepMatch.index + stepMatch[0].length);
+  const nextStep = rest.match(/\n[-*]\s*\[[ xX]?\]\s*\*\*Step\s+\d+:/);
+  const window = stepMatch[0] + (nextStep ? rest.slice(0, nextStep.index) : rest);
+  return window.trim();
+}
+
+// "Expected: FAIL after Step 1 ..." — the author-side escape hatch for
+// Check C's append-shape heuristic (#1999): declares the shape explicitly,
+// no path-matching needed. Still starts with "FAIL" so the existing
+// extractVerificationChecks scope filter below keeps selecting the task.
+const APPEND_MARKER_RE = /^FAIL\s+after\s+Step\s*1\b/i;
+
 // Convenience: every task's Step 2 verification pair, only for tasks that
 // have one and whose Expected text starts with FAIL (Check C's own scope —
-// see plan-audit.md's "Finding" section).
+// see plan-audit.md's "Finding" section). Each entry also carries #1999's
+// append-shape inputs: step1Text (that task's own Step 1 prose, or null),
+// taskFileEntries (that task's own Files: bullets — Check C's caller filters
+// to Modify:/Test:), and appendMarker (the explicit marker above).
 function extractVerificationChecks(text) {
   return extractTaskBlocks(text)
     .map((task) => ({ task, verification: extractStep2Verification(task.body) }))
@@ -160,6 +183,9 @@ function extractVerificationChecks(text) {
       title: task.title,
       command: verification.command,
       expected: verification.expected,
+      step1Text: extractStep1Text(task.body),
+      taskFileEntries: extractFileEntries(task.body),
+      appendMarker: APPEND_MARKER_RE.test(verification.expected.trim()),
     }));
 }
 
@@ -193,6 +219,7 @@ module.exports = {
   extractFileEntries,
   extractScopeKeywords,
   extractTaskBlocks,
+  extractStep1Text,
   extractStep2Verification,
   extractVerificationChecks,
   extractUnparseableStep2s,
