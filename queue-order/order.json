@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T16:53:40.181Z",
+  "computedAt": "2026-09-11T17:26:35.006Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -120,7 +120,7 @@
       },
       {
         "number": 1982,
-        "updatedAt": "2026-09-11T04:16:20Z",
+        "updatedAt": "2026-09-11T17:02:57Z",
         "state": "OPEN"
       },
       {
@@ -1307,100 +1307,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n`plugin/bin/hooks.js`'s `archive-run` verb prints the result of `archiveRunDir(mainRoot, runDir)`. One reason gets a bespoke six-line recovery message, selected by `if (result.reason === 'audit-untracked')` and interpolating `result.untrackedAuditFiles`; every other refusal prints `claude-tweaks: archival refused — {reason}`. `bin/lib/reconcile/archive-merged.js` produces fourteen distinct reason codes (`move-failed`, `readdir-failed`, `mkdir-failed`, `console-unresolved`, `console-never-rendered`, `tracked-entry`, `no-pr`, `no-branch`, `network-failure`, `ls-files-failed`, `gh-absent`, `close-write-failed`, `close-failed`, `audit-untracked`, plus `git-mv-failed`/`git-mv-failed-partial-revert`) as ad hoc `{ ok: false, reason, … }` literals, some with extra fields (`lastError`, `untrackedAuditFiles`) that only the dispatcher knows to read. The recovery knowledge for `audit-untracked` lives 400 lines away from the code that detects it, and a rename of the reason code in `archive-merged.js` would silently downgrade the message to the generic line — nothing pins the two together. `tests/archive-run-verb.test.js` asserts the message text (`archival refused — audit-untracked`, `sync this checkout with origin`), so the text can move but not change.\n\n## Deliverables\n- [ ] `archive-merged.js` gains one refusal constructor, `refusal(reason, { hint = null, ...extra } = {})` → `{ ok: false, reason, hint, ...extra }`, and every `{ ok: false, reason: … }` literal in the file goes through it, so each result carries a `hint` key (string or `null`) beside its reason.\n- [ ] The `audit-untracked` recovery text moves verbatim from `hooks.js` into that refusal's `hint`, built where `untrackedAuditFiles` is computed; `move-failed` and the two `git-mv-failed*` refusals set `hint` from `lastError` when present; the other codes start with `hint: null` (no invented prose).\n- [ ] `hooks.js`'s `archive-run` branch drops the `reason === 'audit-untracked'` match and prints `claude-tweaks: archival refused — {reason}` followed, when `result.hint` is a non-empty string, by ` — {hint}`; the exit code and the `moved:` lines are unchanged.\n- [ ] A conformance test that every `reason: '…'` literal in `archive-merged.js` sits inside a `refusal(` call (a source scan), and unit cases that `refusal` always yields a `hint` key and that the `audit-untracked` result's hint names its files.\n- [ ] `tests/archive-run-verb.test.js` passes unmodified (its regexes match the moved text); `tests/bin-lib/reconcile/archive-merged.test.js` cases that deep-equal a refusal object are updated only to include `hint: null` where they assert whole objects.\n\n## Acceptance Criteria\n1. `hooks.js` contains no comparison against a specific `archive-merged.js` reason string; the `archive-run` branch reads only `ok`, `reason`, `hint`, and `movedEntries`.\n2. `node bin/hooks.js archive-run` on the untracked-audit fixture prints the same `audit-untracked` sentence as today (the existing test's regexes are the proof); every other refusal prints its reason exactly as today, with a hint appended only where one was set.\n3. Every refusal object `archiveRunDir` and its helpers return has a `hint` property; the source scan finds no bare `{ ok: false, reason:` literal outside `refusal`.\n4. `npm test` is green.\n\n## Technical Approach\nCo-locate the story with the detector, keep the dispatcher dumb: a `hint` field is the smallest contract change that lets the next non-obvious failure ship its recovery text without a new `if` in `hooks.js`, and a constructor is what makes \"every refusal has the field\" a source-scannable invariant rather than a convention. Hints stay `null` for the codes whose one-line reason already says what happened (`gh-absent`, `no-pr`); writing prose for all fourteen would be the speculative work the record warns against. The `console-*` and `network-failure` codes come from `decideArchive`'s pure skip path (`{ action: 'skip', reason }`), which is a different shape consumed inside the loop, not by `hooks.js` — leave it alone and say so in the constructor's comment.\n\n### Key Files\n- `plugin/bin/lib/reconcile/archive-merged.js` — `archiveRunDir`, `archiveOrphanedMint`, `revertWorkMoves`/`revertPlainMoves`, the `audit-untracked` branch (`untrackedAuditFiles`), every `ok: false` literal.\n- `plugin/bin/hooks.js` — the `archive-run` verb's refusal printing.\n- `tests/archive-run-verb.test.js` — text pins (unchanged); `tests/bin-lib/reconcile/archive-merged.test.js` — object-shape cases.\n\n## Gotchas\n- The `audit-untracked` sentence is asserted by regex in `tests/archive-run-verb.test.js`; move it character-for-character, including the `git pull, or reconcile's own mirror-ff` clause.\n- `trackArchiveResult` in the same file consumes `result.reason` and `result.lastError` for residue tracking; adding `hint` must not change what it reads, and `lastError` stays as its own field rather than being folded into `hint`.\n- #1732 (classifier) and #1733 (loop extraction) touch the same file; this record touches only the refusal literals and can land before or after either, but never in parallel with them.\n- Do not print hints for `dryRun` skips: `archiveMerged`'s `skipped` entries are a different consumer and the reconcile report renders them itself.\n\n## Original request\n\n`plugin/bin/hooks.js` has a single hardcoded `if (result.reason === 'audit-untracked')` branch that prints a bespoke multi-line recovery message, while `archive-merged.js`'s ~15 other reason codes (`mkdir-failed`, `git-mv-failed`, `ls-files-failed`, `tracked-entry`, `commit-failed`, ...) all fall through to a generic one-line message. The rich, actionable recovery text lives in the CLI dispatcher rather than co-located with the code that understands the failure, and nothing keeps a renamed/removed reason code in `archive-merged.js` in sync with this dispatcher-side string match.\n\n\nDefer-reason: genuinely-larger — touches the reason-code contract across archive-merged.js's ~15 failure paths and its hooks.js dispatcher, not a localized change; found by the pre-v6.117.0 whole-branch review.\n",
-        "createdAt": "2026-09-06T08:53:28Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACq41dsw",
-            "name": "backlog:category-technical",
-            "description": "technical-category backlog item",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1982,
-        "state": "OPEN",
-        "title": "hooks.js hardcodes one bespoke recovery message for archive-merged's audit-untracked reason, generic for ~15 others",
-        "updatedAt": "2026-09-11T04:16:20Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
         }
       }
     ],
