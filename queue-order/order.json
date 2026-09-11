@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T15:32:21.263Z",
+  "computedAt": "2026-09-11T16:10:58.688Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -10,7 +10,7 @@
       },
       {
         "number": 2217,
-        "updatedAt": "2026-09-11T04:15:32Z",
+        "updatedAt": "2026-09-11T15:34:52Z",
         "state": "OPEN"
       },
       {
@@ -145,12 +145,12 @@
       },
       {
         "number": 1795,
-        "updatedAt": "2026-09-08T00:22:35Z",
+        "updatedAt": "2026-09-11T16:10:32Z",
         "state": "OPEN"
       },
       {
         "number": 1793,
-        "updatedAt": "2026-09-08T00:22:34Z",
+        "updatedAt": "2026-09-11T16:10:29Z",
         "state": "OPEN"
       },
       {
@@ -255,88 +255,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: /claude-tweaks:tidy Step 4.8 (sweep run 2026-09-09T145100-sweep-standalone)\n\nDefer-reason: tangential\n\n## Current State\n\n`plugin/skills/_shared/github-pr-scan-acceptance.md`'s `acceptance-gap` scope fetches closed records with a hardcoded `gh issue list --state closed --limit 200` and states \"its record set is bounded to the last 30 days, so 200 is in practice never reached.\" On this repo a direct count returns 971 issues closed in the last 30 days; the scope therefore scans only the newest 200 and silently drops the older 771 — the quiet-direction failure the file's own parent-gate section says a backstop must never have. The 17 `[acceptance-gap]` rows this sweep reported are the gaps within the newest 200 closed records only.\n\n## Deliverables\n\n- Bound the closed-record fetch by `backlog-fetch-limit` (the same `{resolved-limit}` substitution the parent fetches already use) instead of the hardcoded 200, and drop the \"never reached in practice\" claim.\n- Emit the same exact-cap truncation warning the parent fetches emit when the closed fetch returns exactly the limit, reported verbatim beside the scope's rows.\n- Update the dispatcher-facing note in `tidy/scan-procedures.md` Step 4.8 if it restates the 200 figure.\n\n## Acceptance Criteria\n\n- Running the `acceptance-gap` scope against a repo with more than `backlog-fetch-limit` closed records in 30 days emits a truncation warning naming the cap.\n- With `backlog-fetch-limit: 1000`, this repo's scope scans every issue closed in the last 30 days (971 at 2026-09-09) rather than 200.\n- `tests/` conformance for `github-pr-scan-acceptance.md` (if any pins the fetch line) is updated in the same change.\n\n_Filed by `capture` via specShapedBody._",
-        "createdAt": "2026-09-10T05:47:33Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          }
-        ],
-        "number": 2217,
-        "state": "OPEN",
-        "title": "acceptance-gap scope's closed-record fetch truncates silently on this repo",
-        "updatedAt": "2026-09-11T04:15:32Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
