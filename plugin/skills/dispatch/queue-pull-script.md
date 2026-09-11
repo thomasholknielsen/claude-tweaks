@@ -86,7 +86,7 @@ CACHE_HIT=$(node -e "
   fs.writeFileSync(process.argv[6], JSON.stringify(oversized.map((g) => ({ records: g.map((i) => i.number), size: g.length, threshold }))));
   // #2066: a cache hit's persisted bundle membership replaces the
   // pre-computation '[]' default above -- a persisted record from before
-  // this field existed has no `bundles` key, so this falls back to [].
+  // this field existed has no 'bundles' key, so this falls back to [].
   fs.writeFileSync(process.argv[7], JSON.stringify(persisted.bundles || []));
   console.log('1');
 " "$DISPATCH_QUEUE_RAW" "$DISPATCH_DEP_FRESHNESS" "$DISPATCH_GROUPS" "$DISPATCH_BLOCKED_EXCLUDED" "$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values dispatch-group-size-guard)" "$DISPATCH_OVERSIZED_EXCLUDED" "$DISPATCH_FASTLANE_BUNDLES")
