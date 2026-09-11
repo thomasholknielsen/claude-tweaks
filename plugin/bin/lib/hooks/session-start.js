@@ -75,9 +75,14 @@ async function run(ctx) {
   const sessionId = typeof ctx.input === 'object' && ctx.input && typeof ctx.input.session_id === 'string' && ctx.input.session_id
     ? ctx.input.session_id
     : undefined;
+  // #2070: single upstream read of CLAUDE_PLUGIN_ROOT, threaded into both
+  // resolveBuildLine (below) and the stale-runs report line's fallback
+  // (further down) — one place for a future normalization/validation fix to
+  // land, instead of two reads that can drift.
+  const pluginRootEnv = process.env.CLAUDE_PLUGIN_ROOT;
   try { parts.push(...deps.collect()); } catch { /* best-effort */ }
   try {
-    const buildLine = resolveBuildLine();
+    const buildLine = resolveBuildLine({ CLAUDE_PLUGIN_ROOT: pluginRootEnv });
     if (buildLine) parts.push(buildLine);
   } catch { /* best-effort */ }
   try {
@@ -94,7 +99,7 @@ async function run(ctx) {
       // Hoisted once and reused below — this expression was previously
       // computed twice (once per stale entry inside the .map, once here),
       // and each copy could only drift from the other.
-      const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || '${CLAUDE_PLUGIN_ROOT}';
+      const pluginRoot = pluginRootEnv || '${CLAUDE_PLUGIN_ROOT}';
       // This stale-runs block running BEFORE the reaper block is load-bearing
       // ordering: the reaper removes merged worktrees, which breaks branch
       // derivation for the integrity check.
@@ -453,6 +458,13 @@ async function run(ctx) {
                 ? `claude-tweaks: ports REALLOCATED ${result.reallocated.from}→${result.reallocated.to} — ` +
                   `a foreign process took the old block; URLs moved: ${range} (${vars})`
                 : `claude-tweaks: ports ${range} (${vars})`);
+              if (typeof result.envWriteError === 'string' && result.envWriteError) {
+                const envPluginRoot = pluginRootEnv || '${CLAUDE_PLUGIN_ROOT}';
+                parts.push(
+                  `claude-tweaks: ports — env file write failed (${result.envWriteError}); the lease is ` +
+                    `recorded in the registry, re-run node "${envPluginRoot}/bin/ports.js" env after fixing the file`,
+                );
+              }
             }
           } catch (err) {
             parts.push(`claude-tweaks: ports ensure failed — ${(err && err.message) || err}`);
