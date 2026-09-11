@@ -1,9 +1,13 @@
 // bin/lib/compose-subject.js — run(argv, deps) behind
 // bin/compose-subject.js (#2251): reads one or more records via `gh issue
 // view`, derives the composer's inputs (Type via native issueType then type:*
-// label — the same precedence bin/lib/record-graph/encode.js's typeOf uses;
-// `breaking` via parseRecordFacets; summary = ## Overview's first sentence;
-// migrationNote = the ## Breaking Change section), and prints
+// label — the same precedence bin/lib/record-graph/encode.js's typeOf uses,
+// aggregated across the whole bundle by precedence feature > bug > task (a
+// type:task lowest-numbered record must not hide a type:feature sibling and
+// under-bump the release); `breaking` via parseRecordFacets; summary = ##
+// Overview's first sentence, falling back to ## Current State's first
+// sentence for shaping-mode/specShapedBody records, which carry no ##
+// Overview; migrationNote = the ## Breaking Change section), and prints
 // bin/lib/release/subject.js's composeSubject() output. Skill prose reaches
 // the composer only through this CLI — the pure module has no shell surface.
 //
@@ -25,12 +29,18 @@
 
 const { execFileSync } = require('child_process');
 const { composeSubject, TYPE_PREFIX } = require('./release/subject');
-const { parseRecordFacets } = require('./issues/record');
+const { parseRecordFacets, normalizeLabelNames } = require('./issues/record');
 const { parseRepo, ghAvailable, remoteUrl } = require('./repo-resolve');
 
 const USAGE = 'usage: compose-subject.js <n>[,<m>...] [<k>...] [--repo owner/name] [--tag <tag>] [--shell] [--help]\n';
 const GH_TIMEOUT_MS = 5000;
 const RECOGNIZED_TYPES = Object.keys(TYPE_PREFIX);
+// Bundle Type aggregation precedence — highest-impact type wins so a lowest-numbered
+// type:task record can never hide a type:feature (or type:bug) sibling behind a `chore:`
+// subject (#2251 F6). Mirrors TYPE_PREFIX's own key set; a fourth Type added to
+// TYPE_PREFIX in subject.js must gain a slot here too (see the RECOGNIZED_TYPES ===
+// record.TYPES pinning test in compose-subject.test.js, which fails loudly on drift).
+const TYPE_PRECEDENCE = ['feature', 'bug', 'task'];
 
 const isPos = (n) => Number.isInteger(n) && n > 0;
 
@@ -89,8 +99,18 @@ function typeOf(record) {
     const name = native.name.toLowerCase();
     return RECOGNIZED_TYPES.includes(name) ? name : null;
   }
-  const names = (Array.isArray(record.labels) ? record.labels : []).map((l) => (typeof l === 'string' ? l : l && l.name)).filter(Boolean);
+  const names = normalizeLabelNames(record.labels);
   for (const t of RECOGNIZED_TYPES) if (names.includes(`type:${t}`)) return t;
+  return null;
+}
+
+// records[] -> the bundle's aggregated Type, by TYPE_PRECEDENCE (feature > bug > task) —
+// the same "any record decides it" shape breaking already uses (OR across the bundle),
+// just precedence-ranked instead of boolean. null when no record resolves a Type at all
+// (composeSubject then throws its own usage error, exit 1).
+function aggregateType(records) {
+  const types = records.map(typeOf);
+  for (const t of TYPE_PRECEDENCE) if (types.includes(t)) return t;
   return null;
 }
 
@@ -139,11 +159,11 @@ function run(argv, deps = realDeps) {
   let composed;
   try {
     composed = composeSubject({
-      type: typeOf(subjectRecord),
+      type: aggregateType(records),
       title: subjectRecord.title,
       number: subjectRecord.number,
       breaking: breakingRecords.length > 0,
-      summary: firstSentence(extractSection(subjectRecord.body, 'Overview')),
+      summary: firstSentence(extractSection(subjectRecord.body, 'Overview') || extractSection(subjectRecord.body, 'Current State')),
       migrationNote,
       fixes: opts.numbers,
       tag: opts.tag,
@@ -161,4 +181,4 @@ function run(argv, deps = realDeps) {
   return 0;
 }
 
-module.exports = { run, parseArgs, shellQuote, extractSection, firstSentence, typeOf, USAGE, realDeps };
+module.exports = { run, parseArgs, shellQuote, extractSection, firstSentence, typeOf, aggregateType, USAGE, realDeps };

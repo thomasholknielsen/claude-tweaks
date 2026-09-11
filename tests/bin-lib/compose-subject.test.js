@@ -12,6 +12,8 @@ const RECORDS = {
   2263: { number: 2263, title: 'No type', body: '## Overview\n\nNo type label.\n', labels: [{ name: 'ready' }], issueType: null },
   2264: { number: 2264, title: 'Breaking, no section', body: '## Overview\n\nOops.\n', labels: [{ name: 'type:feature' }, { name: 'breaking' }], issueType: null },
   2265: { number: 2265, title: 'Unrecognized native type', body: '## Overview\n\nEpic-typed but stale-labeled.\n', labels: [{ name: 'type:feature' }], issueType: { name: 'Epic' } },
+  2266: { number: 2266, title: 'Shaping-mode record', body: '## Current State\n\nToday X is Y. More.\n', labels: [{ name: 'type:task' }], issueType: null },
+  2270: { number: 2270, title: 'Second task in an all-task bundle', body: '## Overview\n\nAnother task.\n', labels: [{ name: 'type:task' }], issueType: null },
 };
 
 function fakeDeps({ records = RECORDS, ghAvailable = () => true, remoteUrl = () => 'git@github.com:acme/repo.git', failView = false } = {}) {
@@ -62,6 +64,27 @@ test('bundle: subject from the lowest number, one Fixes line per record ascendin
   const parsed = JSON.parse(out.stdout);
   assert.equal(parsed.title, 'feat: Merge-time conventional subject (#2251)');
   assert.equal(parsed.body, 'Makes the merge subject conventional.\n\n[auto-merge]\n\nFixes #2251\nFixes #2252');
+});
+
+test('bundle Type aggregation: feature > bug > task across the bundle, subject text still from the lowest number', () => {
+  const { deps, out } = fakeDeps();
+  assert.equal(run(['2252,2251'], deps), 0, out.stderr);
+  const parsed = JSON.parse(out.stdout);
+  assert.equal(parsed.title, 'feat: Merge-time conventional subject (#2251)');
+});
+
+test('bundle Type aggregation: an all-type:task bundle still composes chore:', () => {
+  const { deps, out } = fakeDeps();
+  assert.equal(run(['2252,2270'], deps), 0, out.stderr);
+  const parsed = JSON.parse(out.stdout);
+  assert.equal(parsed.title, 'chore: Reconcile under squash (#2252)');
+});
+
+test('summary falls back to ## Current State\'s first sentence when ## Overview is absent (shaping-mode records)', () => {
+  const { deps, out } = fakeDeps();
+  assert.equal(run(['2266'], deps), 0, out.stderr);
+  const parsed = JSON.parse(out.stdout);
+  assert.ok(parsed.body.startsWith('Today X is Y.\n\nFixes #2266'), parsed.body);
 });
 
 test('breaking record: ! suffix and BREAKING CHANGE footer from its ## Breaking Change section', () => {
@@ -150,4 +173,14 @@ test('helpers: extractSection and firstSentence', () => {
   assert.equal(firstSentence('Is this it? Yes. More.'), 'Is this it?');
   assert.equal(firstSentence('Line one\ncontinues here. Then more.'), 'Line one continues here.');
   assert.equal(firstSentence(''), '');
+});
+
+test('Type vocabulary has one source of truth: TYPE_PREFIX and record.TYPES name the same set', () => {
+  // Pins subject.js's TYPE_PREFIX keys against record.js's TYPES so the two never drift apart
+  // silently. A fourth Type must gain a prefix in subject.js's TYPE_PREFIX in the SAME change
+  // that adds it to record.js's TYPES — otherwise this fails loudly instead of leaving the new
+  // Type unresolvable (typeOf returns null for it) and merges silently blocked (exit 1).
+  const { TYPE_PREFIX } = require('../../plugin/bin/lib/release/subject.js');
+  const { TYPES } = require('../../plugin/bin/lib/issues/record.js');
+  assert.deepEqual(Object.keys(TYPE_PREFIX).sort(), TYPES.slice().sort());
 });
