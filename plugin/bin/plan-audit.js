@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// plugin/bin/plan-audit.js — mechanized plan audit (#903): Checks A/B/C plus
-// a size-headroom check, replacing the hand-run prose procedure that used to
+// plugin/bin/plan-audit.js — mechanized plan audit (#903): Checks A/B/C/D
+// plus a size-headroom check, replacing the hand-run prose procedure that used to
 // live entirely in plugin/skills/build/plan-audit.md. Exit 0 iff every check
 // is ok (a `nearCeiling` headroom flag alone does not fail). `--count-tasks`
 // (#1926) is a read-only verb printing `{tasks, batched}` for /build's

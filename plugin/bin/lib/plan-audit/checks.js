@@ -1,4 +1,4 @@
-// plugin/bin/lib/plan-audit/checks.js — Checks A/B/C plus the headroom check
+// plugin/bin/lib/plan-audit/checks.js — Checks A/B/C/D plus the headroom check
 // for bin/plan-audit.js (#903). Mechanizes plan-audit.md's prose checks;
 // policy handling (scope-creep, scope-keywords-required) stays at the skill
 // layer — this module only reports facts.
