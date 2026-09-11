@@ -45,7 +45,11 @@ At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatch
 >
 > A section can legitimately come out empty (`emptySections` names them) — a deleted file, or an unreadable path. That degrades safely rather than silently: the full diff sits at the top of the same bundle, so the agent still sees that file's change either way.
 >
+> **Pre-dispatch listing (scratch-sweep baseline).** Immediately after minting `{ctx-dir}` above and before dispatching any lens agent (reproduction pair or low-tier single read), capture `git status --porcelain --untracked-files=all > {ctx-dir}/pre-dispatch-status.txt`. This is the baseline the post-fan-out sweep (below) diffs against — capture it exactly once per review, here, regardless of tier.
+>
 > **`Path:Line` must be file-native, never bundle-relative.** The bundle concatenates every changed file's diff content under one running line count, which does not match any target file's own line numbering. Tell each dispatched agent explicitly: when reporting a `Path:Line` finding, re-read that location in the live target file (`Read`/`grep -n`, not the bundle's own line count) and report the line number from there. Two reproduction-pair agents that independently found the identical real issue but each reported a different numbering scheme (bundle vs. file) will not satisfy the `line ±2` reproduction-match rule even though the finding is the same — observed on record #1488's review, where one agent reported line 37 and the other line 2739 for the same ~90-line file. This instruction goes in the dispatch prompt alongside the scope, not inside the byte-identical Calibration/Output-template block below.
+>
+> **Scratch path (per dispatch).** Alongside the scope and `Path:Line` instructions above, give each dispatched lens agent a `SCRATCH: {ctx-dir}/agent-scratch/{agent-id}` line — `{agent-id}` a short per-dispatch identifier (e.g. `3b-a`, `3b-b` for lens 3b's reproduction pair) so sibling agents in the same fan-out never collide — and cite `_shared/subagent-output-contract.md`'s Scratch rule: any probe script or fixture the agent creates to verify its own work goes there, never in the repository tree, and is deleted before the status word.
 >
 > Do **not** `Read` the changed files into this thread to "front-load" them. `Read` places their full content in main-thread context, and each dispatched agent still reads its own copy regardless — so the front-load saves no I/O and costs the entire diff plus every touched file, the exact cost Step 2 exists to avoid. An agent needing more than the bundle (imports, schemas, callers) reads those itself, in its own context window.
 
@@ -112,6 +116,17 @@ Do not add narration, headers, or summaries before or after the table.
 Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table (`step3-routing.md`) — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation — check the status word's **position**, not merely its presence: a reply that opens with narration and states the status word only later (e.g. "Based on my review... DONE") is a violation even though the literal token appears somewhere in the reply. Verify line 1 of the reply is exactly the status word before accepting it as compliant (#606's wrap-up: a lens agent's narration-then-DONE reply was initially accepted on token presence alone, caught only by the Friction lens's `contract-violation` event).
 
 **Pass diff scope, not diff text.** When composing each prompt, give the agent the shared context bundle's path (built above) plus the base/branch refs (or the own-work file set when Step 2's Merge-Provenance Check found merge commits). Do not paste diff content into the prompt: Step 2 deliberately keeps only `--stat`/`--name-only` in the main thread, and inlining the diff into N lens prompts would pull the full diff back into main-thread context to compose them.
+
+## Post-fan-out untracked-file sweep
+
+Run once per review, comparing against the pre-dispatch listing captured above (`{ctx-dir}/pre-dispatch-status.txt`) — never once per lens or per agent. At **`low`/`medium`** tier, this file's own Step 3 reproduction/single-read dispatch is the only fan-out this review runs (`step3-debate-and-refutation.md` never loads at these tiers) — run the sweep now, before returning to Step 3 Routing. At **`high` and above**, skip running it here — `step3-debate-and-refutation.md`'s own closing section runs it once, after Step 3.5/3.6, using this same pre-dispatch listing.
+
+Procedure: `git status --porcelain --untracked-files=all`, diffed against the captured pre-dispatch listing. Any new untracked path outside `{ctx-dir}` is:
+- reported by name in this step's summary,
+- logged to `decisions.md`: `STAGED {HH:MM:SS} — Review fan-out left {n} untracked file(s): {paths}. Not deleted. Reversibility: n/a.`,
+- excluded from evidence a reviewer trusts — a finding whose only supporting evidence is one of these paths is downgraded to `unconfirmed`, with that reason noted in its entry.
+
+Never delete anything here — report only. A path under `{ctx-dir}` is a sibling agent's or the skill's own scratch output, not a leftover, and is excluded from the diff. A reviewer cannot distinguish its own dispatched agents' leftovers from a concurrent implementer's in-flight untracked work in the same worktree, so the controller — not this sweep — decides what happens to a reported file.
 
 ## Lens definitions (3a-3f)
 

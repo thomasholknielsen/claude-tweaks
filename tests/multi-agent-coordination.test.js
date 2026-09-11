@@ -809,3 +809,85 @@ test('/specify red-team integration: zero findings → Open Questions section is
   assert.ok(!result.includes('## Open Questions'), 'empty findings must not emit a placeholder header');
   assert.strictEqual(result, draftSpec, 'spec body unchanged when there are no findings');
 });
+
+// ============================================================
+// Post-fan-out scratch path + untracked-file sweep (#2022)
+// ============================================================
+
+test('the CALIBRATION filter is byte-identical between criteria-review-quality.md and step3-lens-dispatch.md (#2022 AC1)', () => {
+  const CRITERIA = fs.readFileSync(
+    path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'criteria-review-quality.md'),
+    'utf8',
+  );
+  const START = 'Only flag issues where:';
+  const END = 'If no, drop it.';
+  function extract(text, label) {
+    const start = text.indexOf(START);
+    assert.notStrictEqual(start, -1, `${label} must contain "${START}"`);
+    const endIdx = text.indexOf(END, start);
+    assert.notStrictEqual(endIdx, -1, `${label} must contain "${END}" after "${START}"`);
+    return text.slice(start, endIdx + END.length);
+  }
+  const canonical = extract(CRITERIA, 'criteria-review-quality.md');
+  const dispatched = extract(REVIEW_SKILL, 'step3-lens-dispatch.md (via REVIEW_SKILL)');
+  assert.strictEqual(
+    dispatched,
+    canonical,
+    'the Calibration filter reproduced in step3-lens-dispatch.md\'s dispatch template must stay ' +
+      'byte-identical to the canonical fragment in criteria-review-quality.md',
+  );
+});
+
+test('step3-lens-dispatch.md gives each dispatched lens agent a scratch path (#2022)', () => {
+  assert.match(
+    REVIEW_SKILL,
+    /SCRATCH: \{ctx-dir\}\/agent-scratch\/\{agent-id\}/,
+    'step3-lens-dispatch.md must give each dispatched lens agent a ' +
+      'SCRATCH: {ctx-dir}/agent-scratch/{agent-id} line, minted per dispatch',
+  );
+  const contractRef = REVIEW_SKILL.slice(
+    REVIEW_SKILL.indexOf('SCRATCH: {ctx-dir}/agent-scratch/{agent-id}'),
+  );
+  assert.match(
+    contractRef.slice(0, 400),
+    /Scratch rule/,
+    'the SCRATCH line must cite the Subagent Contract\'s Scratch rule by name',
+  );
+});
+
+test('step3-lens-dispatch.md defines the post-fan-out untracked-file sweep (#2022)', () => {
+  assert.match(
+    REVIEW_SKILL,
+    /## Post-fan-out untracked-file sweep/,
+    'step3-lens-dispatch.md must define the post-fan-out untracked-file sweep section',
+  );
+  assert.match(
+    REVIEW_SKILL,
+    /git status --porcelain --untracked-files=all/,
+    'the sweep must use --untracked-files=all, not bare --porcelain, so a freshly created ' +
+      'directory\'s contents are not collapsed to one line',
+  );
+  // Match a constructed sample entry against the doc-derived pattern, the same idiom every
+  // other decisionLogPattern(REVIEW_SKILL, ...) usage in this file follows (see e.g. the
+  // reproduction/debate/refutation tests above) — decisionLogPattern's regex is anchored
+  // (^...$, no multiline flag), so it can only ever match a single line the same shape as
+  // the template, never the full multi-file REVIEW_SKILL text itself.
+  const sweepEntry =
+    '- STAGED 09:14:02 — Review fan-out left 2 untracked file(s): scratch/foo.tmp, notes.txt. ' +
+    'Not deleted. Reversibility: n/a.';
+  assert.match(
+    sweepEntry,
+    decisionLogPattern(REVIEW_SKILL, ['Review fan-out left', 'untracked file']),
+    'the sweep\'s STAGED log line must match the documented shape',
+  );
+});
+
+test('step3-lens-dispatch.md captures a pre-dispatch listing before Step 3\'s first dispatch (#2022)', () => {
+  const preDispatchIdx = REVIEW_SKILL.indexOf('pre-dispatch-status.txt');
+  const firstDispatchIdx = REVIEW_SKILL.indexOf('Reproduction dispatch (Mode 1');
+  assert.notStrictEqual(preDispatchIdx, -1, 'must capture a pre-dispatch listing file');
+  assert.ok(
+    preDispatchIdx < firstDispatchIdx,
+    'the pre-dispatch listing must be captured before the first lens dispatch, not after',
+  );
+});
