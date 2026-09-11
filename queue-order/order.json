@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T14:47:39.526Z",
+  "computedAt": "2026-09-11T15:32:21.263Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -26,11 +26,6 @@
       {
         "number": 2073,
         "updatedAt": "2026-09-11T12:43:15Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2070,
-        "updatedAt": "2026-09-11T14:29:29Z",
         "state": "OPEN"
       },
       {
@@ -75,7 +70,7 @@
       },
       {
         "number": 2036,
-        "updatedAt": "2026-09-11T04:15:56Z",
+        "updatedAt": "2026-09-11T14:49:45Z",
         "state": "OPEN"
       },
       {
@@ -101,11 +96,6 @@
       {
         "number": 2028,
         "updatedAt": "2026-09-11T14:33:20Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2027,
-        "updatedAt": "2026-09-11T14:29:27Z",
         "state": "OPEN"
       },
       {
@@ -1046,82 +1036,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect light from #1876\nDefer-reason: tangential\n\n**Related:** #2041 — same subagent-stop contract-violation misattribution cluster\n\n## Current State\n\n`bin/lib/hooks/subagent-stop.js`'s E3 check (Subagent Contract status-line check) is meant to\nread the *dispatched subagent's own* last assistant message and flag it when it's missing the\n`DONE`/`DONE_WITH_CONCERNS`/`NEEDS_CONTEXT`/`BLOCKED` status line. Across this run's two pipeline\ncalls (build/test in the first call, review in this one), it fired `contract-violation` three\ntimes (`events.jsonl` at `12:04:05`, `12:12:50`, `12:15:50`), and in each case the logged\n`firstLine` reads as the **main session's own status narration** while waiting on an async\nAgent-tool dispatch — text like \"Simplify subagent (…) is running against the two doc files.\nI'll pause here and report status until it c[ompletes]\" and \"Waiting on the code-simplifier\nsubagent to return before proceeding to review Steps 6-7 …\" — not a subagent's own reply.\n(Recurred four more times later in this same wrap-up phase while awaiting the four Phase 2\ncuration agents, for seven total across this run.)\n\nThe handler's own code comment anticipates a *related* false-positive and exempts it: a last\nassistant message that carries a narration text block **alongside a `tool_use` block** (e.g.\n\"Waiting for the other task to finish.\" immediately before calling `Monitor`/`SendMessage`)\nreturns `null` (no violation) at line 55 of `subagent-stop.js`, since the turn continues after\nthe tool result returns. But the project's own documented-correct pattern\n(`agent-tool-async-wait-pattern.md` in user memory: \"while waiting on an Agent-tool dispatch's\nasync notification, end the turn with a status message and no tool call\") produces a last\nassistant message with narration text and **no** `tool_use` block — exactly the shape the\nexisting exemption does not cover, so it falls through to the STATUS_RE check and fails it,\neven though the session did exactly the recommended thing.\n\nThis suggests either (a) `ctx.input.agent_transcript_path`/`transcript_path` on a `SubagentStop`\nevent is resolving to the *main* session's transcript rather than the dispatched subagent's own\ntranscript in this environment, or (b) the exemption at line 55 needs to also cover \"last\nassistant turn is narration-only, immediately preceding a session-ending wait for an async\nnotification\" the same way it already covers \"narration immediately before a same-turn tool\ncall.\" Either way the practical effect is the same: a session following the documented-correct\nasync-wait convention gets a spurious `systemMessage` (\"claude-tweaks: a subagent reply is\nmissing the Subagent Contract status line…\") and a noise entry in `events.jsonl`.\n\n## Deliverables\n\n- [ ] Confirm root cause: does `SubagentStop`'s `transcript_path`/`agent_transcript_path` resolve\n      to the dispatching session's own transcript rather than the dispatched subagent's, under\n      some condition (e.g. the async-notification pattern specifically)? Or is the exemption at\n      `subagent-stop.js` line 55 simply too narrow?\n- [ ] Fix the root cause: either correct the transcript-path resolution, or widen the\n      narration-only exemption to also cover a last-assistant-message with no `tool_use` block\n      that immediately precedes a session-ending async wait (distinguishing it from an actual\n      subagent reply that's genuinely missing its status line).\n- [ ] Verify the fix does not silently swallow real subagent contract violations — the check must\n      stay best-effort/non-blocking (per the file's own header comment) but should stop firing on\n      compliant main-session narration.\n\n## Acceptance Criteria\n\n1. A session that follows `agent-tool-async-wait-pattern.md`'s documented convention (status\n   message, no tool call, while awaiting an async Agent-tool notification) no longer produces a\n   `contract-violation` event or the associated `systemMessage`.\n2. A dispatched subagent whose own final reply genuinely omits the required status line still\n   produces the `contract-violation` event — the fix narrows the false-positive without\n   disabling the real check.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-09-07T12:43:19Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: spec-shaped and agent-sized — in the authorization gate's worklist",
-            "color": "0E8A16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: a defect in existing behavior",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          }
-        ],
-        "number": 2036,
-        "state": "OPEN",
-        "title": "SubagentStop hook misattributes contract-violation to main-session narration",
-        "updatedAt": "2026-09-11T04:15:56Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
         }
       }
     ],
