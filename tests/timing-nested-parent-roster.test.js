@@ -56,10 +56,12 @@ function walk(dir) {
   });
 }
 
-// Scan one file's lines, tracking the current `##`-level heading (to
-// exclude "## Next Actions" blocks — human launchers, not nested
-// Skill-tool calls) and fenced-code-block state (to exclude human-facing
-// example command blocks). Returns [{file, line, skill}].
+// Scan one file's lines, tracking fenced-code-block state (to exclude
+// human-facing example command blocks) and the current heading (to exclude
+// "## Next Actions" blocks — human launchers, not nested Skill-tool calls).
+// Fence state settles first: template files fence their own example
+// "## Next Actions" headings, and letting those flip the heading state
+// would leak the exclusion past the closing fence. Returns [{file, line, skill}].
 function scanFile(file) {
   const rel = path.relative(ROOT, file);
   const lines = fs.readFileSync(file, 'utf8').split('\n');
@@ -68,9 +70,10 @@ function scanFile(file) {
   let inFence = false;
   lines.forEach((line, i) => {
     if (/^\s*```/.test(line)) { inFence = !inFence; return; }
+    if (inFence) return;
     const heading = /^#{1,6}\s+(.*)$/.exec(line);
     if (heading) inNextActions = /next actions/i.test(heading[1]);
-    if (inFence || inNextActions) return;
+    if (inNextActions) return;
     for (const m of line.matchAll(/\/claude-tweaks:([a-zA-Z][a-zA-Z0-9-]*)/g)) {
       hits.push({ file: rel, line: i + 1, skill: m[1] });
     }
