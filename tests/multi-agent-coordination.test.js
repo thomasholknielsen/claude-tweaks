@@ -941,3 +941,19 @@ test('step3-debate-and-refutation.md runs the post-fan-out sweep after Step 3.5/
       'as this run\'s closing step, after its own Step 3.5/3.6 dispatches',
   );
 });
+
+test('step3-routing.md\'s post-dispatch diff audit names the post-fan-out sweep as its sibling (#2022)', () => {
+  const routing = fs.readFileSync(
+    path.join(__dirname, '..', 'plugin', 'skills', 'review', 'step3-routing.md'),
+    'utf8',
+  );
+  const auditStart = routing.indexOf('**Post-dispatch diff audit (mandatory).**');
+  assert.notStrictEqual(auditStart, -1, 'step3-routing.md must keep its post-dispatch diff audit paragraph');
+  const auditParagraph = routing.slice(auditStart, routing.indexOf('\n\n', auditStart));
+  assert.match(
+    auditParagraph,
+    /post-fan-out (untracked-file )?sweep/i,
+    'the post-dispatch diff audit paragraph must name the post-fan-out sweep ' +
+      '(step3-lens-dispatch.md) as its sibling — one rule applied at two points',
+  );
+});
