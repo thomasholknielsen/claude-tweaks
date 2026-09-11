@@ -128,8 +128,9 @@ function run(ctx) {
   // subagent transcript from the dispatching session's own — see the header
   // comment's false-positive source 3. Best-effort no-op, matching this
   // file's own posture.
-  const mainTranscriptPath = ctx.input.transcript_path;
-  if (typeof mainTranscriptPath === 'string' && mainTranscriptPath && mainTranscriptPath === transcriptPath) return {};
+  // transcriptPath is already a confirmed non-empty string (checked above),
+  // so a straight equality test already implies mainTranscriptPath is one too.
+  if (ctx.input.transcript_path === transcriptPath) return {};
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
   const trimmedText = text.trim();
