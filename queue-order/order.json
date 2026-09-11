@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T23:14:13.821Z",
+  "computedAt": "2026-09-11T23:37:59.948Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -46,11 +46,6 @@
       {
         "number": 2066,
         "updatedAt": "2026-09-11T10:22:17Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2059,
-        "updatedAt": "2026-09-11T04:15:48Z",
         "state": "OPEN"
       },
       {
@@ -572,94 +567,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Doc:** plans/2026-09-05-record-1775-ledger | **Section:** Freshness | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b497a80931452e03ceda09f1a1f5d2119acf850b\n\n## Current State\n\nLive check via GitHub API: PR #1939 state=closed merged=true (merged_at 2026-09-05T20:21:14Z); issue #1775 state=closed state_reason=completed, closed_by PR #1939 (verified 2026-09-08). The ledger's one row already carries status `accepted` — a terminal status per `_shared/ledger-format.md`'s Status Lifecycle — with a stated reason, so no `open` item remains, yet the file still exists under `docs/plans/`, which this skill's own scope note describes as \"live ephemeral pipeline state,\" not a permanent record. This is the exact failure mode issue #1775 itself was filed and merged to fix for a different ledger (`docs/plans/2026-08-25-record-1424-ledger.md`) — an all-terminal ledger left undeleted. A repo-wide spot check found 8 of 12 ledger files currently under `docs/plans/` have no remaining `open` rows, suggesting the wrap-up Phase 4 delete-on-terminal step is not consistently reached; this finding is scoped to the audited target only.\n\n## Deliverables\n\n**Current:**\n```\n# Open Items — Doc staleness: plans/2026-08-25-record-1424-ledger — Freshness (#1775)\n\n| # | Phase | Item | Status | Resolution |\n|---|-------|------|--------|------------|\n| 1 | wrap-up | pr — PR #1939 (this run's own head branch `worktree-dispatch-record-1775`) — residue sweep at close time (`bin/residue.js --scope blast-radius`) reports it open, remedy: record | accepted | This is this run's own in-flight PR under the pr-first integration model; its merge/hold disposition is decided by this same wrap-up's Phase 4 Auto-merge short-circuit / Review Console immediately following this gate, not by the ledger resolve gate itself. |\n\n```\n\n**Proposed:**\n```\n(file deleted — `git rm docs/plans/2026-09-05-record-1775-ledger.md`, per `plugin/skills/ledger/SKILL.md`'s Delete operation)\n```\n\n## Acceptance Criteria\n\nThis ledger's single Open Items row (status: `accepted`) is terminal. Live GitHub checks confirm the resolution it recorded actually landed: PR #1939 is merged and issue #1775 is closed (closed by PR #1939). With no `open` rows remaining, the resolve gate has passed. Per `plugin/skills/ledger/SKILL.md`'s Delete operation (\"Delete the ledger file after all items are resolved... Only delete when the resolve gate has passed — all items must have terminal statuses\"), delete `docs/plans/2026-09-05-record-1775-ledger.md`.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-fd99741a -->",
-        "createdAt": "2026-09-08T06:15:23Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRqw",
-            "name": "by:docs-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRrA",
-            "name": "docs-health:additive",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 2059,
-        "state": "OPEN",
-        "title": "Doc staleness: plans/2026-09-05-record-1775-ledger — Freshness",
-        "updatedAt": "2026-09-11T04:15:48Z",
-        "facets": {
-          "origin": "docs-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
         }
       }
     ],
