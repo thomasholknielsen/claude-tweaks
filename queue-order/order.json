@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T22:48:11.863Z",
+  "computedAt": "2026-09-11T23:14:13.821Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -51,11 +51,6 @@
       {
         "number": 2059,
         "updatedAt": "2026-09-11T04:15:48Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2058,
-        "updatedAt": "2026-09-11T04:15:51Z",
         "state": "OPEN"
       },
       {
@@ -644,94 +639,6 @@
         "state": "OPEN",
         "title": "Doc staleness: plans/2026-09-05-record-1775-ledger — Freshness",
         "updatedAt": "2026-09-11T04:15:48Z",
-        "facets": {
-          "origin": "docs-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Doc:** plans/2026-09-05-record-1687-ledger | **Section:** Open Items table, row 1 | **Category:** staleness | **Misleads:** human engineer + coding agent | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b497a80931452e03ceda09f1a1f5d2119acf850b\n\n## Current State\n\nThe row states PR #1872 'is still open', but GitHub shows PR #1872 was merged 2026-09-05T05:26:46Z and issue #1687 was closed the same day (state: closed, state_reason: completed). Verified via mcp__github__pull_request_read/issue_read live lookups.\n\n## Deliverables\n\n**Current:**\n```\n| 1 | wrap-up | Residue sweep: PR #1872 (this run's own head branch worktree-record-1687) is still open | accepted | This run's own not-yet-merged draft PR — resolved by Phase 4's Auto-merge/Review Console step, not by this ledger; not residue in the \"leftover\" sense. |\n```\n\n**Proposed:**\n```\n| 1 | wrap-up | Residue sweep: PR #1872 (this run's own head branch worktree-record-1687) was open at run time | accepted | This run's own draft PR, resolved by Phase 4's Auto-merge/Review Console step as designed — merged 2026-09-05T05:26:46Z, closing #1687; not residue in the \"leftover\" sense. |\n```\n\n## Acceptance Criteria\n\nUpdate the row-1 Item/Resolution text to reflect that PR #1872 has since merged (2026-09-05T05:26:46Z) and closed #1687, rather than describing the PR as still open.\n\n_Filed by `/claude-tweaks:docs-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: docshealth-5c466902 -->\nwork-fingerprint: docshealth-5c466902",
-        "createdAt": "2026-09-08T06:06:28Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRqw",
-            "name": "by:docs-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACverRrA",
-            "name": "docs-health:additive",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 2058,
-        "state": "OPEN",
-        "title": "Doc staleness: plans/2026-09-05-record-1687-ledger — Open Items table, row 1",
-        "updatedAt": "2026-09-11T04:15:51Z",
         "facets": {
           "origin": "docs-health",
           "risk": "low",
