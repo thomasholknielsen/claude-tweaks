@@ -7,7 +7,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { runGit, isIndeterminate } = require('../hooks/git-exec');
+const { runGit } = require('../hooks/git-exec');
 const { mainCheckoutRoot } = require('../hooks/worktree-detect');
 const { parseWorktreeList } = require('../hooks/worktree-reap');
 const {
@@ -97,13 +97,17 @@ function isAdHocStandaloneSuperseded(dir, state, worktrees, now = Date.now()) {
 // archiveRunDir's git mv + commit is what tracked content needs, and it
 // does not require run-state.json. `git ls-files -- <dir>` lists nothing
 // for a genuinely untracked mint, which keeps that case on the fs-only path.
-// An indeterminate probe (timeout/spawn/no-git — git-exec.js's
-// isIndeterminate) is not an answer of "untracked": assume tracked and let
-// archiveRunDir refuse visibly rather than silently take the fs-only path.
+// Only a successful, empty listing proves "untracked". Any probe failure —
+// indeterminate (timeout/spawn/no-git, git-exec.js's isIndeterminate) or a
+// definitive git-error (a corrupt index, an unreadable object store) — is
+// not that proof: assume tracked and let archiveRunDir refuse visibly (its
+// own ls-files guard fails closed on any failure, `ls-files-failed`) rather
+// than let this helper be the one place a failed probe quietly selects the
+// bare fs rename.
 function hasTrackedContent(root, dir) {
   const listed = runGit(['ls-files', '--', dir], root);
-  if (isIndeterminate(listed.failure)) return true;
-  return !listed.failure && String(listed.stdout || '').trim().length > 0;
+  if (listed.failure) return true;
+  return String(listed.stdout || '').trim().length > 0;
 }
 
 // A minted run dir that never got adopted: no config.yml (flow's Manifesto
