@@ -1048,6 +1048,39 @@ test('archiveMerged: an orphaned mint with no tracked content still takes the fs
   assert.equal(fs.existsSync(path.join(archiveDir, 'run-state.json')), false, 'fs-only path never writes archiveRunDir\'s archiving stamp');
 });
 
+// When archiveRunDir refuses the routed dir, the refusal is a visible skip
+// reason — never a silent fs move of tracked content, never a silent no-op —
+// and the dir is left in place with work/ back at its original path.
+test('archiveMerged: a refused git-aware archival of a tracked orphaned mint surfaces in skipped and leaves the dir in place', (t) => {
+  const root = fs.realpathSync(makeRepo());
+  const runId = '2026-01-01T000000-record-2227-refused';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/work/2227-spec.md`, '# 2227\n');
+  const backdated = new Date(Date.now() - ORPHAN_MINT_TTL_MS * 2);
+  fs.utimesSync(runDir, backdated, backdated);
+  // Installed after commitPath's own commit so only archiveRunDir's commit fails.
+  installFailingPreCommitHook(root);
+  t.after(() => removePreCommitHook(root));
+
+  const result = archiveMerged({ cwd: root });
+
+  assert.ok(!result.archived.includes(runDir), 'a refused archival must not count as archived');
+  assert.ok(
+    result.skipped.some((s) => s.runDir === runDir && s.reason === 'commit-failed'),
+    `expected a commit-failed skip for ${runDir}, got ${JSON.stringify(result.skipped)}`,
+  );
+  assert.equal(fs.existsSync(path.join(runDir, 'work', '2227-spec.md')), true, 'work/ must be reverted to its original path');
+  assert.ok(
+    trackedFiles(root).includes(`.claude-tweaks/pipelines/${runId}/work/2227-spec.md`),
+    'the spec must still be tracked at its original path after the revert',
+  );
+  assert.equal(
+    fs.existsSync(path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId, 'work', '2227-spec.md')),
+    false,
+    'nothing may be left under archive/ after a reverted refusal',
+  );
+});
+
 // #644 Deliverable 2 — trackArchiveResult is archiveMerged's one choke
 // point for the move-failed consecutive-failure counter and escalation.
 test('trackArchiveResult: escalates exactly once at the threshold via an injected escalate, never on later still-failing calls', () => {
