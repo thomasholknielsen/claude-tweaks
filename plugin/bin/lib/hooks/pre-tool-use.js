@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  gitTargets, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, resolveGitCommand,
+  gitTargets, gitTargetsFrom, resolvedGitSegments, fileWriteTargets, mkdirTargets, WRITE_SHAPES, forEachCommandSegment, resolveGitCommand,
 } = require('./git-command');
 const ctxLib = require('./context');
 const policy = require('../policy');
@@ -622,36 +622,46 @@ function checkPipelineShadowGuard(ctx) {
   return {};
 }
 
-// git-stash worktree-hazard warn gate (#1967): the stash stack is
-// repository-wide, shared by every linked worktree of the same main
-// checkout — `git stash` / `git stash pop` run from inside a linked
-// worktree can push onto, or pop, an entry a SIBLING worktree's session
-// created and still expects to find. The #1864 review call proved this by
-// popping a sibling worktree's WIP stash while comparing test discrimination
-// against a baseline. This is a WARN, never a deny: unlike E1/
-// worktree-required, there is no provable "whose stash entry is this" signal
-// to gate on — only a heads-up pointing at a non-mutating alternative.
-// Scoped to the bare/`pop` shapes only — `stash list`/`show`/`drop`/`apply`/
-// etc. don't reach for the shared stack the same destructive way and are left
-// alone, mirroring git-command.js's own PLUMBING_WRITE_SUBCOMMANDS comment on
-// why `stash` was deliberately excluded from its one-level subcommand check:
-// a second token has to be resolved to tell the mutating shape from a
-// read-only one. Needs no pipeline run state — this fires regardless of
-// whether a run is active, same as the worktree-required gate below.
-function checkGitStashWarn(ctx, command, warnings) {
-  // Caller only ever passes a non-empty string here when ctx.input.tool_name
-  // is already 'Bash' (runInner's own `command` derivation) — re-checked
+// git-stash worktree-hazard warn gate (#1967, widened #2065): the stash
+// stack is repository-wide, shared by every linked worktree of the same main
+// checkout — `git stash` and every explicit stack-mutating spelling of it
+// (`stash push`, `stash push -u`/`-m ...`, the flag-first bare forms
+// `stash -u`/`stash -m ...`, and the deprecated-but-live `stash save`) run
+// from inside a linked worktree can push onto, or pop, an entry a SIBLING
+// worktree's session created and still expects to find. The #1864 review
+// call proved this by popping a sibling worktree's WIP stash while comparing
+// test discrimination against a baseline; #2065 closed the gap where only
+// the bare/`pop` spellings were covered — the exact hazard, reachable
+// through the equally common explicit `stash push`/`-u`/`-m` forms. This is
+// a WARN, never a deny: unlike E1/worktree-required, there is no provable
+// "whose stash entry is this" signal to gate on — only a heads-up pointing
+// at a non-mutating alternative. `list`/`show`/`apply`/`drop`/`clear`/
+// `branch` stay silent — mirroring git-command.js's own
+// PLUMBING_WRITE_SUBCOMMANDS comment on why `stash` was deliberately
+// excluded from its one-level subcommand check: a second token has to be
+// resolved to tell the mutating shape from a read-only one; `next.startsWith('-')`
+// also lets a harmless `git stash --help` warn (narrowing it would mean
+// enumerating stash's flag set — left as-is, an extra warning, never a
+// miss). Needs no pipeline run state — this fires regardless of whether a
+// run is active, same as the worktree-required gate below. Consumes the
+// segments run() already resolved once via resolvedGitSegments — no
+// forEachCommandSegment/resolveGitCommand call of its own (#2065's second
+// half: the second full traversal this file used to pay on every Bash call).
+function checkGitStashWarn(ctx, segments, warnings) {
+  // Caller only ever passes a real array here when ctx.input.tool_name is
+  // already 'Bash' (runInner's own `segments` derivation) — re-checked
   // defensively rather than trusted, since a future caller could pass this
-  // command through from a different tool_name branch.
-  if (typeof command !== 'string' || !command) return;
-  forEachCommandSegment(command, ctx.cwd, (t, effCwd) => {
-    const resolved = resolveGitCommand(t, effCwd);
-    if (!resolved || t[resolved.index] !== 'stash') return;
-    const next = t[resolved.index + 1];
-    if (next !== undefined && next !== 'pop') return; // only bare `stash` or `stash pop`
-    if (!resolved.dir) return;
-    const { isLinkedWorktree, indeterminate } = wtDetect.repoInfo(resolved.dir);
-    if (indeterminate || !isLinkedWorktree) return;
+  // through from a different tool_name branch.
+  if (!Array.isArray(segments)) return;
+  for (const { tokens: t, index, dir } of segments) {
+    if (t[index] !== 'stash') continue;
+    const next = t[index + 1];
+    const mutatesStack = next === undefined || next === 'pop' || next === 'push'
+      || next === 'save' || (typeof next === 'string' && next.startsWith('-'));
+    if (!mutatesStack) continue;
+    if (!dir) continue;
+    const { isLinkedWorktree, indeterminate } = wtDetect.repoInfo(dir);
+    if (indeterminate || !isLinkedWorktree) continue;
     warnings.push(
       'claude-tweaks: git stash is repository-wide, shared by every linked worktree of this '
       + "checkout — running it here can push onto or pop a SIBLING worktree's stash entry. "
@@ -659,7 +669,7 @@ function checkGitStashWarn(ctx, command, warnings) {
       + 'or set your own work aside with a temporary WIP commit (`git commit -m wip`, then apply '
       + 'it elsewhere by SHA — `git show <sha>` / `git cherry-pick <sha>`) rather than stash.',
     );
-  });
+  }
 }
 
 // worktree-required policy gate: unlike E1 below, this needs no pipeline run
@@ -1467,12 +1477,13 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
   const command = ctx.input && ctx.input.tool_name === 'Bash' && ctx.input.tool_input
     && typeof ctx.input.tool_input.command === 'string' ? ctx.input.tool_input.command : null;
 
-  checkGitStashWarn(ctx, command, warnings);
-
-  // Shared by checkWorktreeRequired's Bash branch above and the E1 loop
-  // below — parsing the same command/cwd through gitTargets twice per
-  // invocation was pure repeated work.
-  const commandGitTargets = command ? gitTargets(command, ctx.cwd) : null;
+  // #2065: the one resolvedGitSegments walk shared by checkGitStashWarn,
+  // checkWorktreeRequired's Bash branch above, and the E1 loop below —
+  // parsing the same command/cwd through a quote-aware segment/token walk
+  // three times per invocation (once per consumer) was pure repeated work.
+  const segments = command ? resolvedGitSegments(command, ctx.cwd) : null;
+  checkGitStashWarn(ctx, segments, warnings);
+  const commandGitTargets = segments ? gitTargetsFrom(segments) : null;
 
   const gate = checkWorktreeRequired(ctx, commandGitTargets, indeterminateTargets);
   if (gate.json) return gate;
