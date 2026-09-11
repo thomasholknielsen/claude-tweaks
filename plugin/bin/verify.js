@@ -292,14 +292,18 @@ async function main() {
 
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
-  // Flaky retry (#1925): only a --scope run with a declaration that lists
-  // flaky files ever retries; without one every failure is byte-for-byte
-  // today's. Eligible checks are `tests` or a declared suite — never
-  // types/lint (run.js never offers those to the hook either). The decision
-  // is recorded on the check whether or not a retry ran.
-  const flakyEnabled = Boolean(decl && decl.flaky.files.length > 0);
+  // Flaky retry (#1925): only a --scope run ever classifies or retries;
+  // without --scope every failure is byte-for-byte today's. Eligible checks
+  // are `tests` or a declared suite — never types/lint (run.js never offers
+  // those to the hook either). The decision is recorded on the check whether
+  // or not a retry ran, and whether or not `flaky.files` lists anything —
+  // an empty/absent `flaky` declaration still needs a `retryDecision.reason`
+  // recorded so #2026's no-parse/unlisted isolation-path selection has a
+  // signal to read (`planRetry` already returns `retry: false` for an empty
+  // allowlist, so gating classification on `flaky.files.length > 0` only
+  // ever suppressed the decision, never changed whether a retry could run).
   const retryHook = async (result, ctx) => {
-    if (!flakyEnabled) return result;
+    if (!decl) return result;
     // `result.name === 'tests'` is belt-and-braces here: the --cmd-vs-
     // declaration check earlier already rejects an undeclared `tests`, and
     // tool-scoped mode's synthesized `tests` is always declared — so this
