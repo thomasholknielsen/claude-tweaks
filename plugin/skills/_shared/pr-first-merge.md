@@ -162,7 +162,7 @@ Classify from the JSON, in this order:
 Then, per resolved value:
 
 **Why `--auto` alone is not a wait (Task 0, captured on this repo).** On a repository with no
-required status checks, `gh pr merge --auto --merge` **merges immediately** — exit `0`, empty stdout
+required status checks, `gh pr merge --auto --squash` **merges immediately** — exit `0`, empty stdout
 and stderr, `autoMergeRequest: null`, the PR `MERGED` while its `test` check was still `pending`.
 There is no distinguishing signature: `--auto`'s success looks identical whether it armed or merged.
 That is the #540 mechanism itself. So "arm `--auto`" is a genuine wait **only when the state read
@@ -273,9 +273,9 @@ merge (capture (a)), so the confirmation itself carries the choice: wait for gre
 **Creation-time caller:** `tidy/SKILL.md`'s Step 7.5 `pr-first` branch invokes only this step's initial `gh pr merge --auto` call at PR-creation time, with the degrade chain below replaced by leave-unarmed + report — see that step's own text for the full routing.
 
 ```bash
-gh pr merge {pr-number} --repo {owner}/{repo} --auto --merge \
-  -t "[{tag}] {one-line summary}" \
-  -b "$(printf 'Fixes #%s\n' {issue-list})"
+eval "$(node "${CLAUDE_PLUGIN_ROOT}/bin/compose-subject.js" {issue-list} --tag {tag} --shell)"
+gh pr merge {pr-number} --repo {owner}/{repo} --auto --squash \
+  -t "$SUBJECT_TITLE" -b "$SUBJECT_BODY"
 ```
 
 `{tag}` is `auto-merge` for the dispatch/headless path (`dispatch/settle-and-merge.md`'s Auto-merge
@@ -284,14 +284,13 @@ label, or `manifesto-authorized` for the same short-circuit triggered instead by
 `merge-authorization` Manifesto lever with no label present (`wrap-up/review-console.md`,
 `wrap-up/manifesto-authorized-merge.md`) — preserving all three tags' meanings — `/help`'s
 auto-merged-this-week metric (`_shared/github-pr-scan.md` `triage-queue` item 3) keys on all
-three. `{issue-list}` is one `Fixes #{n}` per record — the manifest's `complete` specs only for a
-bundle (#2015; rest release via their own `never-started:`/`abandoned:` reason). Same set the
-PR body's own `Fixes` lines already carry
-(`_shared/pr-early-run-lifecycle.md`'s pre-merge refresh), restated here because the
-merge commit's own message is what GitHub scans for closing keywords on a non-default
-integration branch, where the PR body's keywords don't fire (GitHub only auto-closes from a
-merge commit's message, or a PR body merged into the *default* branch — an explicit merge
-commit message is what makes closing work on any integration branch).
+three. `{issue-list}` is the record number(s) — the manifest's `complete` specs only for a bundle
+(#2015; rest release via their own `never-started:`/`abandoned:` reason). The composer
+(`bin/compose-subject.js` → `bin/lib/release/subject.js`) writes a Conventional-Commits subject
+(`feat`/`fix`/`chore` from Type, `!` + `BREAKING CHANGE:` footer from the `breaking` label) and
+one `Fixes #{n}` body line per record — the PR body's set, restated in the merge commit
+because GitHub only auto-closes from a merge commit's message on a non-default integration
+branch. `--squash` keeps the integration branch to one conventional commit per PR.
 
 **This call always either arms or performs the merge — `--auto` never blocks or polls.** Classify
 the result:
@@ -307,9 +306,8 @@ the result:
      behavior):
 
      ```bash
-     gh pr merge {pr-number} --repo {owner}/{repo} --merge \
-       -t "[{tag}] {one-line summary}" \
-       -b "$(printf 'Fixes #%s\n' {issue-list})"
+     gh pr merge {pr-number} --repo {owner}/{repo} --squash \
+       -t "$SUBJECT_TITLE" -b "$SUBJECT_BODY"
      ```
 
    - under `merge-when-green` or `wait` — do not merge immediately: degrade to Step 2.5's `wait`
