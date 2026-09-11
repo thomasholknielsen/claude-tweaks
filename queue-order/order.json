@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-11T22:16:50.728Z",
+  "computedAt": "2026-09-11T22:48:11.863Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -60,7 +60,7 @@
       },
       {
         "number": 2056,
-        "updatedAt": "2026-09-11T04:15:53Z",
+        "updatedAt": "2026-09-11T22:19:56Z",
         "state": "OPEN"
       },
       {
@@ -734,94 +734,6 @@
         "updatedAt": "2026-09-11T04:15:51Z",
         "facets": {
           "origin": "docs-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Skill:** run-directory-fact-packs | **Section:** The shape | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b497a80931452e03ceda09f1a1f5d2119acf850b\n\n## Current State\n\ngrep confirms wrap-up-pack.js's USAGE string includes `[--only <probe,...>]` and pack.js exports/filters by PROBE_NAMES, while flow-preflight.js's USAGE string is `--run <dir> --steps <a,b,c> [--json <path>]` (no --only) and flow/preflight.js's gatherPreflight runs `Promise.all(names.map(...))` over every key of `probes` with no filtering — its own parseArgs error text states --steps is 'metadata — every field is computed regardless.'\n\n## Deliverables\n\n**Current:**\n```\n- **`--only <probe,...>`** so a consumer that needs one field does not pay for eight.\n```\n\n**Proposed:**\n```\n- **`--only <probe,...>`** so a consumer that needs one field does not pay for eight — `wrap-up-pack.js`/`pack.js` only; `flow-preflight.js` has no `--only` flag, and `flow/preflight.js`'s `gatherPreflight` computes every probe unconditionally regardless of `--steps` (its own parse-error text calls `--steps` \"metadata — every field is computed regardless\"), since `/flow`'s second call always needs the full set.\n```\n\n## Acceptance Criteria\n\nThe skill claims the two shipped fact packs \"agree on every rule below,\" including the `--only <probe,...>` selective-probe rule, but `flow-preflight.js`/`flow/preflight.js` implements no such flag and always computes every probe. Fix the `--only` bullet to scope the rule to `pack.js`/`wrap-up-pack.js`, and soften the opening paragraph's blanket \"agree on every rule below\" claim to note this one exception.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-00c84acc -->",
-        "createdAt": "2026-09-08T05:19:48Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
-            "name": "by:harness-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
-            "name": "harness-health:additive",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 2056,
-        "state": "OPEN",
-        "title": "Skill drift: run-directory-fact-packs — The shape",
-        "updatedAt": "2026-09-11T04:15:53Z",
-        "facets": {
-          "origin": "harness-health",
           "risk": "low",
           "size": "low",
           "ceremony": null,
