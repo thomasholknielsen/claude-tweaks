@@ -44,6 +44,11 @@ const TYPE_PRECEDENCE = ['feature', 'bug', 'task'];
 
 const isPos = (n) => Number.isInteger(n) && n > 0;
 
+// err -> its message, or its string form when it has none (e.g. a thrown non-Error).
+function errMessage(err) {
+  return err && err.message ? err.message : String(err);
+}
+
 function parseArgs(argv) {
   const opts = { numbers: [], repo: null, tag: null, shell: false, help: false };
   for (let i = 0; i < argv.length; i++) {
@@ -141,7 +146,7 @@ function run(argv, deps = realDeps) {
     try {
       raw = deps.runner(['issue', 'view', String(n), '--repo', slug, '--json', 'number,title,body,labels,issueType']);
     } catch (err) {
-      deps.stderr(`compose-subject.js: gh issue view ${n} failed: ${err && err.message ? err.message : String(err)}\n`);
+      deps.stderr(`compose-subject.js: gh issue view ${n} failed: ${errMessage(err)}\n`);
       return 3;
     }
     let record;
@@ -169,7 +174,7 @@ function run(argv, deps = realDeps) {
       tag: opts.tag,
     });
   } catch (err) {
-    deps.stderr(`compose-subject.js: ${err && err.message ? err.message : String(err)}\n`);
+    deps.stderr(`compose-subject.js: ${errMessage(err)}\n`);
     return 1;
   }
 
