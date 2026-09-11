@@ -14,6 +14,7 @@ const RECORDS = {
   2265: { number: 2265, title: 'Unrecognized native type', body: '## Overview\n\nEpic-typed but stale-labeled.\n', labels: [{ name: 'type:feature' }], issueType: { name: 'Epic' } },
   2266: { number: 2266, title: 'Shaping-mode record', body: '## Current State\n\nToday X is Y. More.\n', labels: [{ name: 'type:task' }], issueType: null },
   2270: { number: 2270, title: 'Second task in an all-task bundle', body: '## Overview\n\nAnother task.\n', labels: [{ name: 'type:task' }], issueType: null },
+  2250: { number: 2250, title: 'Lowest is a task', body: '## Overview\n\nTask overview.\n', labels: [{ name: 'type:task' }], issueType: null },
 };
 
 function fakeDeps({ records = RECORDS, ghAvailable = () => true, remoteUrl = () => 'git@github.com:acme/repo.git', failView = false } = {}) {
@@ -66,11 +67,18 @@ test('bundle: subject from the lowest number, one Fixes line per record ascendin
   assert.equal(parsed.body, 'Makes the merge subject conventional.\n\n[auto-merge]\n\nFixes #2251\nFixes #2252');
 });
 
-test('bundle Type aggregation: feature > bug > task across the bundle, subject text still from the lowest number', () => {
+test('bundle Type aggregation: a type:feature sibling wins over the lowest-numbered type:task record (discriminating: the old lowest-record-only logic yields chore: here)', () => {
   const { deps, out } = fakeDeps();
-  assert.equal(run(['2252,2251'], deps), 0, out.stderr);
+  assert.equal(run(['2251,2250'], deps), 0, out.stderr);
   const parsed = JSON.parse(out.stdout);
-  assert.equal(parsed.title, 'feat: Merge-time conventional subject (#2251)');
+  assert.equal(parsed.title, 'feat: Lowest is a task (#2250)');
+});
+
+test('bundle Type aggregation: a type:bug sibling beats the lowest-numbered type:task record (bug > task precedence)', () => {
+  const { deps, out } = fakeDeps();
+  assert.equal(run(['2262,2250'], deps), 0, out.stderr);
+  const parsed = JSON.parse(out.stdout);
+  assert.ok(parsed.title.startsWith('fix: Lowest is a task (#2250)'), parsed.title);
 });
 
 test('bundle Type aggregation: an all-type:task bundle still composes chore:', () => {
