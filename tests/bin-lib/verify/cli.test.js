@@ -1082,13 +1082,12 @@ test('flaky retry: an unlisted failing file is an ordinary failure — no retry 
   assert.strictEqual('flakyRetried' in report.checks.tests, false);
 });
 
-test('flaky retry: a generic-family failing fixture (no extractable file) gets the no-parse clause on stdout; a passing check gets no clause (#2026)', async () => {
-  const r = tmpGitRepo();
-  // No TAP/mocha markers at all — sniffFamily classifies this as 'generic'
-  // and extractFailingFiles finds nothing to name.
-  fs.writeFileSync(path.join(r.repo, 'fail.js'), "process.stdout.write('Something went wrong\\n'); process.exit(1);\n");
+// Shared by the no-parse test below: writes a verify-scope.json declaring
+// `testsCmd` (with a flaky allowlist that never matches this fixture) and
+// commits it, returning the --scope args to run it under.
+function noParseArgs(r, testsCmd) {
   const decl = {
-    checks: { tests: 'node fail.js' },
+    checks: { tests: testsCmd },
     retry: { tests: 'node retry.js {file}' },
     rules: [{ match: 'src/**', suites: ['tests'], static: true }],
     flaky: { files: ['tests/flaky.test.js'] },
@@ -1098,7 +1097,15 @@ test('flaky retry: a generic-family failing fixture (no extractable file) gets t
   r.git('add', '.');
   r.git('commit', '-q', '-m', 'no-parse fixture');
   const branch = r.git('symbolic-ref', '--short', 'HEAD').trim();
-  const args = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', branch, '--cmd', 'tests=node fail.js'];
+  return ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', branch, '--cmd', `tests=${testsCmd}`];
+}
+
+test('flaky retry: a generic-family failing fixture (no extractable file) gets the no-parse clause on stdout; a passing check gets no clause (#2026)', async () => {
+  const r = tmpGitRepo();
+  // No TAP/mocha markers at all — sniffFamily classifies this as 'generic'
+  // and extractFailingFiles finds nothing to name.
+  fs.writeFileSync(path.join(r.repo, 'fail.js'), "process.stdout.write('Something went wrong\\n'); process.exit(1);\n");
+  const args = noParseArgs(r, 'node fail.js');
   const { code, stdout } = await runCli(args, { cwd: r.repo });
   assert.strictEqual(code, 1);
   assert.match(stdout, /\| tests \| fail \| .*\(retry: no-parse — whole-suite re-run applies\) \|/);
@@ -1108,15 +1115,7 @@ test('flaky retry: a generic-family failing fixture (no extractable file) gets t
   // A passing check never carries the clause, even with flaky declared.
   const passRepo = tmpGitRepo();
   fs.writeFileSync(path.join(passRepo.repo, 'ok.js'), "process.exit(0);\n");
-  fs.mkdirSync(path.join(passRepo.repo, '.claude-tweaks'), { recursive: true });
-  fs.writeFileSync(path.join(passRepo.repo, '.claude-tweaks', 'verify-scope.json'), JSON.stringify({
-    checks: { tests: 'node ok.js' }, retry: { tests: 'node retry.js {file}' },
-    rules: [{ match: 'src/**', suites: ['tests'], static: true }], flaky: { files: ['tests/flaky.test.js'] },
-  }));
-  passRepo.git('add', '.');
-  passRepo.git('commit', '-q', '-m', 'passing fixture');
-  const passBranch = passRepo.git('symbolic-ref', '--short', 'HEAD').trim();
-  const passArgs = ['--scope', '.claude-tweaks/verify-scope.json', '--integration-branch', passBranch, '--cmd', 'tests=node ok.js'];
+  const passArgs = noParseArgs(passRepo, 'node ok.js');
   const passRun = await runCli(passArgs, { cwd: passRepo.repo });
   assert.strictEqual(passRun.code, 0, passRun.stderr);
   assert.doesNotMatch(passRun.stdout, /no-parse/);

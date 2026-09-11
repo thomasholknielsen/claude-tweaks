@@ -487,7 +487,8 @@ async function main() {
     // whole-suite re-run isolation path applies, so it's visible without
     // opening report.json.
     if (!check.skipped && check.exitCode !== 0 && check.retryDecision && check.retryDecision.reason === 'no-parse') {
-      summary += ' (retry: no-parse — whole-suite re-run applies)';
+      const clause = '(retry: no-parse — whole-suite re-run applies)';
+      summary = check.summary ? `${summary} ${clause}` : clause;
     }
     lines.push(`| ${check.name} | ${statusOf(check)} | ${duration} | ${summary} |`);
   }
