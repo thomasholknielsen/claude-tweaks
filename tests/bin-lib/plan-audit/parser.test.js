@@ -199,6 +199,40 @@ test('extractUnparseableStep2s: scans every task in a multi-task plan independen
   assert.strictEqual(result[0].taskNumber, '2');
 });
 
+test('extractVerificationChecks captures step1Text, taskFileEntries, and appendMarker (#1999)', () => {
+  const text = [
+    '### Task 1: Append tests',
+    '**Files:**',
+    '- Modify: `tests/existing.test.js`',
+    '',
+    '- [ ] **Step 1: Append the new cases**',
+    '',
+    'Append three new `test(...)` blocks to `tests/existing.test.js`.',
+    '',
+    '- [ ] **Step 2: Run test to verify it fails**',
+    '',
+    'Run: `node --test tests/existing.test.js`',
+    'Expected: FAIL — new cases not yet true',
+  ].join('\n');
+  const checks = extractVerificationChecks(text);
+  assert.strictEqual(checks.length, 1);
+  assert.match(checks[0].step1Text, /Append three new/);
+  assert.deepStrictEqual(checks[0].taskFileEntries, [{ type: 'Modify', path: 'tests/existing.test.js' }]);
+  assert.strictEqual(checks[0].appendMarker, false);
+});
+
+test('extractVerificationChecks detects the "FAIL after Step 1" marker (#1999)', () => {
+  const text = [
+    '### Task 1: Marked append',
+    '- [ ] **Step 2: Run test to verify it fails**',
+    '',
+    'Run: `node --test tests/existing.test.js`',
+    'Expected: FAIL after Step 1 appends the new cases',
+  ].join('\n');
+  const checks = extractVerificationChecks(text);
+  assert.strictEqual(checks[0].appendMarker, true);
+});
+
 test('countTasks counts ### Task N: headings and reports batched=false by default (#1926)', () => {
   assert.deepStrictEqual(countTasks('### Task 1: Only\nbody\n'), { tasks: 1, batched: false });
   assert.deepStrictEqual(countTasks('# Plan\n\n### Task 1: A\n\n### Task 2: B\n\n### Task 3: C\n'), { tasks: 3, batched: false });
