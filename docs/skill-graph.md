@@ -408,6 +408,7 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `_shared/auto-decision-log.md` | Every Step 5–7 action writes one entry under `## /release`. |
 | `_shared/github-write-transport.md` | Step 7's record comments and closes (pr-first), MCP-mapped for gh-absent sandboxes; Step 5's merge has no MCP row — the skill stops at the console with a paste-ready command there. |
 | `_shared/integration-model.md` | Step 5 routes on the pack's `engine`, never re-detected (Consumer table row). |
+| `_shared/pr-first-merge.md` | Step 5's release-PR merge delegates the Merge-verification gate (Step 2.5) wholesale — same four-field read, same classification, same bounded watch — and states only four deltas: `MERGED` is resumable, red is `failed` and parks nothing, `--auto` is never armed, `mergeStateStatus` is classification-only. |
 | `_shared/autonomy-ceiling.md` | `--train` reads the `train` row — merge/tag minor and patch at `unattended`; never a major, a blocking review, or past a hook failure. |
 
 ## research

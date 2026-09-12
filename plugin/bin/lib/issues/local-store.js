@@ -255,12 +255,26 @@ function writeRecord(filePath, { title, body, facets } = {}) {
   fs.writeFileSync(filePath, composeRecordContent({ title, body, facets }), 'utf8');
 }
 
+// value -> void, or throws. The shipped facet serializes as a single `shipped: {value}`
+// frontmatter line, so whitespace or a control character in the value would split it into
+// a second line (or an unparseable one) and silently corrupt the fence. Both writers below
+// reject that at the boundary — defense in depth behind the caller-side validation
+// skills/release/execute.md's "Two versions" section performs at its reconciliation point.
+function assertShippedValue(value) {
+  if (typeof value !== 'string' || /[\s\x00-\x1f]/.test(value)) {
+    throw new TypeError(
+      `shipped facet must be a single-token string with no whitespace or control characters, got: ${JSON.stringify(value)}`,
+    );
+  }
+}
+
 // filePath, { shipped } -> void. Marks a record closed without deleting it — mirrors a GitHub
 // issue's closed (not deleted) state, so a completed local-files record stops
 // surfacing in default queryRecords results while remaining on disk as history.
 // Preserves every other facet and the record's title/body unchanged. When shipped is provided,
-// sets the shipped facet as well.
+// sets the shipped facet as well (validated by assertShippedValue above).
 function closeRecord(filePath, { shipped = null } = {}) {
+  if (shipped) assertShippedValue(shipped);
   const record = readRecord(filePath);
   writeRecord(filePath, {
     title: record.title,
@@ -271,8 +285,9 @@ function closeRecord(filePath, { shipped = null } = {}) {
 
 // filePath, version -> void. Sets the shipped facet on an open record (does not close it),
 // recording which version the work was shipped in. Preserves all other facets and
-// the record's title/body unchanged.
+// the record's title/body unchanged. The version is validated by assertShippedValue above.
 function markShipped(filePath, version) {
+  assertShippedValue(version);
   const record = readRecord(filePath);
   writeRecord(filePath, {
     title: record.title,

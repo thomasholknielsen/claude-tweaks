@@ -26,6 +26,8 @@ Read by `/claude-tweaks:release` Step 7. For each record in the shipped set, com
 Through `_shared/github-write-transport.md`'s CRUD mapping, so an MCP-only sandbox books the same set without `gh`:
 
 1. **Read state** — needed to skip an already-posted comment and to skip closing an already-closed record. Two calls, per `_shared/github-write-transport.md`'s CRUD table: `gh issue view N --json state` (or `issue_read` get mode) for open/closed, and `gh api repos/{owner}/{repo}/issues/N/comments?per_page=100` (or `issue_read` get_comments mode) to check for an existing `Shipped in v{version}` comment.
+
+   Either call failing — a non-zero exit, output that is not parseable JSON, or the MCP equivalent erroring — is a per-record `FAILED` with the verb `read`, and **no write is attempted for that record**. Never write blind on an unread state: it cannot tell an already-booked record from an unbooked one, so guessing produces either a duplicate `Shipped in v{version}` comment or a second close. The loop continues to the next record exactly as it does for a failed write, and the record counts in the summary's `{k} failed`.
 2. **Comment**, unless a comment already reads the exact text below — `gh issue comment N --body-file {file}` (or `add_issue_comment`), body:
    ```
    Shipped in v{version} — {release url}
@@ -37,7 +39,7 @@ A record already carrying the exact comment and already closed is skipped entire
 
 ## `work-backend: local-files`
 
-No `gh`/MCP call; the fact lives on the record file itself, via `bin/lib/issues/local-store.js`'s `shipped:` facet (serializes right after `closed-at:` in the frontmatter fence). The record file is the same one Step 4 already resolved to render the console row's title/type — a `specs/{n}-*.md` glob read via `readRecord(path)` — never re-derived here.
+No `gh`/MCP call; the fact lives on the record file itself, via `bin/lib/issues/local-store.js`'s `shipped:` facet (serializes right after `closed-at:` in the frontmatter fence). The record file is the same one Step 4 already resolved to render the console row's title/type — a `specs/{n}-*.md` glob read via `readRecord(path)` — never re-derived here. `v{version}` is safe to interpolate into either command below: execute.md's "Two versions" reconciliation already validated the shipped version against `^\d+\.\d+\.\d+$` before Step 6 ran, and `bin/lib/issues/local-store.js` rejects a `shipped` value carrying whitespace or a control character with a `TypeError` regardless — so a malformed value can never become a second frontmatter line.
 
 - **Record still open** (`facets.closed` is `false`) — close and mark shipped in one write (Task 2's API):
   ```bash
@@ -51,11 +53,14 @@ No `gh`/MCP call; the fact lives on the record file itself, via `bin/lib/issues/
 
 ## Failures never abort the loop
 
-A single record's write failing — a transient `gh`/MCP error, a locked or unwritable record file — is logged and the loop continues to the next record. One bad record never stops the rest of the shipped set from being booked. `FAILED` is not one of `bin/log-decision.js`'s enumerated statuses (`plugin/bin/lib/log-decision/append.js`'s `STATUSES` — `AUTO`/`STAGED`/`KEPT-PROMPT`/`SCANNED`/`REFUSED`/`SKIP` — rejects it on purpose), so this one line is hand-composed rather than written through the canonical writer, the same precedent `plugin/bin/apply-refine-labels.js`'s `logFailed` already establishes for the identical reason:
+A single record's read or write failing — a transient `gh`/MCP error, a locked or unwritable record file — is logged and the loop continues to the next record. One bad record never stops the rest of the shipped set from being booked. The idempotency read is included deliberately: a record whose state could not be read is skipped with the verb `read` and **no write attempted**, rather than written blind (the github-issues step 1 above). `FAILED` is not one of `bin/log-decision.js`'s enumerated statuses (`plugin/bin/lib/log-decision/append.js`'s `STATUSES` — `AUTO`/`STAGED`/`KEPT-PROMPT`/`SCANNED`/`REFUSED`/`SKIP` — rejects it on purpose), so this one line is hand-composed rather than written through the canonical writer, the same precedent `plugin/bin/apply-refine-labels.js`'s `logFailed` already establishes for the identical reason:
 
 ```
-FAILED {HH:MM:SS} — Step 7: #N — {comment|close|shipped} failed: {message}. Reversibility: n/a (write did not land).
+FAILED {HH:MM:SS} — Step 7: #N — {read|comment|close|shipped} failed: {message}. Reversibility: n/a (write did not land).
+FAILED {HH:MM:SS} — Step 7: #N — read failed: {message}. Reversibility: n/a (no write attempted).
 ```
+
+The verb enumeration is `{read|comment|close|shipped}`. The second line is the `read` verb's own form: its Reversibility clause reads `no write attempted`, not `write did not land`, because for a read failure nothing was ever tried — the distinction is what tells a later reader whether that record might carry a half-written state.
 
 ## Log lines
 

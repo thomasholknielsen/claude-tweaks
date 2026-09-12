@@ -50,7 +50,7 @@ RUN_ROOT=$(git rev-parse --git-common-dir)
 RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
 ```
 
-Then resolve the run directory per `_shared/pipeline-run-dir.md` (steps 1-2: `PIPELINE_RUN_DIR`, then the most-recent matching directory), anchored to that `$RUN_ROOT`. When neither resolves, create the standalone fallback and stamp it — `release` is on that file's step-4 standalone-auto allowlist, and this stamp is the second of the two direct `run-state.json` writes it names:
+Then resolve the run directory per `_shared/pipeline-run-dir.md` (steps 1-2: `PIPELINE_RUN_DIR`, then the most-recent matching directory), anchored to that `$RUN_ROOT`. When neither resolves, create the standalone fallback and stamp it — `release` has its own every-mode clause under that file's step 4, the same shape as wrap-up's and not the `auto`-gated allowlist (which is why the snippet below omits `--mode`), and this stamp is the second of the two direct `run-state.json` writes it names:
 
 ```bash
 RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug release 2>/dev/null)

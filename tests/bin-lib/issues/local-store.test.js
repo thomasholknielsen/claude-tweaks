@@ -740,3 +740,16 @@ test('shipped facet: absent by default, round-trips as a frontmatter line after 
   markShipped(open, 'v1.3.0');
   assert.deepStrictEqual([readRecord(open).facets.shipped, readRecord(open).facets.closed], ['v1.3.0', false]);
 });
+
+test('shipped facet: a value carrying whitespace or a control character is rejected and the file is untouched', (t) => {
+  // #2256 defense in depth — the facet serializes as one `shipped: {value}` frontmatter
+  // line, so a newline in the value would write a second line into the fence.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'local-store-shipped-bad-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const filePath = path.join(dir, '23-ship.md');
+  writeRecord(filePath, { title: 'Ship', body: 'b', facets: baseFacets({ type: 'feature' }) });
+  const before = fs.readFileSync(filePath, 'utf8');
+  assert.throws(() => markShipped(filePath, 'v1.3.0\nclosed: true'), { name: 'TypeError', message: /shipped facet/ });
+  assert.throws(() => closeRecord(filePath, { shipped: 'v1.3.0\nclosed: true' }), { name: 'TypeError', message: /shipped facet/ });
+  assert.strictEqual(fs.readFileSync(filePath, 'utf8'), before, 'a rejected value writes nothing');
+});

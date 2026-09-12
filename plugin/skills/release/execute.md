@@ -18,9 +18,21 @@ Execution and verification live in one file because they are engine-specific in 
 | Engine | Where the shipped version is read |
 |---|---|
 | `local-merge` | The `released v{version}` line on the engine's **stdout** (exit `0`). On exit `5` the same number is in the stderr line's `partial: v{version} is committed, tagged…` prefix. |
-| `pr-first` | The `X.Y.Z` in the merged release PR's `chore(main): release X.Y.Z` title — re-read after the merge with `gh pr view {releasePr.value.number} --json title`, never carried over from Step 1's pack. |
+| `pr-first` | The `X.Y.Z` in the merged release PR's `chore(main): release X.Y.Z` title — re-read after the merge with `gh pr view {releasePr.value.number} --repo {owner}/{repo} --json title`, never carried over from Step 1's pack. |
 
 The pack **proposes**; the engine **decides**. A sibling release landing between Step 1 and Step 5, or a `release-please-config.json` setting the pack does not read, can move the number.
+
+**Validate the shipped version before anything consumes it.** Whatever its source, it must match `^\d+\.\d+\.\d+$` — a bare `X.Y.Z`, no `v` prefix, no suffix, nothing else on either side. Check that the moment it is read, before the reconciliation below and before Step 6 runs a single probe: every later step interpolates this value into a tag glob, a `gh release view` argument, a `Shipped in v{version}` record comment and a `shipped:` frontmatter facet, so a value that is not a version becomes a probe that can never match or a write nobody can undo by reading it back.
+
+**pr-first — a post-merge title read that yields no version is its own named partial state.** The merge has already landed by the time this read runs, so its failure is never `failed`. Two shapes reach it: the `gh pr view` call fails (non-zero exit, unparseable JSON, no `title` field), or it returns a title from which no single unambiguous `X.Y.Z` can be taken — release-please's monorepo titles (`chore(main): release my-pkg 1.2.3`, and the multi-package variants naming several) and its component-less one (`chore(main): release main`) both fail the `chore(main): release X.Y.Z` shape the row above expects, and the pack selects the release PR by `headRefName`, so such a title reaches here rather than being filtered out upstream. Either shape resolves the same way, and it is evaluated **before** the three reconcile outcomes below, which need both versions to exist:
+
+- The outcome is `PARTIAL` — the merge landed, and nothing about it is undone by an unreadable title.
+- **Steps 6 and 7 do not run.** There is no version to probe for, and none to book against a record.
+- Quote the raw title, or `gh`'s own error, **verbatim** in the summary. A paraphrase loses the one datum that separates a monorepo title from a broken read, and they want different fixes.
+
+```
+PARTIAL: PR #{n} merged but no shipped version could be read from its title ({the raw title, or gh's error, verbatim}); recover: gh pr view {n} --repo {owner}/{repo} --json title,mergedAt, then run Step 6's three probes by hand against the version that title names
+```
 
 **Reconcile the two once, immediately after the engine returns** (before Step 6 runs a single probe):
 
@@ -81,10 +93,10 @@ git -C "$RUN_ROOT" push origin {branch}
 
 `{branch}` is the pack's own `branch` field. A **rejected push** (non-fast-forward, protected branch, permissions) is `failed`: report `git`'s stderr verbatim and stop with no poll — the override never reached origin, so there is nothing for release-please to re-render and waiting five minutes would only delay the same answer.
 
-Once the push lands, poll for the re-render — `gh pr view {n} --json title,headRefOid` every 20 seconds, at most 15 attempts (5 minutes). Re-rendered means the PR **title** carries `{version}`; `headRefOid` is read in the same call so a moved head is visible rather than inferred:
+Once the push lands, poll for the re-render — `gh pr view {n} --repo {owner}/{repo} --json title,headRefOid` every 20 seconds, at most 15 attempts (5 minutes). Re-rendered means the PR **title** carries `{version}`; `headRefOid` is read in the same call so a moved head is visible rather than inferred:
 
 ```bash
-gh pr view {releasePr.value.number} --json title,headRefOid
+gh pr view {releasePr.value.number} --repo {owner}/{repo} --json title,headRefOid
 ```
 
 Past the bound, **do not merge** — the open PR still renders the version the commits alone derived, and merging it would ship the wrong number. Log the line, report the named state, and stop:
@@ -95,26 +107,19 @@ override pushed, PR not re-rendered — release-please has not re-rendered PR #{
 
 The summary's outcome slot reads `failed`, not `PARTIAL`: `PARTIAL` asserts a release exists, and none does here. The `Release-As:` commit **is** on the integration branch, which is why the state is named rather than reported as a clean no-op — a second run must not push a second override commit.
 
-**The PR-check gate — read the PR's own state before merging.** The console's `CI on tip` row does **not** cover this: `ciTip` is the integration branch's tip, and the console *renders* CI, it does not gate on it. The checks that matter here are the release PR's own. Resolve the lever from this run's config overlay, then read the PR:
+**The PR-check gate — `_shared/pr-first-merge.md`'s Merge-verification gate, not a second implementation.** The console's `CI on tip` row does **not** cover this: `ciTip` is the integration branch's tip, and the console *renders* CI, it does not gate on it. The checks that matter here are the release PR's own. Resolve the lever and read the PR exactly as that gate's Step 2.5 does — its four-field read, its ordered classification, its bounded watch, its green-exit re-entry check — and apply only the four deltas below. The classification itself is not restated here; read it there:
 
 ```bash
 MERGE_VERIFICATION=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "{run-dir}" --values merge-verification)
-gh pr view {releasePr.value.number} --json state,mergeStateStatus,statusCheckRollup
+gh pr view {releasePr.value.number} --repo {owner}/{repo} --json state,mergeStateStatus,headRefOid,statusCheckRollup
 ```
 
-Classify per `_shared/pr-first-merge.md`'s Step 2.5, in this order:
+An unreadable state is Step 2.5's own first row, unchanged in substance: never merge on a state this gate could not read — a read failure is not "no CI" — reported here as `failed`, reason `state-read-failed`. The four deltas, each a deliberate narrowing or substitution for the release path:
 
-| Read | Action |
-|---|---|
-| The command failed, or the output is not parseable JSON with those three fields | `failed`, reason `state-read-failed`. Never merge on a state this gate could not read — a read failure is not "no CI". |
-| `state: MERGED` | The release PR is already merged (a resumed run, or a hand-run merge). Skip the merge, read the shipped version from its title, and go to Step 6 — the tag and Release probes are the real evidence either way. This is a deliberate narrowing of Step 2.5's blanket "never merge a non-`OPEN` PR": here it is a resumable state, not a stop. |
-| `state: CLOSED` | `failed` — the release PR was closed unmerged; release-please must render a new one. |
-| Any `statusCheckRollup[]` entry with `conclusion` in `FAILURE`, `TIMED_OUT`, `ERROR`, `STARTUP_FAILURE` | **Do not merge.** `failed`, naming the failing check(s) by name. Under `merge-verification: off` the read still runs and the red classification is logged — `off` skips the *wait*, not the read — and `off` merges anyway, today's behavior. |
-| Any entry with `status` not `COMPLETED`, or an empty rollup under `merge-when-green`/`wait` | **Pending.** Wait on Step 2.5's bounded watch (15 minutes, fixed — poll `gh pr checks {n}` and key on its exit code: `0` green, `1` a check failed → the red row above, `8` still pending). Still pending at the bound → `failed`, reason `checks still pending`. |
-| Empty rollup under `off` | No CI — green. |
-| Every entry `SUCCESS`/`NEUTRAL`/`SKIPPED`, or lever `off` | Green → merge. |
-
-**The release merge never arms `--auto`.** Step 2.5's `merge-when-green` arming path is deliberately not taken here: `--auto` returns before the merge happens, and Step 6 must verify the tag, the Release and the hook **inside this run**. A run that armed and returned would report on a release that had not occurred yet. Pending checks therefore wait or fail; they never arm.
+1. **`state: MERGED` is resumable, not a stop.** Step 2.5 stops on any non-`OPEN` state (`pr-not-open`) and never merges. Here a merged release PR is a state a resumed run — or a hand-run merge — legitimately lands in: skip the merge, read the shipped version from the PR title per `## Inputs`, and go to Step 6, where the tag and Release probes are the real evidence either way. A deliberate narrowing of that blanket rule, and only for `MERGED`: `state: CLOSED` keeps Step 2.5's posture as `failed` — the release PR was closed unmerged, and release-please must render a new one.
+2. **Red parks nothing.** Step 2.5's Red path applies `bot:parked` to the work-record issue(s) and comments on them; a release run holds no claimed record to park and has no dispatch resume to hand back to, so no label is applied and no park comment is posted. A red rollup — at the first read or during the watch — is simply `failed`, naming the failing check(s) by name. Everything else in that row is unchanged: under `off` the read still runs and the red classification is still logged (`off` skips the *wait*, not the read), and `off` still merges anyway.
+3. **The release never arms `--auto`.** Step 2.5's `merge-when-green` arming path is deliberately not taken here: `--auto` returns before the merge happens, and Step 6 must verify the tag, the Release and the hook **inside this run**. A run that armed and returned would report on a release that had not occurred yet. Pending under `merge-when-green` or `wait` therefore always takes Step 2.5's bounded watch (15 minutes, fixed — `gh pr checks {n} --repo {owner}/{repo}`, keyed on its exit code) rather than the arming column, and the watch's green exit keeps its `headRefOid` re-entry check unchanged: the first read above is the baseline, a moved head is re-read from the top rather than merged on the stale rollup (a second move reports `failed`, reason `moving-target`), and still-pending at the bound is `failed`, reason `checks-pending-timeout`. Pending under `off` is Step 2.5's `off` column unchanged — today's behavior, no wait.
+4. **`mergeStateStatus` is read for Step 2.5's classification only** — never to decide whether arming would hold, since delta 3 removes arming from this path entirely. It stays in the field list because that ordered classification reads it.
 
 **Merge.** One call, the immediate `--squash` form of `_shared/pr-first-merge.md`'s Step 3:
 
@@ -122,7 +127,7 @@ Classify per `_shared/pr-first-merge.md`'s Step 2.5, in this order:
 gh pr merge {releasePr.value.number} --squash --repo {owner}/{repo}
 ```
 
-`{owner}/{repo}` is resolved the way `_shared/pr-first-merge.md` does it — every `gh pr` call site in that procedure passes an explicit `--repo {owner}/{repo}` rather than relying on the cwd's remote, because the cwd here may be a worktree whose remote resolution is not the integration checkout's.
+`{owner}/{repo}` is resolved the way `_shared/pr-first-merge.md` does it, and every `gh` call site in this file — the merge, the reads, the probes, and the recovery commands the summary prints — passes it explicitly, exactly as that procedure pins its own read sites. Not because a worktree's remote differs: a linked worktree shares the main checkout's `.git/config`, so its `origin` is the same remote. The honest reason is that `gh`'s base-repo resolution depends on the **remote layout** rather than on a single remote — a fork checkout carrying both `origin` and `upstream`, a `gh repo set-default` value, or a `GH_REPO` in the environment each redirect it — and a release must never be merged, tagged or verified against whichever repository that inference happens to pick. Pinning `--repo` makes the target a fact of the command instead of a fact of the environment.
 
 No `-t`/`-b`: the release PR's subject is release-please's own `chore(main): release X.Y.Z`, and `bin/compose-subject.js` is not involved — this is the one pr-first merge site whose subject the engine owns.
 
@@ -130,6 +135,7 @@ No `-t`/`-b`: the release PR's subject is release-please's own `chore(main): rel
 |---|---|
 | exit `0` | Merged → read the shipped version from the PR title, reconcile per `## Inputs`, then Step 6. |
 | exit `0`, stderr `! Pull request … was already merged` | A no-op on an already-merged PR, not an error → same path as above. |
+| exit `0`, but the post-merge title read fails or yields no `X.Y.Z` | Merged, version unreadable → `## Inputs`' post-merge title-read branch: outcome `PARTIAL`, Steps 6 and 7 skipped, the raw title or `gh`'s error quoted verbatim with its recovery command. Never `failed` — the merge landed. |
 | non-zero exit | Nothing merged, nothing tagged. Report `gh`'s stderr **verbatim** and stop; the summary outcome is `failed`. Never retry blind — a failure whose cause is unread can be a protected branch, a moved head, or an org-owned required check, and each wants a different fix. |
 
 ### local-merge
@@ -190,28 +196,28 @@ Keep only the lines whose ref is exactly `refs/tags/v{version}` or `refs/tags/v{
 Empty after the bound:
 
 ```
-PARTIAL: PR #{n} merged but v{version} is not on origin after 5 min — release-please has not tagged the merge; recover: gh run list --workflow release-please.yml --limit 5
+PARTIAL: PR #{n} merged but v{version} is not on origin after 5 min — release-please has not tagged the merge; recover: gh run list --workflow release-please.yml --repo {owner}/{repo} --limit 5
 ```
 
-The recovery is a *different* command from the probe, deliberately: re-running `git ls-remote` only re-asks the question this step already answered. The tagging is release-please's own workflow run, so the recovery looks at that run — substitute the repo's actual release-please workflow name for `release-please*` (the workflow this project wires to `release-please-action`) — and, when it shows a failed run, re-runs it with `gh run rerun {databaseId}`.
+The recovery is a *different* command from the probe, deliberately: re-running `git ls-remote` only re-asks the question this step already answered. The tagging is release-please's own workflow run, so the recovery looks at that run — substitute the repo's actual release-please workflow name for `release-please*` (the workflow this project wires to `release-please-action`) — and, when it shows a failed run, re-runs it with `gh run rerun {databaseId} --repo {owner}/{repo}`.
 
 **2. GitHub Release.** Polled on the same bound, because release-please creates the Release from the tag:
 
 ```bash
-gh release view "v{version}" --json url,isDraft
+gh release view "v{version}" --repo {owner}/{repo} --json url,isDraft
 ```
 
 A non-zero exit (no such release) past the bound is a miss. `isDraft: true` is a miss reported on the **first** read that returns it — a draft Release is not published, and polling a draft only waits for a human to press a button:
 
 ```
-PARTIAL: v{version} is tagged but no GitHub Release exists; recover: gh release create v{version} --generate-notes
-PARTIAL: the GitHub Release for v{version} is a draft; recover: gh release edit v{version} --draft=false
+PARTIAL: v{version} is tagged but no GitHub Release exists; recover: gh release create v{version} --repo {owner}/{repo} --generate-notes
+PARTIAL: the GitHub Release for v{version} is a draft; recover: gh release edit v{version} --repo {owner}/{repo} --draft=false
 ```
 
 **3. The `release: published` hook.** Skip only when the pack's `hook.value` is `false` — there is no hook wired up, so there is nothing to verify and the row reads `hook n/a`. When `hook.value` is `true` **or** the field is degraded, run the probe: a hook whose presence could not be determined is not a hook that can be assumed absent.
 
 ```bash
-gh run list --event release --json databaseId,status,conclusion,name,url,headSha --limit 20
+gh run list --event release --repo {owner}/{repo} --json databaseId,status,conclusion,name,url,headSha --limit 20
 ```
 
 `databaseId` is in the field list because the recovery command below needs the run id to be runnable. Keep the runs whose `headSha` is the tag's commit — the sha probe 1 already read out of `git ls-remote`. That is the precise form of "created after the merge", and the only filter that cannot pick up an older release's run. Poll on the same bound and classify:
@@ -226,16 +232,16 @@ gh run list --event release --json databaseId,status,conclusion,name,url,headSha
 The last three are partial states:
 
 ```
-PARTIAL: v{version} is tagged and released but the release: published hook failed; recover: gh run rerun {databaseId}
-PARTIAL: v{version} is tagged and released but the release: published hook is still running; recover: gh run watch {databaseId}
-PARTIAL: v{version} is tagged and released but the release: published hook did not run; recover: check the workflow's release: published trigger, then gh run list --event release --limit 20
+PARTIAL: v{version} is tagged and released but the release: published hook failed; recover: gh run rerun {databaseId} --repo {owner}/{repo}
+PARTIAL: v{version} is tagged and released but the release: published hook is still running; recover: gh run watch {databaseId} --repo {owner}/{repo}
+PARTIAL: v{version} is tagged and released but the release: published hook did not run; recover: check the workflow's release: published trigger, then gh run list --event release --repo {owner}/{repo} --limit 20
 ```
 
 **Transport.** Step 5's `gh`-absent branch stops before merging, so this step is normally unreachable without `gh`. It is reachable in one case: a resumed run whose merge was performed by hand. There, probes 2 and 3 are unrunnable — `_shared/github-write-transport.md` has no Release or workflow-run row, and states plainly that PR- and run-backed reads degrade per item rather than being skipped wholesale. Probe 1 still runs (`git ls-remote` needs no forge CLI). Report probes 2 and 3 as `unverified (gh absent)` — a named partial state, not a pass — and pair that state with the two commands a human on a machine that *has* `gh` can paste to finish the verification, each on its own line:
 
 ```
-gh release view v{version} --json url,isDraft
-gh run list --event release --json databaseId,status,conclusion,name,url,headSha --limit 20
+gh release view v{version} --repo {owner}/{repo} --json url,isDraft
+gh run list --event release --repo {owner}/{repo} --json databaseId,status,conclusion,name,url,headSha --limit 20
 ```
 
 `unverified` without them tells the operator only that something was not checked; with them, the check is one paste away on the next machine. They are the same two probes this section could not run, quoted so they are runnable rather than described.
