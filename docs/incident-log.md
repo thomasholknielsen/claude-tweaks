@@ -224,6 +224,8 @@ Don't wrap an entire literal message a skill is meant to report verbatim in sing
 
 Don't add a new verification/gating/resolver helper alongside an existing sibling with established fail-safety behavior without explicitly checking — and testing — that the new helper fails in the *same direction* on ambiguous/malformed input (toward more scrutiny, not less). `resolveRefutation` (`bin/lib/coordination.js`), added as a sibling to `resolveDebate`, initially resolved any non-`'refuted'` verdict — including an empty or malformed one from a failed/`BLOCKED` dispatch — straight to `'confirmed'`, the opposite of `resolveDebate`'s fail-toward-`'contested'` default. It passed its own tests, which only covered the two expected literal values, and was caught only because `/review`'s error-handling lens ran as a reproduction pair. "Looks similar to its sibling" is not the same as "fails the same way as its sibling" — check explicitly, and add a test for the malformed/missing-input case, not just the happy path.
 
+**Recurrence (record #2227, 2026-09-11).** `hasTrackedContent` (`plugin/bin/lib/reconcile/archive-merged.js`) shipped treating only `git-exec.js`'s *indeterminate* failure kinds (timeout/spawn/no-git) as "assume tracked", so a definitive `git-error` — a corrupt index, an unreadable object store — fell through to "untracked" and the bare `fs.renameSync` that record exists to prevent, while the sibling probe in the same module (`archiveRunDir`'s `ls-files-failed` refusal) already failed closed on *any* failure. What made the fail-open arm feel principled is that `git-exec.js`'s own header doctrine (#134) draws the answered/unanswered line for the worktree gate, where a `git-error` genuinely is the answer; imported into a helper whose result selects between `git mv` + commit and a bare rename, that axis inverts the fail-safety. The Capable whole-branch review read the branch and explicitly endorsed the fail-open arm ("git-error is an answer and can keep the current falsy handling"); `/review`'s error-handling lens caught it one round later, and `67af77ee7` fixed it with a red-then-green git-error test. Same shape as the original — a new gating helper beside a fail-closed sibling, diverging on exactly the input neither its own tests nor a reviewer classified as malformed.
+
 ## IL-51 — Git access for wide parallel fan-out
 
 Don't give parallel implementer agents git access when the fan-out is wide (many agents, many files) — dispatch them edit-only and run every git operation (add/commit/push) centrally, in one process, after all agents finish. This removes the shared-git-index race entirely rather than just reducing it via careful sequencing (the mitigation above); a 33-agent parallel skill-fix pass used this successfully with zero git races.
@@ -1471,3 +1473,40 @@ review lens agent's finding plus independent live reproduction during `/claude-t
 (#1963) — nothing in this repo statically checks an inline `node -e` block embedded in skill
 `.md` prose, so an inconsistency between two adjacent blocks in one hand-authored edit survives
 until an agent actually executes the broken one.
+
+## IL-155 — `EnterWorktree(path=)` join between two sequential Task calls reported success but left the second call's Bash sandbox pinned to its original worktree
+
+Surfaced by `/reflect`'s full mode on session #1875 (staged as record #2050). That session's
+dispatching agent deviated from `dispatch/task-prompt.md`'s prescribed two-call pattern (the
+dispatching session itself holds a group's worktree open via its own `EnterWorktree`, and both
+Task calls inherit that cwd plainly, with neither ever passing `isolation` or calling
+`EnterWorktree` itself): the first Task call was launched with `Agent(isolation: "worktree")`,
+which — per `docs/donts.md`'s existing rule against exactly this — created a second, unrelated
+worktree rather than reusing one the dispatching session already held open. Having orphaned the
+first call into its own worktree, the dispatching session then launched the second call plainly
+and told it to join the first call's worktree via `EnterWorktree(path: <first call's worktree>)`.
+That call reported success and the agent's logical cwd updated, but every subsequent Bash call
+in it was refused: the agent's actual execution sandbox stayed pinned to whatever worktree it
+inherited at its own launch (the dispatching session's, unrelated to the first call's), a
+lower-level restriction the logical cwd switch did not propagate through. The second call
+reported `BLOCKED: worktree-inaccessible` and did no work; the dispatching session recovered by
+running the second call's steps inline in its own thread instead, forfeiting the two-call
+contract's conversational-isolation property for that firing.
+
+Investigated for #2050 without a live re-test: this build was itself policy-restricted from
+making any Task/Agent dispatch of its own (a sibling build in the same drain, working record
+#2067, had let a research-scoped fork exceed its stated read-only remit), so #1875's exact
+failure could be neither reproduced nor disproved directly. Reading `EnterWorktree`'s own current
+tool documentation instead (its schema, not a paraphrase) turned up language that, read literally,
+describes exactly the redirect #1875 found impossible: a `path`-based switch "also works ... from
+agents whose working directory was pinned at launch (subagent isolation or explicit cwd)," and
+"the switch only affects this agent, not the parent session." Whether this reflects a harness fix
+shipped since #1875, or a documented-but-not-yet-reliable capability, is unconfirmed — no live
+two-call dispatch was run to check either way.
+
+**Removal condition:** a live dispatch that hits this exact shape (a Task call joining a sibling
+Task call's worktree via `EnterWorktree(path=)`) either reproduces the #1875 failure — keep this
+entry and its `docs/donts.md` rule as still-active — or completes the join successfully, in which
+case retire the rule and reconsider whether `dispatch/sequential-execution.md`'s `#447`
+`cd {worktree} &&`-prefix workaround (which exists partly to route around this exact gap) can be
+simplified in favor of a direct `EnterWorktree(path=)` join.

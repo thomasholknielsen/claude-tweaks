@@ -216,7 +216,11 @@ A `correctness`- or `ambiguous`-classified failure revokes `auto:merge` before t
 
 Because a bundle shares one branch/worktree, the merge decision is necessarily group-wide even though blast radius is attributed per record below: **every member of the group must carry `auto:merge`, either already or via a matured `auto:merge-pending`** (see Authorization below) for the gate to apply at all — a group with even one `auto:build`-only member falls back to the normal pending-review path for the whole group; mixed grants inside one bundle are never split at merge time, and a group with even one still-pending, not-yet-matured member falls back the same way (the group's *slowest* member's veto window governs the whole group, same as its slowest member's review verdict already does below).
 
-When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check two layers before presenting it for approval:
+When a qualifying group's `/flow` run reaches `/wrap-up`'s Review Console, check two layers before presenting it for approval — but first, a live-drain overlap hold (refs #1985):
+
+**Drain-overlap hold, before `merge-check`.** Read `drain-pr-overlap.md`'s "Step 6 (Auto-merge
+gate)" section, this skill's directory, and follow it before Authorization/Content judgment below
+— extracted to keep this file under the 40 KB ceiling (`[IL-153]`).
 
 1. **Authorization** — a two-phase check: evaluate every group member first (fresh labels +
    comments, `evaluateMaturation` per member), act only if every one cleared. A member already
@@ -247,7 +251,7 @@ Order is load-bearing: the merge carries one `Fixes #{issue}` line per record, s
 **Both layers pass — merge (`integration-model: pr-first`, `_shared/integration-model.md`):**
 run `_shared/pr-first-merge.md`'s procedure now, in this same Task call — its Step 2.5
 (Merge-verification gate) applies the resolved merge-verification lever before any merge attempt:
-green arms or merges, pending waits or arms, red parks the group with bot:blocked and reports
+green arms or merges, pending waits or arms, red parks the group with bot:parked and reports
 pending-review, never merges (this is where a #540-shaped red merge is stopped) —
 `tag: auto-merge`, `issue-list` the group's full record set, `summary` the lowest-numbered
 record's title for a singleton or a semicolon-joined list of every member's title for a bundle.

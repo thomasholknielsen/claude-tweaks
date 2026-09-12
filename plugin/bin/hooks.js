@@ -252,7 +252,7 @@ function pipelinesRunIdShape(root, resolved) {
 // case 2 adopts it with no config.yml yet, worktree-setup.md Step 4.5's
 // record-worktree call performs the actual first write) — it opts in.
 // archive-run also opts in: its own downstream logic gives a specific,
-// more useful diagnostic (archiveOrphanedMint) for a stale, never-claimed
+// more useful diagnostic (the orphaned-mint sweep) for a stale, never-claimed
 // mint than a generic rejection here would. Every other of the 8 shared
 // callers always targets an already-initialized run dir in real use.
 // #1012: unambiguous-only implicit resolution for the five mutating verbs
@@ -871,7 +871,7 @@ async function main(argv) {
     if (!state) {
       process.stdout.write(
         `claude-tweaks: ${path.basename(runDir)} has no readable run-state.json — not archived; ` +
-        'a state-less dir is reconcile\'s archiveOrphanedMint\'s job, not this verb\'s\n',
+        'a state-less dir is reconcile\'s orphaned-mint sweep\'s job (archiveOrphanedMint, or archiveRunDir when it still holds tracked content — #2227), not this verb\'s\n',
       );
       return 0;
     }
