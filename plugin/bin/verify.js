@@ -292,14 +292,18 @@ async function main() {
 
   const startedAt = new Date().toISOString();
   const startMs = Date.now();
-  // Flaky retry (#1925): only a --scope run with a declaration that lists
-  // flaky files ever retries; without one every failure is byte-for-byte
-  // today's. Eligible checks are `tests` or a declared suite — never
-  // types/lint (run.js never offers those to the hook either). The decision
-  // is recorded on the check whether or not a retry ran.
-  const flakyEnabled = Boolean(decl && decl.flaky.files.length > 0);
+  // Flaky retry (#1925): only a --scope run ever classifies or retries;
+  // without --scope every failure is byte-for-byte today's. Eligible checks
+  // are `tests` or a declared suite — never types/lint (run.js never offers
+  // those to the hook either). The decision is recorded on the check whether
+  // or not a retry ran, and whether or not `flaky.files` lists anything —
+  // an empty/absent `flaky` declaration still needs a `retryDecision.reason`
+  // recorded so #2026's no-parse/unlisted isolation-path selection has a
+  // signal to read (`planRetry` already returns `retry: false` for an empty
+  // allowlist, so gating classification on `flaky.files.length > 0` only
+  // ever suppressed the decision, never changed whether a retry could run).
   const retryHook = async (result, ctx) => {
-    if (!flakyEnabled) return result;
+    if (!decl) return result;
     // `result.name === 'tests'` is belt-and-braces here: the --cmd-vs-
     // declaration check earlier already rejects an undeclared `tests`, and
     // tool-scoped mode's synthesized `tests` is always declared — so this
@@ -481,7 +485,15 @@ async function main() {
   lines.push('| Check | Status | Duration | Summary |', '|---|---|---|---|');
   for (const check of results) {
     const duration = check.skipped ? '—' : `${(check.durationMs / 1000).toFixed(1)}s`;
-    const summary = check.skipped ? '—' : (check.summary || '—');
+    let summary = check.skipped ? '—' : (check.summary || '—');
+    // #2026: a `no-parse` retryDecision means extractFailingFiles could not
+    // name a file for this failure — the stdout summary surfaces that the
+    // whole-suite re-run isolation path applies, so it's visible without
+    // opening report.json.
+    if (!check.skipped && check.exitCode !== 0 && check.retryDecision && check.retryDecision.reason === 'no-parse') {
+      const clause = '(retry: no-parse — whole-suite re-run applies)';
+      summary = check.summary ? `${summary} ${clause}` : clause;
+    }
     lines.push(`| ${check.name} | ${statusOf(check)} | ${duration} | ${summary} |`);
   }
   for (const check of results) {

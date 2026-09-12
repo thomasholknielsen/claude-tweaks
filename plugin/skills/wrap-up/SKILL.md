@@ -83,7 +83,7 @@ Summarize what was done — do not re-verify. Spec compliance (deliverables + ac
 
 **Every wrap-up run has a run directory from Phase 1 on.** This is a rule, not a branch: standalone or pipeline, record or conversation mode, one code path for staging, the audit log, and the Review Console in every mode.
 
-Resolve it per `_shared/pipeline-run-dir.md` steps 1-2 (the `PIPELINE_RUN_DIR` env var, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section, via `resolve-run-dir`. When neither resolves, create one — the standalone-fallback shape (`--standalone`, never gated on `--mode`, since wrap-up creates in every mode), plus the `run-state.json` stamp:
+Resolve it per `_shared/run-dir-resolution.md` steps 1-2 (the `PIPELINE_RUN_DIR` env var, then the most-recent matching directory), anchored to `$RUN_ROOT` per `_shared/pipeline-run-dir.md`'s Anchoring section, via `resolve-run-dir`. When neither resolves, create one — the standalone-fallback shape (`--standalone`, never gated on `--mode`, since wrap-up creates in every mode), plus the `run-state.json` stamp:
 
 ```bash
 RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "$SPEC_SLUG" 2>/dev/null)
@@ -97,7 +97,7 @@ fi
 echo "$RUN_DIR"
 ```
 
-`$SPEC_SLUG` follows that file's conventions — `record-{n}` in record mode, a short topic slug in conversation mode. The run is created `status: active` and closes through the normal archival path (Phase 4's cleanup item 8), so E1 enforcement and the interrupted-run reaper see nothing unusual. An `export` inside this snippet does **not** survive into the next Bash call — each later phase that needs the path re-resolves it with the same `_shared/pipeline-run-dir.md` snippet, which is why the run dir must be recorded as a fact of this run rather than relied on as environment state.
+`$SPEC_SLUG` follows `_shared/run-dir-resolution.md`'s SPEC_SLUG conventions — `record-{n}` in record mode, a short topic slug in conversation mode. The run is created `status: active` and closes through the normal archival path (Phase 4's cleanup item 8), so E1 enforcement and the interrupted-run reaper see nothing unusual. An `export` inside this snippet does **not** survive into the next Bash call — each later phase that needs the path re-resolves it with the same `_shared/run-dir-resolution.md` snippet, which is why the run dir must be recorded as a fact of this run rather than relied on as environment state.
 
 **Determine inherited-vs-created here, once.** At this point — and only here — record which of the two branches above ran:
 

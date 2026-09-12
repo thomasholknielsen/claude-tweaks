@@ -74,9 +74,9 @@ directory, so the claim needs an identity to claim under before one necessarily 
   `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "{spec-slug}" --create`
   (`_shared/pipeline-run-dir.md`'s Anchoring section — mkdir only; Step 3 writes `config.yml`/
   `decisions.md` when it adopts the now-set `PIPELINE_RUN_DIR` per case 2). Export the printed
-  path as `PIPELINE_RUN_DIR` for the rest of this pipeline invocation. `{spec-slug}` follows `_shared/pipeline-run-dir.md`'s SPEC_SLUG conventions
+  path as `PIPELINE_RUN_DIR` for the rest of this pipeline invocation. `{spec-slug}` follows `_shared/run-dir-resolution.md`'s SPEC_SLUG conventions
   (`spec-{N}` single, dash-joined multi with the load-bearing `spec-` prefix, or a topic slug). The directory's own ISO-timestamp prefix is
-  minted by `resolve-run-dir` itself per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule
+  minted by `resolve-run-dir` itself per `_shared/run-dir-resolution.md`'s ISO-timestamp rule
   (`date -u`) — this step never composes the timestamp by hand.
 
 Either way, `basename($PIPELINE_RUN_DIR)` is this run's claim identity for every target below.
@@ -195,7 +195,7 @@ target, exactly as before this CLI existed — read them from the composed `clai
   anyone with write access to it, so this value is exactly as untrusted as `link`, and gets the
   same reject-rather-than-sanitize treatment `tombstoneInFlightPr` already applies there — require
   it to match `^\d{4}-\d{2}-\d{2}T\d{6}-[a-z0-9][a-z0-9-]*$` (the canonical run-id shape,
-  `_shared/pipeline-run-dir.md`'s ISO-timestamp + spec-slug convention) with no `/` or `..`
+  `_shared/run-dir-resolution.md`'s ISO-timestamp + spec-slug convention) with no `/` or `..`
   anywhere in it; a value that doesn't match is treated identically to no marker found. No marker
   found, the marker fails that validation, `gh` unavailable, the `### Resume` line is missing or
   doesn't parse, or the resolved `$RUN_ROOT/.claude-tweaks/pipelines/{run-id}` directory absent (a
