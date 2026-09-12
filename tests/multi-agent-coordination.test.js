@@ -207,6 +207,103 @@ test('reproduction: genuine location disagreement (not merely a severity straddl
   assert.strictEqual(unconfirmed.length, 2);
 });
 
+// ------------------------------------------------------------
+// #1980: sameSubstance — a second signal alongside location, so a
+// same-location pair that is NOT the same underlying issue no longer
+// silently merges into one confirmed finding with the other discarded.
+// ------------------------------------------------------------
+
+test('reproduction: same location, substantively different findings → NOT confirmed; both unconfirmed with nearLocation', () => {
+  const a = [{ path: 'file.md', line: 100, severity: 'low', text: 'trailing comma' }];
+  const b = [{ path: 'file.md', line: 101, severity: 'critical', text: 'null deref on empty list' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 0);
+  assert.strictEqual(unconfirmed.length, 2);
+
+  const fromA = unconfirmed.find((f) => f.source === 'A');
+  const fromB = unconfirmed.find((f) => f.source === 'B');
+  assert.ok(fromA && fromB, 'both sides must surface, neither silently discarded');
+  assert.deepStrictEqual(fromA.nearLocation, { source: 'B', path: 'file.md', line: 101 });
+  assert.deepStrictEqual(fromB.nearLocation, { source: 'A', path: 'file.md', line: 100 });
+
+  const entry =
+    `- STAGED 11:02:44 — Reproduction: lens "3c" findings ${fromA.path}:${fromA.line} / ` +
+    `${fromB.path}:${fromB.line} share a location but not substance; both staged. Reversibility: high.`;
+  assert.match(
+    entry,
+    decisionLogPattern(REVIEW_SKILL, ['share a location but not substance', 'both staged']),
+  );
+});
+
+test('step3-lens-dispatch.md documents the nearLocation routing-table clause for a same-location, different-substance pair', () => {
+  assert.match(REVIEW_SKILL, /nearLocation/);
+  assert.match(REVIEW_SKILL, /same location as \{source\} finding at \{path\}:\{line\}, different substance/);
+});
+
+test('reproduction: #733 straddle case (same substance, straddled severity) is unaffected by the #1980 substance check', () => {
+  // Same fixture as the #733 test above — re-asserted here to pin that the
+  // substance check and the severity-straddle rescue compose correctly:
+  // agreeing on substance is what lets a straddled-severity pair still
+  // reproduce.
+  const a = [{ path: 'step-6-auto.md', line: 154, severity: 'medium', text: 'digest-vs-Approve finding' }];
+  const b = [{ path: 'step-6-auto.md', line: 154, severity: 'high', text: 'digest-vs-Approve finding' }];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 1);
+  assert.strictEqual(unconfirmed.length, 0);
+  assert.strictEqual(confirmed[0].severityContested, true);
+});
+
+test('reproduction: missing text on either side falls back to location-only pairing (today\'s behavior)', () => {
+  const oneSideNoText = c.categoriseReproduction(
+    [{ path: 'x.js', line: 10, severity: 'high' }],
+    [{ path: 'x.js', line: 11, severity: 'high', text: 'something specific' }],
+  );
+  assert.strictEqual(oneSideNoText.confirmed.length, 1, 'unknown substance must not discard a location match');
+  assert.strictEqual(oneSideNoText.unconfirmed.length, 0);
+
+  const neitherSideHasText = c.categoriseReproduction(
+    [{ path: 'x.js', line: 10, severity: 'high' }],
+    [{ path: 'x.js', line: 11, severity: 'high' }],
+  );
+  assert.strictEqual(neitherSideHasText.confirmed.length, 1);
+});
+
+test('reproduction: several same-location B candidates → the highest-substance-similarity one is paired, others stay unconfirmed', () => {
+  const a = [{ path: 'x.js', line: 100, severity: 'high', text: 'null pointer dereference on empty list' }];
+  const b = [
+    { path: 'x.js', line: 100, severity: 'low', text: 'trailing whitespace' },
+    { path: 'x.js', line: 101, severity: 'high', text: 'null pointer dereference on an empty list' },
+    { path: 'x.js', line: 99, severity: 'medium', text: 'unused import statement' },
+  ];
+  const { confirmed, unconfirmed } = c.categoriseReproduction(a, b);
+  assert.strictEqual(confirmed.length, 1, 'the substantively-matching candidate must be paired');
+  // reconcileSeverity's confirmed entry is built from `fa` (A's own line/path) — its severity
+  // agrees with B's bucket here, so no severityContested flag, but the pairing itself is what
+  // this test pins: the two textually-unrelated B candidates at the same location must NOT be
+  // the one selected.
+  assert.strictEqual(confirmed[0].line, 100);
+  assert.strictEqual(confirmed[0].severityContested, undefined);
+  assert.ok(!unconfirmed.some((f) => f.line === 101), 'the matched B candidate (line 101) must not also appear unconfirmed');
+  // The other two same-location B findings are genuinely different issues —
+  // they surface as their own unconfirmed entries (not silently dropped),
+  // but are not the chosen pairing partner so carry no nearLocation.
+  assert.strictEqual(unconfirmed.length, 2);
+  assert.ok(unconfirmed.every((f) => f.source === 'B'));
+});
+
+test('sameSubstance: identical text → true; unrelated text → false; missing text on either side → null', () => {
+  const withText = (text) => c.normalizeFinding({ path: 'x.js', line: 1, text });
+  assert.strictEqual(c.sameSubstance(withText('missing null check'), withText('missing null check')), true);
+  assert.strictEqual(c.sameSubstance(withText('missing null check'), withText('trailing comma in export list')), false);
+  assert.strictEqual(c.sameSubstance(withText('missing null check'), c.normalizeFinding({ path: 'x.js', line: 1 })), null);
+});
+
+test('findingsMatch: same location and matching severity bucket, but substantively different text → does not match', () => {
+  const a = { path: 'x.js', line: 100, severity: 'high', text: 'null pointer dereference' };
+  const b = { path: 'x.js', line: 101, severity: 'critical', text: 'unrelated trailing comma issue' };
+  assert.strictEqual(c.findingsMatch(a, b), false);
+});
+
 test('reproduction: one-side-only finding → unconfirmed with STAGED entry matching the documented schema', () => {
   const a = [{ path: 'src/auth.ts', line: 42, severity: 'critical', text: 'only-A' }];
   const b = [];
