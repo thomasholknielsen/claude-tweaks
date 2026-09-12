@@ -18,7 +18,10 @@
 // malformed/unsupported config; 3 nothing to
 // release; 4 version collision (sibling worktree / plan claim); 5 the
 // release-hook failed after the tag (and its push) fully landed — the tag is
-// final, re-run the hook alone.
+// final, re-run the hook alone. A `release-hook` policy value of `false`,
+// `off`, `none`, or `null` (case-insensitive, after quote stripping) reads
+// as unset — a maintainer disabling the hook must not have it run as a
+// literal shell command and land here.
 'use strict';
 
 const fs = require('fs');
@@ -61,10 +64,18 @@ function parseArgs(argv) {
   return opts;
 }
 
+// A release-hook value spelling "disabled" — a maintainer's explicit opt-out,
+// never a literal command name (running `false`/`off`/etc. as a shell command
+// would exit non-zero and misreport as a failed hook).
+const RELEASE_HOOK_UNSET_RE = /^(false|off|none|null)$/i;
+
 function policyValue(deps, key) {
   const resolved = resolvePolicyKeys([key], { policyRaw: deps.readFile(POLICY_FILE), runConfigRaw: null })[key];
   const value = resolved && resolved.value;
-  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const trimmed = value.trim();
+  if (key === 'release-hook' && RELEASE_HOOK_UNSET_RE.test(trimmed)) return null;
+  return trimmed;
 }
 
 // Only "there is no origin" reads as no origin. Any other git failure here (a
