@@ -5,21 +5,21 @@ const path = require('node:path');
 
 const c = require('../plugin/bin/lib/coordination');
 
-const PRIMITIVE_DOC = fs.readFileSync(
-  path.join(__dirname, '..', 'plugin', 'skills', '_shared', 'multi-agent-coordination.md'),
-  'utf8',
-);
+// Reads one live skill file under plugin/skills/. These tests assert against the real
+// shipped prose, so every read below goes through here rather than re-spelling the path.
+function readSkillFile(...segments) {
+  return fs.readFileSync(path.join(__dirname, '..', 'plugin', 'skills', ...segments), 'utf8');
+}
+
+const PRIMITIVE_DOC = readSkillFile('_shared', 'multi-agent-coordination.md');
 // Several of /review's decision-log templates live in sub-files lazy-loaded from SKILL.md rather
 // than inlined in it: reproduction's in step3-lens-dispatch.md, Cross-Lens Debate's and
 // Per-Candidate Refutation's in step3-debate-and-refutation.md. Concatenate all three so this
 // still asserts against the real documented format wherever it currently lives.
 const REVIEW_SKILL = ['SKILL.md', 'step3-lens-dispatch.md', 'step3-debate-and-refutation.md']
-  .map((f) => fs.readFileSync(path.join(__dirname, '..', 'plugin', 'skills', 'review', f), 'utf8'))
+  .map((f) => readSkillFile('review', f))
   .join('\n');
-const SPECIFY_RED_TEAM = fs.readFileSync(
-  path.join(__dirname, '..', 'plugin', 'skills', 'specify', 'red-team.md'),
-  'utf8',
-);
+const SPECIFY_RED_TEAM = readSkillFile('specify', 'red-team.md');
 
 // ---------- Dispatch recorder helper ----------
 //
@@ -695,10 +695,7 @@ test('/review summary assembly: confirmed flow to summary; unconfirmed + contest
   // Verify the wrap-up Review Console template documents the two new subsections.
   // The template itself lives in console-template.md — review-console.md's "Present
   // the console" section points readers there rather than inlining it (40 KB ceiling).
-  const REVIEW_CONSOLE = fs.readFileSync(
-    path.join(__dirname, '..', 'plugin', 'skills', 'wrap-up', 'console-template.md'),
-    'utf8',
-  );
+  const REVIEW_CONSOLE = readSkillFile('wrap-up', 'console-template.md');
   assert.ok(
     REVIEW_CONSOLE.includes('Low-confidence findings (not reproduced)'),
     'console-template.md must document the Low-confidence subsection',
@@ -808,4 +805,163 @@ test('/specify red-team integration: zero findings → Open Questions section is
   const result = applyRedTeamFindings(draftSpec, []);
   assert.ok(!result.includes('## Open Questions'), 'empty findings must not emit a placeholder header');
   assert.strictEqual(result, draftSpec, 'spec body unchanged when there are no findings');
+});
+
+// ============================================================
+// Post-fan-out scratch path + untracked-file sweep (#2022)
+// ============================================================
+
+// Slices the region of REVIEW_SKILL between two literal markers, failing with a
+// named message when either is missing rather than slicing from a -1 index. The
+// dispatch-template tests below each pin one such block.
+function reviewSkillBlock(startMarker, endMarker, label) {
+  const start = REVIEW_SKILL.indexOf(startMarker);
+  assert.notStrictEqual(start, -1, `${label} template must exist`);
+  const end = REVIEW_SKILL.indexOf(endMarker, start);
+  assert.notStrictEqual(end, -1, `${label} template end marker must exist`);
+  return REVIEW_SKILL.slice(start, end);
+}
+
+// AC1's "the Calibration/Output block stays byte-identical (its existing pin proves it)" is
+// covered by tests/code-health-misc/criteria-fragments.test.js's "review-quality CALIBRATION
+// block stays byte-identical between fragment and step3-lens-dispatch" — that pin reads
+// step3-lens-dispatch.md directly, so it does not need re-authoring here against the weaker,
+// concatenated REVIEW_SKILL constant.
+
+test('step3-lens-dispatch.md gives each dispatched lens agent a scratch path (#2022)', () => {
+  // Read step3-lens-dispatch.md directly rather than via the concatenated REVIEW_SKILL constant:
+  // step3-debate-and-refutation.md's refutation template carries a byte-identical
+  // "SCRATCH: {ctx-dir}/agent-scratch/{agent-id}" line, so matching against REVIEW_SKILL would
+  // still pass even if step3-lens-dispatch.md's own SCRATCH line were deleted.
+  const lensDispatch = readSkillFile('review', 'step3-lens-dispatch.md');
+  const scratchIdx = lensDispatch.indexOf('SCRATCH: {ctx-dir}/agent-scratch/{agent-id}');
+  assert.notStrictEqual(
+    scratchIdx,
+    -1,
+    'step3-lens-dispatch.md must give each dispatched lens agent a ' +
+      'SCRATCH: {ctx-dir}/agent-scratch/{agent-id} line, minted per dispatch',
+  );
+  assert.match(
+    lensDispatch.slice(scratchIdx, scratchIdx + 400),
+    /Scratch rule/,
+    'the SCRATCH line must cite the Subagent Contract\'s Scratch rule by name',
+  );
+});
+
+test('step3-lens-dispatch.md defines the post-fan-out untracked-file sweep (#2022)', () => {
+  assert.match(
+    REVIEW_SKILL,
+    /## Post-fan-out untracked-file sweep/,
+    'step3-lens-dispatch.md must define the post-fan-out untracked-file sweep section',
+  );
+  assert.match(
+    REVIEW_SKILL,
+    /git status --porcelain --untracked-files=all/,
+    'the sweep must use --untracked-files=all, not bare --porcelain, so a freshly created ' +
+      'directory\'s contents are not collapsed to one line',
+  );
+  // Match a constructed sample entry against the doc-derived pattern, the same idiom every
+  // other decisionLogPattern(REVIEW_SKILL, ...) usage in this file follows (see e.g. the
+  // reproduction/debate/refutation tests above) — decisionLogPattern's regex is anchored
+  // (^...$, no multiline flag), so it can only ever match a single line the same shape as
+  // the template, never the full multi-file REVIEW_SKILL text itself.
+  const sweepEntry =
+    '- STAGED 09:14:02 — Review fan-out left 2 untracked file(s): scratch/foo.tmp, notes.txt. ' +
+    'Not deleted. Reversibility: n/a.';
+  assert.match(
+    sweepEntry,
+    decisionLogPattern(REVIEW_SKILL, ['Review fan-out left', 'untracked file']),
+    'the sweep\'s STAGED log line must match the documented shape',
+  );
+});
+
+test('step3-lens-dispatch.md captures a pre-dispatch listing before Step 3\'s first dispatch (#2022)', () => {
+  const preDispatchIdx = REVIEW_SKILL.indexOf('pre-dispatch-status.txt');
+  const firstDispatchIdx = REVIEW_SKILL.indexOf('Reproduction dispatch (Mode 1');
+  assert.notStrictEqual(preDispatchIdx, -1, 'must capture a pre-dispatch listing file');
+  assert.ok(
+    preDispatchIdx < firstDispatchIdx,
+    'the pre-dispatch listing must be captured before the first lens dispatch, not after',
+  );
+});
+
+test('the refutation template gains a SCRATCH line, the debate template does not (#2022)', () => {
+  const refutationBlock = reviewSkillBlock(
+    'You are trying to FALSIFY this finding',
+    '[Use: Capable — refutation agent',
+    'refutation',
+  );
+  assert.match(
+    refutationBlock,
+    /SCRATCH: \{ctx-dir\}\/agent-scratch\/\{agent-id\}/,
+    'the refutation template must carry a SCRATCH: {ctx-dir}/agent-scratch/{agent-id} line before its [Use: ...] tag',
+  );
+
+  const debateBlock = reviewSkillBlock(
+    'Two lenses disagreed on this region',
+    '[Use: Frontier — debate agent',
+    'debate',
+  );
+  assert.doesNotMatch(
+    debateBlock,
+    /SCRATCH:/,
+    'debate judges write nothing and must get no SCRATCH line (spec Deliverables)',
+  );
+});
+
+test('the gap-sweep template gains a SCRATCH line (#2022)', () => {
+  const gapSweepBlock = reviewSkillBlock(
+    'You are a fresh-eyes reviewer',
+    '[Use: Frontier — gap-sweep agent',
+    'gap-sweep',
+  );
+  assert.match(
+    gapSweepBlock,
+    /SCRATCH: \{ctx-dir\}\/agent-scratch\/gap-sweep\b/,
+    'the gap-sweep template must carry a SCRATCH: {ctx-dir}/agent-scratch/gap-sweep line before its [Use: ...] tag',
+  );
+  assert.doesNotMatch(
+    gapSweepBlock,
+    /\{agent-id\}/,
+    'the gap-sweep SCRATCH line must use the fixed literal "gap-sweep" suffix, not {agent-id} — ' +
+      'gap-sweep is always a single dispatch, unlike per-lens/per-candidate agents',
+  );
+});
+
+test('step3-debate-and-refutation.md runs the post-fan-out sweep after Step 3.5/3.6 (#2022)', () => {
+  const gapSweepSection = REVIEW_SKILL.slice(REVIEW_SKILL.indexOf('## Step 3.6: Gap-Sweep'));
+  assert.match(
+    gapSweepSection,
+    /post-fan-out (untracked-file )?sweep/i,
+    'step3-debate-and-refutation.md must point at step3-lens-dispatch.md\'s post-fan-out sweep ' +
+      'as this run\'s closing step, after its own Step 3.5/3.6 dispatches',
+  );
+});
+
+test('step3-routing.md\'s post-dispatch diff audit names the post-fan-out sweep as its sibling (#2022)', () => {
+  const routing = readSkillFile('review', 'step3-routing.md');
+  const auditStart = routing.indexOf('**Post-dispatch diff audit (mandatory).**');
+  assert.notStrictEqual(auditStart, -1, 'step3-routing.md must keep its post-dispatch diff audit paragraph');
+  const auditParagraph = routing.slice(auditStart, routing.indexOf('\n\n', auditStart));
+  assert.match(
+    auditParagraph,
+    /post-fan-out (untracked-file )?sweep/i,
+    'the post-dispatch diff audit paragraph must name the post-fan-out sweep ' +
+      '(step3-lens-dispatch.md) as its sibling — one rule applied at two points',
+  );
+});
+
+test('review-summary-template.md has a Fan-out leftovers slot, full and compact (#2022)', () => {
+  const summaryTemplate = readSkillFile('review', 'review-summary-template.md');
+  assert.match(
+    summaryTemplate,
+    /### Fan-out leftovers/,
+    'the full template must carry a "### Fan-out leftovers" section for the post-fan-out ' +
+      'sweep\'s reported paths (step3-lens-dispatch.md)',
+  );
+  assert.match(
+    summaryTemplate,
+    /Fan-out leftovers 0/,
+    'the compact-form clean-PASS block must carry a "Fan-out leftovers 0" status fact',
+  );
 });
