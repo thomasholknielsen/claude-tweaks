@@ -1,6 +1,6 @@
 # Dispatch Step 2 — The Queue-Pull Script
 
-Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (`#N`/`#N,#M,...` still resolve them normally — a human present, explicitly naming one, is itself the required surfacing); only bare drain's auto-selection (SKILL.md Step 3, reusing the `next`-alias ranking script) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent. Before the size guard runs, `grouping.js`'s `bundleFastLaneSingletons` (#1910) merges up to `dispatch-fastlane-bundle-cap` (default 3, `policy.yml`) non-overlapping `ceremony:fast-lane` singleton groups — same `auto:merge` state, same `priority:*` band, oldest-first — into one multi-spec group each, so the pool `dispatch-groups.json` carries already reflects any bundling; it also writes `dispatch-fastlane-bundles.json` (`{records: number[]}[]`), naming exactly the groups this pass created, so the Reporting section can call out a fast-lane bundle distinctly from an ordinary file-overlap group. It also produces `dispatch-open-pr-excluded.json` (#1224) — every candidate already covered by an open, unmerged PR that will close it (GitHub's own `closedByPullRequestsReferences` connection, a closing keyword in the PR body), each entry naming the linked PR (`{number, pr}[]`) — via `record.js`'s `partitionByOpenLinkedPR`. Unlike the blocked-by check above, this one runs unconditionally, independent of `work-links`, and unlike the cross-PR overlap report below it DOES remove excluded candidates from `dispatch-groups.json` before any selection form reads it — a record with an in-flight PR is not a warning, it is not re-dispatch-eligible at all. SKILL.md Step 3's Blocked-exclusion report reads this file too, under the same non-silent convention.
+Referenced by `skills/dispatch/SKILL.md` Step 2. Run this verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), the file-overlap-grouped eligible queue every selection form (bare, `next`, `#N`, `#N,#M,...`) reads next. It also produces `dispatch-blocked-excluded.json` — every otherwise-`auto:build`-eligible candidate this run's own blocked-by checks (body-text and, under `work-links: native`, the native `blockedBy` connection) dropped from the pool, each entry naming the blocker id(s) that excluded it (`{number, blockedBy: [ids]}[]`) — via `record.js`'s `partitionByOpenBodyBlockers` for the body-text case, and via `bin/resolve-blockers.js`'s `openBlockerIds` field for the `work-links: native` case — SKILL.md Step 2's Blocked-exclusion report reads this file so a shrinking pool is never silent. It also produces `dispatch-oversized-excluded.json` (#1228) — every file-overlap group `grouping.js`'s `partitionGroupsBySizeGuard` found over the size guard, each entry naming the group's members and size (`{records: number[], size, threshold}[]`). These groups stay IN `dispatch-groups.json` (`#N`/`#N,#M,...` still resolve them normally — a human present, explicitly naming one, is itself the required surfacing); only bare drain's auto-selection (SKILL.md Step 3, reusing the `next`-alias ranking script) reads this file to exclude an oversized group from its own candidate pool, since nobody is present there to see a table row or answer a prompt. SKILL.md Step 3's Oversized-exclusion report also reads this file so every form's exclusion (or non-exclusion) is surfaced, never silent. Before the size guard runs, `grouping.js`'s `bundleFastLaneSingletons` (#1910) merges up to `dispatch-fastlane-bundle-cap` (default 3, `policy.yml`) non-overlapping `ceremony:fast-lane` singleton groups — same `auto:merge` state, same `priority:*` band, oldest-first — into one multi-spec group each, so the pool `dispatch-groups.json` carries already reflects any bundling; it also writes `dispatch-fastlane-bundles.json` (`{records: number[]}[]`), naming exactly the groups this pass created, so the Reporting section can call out a fast-lane bundle distinctly from an ordinary file-overlap group. It also produces `dispatch-open-pr-excluded.json` (#1224) — every candidate already covered by an open, unmerged PR that will close it (GitHub's own `closedByPullRequestsReferences` connection, a closing keyword in the PR body), each entry naming the linked PR (`{number, pr}[]`) — via `record.js`'s `partitionByOpenLinkedPR`. Unlike the blocked-by check above, this one runs unconditionally, independent of `work-links`, and unlike the cross-PR overlap report below it DOES remove excluded candidates from `dispatch-groups.json` before any selection form reads it — a record with an in-flight PR is not a warning, it is not re-dispatch-eligible at all. It also produces `dispatch-target-missing-excluded.json` (#1983) — every remaining candidate whose `namedTarget` (`bin/lib/issues/named-target.js` — today, `by:docs-health` records only) names a file no longer present at the integration tip, each entry naming the absent path (`{number, path}[]`) — a docs-health-filed ledger correction whose target a since-merged tidy sweep already deleted. This one DOES remove excluded candidates from `dispatch-groups.json` too, the same as the open-linked-PR exclusion: such a record's own Acceptance Criteria is unsatisfiable, so re-dispatching it only burns a build attempt against the retry ceiling for nothing. Each exclusion also stages one Close proposal in this firing's own run directory (`tidy`'s Close (GitHub) shape) so the next `tidy --approve` closes the record — nothing is written to GitHub by dispatch itself. SKILL.md Step 3's Blocked-exclusion report reads this file too, under the same non-silent convention.
 
 ```bash
 eval "$(node -e "
@@ -27,6 +27,8 @@ eval "$(node -e "
     DISPATCH_LINKED_PRS: 'dispatch-linked-prs.json',
     DISPATCH_LINKED_PRS_ERR: 'dispatch-linked-prs.err',
     DISPATCH_OPEN_PR_EXCLUDED: 'dispatch-open-pr-excluded.json',
+    DISPATCH_NAMED_TARGETS: 'dispatch-named-targets.json',
+    DISPATCH_TARGET_MISSING_EXCLUDED: 'dispatch-target-missing-excluded.json',
   };
   for (const [varName, filename] of Object.entries(files)) {
     const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
@@ -264,6 +266,80 @@ node -e "
   fs.writeFileSync(process.argv[3], JSON.stringify(excluded));
   console.log(JSON.stringify(finalGroups));
 " "$DISPATCH_GROUPS" "$DISPATCH_LINKED_PRS" "$DISPATCH_OPEN_PR_EXCLUDED" > "${DISPATCH_GROUPS}.tmp" && mv "${DISPATCH_GROUPS}.tmp" "$DISPATCH_GROUPS"
+
+# #1983: named-target existence exclusion. Runs unconditionally, right after
+# the open-linked-PR exclusion above and before the (read-only) cross-PR
+# overlap report below -- a record whose named target no longer exists at
+# the integration tip is not merely unlikely to build, its Acceptance
+# Criteria is unsatisfiable by construction (the observed shape: a
+# by:docs-health ledger correction whose flagged doc a since-merged tidy
+# sweep already deleted). Checked at the integration tip, not the working
+# tree (materialize.md's Named-location drift note) -- a worktree session's
+# tree may lag, and a dirty tree must not hide a deletion.
+DISPATCH_STANDALONE_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug "dispatch-standalone")
+INTEGRATION_BRANCH=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-branch)
+if [ -z "$INTEGRATION_BRANCH" ]; then
+  INTEGRATION_BRANCH=$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')
+fi
+INTEGRATION_REF="origin/$INTEGRATION_BRANCH"
+node -e "
+  const fs = require('fs');
+  const { namedTarget } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/named-target.js');
+  const groups = require(process.argv[1]);
+  const named = groups.flat()
+    .map((c) => ({ number: c.number, target: namedTarget(c) }))
+    .filter((c) => c.target);
+  fs.writeFileSync(process.argv[2], JSON.stringify(named));
+" "$DISPATCH_GROUPS" "$DISPATCH_NAMED_TARGETS"
+node -e "
+  const { execFileSync } = require('child_process');
+  const fs = require('fs');
+  const named = require(process.argv[1]);
+  const ref = process.argv[2];
+  const missing = named.filter(({ target }) => {
+    try {
+      execFileSync('git', ['cat-file', '-e', ref + ':' + target.path], { stdio: 'pipe' });
+      return false;
+    } catch {
+      return true;
+    }
+  }).map(({ number, target }) => ({ number, path: target.path }));
+  fs.writeFileSync(process.argv[3], JSON.stringify(missing));
+" "$DISPATCH_NAMED_TARGETS" "$INTEGRATION_REF" "$DISPATCH_TARGET_MISSING_EXCLUDED"
+node -e "
+  const fs = require('fs');
+  const groups = require(process.argv[1]);
+  const missing = require(process.argv[2]);
+  const missingNums = new Set(missing.map((m) => m.number));
+  const finalGroups = groups
+    .map((g) => g.filter((c) => !missingNums.has(c.number)))
+    .filter((g) => g.length > 0);
+  console.log(JSON.stringify(finalGroups));
+" "$DISPATCH_GROUPS" "$DISPATCH_TARGET_MISSING_EXCLUDED" > "${DISPATCH_GROUPS}.tmp" && mv "${DISPATCH_GROUPS}.tmp" "$DISPATCH_GROUPS"
+for ROW in $(node -e "
+  const missing = require(process.argv[1]);
+  for (const m of missing) console.log(Buffer.from(JSON.stringify(m)).toString('base64'));
+" "$DISPATCH_TARGET_MISSING_EXCLUDED"); do
+  NUM=$(node -e "console.log(JSON.parse(Buffer.from(process.argv[1], 'base64').toString()).number)" "$ROW")
+  TPATH=$(node -e "console.log(JSON.parse(Buffer.from(process.argv[1], 'base64').toString()).path)" "$ROW")
+  node "${CLAUDE_PLUGIN_ROOT}/bin/log-decision.js" --run "$DISPATCH_STANDALONE_DIR" --status AUTO \
+    --text "dispatch: #${NUM} excluded, named target ${TPATH} absent at ${INTEGRATION_REF}" --reversibility n/a
+  TMP_PROPOSAL=$(mktemp)
+  {
+    echo "# Staged: Close (GitHub) — #${NUM} (named target absent at ${INTEGRATION_REF})"
+    echo ""
+    echo "**Finding:** \`[gh-issue] #${NUM}\` names target \`${TPATH}\`, which is absent at \`${INTEGRATION_REF}\` — deleted by a later commit after this record was filed."
+    echo ""
+    echo "**Proposed:** Close #${NUM} as not planned — named target deleted, nothing left to fix."
+    echo ""
+    echo "**Commands:**"
+    echo "gh issue comment ${NUM} --body \"Closing: the named target ${TPATH} no longer exists at ${INTEGRATION_REF} — this record's Acceptance Criteria has no remaining target. Filed by /claude-tweaks:dispatch (queue pull).\""
+    echo "gh issue close ${NUM} --reason \"not planned\""
+  } > "$TMP_PROPOSAL"
+  # stage-item.js is the sanctioned writer for a run dir's staged/ (CLAUDE.md's
+  # pipeline-run-dir.md citation) -- never a direct Write/heredoc into it.
+  node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "$DISPATCH_STANDALONE_DIR" --id "dispatch-target-missing-${NUM}" --file "$TMP_PROPOSAL"
+done
 
 # #1579: cross-PR root-cause overlap report. Runs unconditionally (both the
 # cache-hit and cache-miss branches above leave $DISPATCH_GROUPS populated),
