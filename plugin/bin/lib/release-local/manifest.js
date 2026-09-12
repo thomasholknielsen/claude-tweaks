@@ -17,6 +17,9 @@ const path = require('path');
 // brief's original NOT_FOUND_ERROR_RE reuse contradicting its own test.)
 const PATH_ABSENT_RE = /does not exist|exists on disk, but not in/i;
 
+// `path.posix.isAbsolute` does not see a Windows drive letter or a UNC share.
+const WINDOWS_ABSOLUTE_RE = /^[A-Za-z]:|^\\\\/;
+
 const CONFIG_FILE = 'release-please-config.json';
 const MANIFEST_FILE = '.release-please-manifest.json';
 const SEMVER = '\\d+\\.\\d+\\.\\d+';
@@ -75,13 +78,15 @@ function resolveTargets({ releaseType, extraFiles = [] }) {
   const oneOf = stack.length > 0 && stack.every((t) => t.optional) ? stack.map((t) => t.path) : null;
   const stackTargets = oneOf ? stack.map((t) => ({ ...t, oneOf })) : stack;
   // extra-files names paths the engine writes; the config must not be able to
-  // point those outside the repo it is releasing.
+  // point those outside the repo it is releasing. The check is on path SEGMENTS,
+  // not a prefix: `..hidden.json` is an ordinary (if odd) filename inside the
+  // root, while `..`, `../x`, `/abs/x` and the Windows drive/UNC forms are not.
   const extras = extraFiles.map(extraFileTarget);
   for (const target of extras) {
     const normalized = path.posix.normalize(String(target.path));
-    if (normalized.startsWith('..') || path.posix.isAbsolute(normalized)) {
-      throw new ManifestError(`extra-files path escapes the repo root: ${target.path}`);
-    }
+    const escapes = normalized === '..' || normalized.startsWith('../')
+      || path.posix.isAbsolute(normalized) || WINDOWS_ABSOLUTE_RE.test(normalized);
+    if (escapes) throw new ManifestError(`extra-files path escapes the repo root: ${target.path}`);
   }
   return [{ path: MANIFEST_FILE, kind: 'manifest', optional: true }, ...stackTargets, ...extras];
 }

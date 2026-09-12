@@ -29,6 +29,17 @@ test('resolveTargets: one row per stack type, the manifest file always, unsuppor
   assert.throws(() => M.resolveTargets({ releaseType: 'simple', extraFiles: [{ type: 'json', path: 'p.json', jsonpath: '$.nested.version' }] }), /jsonpath/);
 });
 
+test('resolveTargets: extra-files may not escape the repo root — but a leading-dots FILENAME is not an escape', () => {
+  const targets = (extraFiles) => M.resolveTargets({ releaseType: 'simple', extraFiles }).map((t) => t.path);
+  assert.ok(targets(['..hidden.json']).includes('..hidden.json'));
+  assert.ok(targets(['a/..b/c.json']).includes('a/..b/c.json'));
+  // validated after normalize, but the target keeps the path the config wrote
+  assert.ok(targets(['nested/../x.json']).includes('nested/../x.json'), 'a path that normalizes back inside the root is fine');
+  for (const bad of ['../x.json', '..', 'a/../../x.json', '/abs/x.json', 'C:/x.json', '\\\\server\\share\\x.json']) {
+    assert.throws(() => targets([bad]), (e) => e instanceof M.ManifestError && /extra-files path escapes the repo root/.test(e.message), bad);
+  }
+});
+
 test('spliceVersion json: only the version token changes, formatting untouched, previous reported', () => {
   const text = '{\n\t"name": "x",\n\t"version": "1.2.0",\n\t"dependencies": {"y": {"version": "9.9.9"}}\n}\n';
   const out = M.spliceVersion('json', text, '1.3.0');
