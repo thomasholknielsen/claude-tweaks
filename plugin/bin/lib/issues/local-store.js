@@ -6,7 +6,7 @@
 // shape (shared keys sourced from facet-shape.js's sharedFacetDefaults() — origin,
 // risk, size, ceremony, solutionUnjustified, breaking, priority, stage, grants{build,merge}, bot{inProgress,
 // blocked}, acceptance, isParentIssue — plus type, parent, blockedBy, unsynced, closed,
-// closedAt, which are local-files-only); the github driver's callers get
+// closedAt, shipped, which are local-files-only); the github driver's callers get
 // type/parent/blockedBy from the issue JSON itself, not from labels. No network calls.
 'use strict';
 
@@ -52,6 +52,7 @@ function defaultFacets() {
     unsynced: false,
     closed: false,
     closedAt: null,
+    shipped: null,
   };
 }
 
@@ -131,6 +132,7 @@ function parseFrontmatterLines(fmLines) {
     if ((m = /^stage:\s*(.+)$/.exec(line))) { facets.stage = m[1].trim(); continue; }
     if ((m = /^closed:\s*(true|false)$/.exec(line))) { facets.closed = m[1] === 'true'; continue; }
     if ((m = /^closed-at:\s*(.+)$/.exec(line))) { facets.closedAt = m[1].trim(); continue; }
+    if ((m = /^shipped:\s*(\S+)$/.exec(line))) { facets.shipped = m[1]; continue; }
     if ((m = /^grants:\s*\[(.*)\]$/.exec(line))) {
       const names = parseBracketList(m[1]);
       facets.grants = { build: names.includes('build'), merge: names.includes('merge') };
@@ -215,6 +217,7 @@ function serializeFrontmatter(facets) {
   if (facets.stage && facets.stage !== 'backlog') lines.push(`stage: ${facets.stage}`);
   if (facets.closed) lines.push('closed: true');
   if (facets.closedAt) lines.push(`closed-at: ${facets.closedAt}`);
+  if (facets.shipped) lines.push(`shipped: ${facets.shipped}`);
 
   const grants = facets.grants || {};
   const grantNames = GRANT_KEYS.filter((key) => grants[key]);
@@ -252,16 +255,29 @@ function writeRecord(filePath, { title, body, facets } = {}) {
   fs.writeFileSync(filePath, composeRecordContent({ title, body, facets }), 'utf8');
 }
 
-// filePath -> void. Marks a record closed without deleting it — mirrors a GitHub
+// filePath, { shipped } -> void. Marks a record closed without deleting it — mirrors a GitHub
 // issue's closed (not deleted) state, so a completed local-files record stops
 // surfacing in default queryRecords results while remaining on disk as history.
-// Preserves every other facet and the record's title/body unchanged.
-function closeRecord(filePath) {
+// Preserves every other facet and the record's title/body unchanged. When shipped is provided,
+// sets the shipped facet as well.
+function closeRecord(filePath, { shipped = null } = {}) {
   const record = readRecord(filePath);
   writeRecord(filePath, {
     title: record.title,
     body: record.body,
-    facets: { ...record.facets, closed: true, closedAt: new Date().toISOString() },
+    facets: { ...record.facets, closed: true, closedAt: new Date().toISOString(), ...(shipped ? { shipped } : {}) },
+  });
+}
+
+// filePath, version -> void. Sets the shipped facet on an open record (does not close it),
+// recording which version the work was shipped in. Preserves all other facets and
+// the record's title/body unchanged.
+function markShipped(filePath, version) {
+  const record = readRecord(filePath);
+  writeRecord(filePath, {
+    title: record.title,
+    body: record.body,
+    facets: { ...record.facets, shipped: version },
   });
 }
 
@@ -449,4 +465,4 @@ function queryRecords(dir = DEFAULT_DIR, facetFilter = {}) {
   return records;
 }
 
-module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord, deriveSlug, defaultFacets };
+module.exports = { DEFAULT_DIR, readRecord, writeRecord, allocateId, createRecord, queryRecords, closeRecord, markShipped, deriveSlug, defaultFacets };
