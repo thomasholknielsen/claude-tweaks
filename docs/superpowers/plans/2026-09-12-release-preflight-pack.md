@@ -37,6 +37,7 @@
 6. **`hook` under pr-first** is true when any `.github/workflows/*.yml|yaml` contains a `release:` trigger with `published` among its types (a regex over the text, no YAML parser); under local-merge it is true when `release-hook` is set to something other than the disabled spellings `false/off/none/null`.
 7. **No prior tag** → `lastTag` `{ok: false, error: 'no v* tag reachable from {tipRef}'}`; `unreleased` covers the full first-parent history and `proposedVersion`'s base is `.release-please-manifest.json`'s `"."` when present, else `0.0.0` — the same first-release rule the local engine uses.
 8. **`bin/lib/wrap-up/pack.js` exports `withTimeout`** (one additive line) so the three packs share one bound rather than a third copy.
+9. **A release-PR title must carry a version** — `isReleasePr`'s title regex is `/^chore(\([^)]*\))?: release \d/`; the plan's original `/…: release /` matched `chore: release notes` against its own test, caught by Task 2's implementer.
 
 ---
 
