@@ -7,13 +7,14 @@
 // corpus reached 931 KB before anyone looked. Phases 1-3 removed ~150 KB; this
 // module exists so the next 150 KB does not accumulate unnoticed.
 //
-// The ceiling is CLAUDE.md's own 40 KB soft ceiling per SKILL.md. After the
-// Phase 3 extraction several files sit within a kilobyte of it, so a regression
-// is one added paragraph away — which is precisely when an automated check earns
-// its keep over periodic manual measurement.
+// The ceiling is a 45 KB soft ceiling per SKILL.md (raised from 40 KB — see
+// docs/donts.md). After the Phase 3 extraction several files sit within a
+// kilobyte of it, so a regression is one added paragraph away — which is
+// precisely when an automated check earns its keep over periodic manual
+// measurement.
 //
-// Since #1990, the per-file 40 KB ceiling is a warning tier, not a hard gate:
-// the number a reader actually pays is the composed bundle at a compose call
+// Since #1990, the per-file ceiling is a warning tier, not a hard gate: the
+// number a reader actually pays is the composed bundle at a compose call
 // site (`composedBytesReport`, Task 4), not any one source file in isolation.
 // Per-file bytes are CRLF-normalized and marker-stripped (`measuredBytes`) so
 // a `core.autocrlf=true` checkout or an unrendered `<!-- when: ... -->` marker
@@ -27,7 +28,7 @@ const {
   stripMarkers, MarkerError, parseMarkers, compose, KEYS, VOCAB, UNRESOLVED,
 } = require('../compose-context/compose');
 
-const CEILING_BYTES = 40 * 1024;
+const CEILING_BYTES = 45 * 1024;
 
 // Frontmatter `description:` budget (#394). Every description loads into every
 // session of every project with the plugin enabled, regardless of whether that
@@ -152,7 +153,7 @@ function overCeiling(entries) {
   return entries.filter((e) => e.bytes > CEILING_BYTES);
 }
 
-// The per-file 40 KB ceiling is a warning tier since #1990 — the hard gate is
+// The per-file ceiling is a warning tier since #1990 — the hard gate is
 // composed bytes per compose call site (`overComposedCeiling`, Task 4).
 function overCeilingWarnings(entries) {
   return overCeiling(entries).map((e) => `${e.name || e.file} ${(e.bytes / 1024).toFixed(1)} KB`);
@@ -364,14 +365,16 @@ function findComposeCallSites(repoRoot) {
 // `_shared/pr-checklist-refresh.md` and the two updated compose call sites
 // (`wrap-up/auto-merge-short-circuit.md`, `wrap-up/review-console.md`).
 //
-// #2073's new "exit 5" unverified-write card (flow/claim-targets.md) and
-// scan-procedures.md's expanded transport-fallback paragraph pushed the
-// `claims` step's measured max to 42,506 B (measured here at authoring
-// time; run the informational test to reconfirm). Restructuring these two
-// sources to fit under CEILING_BYTES on their own is #2289, filed at this
-// record's merge. The stale-exception test below removes this entry's
-// reason to exist the moment `claims` fits under CEILING_BYTES on its own.
-const COMPOSED_STEP_EXCEPTIONS = { claims: 45 * 1024 };
+// scan-procedures.md's expanded transport-fallback paragraph had pushed the
+// `claims` step's measured max to 42,506 B, over the old 40 KB CEILING_BYTES
+// — a `claims: 45 * 1024` stopgap exception (#2289's predecessor) unblocked
+// #2073's PR rather than blocking it on a prose-restructuring pass. The
+// ceiling was raised to 45 KB afterward, and 42,506 B now fits under it on
+// its own — per this file's own stale-exception rule, the entry is removed
+// rather than carried forward at a now-redundant value (#2289 is moot unless
+// a later edit pushes the step back over the raised ceiling). No entry
+// remains: this evaluates to `{}` until a real regression adds one back.
+const COMPOSED_STEP_EXCEPTIONS = {};
 
 // One row per compose call site in the shipped skill prose — the producer
 // set the composed-bytes hard gate (`overComposedCeiling`) runs over.

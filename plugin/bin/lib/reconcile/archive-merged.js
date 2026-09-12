@@ -814,7 +814,14 @@ function archiveRunDir(root, runDir) {
     // (SessionStart, dispatch's queue pull) with no interactive session
     // guaranteed to commit anything afterward, so an uncommitted change
     // would otherwise sit in the shared main checkout's index indefinitely.
-    const commit = runGit(['commit', '-m', `[reconcile] archive run ${runId}`], root);
+    // #2241: scoped to exactly the paths this call staged (every workMoves
+    // src/dest pair — the work/ rename(s) plus, on a tidy/sweep-standalone
+    // run, the audit files folded into the same batch above) via a `--`
+    // pathspec, so `git commit` picks only those changes out of the index
+    // rather than sweeping whatever else a human or sibling session happens
+    // to have staged in this shared main checkout at the same moment.
+    const commitPaths = workMoves.flatMap(([src, dest]) => [src, dest]);
+    const commit = runGit(['commit', '-m', `[reconcile] archive run ${runId}`, '--', ...commitPaths], root);
     if (commit.failure) {
       // A partial revert (some ops' `git reset`/`git checkout` or disk move
       // failed) is a distinct outcome from a clean one: the retry guard

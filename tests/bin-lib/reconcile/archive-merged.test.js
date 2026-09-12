@@ -223,6 +223,42 @@ test('archiveRunDir: single-spec run — git-tracked work/ moves via git mv, gon
   assert.equal(state.status, 'clean');
 });
 
+// #2241: the archive commit must be scoped to exactly the paths this call
+// staged (the workMoves batch), not the whole index — a human or sibling
+// session's own unrelated staged content in this shared main checkout must
+// never be silently folded into a `[reconcile] archive run …` commit.
+test('archiveRunDir: unrelated staged file in the main checkout is not swept into the archive commit', () => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-43';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/work/43-spec.md`, '# spec 43\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  // Something else — a human's own edit, or a sibling session's write —
+  // already staged in the main checkout before archiveRunDir ever runs.
+  fs.writeFileSync(path.join(root, 'unrelated.txt'), 'unrelated\n');
+  git(root, 'add', 'unrelated.txt');
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, true, JSON.stringify(result));
+
+  // The unrelated file must still be staged-but-uncommitted after archival.
+  const status = git(root, 'status', '--short');
+  assert.ok(status.includes('A  unrelated.txt'), `expected unrelated.txt still staged, got:\n${status}`);
+
+  // The archive commit itself must touch only the work/ rename.
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  const nameStatus = git(root, 'show', '--name-status', 'HEAD');
+  assert.ok(
+    nameStatus.includes(`.claude-tweaks/pipelines/${runId}/work/43-spec.md`)
+    && nameStatus.includes(`.claude-tweaks/pipelines/archive/${runId}/work/43-spec.md`),
+    `expected the work/ rename in the commit, got:\n${nameStatus}`,
+  );
+  assert.ok(!nameStatus.includes('unrelated.txt'), `unrelated.txt must not appear in the archive commit, got:\n${nameStatus}`);
+
+  assert.equal(fs.existsSync(path.join(archiveDir, 'work', '43-spec.md')), true);
+});
+
 // #1493 review fix: a `*-tidy-standalone*` run's own audit files
 // (`decisions.md`, `report.md`, `staged/**`) are git-tracked now (the
 // `.gitignore` carve-out) — they must join `work/` in the git-mv'd class

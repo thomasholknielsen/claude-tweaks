@@ -116,10 +116,7 @@ worktree of this checkout, so it can pop or clobber a sibling worktree's in-flig
 compare against a baseline without mutating the tree, use `git show <rev>:<path>`; to set your
 own work aside, make a temporary WIP commit instead.
 
-Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
-/ NEEDS_CONTEXT / BLOCKED.
-
-OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
+OUTPUT FORMAT (required) -- return ONLY these lines, no preamble:
 
 GROUP: {comma-joined issue numbers}
 OUTCOME: {build-test-ok | build-test-failed | build-test-blocked}
@@ -129,6 +126,10 @@ MANIFEST: {absolute path to this group's run-dir manifest.yml/decisions.md -- a
 
 One line per issue in this group that hit a HARD-GATE (omit if none):
 ISSUE #{n}: failed:{gate}
+
+Status line (required): on its own trailing line, after everything above -- the reply's last
+non-empty line -- write exactly `STATUS: {WORD}`, where {WORD} is one of: DONE /
+DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
 
 [Use: Standard] -- this dispatch wraps build+test execution, not analysis; the pipeline's own
 steps select their own models as usual. Resolve via `node "{plugin-root}/bin/resolve-profile.js" standard`
@@ -212,8 +213,9 @@ worktree of this checkout, so it can pop or clobber a sibling worktree's in-flig
 compare against a baseline without mutating the tree, use `git show <rev>:<path>`; to set your
 own work aside, make a temporary WIP commit instead.
 
-Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS
-/ NEEDS_CONTEXT / BLOCKED.
+Status line (required): the last non-empty line of your reply, after the OUTPUT FORMAT block
+below, must read exactly `STATUS: {WORD}`, where {WORD} is one of: DONE / DONE_WITH_CONCERNS /
+NEEDS_CONTEXT / BLOCKED.
 
 This state-check applies when choosing among `merged`/`armed`/`pending-review`/`ready-to-merge` --
 `failed`/`blocked` are already decided by the HARD-GATE outcome above, and Settle's own step 2 has
@@ -233,7 +235,7 @@ this run, or is not `live`, or `bot:in-progress` is already gone -- another sess
 this record since your run started; report `pending-review` and note the discrepancy rather than
 reporting `merged`/`armed`/`ready-to-merge` against a claim you no longer hold.
 
-OUTPUT FORMAT (required), after the status line -- return ONLY these lines, no preamble:
+OUTPUT FORMAT (required), before the trailing status line -- return ONLY these lines, no preamble:
 
 GROUP: {comma-joined issue numbers}
 OUTCOME: {merged | armed | pending-review | ready-to-merge | failed | blocked}
@@ -270,8 +272,9 @@ session completes all three (worktree removal, claim release, run-dir archival) 
 per `settle-and-merge.md`'s Dispatching-session merge execution (local-merge fallback) section.
 
 `pending-review` also covers what `pr-opened` used to name separately: under pr-first the PR
-already exists from run start (`{minted-run-dir}/context/merge.md`, which composes
-`_shared/pr-early-run-lifecycle.md`; if that bundle is absent, read `_shared/pr-early-run-lifecycle.md` directly), so there is no longer a
+already exists from run start (a separate, run-start-only concern from
+`{minted-run-dir}/context/merge.md`'s merge-time bundle above, which composes `pr-first-merge.md`
+and `pr-checklist-refresh.md`), so there is no longer a
 distinct "the branch reached its finish decision, a PR just opened" transition to report — a
 run that reaches the Review Console with nobody answering it is `pending-review` regardless of
 how long the PR has already existed.
