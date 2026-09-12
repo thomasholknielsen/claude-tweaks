@@ -29,6 +29,7 @@
 5. **`java`, `ruby`, `dotnet` manifest edits are unsupported by the local engine** (exit 1 naming the type and pointing at `simple` + `extra-files`); `go` has no manifest (tag only). Ledger row for a follow-up.
 6. **Integration branch** = policy `integration-branch` when set, else `main`; overridable with `--branch`.
 7. **`BREAKING-CHANGE:`** (hyphen) is accepted as a synonym of `BREAKING CHANGE:` — the Conventional Commits spec declares them equivalent.
+8. **`manifest.js` skips only path absence** (`does not exist` / `exists on disk, but not in`); a bad ref (`invalid object name`) propagates. Found by Task 3's implementer: the brief reused `manifest-path.js`'s `NOT_FOUND_ERROR_RE`, which folds both, against a test that requires the throw.
 
 ---
 
@@ -412,7 +413,13 @@ Expected: FAIL with "Cannot find module"
 // Every edit is a raw string splice of the version token — never
 // JSON.parse+stringify, never a TOML re-emit — so a release diff shows one
 // token per file (spec: byte-preserving AC).
-const { NOT_FOUND_ERROR_RE } = require('../manifest-path.js');
+
+// Only genuine path absence reads as "no version here". A bad ref (`invalid
+// object name`) is a git error and propagates — unlike manifest-path.js's
+// NOT_FOUND_ERROR_RE, which folds both because its callers key on the
+// distinction downstream. (Plan ruling 8: Task 3's implementer caught the
+// brief's original NOT_FOUND_ERROR_RE reuse contradicting its own test.)
+const PATH_ABSENT_RE = /does not exist|exists on disk, but not in/i;
 
 const CONFIG_FILE = 'release-please-config.json';
 const MANIFEST_FILE = '.release-please-manifest.json';
@@ -543,7 +550,7 @@ function firstVersion(targets, read) {
     try {
       text = read(target.path);
     } catch (err) {
-      if (NOT_FOUND_ERROR_RE.test(String(err.message || err))) continue;
+      if (PATH_ABSENT_RE.test(String(err.message || err))) continue;
       throw err;
     }
     const v = versionOfText(target, text);
