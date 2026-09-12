@@ -69,8 +69,8 @@ function parseArgs(argv) {
 // would exit non-zero and misreport as a failed hook).
 const RELEASE_HOOK_UNSET_RE = /^(false|off|none|null)$/i;
 
-function policyValue(deps, key) {
-  const resolved = resolvePolicyKeys([key], { policyRaw: deps.readFile(POLICY_FILE), runConfigRaw: null })[key];
+function policyValue(policyRaw, key) {
+  const resolved = resolvePolicyKeys([key], { policyRaw, runConfigRaw: null })[key];
   const value = resolved && resolved.value;
   if (typeof value !== 'string' || value.trim() === '') return null;
   const trimmed = value.trim();
@@ -131,9 +131,10 @@ function run(argv, deps) {
   // for a failed FIRST push must not name an origin/<branch> that cannot exist.
   let remoteBranchExists = false;
   try {
+    const policyRaw = deps.readFile(POLICY_FILE);
     const config = manifest.readConfig(deps.readFile);
     if (!config) throw new UsageError(`${manifest.CONFIG_FILE} not found — run /claude-tweaks:init to bootstrap the release process first`);
-    branch = opts.branch || policyValue(deps, 'integration-branch') || 'main';
+    branch = opts.branch || policyValue(policyRaw, 'integration-branch') || 'main';
     guardReleasableTree(deps, { branch });
     const originRemote = remoteUrl(deps);
     hasOrigin = originRemote !== null;
@@ -160,7 +161,7 @@ function run(argv, deps) {
       deps.stderr(`version collision on v${version}:\n${lines.join('\n')}\nSuggested renumber: v${check.result.suggested}. Resolve and re-run.\n`);
       return 4;
     }
-    hook = policyValue(deps, 'release-hook');
+    hook = policyValue(policyRaw, 'release-hook');
     const repo = hasOrigin ? parseGitHubRemote(originRemote) : null;
     const section = renderSection({ version, previousTag: history.lastTag, date: deps.today(), commits: history.commits, repo });
     const unconventional = history.commits.filter((c) => c.unconventional);

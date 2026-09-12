@@ -120,3 +120,15 @@ test('W4: release-local --dry-run — a stack manifest present without a version
   assert.ok(!manifestLine.includes('package.json'), manifestLine);
   assert.ok(manifestLine.includes('.release-please-manifest.json'), manifestLine);
 });
+
+// W5 (row 52): `.claude-tweaks/policy.yml` is read once per run and its raw
+// text threaded to both policyValue call sites — no behaviour change, just
+// one fewer readFile call for a policy the run already needs once.
+test('W5: release-local reads .claude-tweaks/policy.yml exactly once per run, and both levers still resolve from it', () => {
+  const { deps, state } = makeReleaseHookDeps({ policyRaw: 'release-hook: npm run deploy\nintegration-branch: main\n' });
+  let policyReads = 0;
+  deps.readFile = ((orig) => (p) => { if (p === '.claude-tweaks/policy.yml') policyReads += 1; return orig(p); })(deps.readFile);
+  assert.strictEqual(run([], deps), 0);
+  assert.strictEqual(policyReads, 1);
+  assert.deepStrictEqual(state.hooks, ['npm run deploy']);
+});
