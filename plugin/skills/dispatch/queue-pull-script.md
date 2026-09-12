@@ -27,6 +27,9 @@ eval "$(node -e "
     DISPATCH_LINKED_PRS: 'dispatch-linked-prs.json',
     DISPATCH_LINKED_PRS_ERR: 'dispatch-linked-prs.err',
     DISPATCH_OPEN_PR_EXCLUDED: 'dispatch-open-pr-excluded.json',
+    DISPATCH_SHIPPED_EXCLUDED: 'dispatch-shipped-excluded.json',
+    DISPATCH_SHIPPED_PROBE_PRS: 'dispatch-shipped-probe-prs.json',
+    DISPATCH_SHIPPED_PR_FILES: 'dispatch-shipped-pr-files.jsonl',
   };
   for (const [varName, filename] of Object.entries(files)) {
     const p = sessionTmpPath(process.env.CLAUDE_CODE_SESSION_ID, filename) || path.join(os.tmpdir(), filename);
@@ -265,6 +268,111 @@ node -e "
   console.log(JSON.stringify(finalGroups));
 " "$DISPATCH_GROUPS" "$DISPATCH_LINKED_PRS" "$DISPATCH_OPEN_PR_EXCLUDED" > "${DISPATCH_GROUPS}.tmp" && mv "${DISPATCH_GROUPS}.tmp" "$DISPATCH_GROUPS"
 
+# #1984: shipped-candidate classification. Runs unconditionally, right after
+# the #1224 open-PR exclusion above (a candidate excluded there is never
+# re-classified here — order matters, see this record's own Gotchas) and
+# before the #1579 cross-PR overlap report below. When #1983's own "named
+# target no longer exists" step lands, it inserts between the two, per that
+# record's own ordering rule; this record does not implement #1983. Reuses
+# $DISPATCH_LINKED_PRS's `mentions` field — #1984 extended record.js's
+# batched query and linked-prs.js's fetchLinkedPRs to carry every same-repo
+# PR that has ever cross-referenced the candidate, closing keyword or not —
+# so no second network round trip is added for the base signal.
+#
+# First pass: classify every remaining candidate with title-only evidence
+# (no changed-files fetch yet) via bin/lib/issues/shipped-candidate.js's
+# classifyShipped. Only a `weak`-tier result (a merged mention whose title
+# didn't already clear `strong`) is a candidate for the files-based upgrade
+# below — a `strong`/`none` result from title evidence alone is final.
+# Capped at 5 live `gh pr view` calls per pull (#1984's own cap).
+node -e "
+  const { classifyShipped } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/shipped-candidate.js');
+  const groups = require(process.argv[1]);
+  const linkedPRs = require(process.argv[2]);
+  const toProbe = [];
+  for (const c of groups.flat()) {
+    const entry = linkedPRs[c.number];
+    const mentions = (entry && entry.mentions) || [];
+    if (mentions.length === 0) continue;
+    const result = classifyShipped(c, mentions);
+    if (result.tier === 'weak') toProbe.push(result.pr);
+  }
+  require('fs').writeFileSync(process.argv[3], JSON.stringify([...new Set(toProbe)].slice(0, 5)));
+" "$DISPATCH_GROUPS" "$DISPATCH_LINKED_PRS" "$DISPATCH_SHIPPED_PROBE_PRS"
+
+: > "$DISPATCH_SHIPPED_PR_FILES"
+for PR in $(node -e "console.log(require(process.argv[1]).join(' '))" "$DISPATCH_SHIPPED_PROBE_PRS"); do
+  FILES_JSON=$(gh pr view "$PR" --json files -q '[.files[].path]' 2>/dev/null || echo '[]')
+  node -e "console.log(JSON.stringify({pr: Number(process.argv[1]), files: JSON.parse(process.argv[2])}))" "$PR" "$FILES_JSON" >> "$DISPATCH_SHIPPED_PR_FILES"
+done
+
+# Second pass: final tier, now with the probed files available for the
+# key-files-covered upgrade. `strong` is excluded from $DISPATCH_GROUPS for
+# this pull and logged for a staged Close proposal (dispatch never closes on
+# GitHub itself — the proposal is the only write path, fingerprint-
+# deduplicated the same way tidy's own Close (GitHub) shape is). `weak`
+# stays eligible, logged for build-time context. `none` is silent.
+node -e "
+  const fs = require('fs');
+  const { classifyShipped } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/shipped-candidate.js');
+  const groups = require(process.argv[1]);
+  const linkedPRs = require(process.argv[2]);
+  const prFilesLines = fs.existsSync(process.argv[4])
+    ? fs.readFileSync(process.argv[4], 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l))
+    : [];
+  const prFiles = new Map(prFilesLines.map((e) => [e.pr, e.files]));
+  const shippedExcluded = [];
+  const finalGroups = groups
+    .map((g) => g.filter((c) => {
+      const entry = linkedPRs[c.number];
+      const mentions = (entry && entry.mentions) || [];
+      if (mentions.length === 0) return true;
+      const result = classifyShipped(c, mentions, { prFiles });
+      if (result.tier === 'strong') {
+        shippedExcluded.push({ number: c.number, pr: result.pr, signals: result.signals });
+        console.error('AUTO — dispatch: #' + c.number + ' excluded, shipped by merged PR #' + result.pr + ' (' + result.signals.join(', ') + ')');
+        return false;
+      }
+      if (result.tier === 'weak') {
+        console.error('AUTO — dispatch: #' + c.number + ' mentioned by merged PR #' + result.pr + ' without a closing keyword; dispatching anyway');
+      }
+      return true;
+    }))
+    .filter((g) => g.length > 0);
+  fs.writeFileSync(process.argv[3], JSON.stringify(shippedExcluded));
+  console.log(JSON.stringify(finalGroups));
+" "$DISPATCH_GROUPS" "$DISPATCH_LINKED_PRS" "$DISPATCH_SHIPPED_EXCLUDED" "$DISPATCH_SHIPPED_PR_FILES" > "${DISPATCH_GROUPS}.tmp" && mv "${DISPATCH_GROUPS}.tmp" "$DISPATCH_GROUPS"
+
+# Stage one Close proposal per strong-tier exclusion, into this firing's own
+# standalone run dir (Step 1's $RUN_ID — resolved again here since this
+# script has no other reason to carry that path) — never onto GitHub
+# directly, the same non-autonomous posture tidy's own Close (GitHub) shape
+# uses for every outward-facing mutation.
+DISPATCH_FIRING_RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug dispatch-standalone 2>/dev/null || true)
+if [ -n "$DISPATCH_FIRING_RUN_DIR" ]; then
+  node -e "
+    const fs = require('fs');
+    const path = require('path');
+    const shippedExcluded = require(process.argv[1]);
+    const tmpDir = process.argv[2];
+    for (const entry of shippedExcluded) {
+      const file = path.join(tmpDir, 'shipped-close-proposal-' + entry.number + '.md');
+      fs.writeFileSync(file, [
+        '## Close (GitHub)',
+        '',
+        '#' + entry.number + ' — deliverables already shipped by merged PR #' + entry.pr,
+        '',
+        'Signals: ' + entry.signals.join(', '),
+        '',
+        'Comment then close: \`gh issue close ' + entry.number + ' --comment \"Deliverables already shipped by #' + entry.pr + '\"\`',
+      ].join('\n'));
+      console.log(entry.number + '=' + file);
+    }
+  " "$DISPATCH_SHIPPED_EXCLUDED" "$(dirname "$DISPATCH_SHIPPED_EXCLUDED")" | while IFS='=' read -r NUM FILE; do
+    node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "$DISPATCH_FIRING_RUN_DIR" --id "shipped-close-$NUM" --file "$FILE" >/dev/null 2>&1 || true
+  done
+fi
+
 # #1579: cross-PR root-cause overlap report. Runs unconditionally (both the
 # cache-hit and cache-miss branches above leave $DISPATCH_GROUPS populated),
 # read-only, and never removes anything from $DISPATCH_GROUPS or gates
@@ -298,6 +406,31 @@ node -e "
   const overlaps = detectCrossPRFileOverlap(candidates, openPRs);
   require('fs').writeFileSync(process.argv[3], JSON.stringify(overlaps));
 " "$DISPATCH_GROUPS" "$DISPATCH_OPEN_PRS" "$DISPATCH_CROSSPR_OVERLAP"
+
+# #1944: cross-group near-duplicate candidate warning. Read-only and never a
+# selection change (AC4) -- run findNearDuplicates pairwise across every pair
+# of records that landed in DIFFERENT groups (a same-group pair is already
+# co-built together by groupByFileOverlap, and has nothing new to warn about
+# here). Each candidate that fires is logged once to this firing's own
+# decisions.md as an AUTO line naming both records and the signals that fired
+# -- the dispatcher's cue to look before dispatching both in the same firing,
+# never a gate.
+node -e "
+  const { findNearDuplicates } = require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/near-duplicate.js');
+  const groups = require(process.argv[1]);
+  const seen = new Set();
+  for (let i = 0; i < groups.length; i += 1) {
+    for (const subject of groups[i]) {
+      const others = groups.filter((_, j) => j !== i).flat();
+      for (const hit of findNearDuplicates(subject, others)) {
+        const key = [subject.number, hit.number].sort((a, b) => a - b).join('|');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        console.error('AUTO — dispatch: near-duplicate candidates across groups: #' + subject.number + ' / #' + hit.number + ' (' + hit.signals.join(', ') + ')');
+      }
+    }
+  }
+" "$DISPATCH_GROUPS"
 ```
 
 **MCP path** (`gh` unavailable): see `mcp-transport.md` in this skill's directory for the queue pull and the per-dependency open-state check. Both replace their `gh`-CLI equivalent one-for-one — no change to the surrounding `node -e` eligibility/dependency logic, which only consumes the fetched JSON shape, not how it was fetched.
