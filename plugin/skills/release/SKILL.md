@@ -5,7 +5,6 @@ argument-hint: "[--dry-run] [--train] [--as <version>] [--allow-blocking]"
 ---
 > **Interaction style:** Single decisions → one `AskUserQuestion` call, one option marked Recommended. Multi-item → batch table with recommendations pre-filled, then one `AskUserQuestion` for apply-all/override. Never more than one call per decision; resolve each before the next. Terminal `## Next Actions` → plain markdown: paste-ready fully-qualified commands, recommended first and bold, one per line — `AskUserQuestion` there only for a documented machine-consumed decision, named inline.
 
-
 # Release — Drive a Release Through Whichever Engine the Project Uses
 
 This skill **drives** a release; it never implements one. The bump, the changelog, the tag and the GitHub Release are produced by release-please (pr-first) or by `bin/release-local.js` (local-merge) — this skill reads the facts, runs the gate that must precede a bump, picks the engine, checks that what the engine claimed actually landed, and books the records that shipped.
@@ -26,9 +25,9 @@ Lifecycle: `/claude-tweaks:wrap-up` → **`/claude-tweaks:release`** (on demand,
 
 | Flag | Effect |
 |------|--------|
-| `--dry-run` | Step 5 is a no-op — nothing is merged, nothing is tagged, no `Release-As:` commit is pushed. Step 3's whole-branch review **still runs** and still stages its findings (a dry run must surface what a real run would block on), and Step 4 still renders the console. Step 7's bookkeeping does **not** run — nothing shipped, so there is nothing to book. Step 8's summary reads `dry-run`. |
+| `--dry-run` | Step 5 is a no-op — nothing is merged, nothing is tagged, no `Release-As:` commit is pushed. Step 3's whole-branch review **still runs** and still stages its findings (a dry run must surface what a real run would block on), and Step 4 still renders the console. Step 6 does **not** run either — there is no tag, Release or hook run to look for, and probing for one would render a false partial state. Step 7's bookkeeping does **not** run — nothing shipped, so there is nothing to book. Step 8's summary reads `dry-run`. |
 | `--train` | The unattended path (see `## --train semantics`). Step 4's console is never interactive. The two HARD-GATEs — `review: blocking`, or a major bump on the effective version — stage `release-held.md` in the run directory before Step 5 and exit `HELD`. Refused unless policy `release-train` resolves `true` **and** `autonomy` resolves `unattended`; a refused `--train` behaves exactly as an on-demand invocation, never as an accepted one. |
-| `--as <version>` | The `Release-As:` override. Validated against `^\d+\.\d+\.\d+$` — a strict three-part semver, no `v` prefix, no pre-release or build suffix; anything else is a usage error, printed and exited before Step 1. The value becomes the **effective version** for every later gate, render and verification: Step 4's console row, the major-bump HARD-GATE, Step 5's engine call, Step 6's tag and Release lookups, Step 7's `Shipped in v{version}` text. |
+| `--as <version>` | The `Release-As:` override. Validated against `^\d+\.\d+\.\d+$` — a strict three-part semver, no `v` prefix, no pre-release or build suffix; anything else is a usage error, printed and exited before Step 1. **pr-first only.** The engine is not known until Step 1's pack, so under `local-merge` the flag is refused right after Step 1 with `--as is pr-first only (release-local.js derives the version from history); use a breaking commit or a manual tag` — the engine has no override (a known gap, ledger row 90). Under pr-first the value becomes the **effective version** for every later gate, render and verification: Step 4's console row, the major-bump HARD-GATE, Step 5's `Release-As:` push, Step 6's tag and Release lookups, Step 7's `Shipped in v{version}` text. |
 | `--allow-blocking` | A human who has read the finding overrides a `review: blocking` verdict from Step 3. It never skips the review — Step 3 runs, its findings stage, and the override is logged with the finding paths it overrode. **Never honoured under `--train`**: an unattended run has no human to have read anything, so the pair is an override without a reader. |
 
 **Combinations.** `--train --dry-run` is refused as contradictory — the train exists to land a release unattended, and a dry run lands nothing, so the pair names no real outcome. Print the usage line and exit without resolving a run directory:
@@ -42,7 +41,7 @@ usage: /claude-tweaks:release [--dry-run] [--train] [--as <version>] [--allow-bl
 
 ## Step 0: Run directory and engine
 
-Resolve the run directory per `_shared/pipeline-run-dir.md` (steps 1-2: `PIPELINE_RUN_DIR`, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section. When neither resolves, create the standalone fallback and stamp it:
+Under `--train`, read `## --train semantics` first — its two policy levers are checked here, before anything else, and a refusal is logged from this step. Then resolve the run directory per `_shared/pipeline-run-dir.md` (steps 1-2: `PIPELINE_RUN_DIR`, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section. When neither resolves, create the standalone fallback and stamp it:
 
 ```bash
 RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug release 2>/dev/null)
@@ -74,7 +73,7 @@ Run the fact pack once, anchored to the run directory:
 node "${CLAUDE_PLUGIN_ROOT}/bin/release-preflight.js" --run "{run-dir}"
 ```
 
-Exit **2** (malformed invocation) or **3** (the run directory does not resolve under the main checkout, or the cwd is not inside a git checkout) is terminal: report the CLI's own stderr line verbatim and stop. Nothing is rendered, no console, no review — there are no facts to render from. Exit **0** means the pack was produced; a degraded field inside it is data to act on, not a failure. Read `{run-dir}/release-preflight.json` and act on each field's `{ok, value | error}` envelope:
+Exit **2** (malformed invocation) or **3** (the run directory does not resolve under the main checkout, or the cwd is not inside a git checkout) is terminal: report the CLI's own stderr line verbatim and stop. Nothing is rendered, no console, no review — there are no facts to render from. Exit **1** (the pack crashed before it could decide) is terminal the same way. Exit **0** means the pack was produced; a degraded field inside it is data to act on, not a failure. Read `{run-dir}/release-preflight.json` and act on each field's `{ok, value | error}` envelope:
 
 | Field | Value when `ok: true` | When `ok: false` |
 |-------|----------------------|------------------|
@@ -124,7 +123,7 @@ Resolve the base, then invoke:
 - `lastTag.ok` → base is `{lastTag.value.tag}`.
 - `lastTag` degraded (no `v*` tag reachable; `unreleased.value.since` is `null`) → base is the root commit: `$(git rev-list --max-parents=0 origin/{branch} | tail -1)`, where `{branch}` is the pack's own `branch` field.
 
-Invoke `/claude-tweaks:review base:{lastTag}` (Input rule 9 — a whole-branch scope: every first-parent commit from the base to `origin/{integration-branch}`, spanning many already-merged PRs) with `$PIPELINE_RUN_DIR={run-dir}` set, so its findings stage into this run's own `staged/` directory per `_shared/staged-patch.md` and its decisions land in this run's `decisions.md`. Review is a component skill here: it renders no Next Actions of its own.
+Invoke `/claude-tweaks:review base:{base}` (Input rule 9 — a whole-branch scope: every first-parent commit from the base to `origin/{integration-branch}`, spanning many already-merged PRs) with `$PIPELINE_RUN_DIR={run-dir}` set, so its findings stage into this run's own `staged/` directory per `_shared/staged-patch.md` and its decisions land in this run's `decisions.md`. Review is a component skill here: it renders no Next Actions of its own.
 
 When it returns, read `{run-dir}/decisions.md`'s `## /review` block and classify:
 
@@ -146,19 +145,19 @@ SKIP {HH:MM:SS} — Step 3: --allow-blocking ignored under --train (no human has
 
 ## Step 4: Console
 
-Read `console.md` in this skill's directory now and render the console it defines: the shipped records, the proposed bump and the commit that drove it, this step's review verdict, the hook-configured column, and the two overrides. Two HARD-GATEs stop the run here regardless of mode — `review: blocking` (not overridden), and a major bump on the **effective** version — and they are registered as such in `_shared/auto-mode-contract.md`'s HARD-GATE list; everything else renders read-only in `auto` and proceeds.
+Read `console.md` in this skill's directory now and render the console it defines: the shipped records, the proposed bump and the commit that drove it, this step's review verdict, the hook-configured column, and the two overrides. Two HARD-GATEs stop the run here for a decision regardless of mode (`console.md` says what each mode does with the stop: `--train` stages and exits `HELD`, interactive asks once) — `review: blocking` (not overridden), and a major bump on the **effective** version — and they are registered as such in `_shared/auto-mode-contract.md`'s HARD-GATE list; everything else renders read-only in `auto` and proceeds.
 
 ## Step 5: Execute
 
-Read `execute.md` in this skill's directory now. It holds the engine dispatch: `gh pr merge {releasePr} --squash` under pr-first (with the `Release-As:` push and its bounded re-render poll when `--as` was given), `node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" [--dry-run] [--as <version>]` under local-merge, and the MCP-only-sandbox posture where the merge renders as a paste-ready command instead of executing. The engine value comes from Step 1's pack (`_shared/integration-model.md`'s Consumer table), never from a fresh detection here.
+Read `execute.md` in this skill's directory now. It holds the engine dispatch: `gh pr merge {releasePr} --squash` under pr-first (with the `Release-As:` push and its bounded re-render poll when `--as` was given), `node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" [--dry-run]` under local-merge (no `--as` — see the Input table), and the MCP-only-sandbox posture where the merge renders as a paste-ready command instead of executing. The engine value comes from Step 1's pack (`_shared/integration-model.md`'s Consumer table), never from a fresh detection here.
 
 Under `--dry-run` this step is a no-op: no merge, no tag, no `Release-As:` commit, no engine invocation without its own `--dry-run`. Say so in the console and in Step 8's summary rather than reporting a version as released.
 
 ## Step 6: Verify
 
-Read `execute.md` in this skill's directory now — Step 6 lives in the same file, because the verification is engine-specific in exactly the way the execution is. It checks that what Step 5 claimed actually landed: the tag on origin, the GitHub Release (pr-first), and the `release: published` workflow run or the `release-hook` exit (local-merge), on a bounded poll.
+Under `--dry-run` this step does not run — Step 5 landed nothing, so there is nothing to verify; go to Step 8. Otherwise read `execute.md` in this skill's directory now — Step 6 lives in the same file, because the verification is engine-specific in exactly the way the execution is. It checks that what Step 5 claimed actually landed: the tag on origin, the GitHub Release (pr-first), and the `release: published` workflow run or the `release-hook` exit (local-merge), on a bounded poll.
 
-**A miss is never rendered as a clean release.** Missing, still running past the bound, and present-but-concluded-failed are three different misses and each is reported as a named partial state with its own recovery command — the same discipline `bin/release-local.js` already applies to its own exits (`5` = the hook failed after the tag landed and the tag is final; `1` = a named partial state quoted verbatim). A hook run that cannot be found is an unverified hook, not a successful one.
+**A miss is never rendered as a clean release.** Missing, still running past the bound, and present-but-concluded-failed are three different misses and each is reported as a named partial state with its own recovery command — the same discipline `bin/release-local.js` already applies to its own exits (`5` = the hook failed after the tag landed and the tag is final; `1` = either nothing was written at all or a named partial state — the engine's own stderr says which; quote it, never infer). A hook run that cannot be found is an unverified hook, not a successful one.
 
 ## Step 7: Bookkeeping
 
@@ -208,7 +207,7 @@ When the outcome was `PARTIAL`, the recovery command from Step 6 leads this bloc
 Either gate composes `release-held.md` — naming which gate fired, the effective version and its base, and the blocking findings' staged paths — and stages it:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "{run-dir}" --id release-held --file {composed file}
+node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "{run-dir}" --id release-held --file {composed .md file}
 ```
 
 It lands at `{run-dir}/staged/release-held.md`. The run then **exits 0** with `HELD` in Step 8's summary: a held train is a correct outcome, not an error, and a nonzero exit would read to the Routine kernel as a broken firing.
