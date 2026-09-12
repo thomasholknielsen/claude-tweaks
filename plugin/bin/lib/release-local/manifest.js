@@ -24,7 +24,15 @@ const SEMVER = '\\d+\\.\\d+\\.\\d+';
 const STACK_TARGETS = {
   node: [{ path: 'package.json', kind: 'json' }, { path: 'package-lock.json', kind: 'json-lock', optional: true }],
   php: [{ path: 'composer.json', kind: 'json' }],
-  python: [{ path: 'pyproject.toml', kind: 'toml', sections: ['project', 'tool.poetry'] }],
+  // step-21-release.md selects `python` from pyproject.toml OR setup.py, so every
+  // marker it can select on has to be a target — a setup.py-only repo would
+  // otherwise fail every release on a required pyproject.toml it never had. All
+  // three are optional; resolveTargets turns that into a one-of requirement.
+  python: [
+    { path: 'pyproject.toml', kind: 'toml', sections: ['project', 'tool.poetry'], optional: true },
+    { path: 'setup.py', kind: 'py-assign', optional: true },
+    { path: 'setup.cfg', kind: 'toml', sections: ['metadata'], unquoted: true, optional: true },
+  ],
   rust: [{ path: 'Cargo.toml', kind: 'toml', sections: ['package'] }],
   go: [],
   simple: [{ path: 'version.txt', kind: 'text', create: true }],
@@ -60,7 +68,11 @@ function resolveTargets({ releaseType, extraFiles = [] }) {
   }
   const stack = STACK_TARGETS[releaseType];
   if (!stack) throw new ManifestError(`unknown release-type ${releaseType}`);
-  return [{ path: MANIFEST_FILE, kind: 'manifest', optional: true }, ...stack, ...extraFiles.map(extraFileTarget)];
+  // A stack whose every manifest is optional (python) still needs ONE of them to
+  // carry a version — `oneOf` names the set so applyVersion can say so before writing.
+  const oneOf = stack.length > 0 && stack.every((t) => t.optional) ? stack.map((t) => t.path) : null;
+  const stackTargets = oneOf ? stack.map((t) => ({ ...t, oneOf })) : stack;
+  return [{ path: MANIFEST_FILE, kind: 'manifest', optional: true }, ...stackTargets, ...extraFiles.map(extraFileTarget)];
 }
 
 function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -123,7 +135,10 @@ function spliceJsonLock(text, to) {
   return { text: root.text.slice(0, at) + inner.text + rest, found: root.found || inner.found, previous: root.previous };
 }
 
-function spliceToml(text, sections, to) {
+// `unquoted` also accepts setup.cfg's bare INI value (`version = 1.2.0`); the
+// backreference keeps a quoted value's closing quote matched to its opener.
+function spliceToml(text, sections, to, { unquoted = false } = {}) {
+  const quote = unquoted ? '["\']?' : '["\']';
   for (const section of sections) {
     const header = new RegExp(`^\\[${escapeRe(section)}\\][ \\t]*$`, 'm').exec(text);
     if (!header) continue;
@@ -131,10 +146,10 @@ function spliceToml(text, sections, to) {
     const rest = text.slice(bodyStart);
     const next = /^\[/m.exec(rest);
     const body = next ? rest.slice(0, next.index) : rest;
-    const vm = new RegExp(`^([ \\t]*version[ \\t]*=[ \\t]*")(${SEMVER})(")`, 'm').exec(body);
+    const vm = new RegExp(`^([ \\t]*version[ \\t]*=[ \\t]*(${quote}))(${SEMVER})\\2`, 'm').exec(body);
     if (!vm) continue;
     const start = bodyStart + vm.index + vm[1].length;
-    return { text: text.slice(0, start) + to + text.slice(start + vm[2].length), found: true, previous: vm[2] };
+    return { text: text.slice(0, start) + to + text.slice(start + vm[3].length), found: true, previous: vm[3] };
   }
   return { text, found: false, previous: null };
 }
@@ -144,7 +159,8 @@ function spliceVersion(kind, text, to, opts = {}) {
     case 'json': return spliceJsonKey(text, 'version', to);
     case 'json-lock': return spliceJsonLock(text, to);
     case 'manifest': return spliceJsonKey(text, '.', to);
-    case 'toml': return spliceToml(text, opts.sections || [], to);
+    case 'toml': return spliceToml(text, opts.sections || [], to, opts);
+    case 'py-assign': return spliceMatch(text, new RegExp(`(version\\s*=\\s*['"])(${SEMVER})(['"])`), to, 2);
     case 'text': {
       if (text === null || text === undefined) return { text: to, found: false, previous: null };
       return spliceMatch(text, new RegExp(`()(${SEMVER})`), to, 2);
@@ -196,6 +212,13 @@ function currentVersion(targets, readFile) { return firstVersion(targets, readFi
 function versionAtRef(targets, show) { return firstVersion(targets, show); }
 
 function applyVersion(targets, from, to, readFile, writeFile) {
+  // Pre-pass, before any write: a one-of stack (python) with no member carrying a
+  // version token is a misconfigured repo, and half a bumped manifest set on disk
+  // is worse than nothing.
+  const oneOf = targets.filter((t) => t.oneOf);
+  if (oneOf.length && !oneOf.some((t) => versionOfText(t, readFile(t.path)) !== null)) {
+    throw new ManifestError(`no stack manifest carried a version token (looked for ${oneOf[0].oneOf.join(', ')})`);
+  }
   const written = [];
   for (const target of targets) {
     const text = readFile(target.path);
