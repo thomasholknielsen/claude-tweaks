@@ -214,8 +214,6 @@ bucket the same way the tier-2 refusal above does, with the candidate's
 number and its firing signals named in the close-out log line, then
 continue to `## Release` exactly as any other shaping-stage failure does.
 
-
-
 **The guard's verdict is not reused here.** `## Framing Guard`'s verdict
 served exactly one purpose — the open/solution-baked routing decision that
 let this record reach shaping at all — and shaping mode never reads it.
