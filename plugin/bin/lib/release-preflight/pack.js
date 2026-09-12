@@ -274,7 +274,11 @@ function prepare({ deps, rootArg, runDir }) {
       const headSha = list.length && list[0].head_sha
         ? String(list[0].head_sha)
         : (await deps.execFileAsync('gh', ['api', `repos/${nameWithOwner}/commits/${branch}`, '--jq', '.sha'])).trim();
-      const state = counts.total === 0 ? 'none' : counts.failure ? 'failure' : counts.pending ? 'pending' : 'success';
+      let state;
+      if (counts.total === 0) state = 'none';
+      else if (counts.failure) state = 'failure';
+      else if (counts.pending) state = 'pending';
+      else state = 'success';
       return { ref: branch, headSha, localSha, tipBehind: headSha !== localSha, state, ...counts, truncated: counts.total > list.length };
     },
     // ANY human-authored commit on the branch is a human edit — release-please
