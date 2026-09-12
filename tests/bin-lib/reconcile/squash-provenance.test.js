@@ -82,10 +82,6 @@ test('isSquashMerged: git failure (unknown integration or branch ref) -> false, 
 // merge once happened — it says nothing about commits pushed to the branch
 // AFTER that merge. The third condition (tree equality via a recreated
 // merge) is what ties the proof to the branch's CURRENT tip.
-function git(cwd, ...args) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-}
-
 test('isSquashMerged: main moved (non-conflicting change) between fork and merge, then squash -> still true', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'squash-provenance-moved-'));
   git(dir, 'init', '-b', 'main');
