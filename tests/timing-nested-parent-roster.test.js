@@ -28,6 +28,7 @@ const ALLOWLIST = Object.freeze({
   backlog: 'cited throughout policy/config/contract docs describing what backlog does with a given setting or grant — pure documentation, never Skill-tool-invoked from a phase body',
   browse: 'cited as the underlying agent-browser session convention QA procedures follow — never Skill-tool-invoked itself',
   research: 'cited only in policy-schema-model-profiles.md documenting research\'s own model-profile row — never Skill-tool-invoked from a phase',
+  release: 'cited only in _shared/policy-schema.md documenting what will read release-hook/release-train (the /claude-tweaks:release skill lands in a later unit of #2250) — pure documentation, never Skill-tool-invoked from a phase body',
   routine: 'cited only inside a routine-template-schema.md troubleshooting note suggesting a manual fallback command — never Skill-tool-invoked from a phase',
   'routine-kickoff': 'cited only in routine-template-schema.md describing the kickoff skill\'s own contract — never Skill-tool-invoked from a phase',
   triage: 'cited once in local-files-preflight-stop.md as a routing-option label, not a Skill-tool invocation',
