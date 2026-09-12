@@ -40,6 +40,16 @@ Read them before writing a fourth.
   `flow/preflight.js`'s `gatherPreflight` computes every probe unconditionally regardless of
   `--steps` (its own parse-error text calls `--steps` "metadata — every field is computed
   regardless"), since `/flow`'s second call always needs the full set.
+- **A pack proposes; it never decides.** Any field an engine or a forge will later own — a version,
+  a merge state, a PR number — is labelled a *proposal* in the consumer's prose, is re-read from
+  that engine after the engine acts, and the reconciliation is written **once**, at the consumer,
+  never per use site. `release-preflight`'s `proposedVersion` is the shipped instance (#2256): the
+  pack never fetches, release-please reads config the pack does not, and a sibling release can land
+  between the gather and the engine's run, so the pack's number is the *gating* version and the
+  engine's return is the *shipped* one (`plugin/skills/release/execute.md`'s "Two versions"
+  section). Treating the proposal as the number to verify and to book cost two fix waves on one
+  confusion; this is the freshness question of the next section asked one level up — not "is the
+  value stale?" but "whose value is it?".
 
 ## Every field owes a location, a freshness, and a phase — traced before it is written
 
