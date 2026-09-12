@@ -81,6 +81,14 @@ test('spliceVersion text/generic/manifest', () => {
   assert.strictEqual(M.spliceVersion('manifest', '{\n  ".": "1.2.0"\n}\n', '1.3.0').text, '{\n  ".": "1.3.0"\n}\n');
 });
 
+test('spliceVersion generic: EVERY annotated line is rewritten (release-please parity), unannotated lines are not', () => {
+  const gen = 'A=1.2.0 # x-release-please-version\nB: 1.2.0 # x-release-please-version\nOTHER=1.2.0\n';
+  const out = M.spliceVersion('generic', gen, '1.3.0');
+  assert.strictEqual(out.text, 'A=1.3.0 # x-release-please-version\nB: 1.3.0 # x-release-please-version\nOTHER=1.2.0\n');
+  assert.strictEqual(out.found, true);
+  assert.strictEqual(out.previous, '1.2.0');
+});
+
 test('currentVersion / versionAtRef: manifest file first, then the stack manifest, null when nothing carries a version', () => {
   const t = M.resolveTargets({ releaseType: 'node', extraFiles: [] });
   assert.strictEqual(M.currentVersion(t, files({ '.release-please-manifest.json': '{".": "1.2.0"}', 'package.json': '{"version": "1.1.0"}' }).readFile), '1.2.0');

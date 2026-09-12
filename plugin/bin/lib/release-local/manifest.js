@@ -150,13 +150,15 @@ function spliceVersion(kind, text, to, opts = {}) {
       return spliceMatch(text, new RegExp(`()(${SEMVER})`), to, 2);
     }
     case 'generic': {
-      const lines = text.split('\n');
+      // release-please's generic updater rewrites the version token on EVERY
+      // line carrying the annotation, not just the first; `previous` reports
+      // the first rewritten line's token.
       let previous = null;
-      const out = lines.map((line) => {
-        if (previous !== null || !line.includes('x-release-please-version')) return line;
+      const out = text.split('\n').map((line) => {
+        if (!line.includes('x-release-please-version')) return line;
         const m = new RegExp(SEMVER).exec(line);
         if (!m) return line;
-        previous = m[0];
+        if (previous === null) previous = m[0];
         return line.slice(0, m.index) + to + line.slice(m.index + m[0].length);
       });
       return { text: out.join('\n'), found: previous !== null, previous };
