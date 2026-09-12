@@ -135,7 +135,7 @@ test('applyVersion python: setup.py alone is enough; no stack manifest at all th
 
 test('spliceVersion text/generic/manifest', () => {
   assert.deepStrictEqual(M.spliceVersion('text', '1.2.0\n', '1.3.0'), { text: '1.3.0\n', found: true, previous: '1.2.0' });
-  assert.deepStrictEqual(M.spliceVersion('text', null, '1.3.0'), { text: '1.3.0', found: false, previous: null });
+  assert.deepStrictEqual(M.spliceVersion('text', null, '1.3.0'), { text: '1.3.0\n', found: false, previous: null });
   const gen = 'FOO=1\nAPP_VERSION=1.2.0 # x-release-please-version\nOTHER=1.2.0\n';
   assert.strictEqual(M.spliceVersion('generic', gen, '1.3.0').text, 'FOO=1\nAPP_VERSION=1.3.0 # x-release-please-version\nOTHER=1.2.0\n');
   assert.strictEqual(M.spliceVersion('manifest', '{\n  ".": "1.2.0"\n}\n', '1.3.0').text, '{\n  ".": "1.3.0"\n}\n');
@@ -172,6 +172,6 @@ test('applyVersion: writes only files that exist (optional targets skipped, text
   const s2 = {}; const w2 = [];
   M.applyVersion(simple, '0.2.0', (p) => (p in s2 ? s2[p] : null), (p, text) => { w2.push(p); s2[p] = text; });
   assert.deepStrictEqual(w2, ['version.txt']);
-  assert.strictEqual(s2['version.txt'], '0.2.0');
+  assert.strictEqual(s2['version.txt'], '0.2.0\n');
   assert.throws(() => M.applyVersion(t, '1.3.0', () => '{"name":"x"}', () => {}), /no version token/);
 });

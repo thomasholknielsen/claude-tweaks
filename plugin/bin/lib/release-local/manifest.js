@@ -185,13 +185,15 @@ function spliceVersion(kind, text, to, opts = {}) {
     // start-of-line with optional indentation.)
     case 'py-assign': return spliceMatch(text, new RegExp(`((?<![\\w.])version\\s*=\\s*['"])(${SEMVER})(['"])`), to, 2);
     case 'text': {
-      if (text === null || text === undefined) return { text: to, found: false, previous: null };
-      // A single bare token, never a captured surrounding group — spliceMatch's
-      // artificial empty group existed only to reuse its group-indexed API; a
-      // direct exec + slice says the same thing without it.
+      // release-please's `simple` strategy writes version.txt through
+      // DefaultUpdater.updateContent, which returns `this.version + '\n'` —
+      // the WHOLE file becomes the version plus one newline, regardless of
+      // prior content. Byte-compatibility means matching that discard, not
+      // preserving whatever else was there.
+      if (text === null || text === undefined) return { text: `${to}\n`, found: false, previous: null };
       const m = new RegExp(SEMVER).exec(text);
       if (!m) return { text, found: false, previous: null };
-      return { text: text.slice(0, m.index) + to + text.slice(m.index + m[0].length), found: true, previous: m[0] };
+      return { text: `${to}\n`, found: true, previous: m[0] };
     }
     case 'generic': {
       // release-please's generic updater rewrites the version token on EVERY

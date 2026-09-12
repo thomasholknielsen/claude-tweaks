@@ -166,3 +166,34 @@ test('W6: spliceVersion text — direct-regex path preserves existing bump/no-to
   assert.deepStrictEqual(M.spliceVersion('text', '1.2.0\n', '1.3.0'), { text: '1.3.0\n', found: true, previous: '1.2.0' });
   assert.deepStrictEqual(M.spliceVersion('text', 'unreleased\n', '1.3.0'), { text: 'unreleased\n', found: false, previous: null });
 });
+
+// W7 (row 63): the text kind's byte shape matches release-please's `simple`
+// strategy — DefaultUpdater.updateContent returns `this.version + '\n'`
+// unconditionally, so version.txt's WHOLE content becomes the version plus
+// one newline, discarding whatever else was there when a token is found (or
+// the file is absent/created), and staying untouched when no token exists.
+test('W7: spliceVersion text — version.txt byte shape matches release-please\'s DefaultUpdater (version + one newline)', () => {
+  assert.deepStrictEqual(M.spliceVersion('text', null, '0.2.0'), { text: '0.2.0\n', found: false, previous: null });
+  assert.deepStrictEqual(M.spliceVersion('text', '0.1.0', '0.2.0'), { text: '0.2.0\n', found: true, previous: '0.1.0' });
+  assert.deepStrictEqual(M.spliceVersion('text', '0.1.0\n', '0.2.0'), { text: '0.2.0\n', found: true, previous: '0.1.0' });
+  assert.deepStrictEqual(M.spliceVersion('text', 'unreleased\n', '0.2.0'), { text: 'unreleased\n', found: false, previous: null });
+});
+
+test('W7: applyVersion (simple release-type) — version.txt created, bumped from either newline shape, or refused when tokenless and present', () => {
+  const simple = M.resolveTargets({ releaseType: 'simple', extraFiles: [] });
+  const created = {};
+  M.applyVersion(simple, '0.2.0', (p) => (p in created ? created[p] : null), (p, text) => { created[p] = text; });
+  assert.strictEqual(created['version.txt'], '0.2.0\n');
+  const noNewline = { 'version.txt': '0.1.0' };
+  M.applyVersion(simple, '0.2.0', (p) => (p in noNewline ? noNewline[p] : null), (p, text) => { noNewline[p] = text; });
+  assert.strictEqual(noNewline['version.txt'], '0.2.0\n');
+  const withNewline = { 'version.txt': '0.1.0\n' };
+  M.applyVersion(simple, '0.2.0', (p) => (p in withNewline ? withNewline[p] : null), (p, text) => { withNewline[p] = text; });
+  assert.strictEqual(withNewline['version.txt'], '0.2.0\n');
+  // no token at all: nothing is written, the file stays exactly as it was
+  const tokenless = { 'version.txt': 'unreleased\n' };
+  const writes = [];
+  M.applyVersion(simple, '0.2.0', (p) => (p in tokenless ? tokenless[p] : null), (p, text) => { writes.push(p); tokenless[p] = text; });
+  assert.deepStrictEqual(writes, []);
+  assert.strictEqual(tokenless['version.txt'], 'unreleased\n');
+});
