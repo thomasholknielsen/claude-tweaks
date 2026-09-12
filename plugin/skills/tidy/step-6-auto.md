@@ -3,7 +3,7 @@
 Step 6's auto branch; `step-6-interactive.md` is its twin. `SKILL.md` resolves `--dry-run` before
 reading either — under it, everything Stages and the routing table below is bypassed.
 
-When a pipeline run directory exists (see `_shared/pipeline-run-dir.md` for resolution order and bash snippet), resolve `tidy-aggressiveness` — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" tidy-aggressiveness)` — the same variable the standalone-auto path below resolves without `--run`; `conservative` is the documented opt-down.
+When a pipeline run directory exists (see `_shared/run-dir-resolution.md` for resolution order and bash snippet), resolve `tidy-aggressiveness` — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values --run "$PIPELINE_RUN_DIR" tidy-aggressiveness)` — the same variable the standalone-auto path below resolves without `--run`; `conservative` is the documented opt-down.
 
 **A recurring staged item is a missing routing rule.** The Approve bucket should stay empty in steady state: a finding class that keeps staging needs a routing row — or a reconcile check — that disposes of it mechanically, not a faster approval habit; Stage-tier record rows also write the tracker-visible `needs:decision` marker — procedure in `decision-markers.md` in this skill's directory. The one exception is outward-facing GitHub writes, forbidden at every tier (`_shared/auto-mode-contract.md`); their disposition rides on reconcile's background convergence (the reconcile-converged rows below), never a tidy tier.
 
@@ -71,7 +71,7 @@ STAGED 11:14:35 — Step 6: absorb proposal for backlog record "{title}" into #4
 
 Auto-applied items are committed. Staged items surface at the Wrap-Up Review Console for batch approval (`/wrap-up`'s Phase 4) when `/tidy` runs as part of a pipeline.
 
-**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/pipeline-run-dir.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`; the audit log stays on. Apply the resolved `tidy-aggressiveness` value — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values tidy-aggressiveness)` (see `_shared/policy-schema.md`) — as the routing key, and render the report per the template below (this run's bookend-end; no separate Review Console).
+**Standalone auto:** When `/tidy` runs standalone in `auto` mode (no parent pipeline run dir), follow the Standalone auto fallback in `_shared/run-dir-resolution.md` — create `.claude-tweaks/pipelines/{ISO-timestamp}-tidy-standalone/` with `decisions.md` and `staged/`; the audit log stays on. Apply the resolved `tidy-aggressiveness` value — `TIDY_AGGRESSIVENESS=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values tidy-aggressiveness)` (see `_shared/policy-schema.md`) — as the routing key, and render the report per the template below (this run's bookend-end; no separate Review Console).
 
 #### Archival compaction (every Standalone-auto firing, any scope)
 

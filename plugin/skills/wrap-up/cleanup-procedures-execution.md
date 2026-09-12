@@ -28,7 +28,7 @@ Cleanup is silent — no user prompt. The caches are pipeline state, not user-au
 
 ## B. Pipeline run directory (v4.6.0)
 
-If a pipeline run directory exists for this work (see `_shared/pipeline-run-dir.md` for the resolution order and bash snippet):
+If a pipeline run directory exists for this work (see `_shared/run-dir-resolution.md` for the resolution order and bash snippet):
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section entirely**. The parent `/flow` orchestration owns archival of the multi-spec parent dir after its consolidated Review Console completes. The per-spec subdirectory stays in place under the parent.
 2. Verify the Review Console ran and applied/dismissed all staged items. Since #1130 this precondition is also code-enforced at both archival call sites — the reconcile sweep skips a run whose console was never rendered or is unresolved (decideArchive), and the archive-run verb below refuses a rendered-but-unresolved console.
@@ -194,7 +194,7 @@ Shared teardown and `flow/worktree-merge.md` cite this invariant rather than res
    months is longer than any worktree in this repo's history has stayed live, and a
    pre-anchoring run still sitting in a worktree by then is abandoned state, not live state.
 3.6. **Close the pipeline run — the sanctioned exit the teardown gate checks for.** If a pipeline
-   run directory resolves for this work (see `_shared/pipeline-run-dir.md`'s resolution order),
+   run directory resolves for this work (see `_shared/run-dir-resolution.md`'s resolution order),
    run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "$RUN_DIR"` now, from inside the
    worktree, **before step 4 removes it.** This clears the run's recorded worktree assignment,
    which is exactly what `bin/lib/hooks/pre-tool-use.js`'s teardown gate (`checkTeardownGate`)

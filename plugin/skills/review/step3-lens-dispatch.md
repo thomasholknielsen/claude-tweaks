@@ -11,6 +11,24 @@ in `code-mode-steps.md`.
 "Above" in the next section means `code-mode-steps.md`'s Step 3 preamble — the "skip lenses that don't
 apply to the type of change" rule and the severity-floor table.
 
+## Composed dispatch-contract bundle (#2019)
+
+> Steps 3, 3.5, and 3.6 all cite the Subagent Contract's dispatch-facing sections (Working
+> Directory Discipline, Model Selection, Failed-agent retrieval, the fan-out section) plus the
+> run-directory resolution algorithm — never the whole `_shared/subagent-output-contract.md` or
+> `_shared/pipeline-run-dir.md` files, which carry other content these steps never read. When a
+> pipeline run directory exists, compose the narrower bundle once, before Step 3's first dispatch:
+>
+> ```bash
+> node "${CLAUDE_PLUGIN_ROOT}/bin/compose-context.js" --run "$PIPELINE_RUN_DIR" --step review-dispatch "${CLAUDE_PLUGIN_ROOT}/skills/_shared/subagent-dispatch-core.md" "${CLAUDE_PLUGIN_ROOT}/skills/_shared/run-dir-resolution.md"
+> ```
+>
+> then read `$PIPELINE_RUN_DIR/context/review-dispatch.md` for every citation below and in
+> `step3-routing.md`/`step3-debate-and-refutation.md` — composed once per review run, not
+> re-composed per step. **Standalone** (no run directory, or the compose command is unavailable or
+> exits non-zero): read `_shared/subagent-dispatch-core.md` and `_shared/run-dir-resolution.md`
+> directly instead — the two files this bundle composes.
+
 ## Lens scope and dispatch
 
 **Lens scope by `review-effort` tier** (resolved in Step 2.5): lower tiers dispatch fewer agent-based lenses, trading breadth for speed and higher-confidence-only output; higher tiers trade speed for broader coverage.
@@ -29,9 +47,9 @@ Reproduction pairs (the 2-agent verification dispatch below) run for every lens 
 
 **Low-tier single-read dispatch (`low` only).** At `low`, the reproduction mechanism does not run at all — dispatch **one** agent per in-scope lens (3b, 3c), not a pair. This is not "reproduction with N=1" (Mode 1 in `_shared/multi-agent-coordination.md` is N=2 always when it runs); it is the tier's economy trade, halving the cheapest tier's fixed cost. Every finding a single-read agent returns enters as `unconfirmed`, and the only path to `confirmed` is the Direct-verification override below applied deliberately: the reviewing agent reads the actual current source at each finding's `{path}:{line}` (the real file content, not the agent's report of it) and independently confirms it. Log a confirmation as `AUTO {HH:MM:SS} — Single-read (low tier): lens "{lens}" finding {path}:{line} confirmed via direct verification (source read independently). Reversibility: high.` A finding the reviewer cannot confirm this way stays `unconfirmed` — log `STAGED {HH:MM:SS} — Single-read (low tier): lens "{lens}" finding {path}:{line} not directly verified. Staged to Review Console as low-confidence. Reversibility: high.` — and routes to the Wrap-Up Console's Low-confidence subsection as usual. The correlated-misread protection a pair provides is deliberately traded away here; a review that warrants that protection warrants `medium` or above (Step 2.5's ambiguity rule already never defaults to `low`).
 
-At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatched lens's prompt, after the Output Format block (do not modify the CALIBRATION block itself — it stays byte-identical across all tiers, per the "Per-lens Calibration + Output template" section below): resolve the lens's profile per `_shared/subagent-output-contract.md`'s Model Selection dispatch procedure and append the returned `effortLine` verbatim — shape `[Effort: {level} — apply {level}-level reasoning depth to this task.]`. This is still a best-effort prompt-level nudge, not a verified change to the dispatched agent's actual reasoning depth — the lens-scope table above is the load-bearing mechanism — but it is now the resolver's own honest statement of effort rather than a hand-written sentence, so it never drifts from what the resolver actually returned.
+At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatched lens's prompt, after the Output Format block (do not modify the CALIBRATION block itself — it stays byte-identical across all tiers, per the "Per-lens Calibration + Output template" section below): resolve the lens's profile per the composed review-dispatch bundle's (or, standalone, `_shared/subagent-dispatch-core.md`'s) Model Selection dispatch procedure and append the returned `effortLine` verbatim — shape `[Effort: {level} — apply {level}-level reasoning depth to this task.]`. This is still a best-effort prompt-level nudge, not a verified change to the dispatched agent's actual reasoning depth — the lens-scope table above is the load-bearing mechanism — but it is now the resolver's own honest statement of effort rather than a hand-written sentence, so it never drifts from what the resolver actually returned.
 
-> **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3, Step 3.5, and Step 3.6 (reproduction, debate, refutation, and gap-sweep agents). Apply the Working Directory Discipline rule from `_shared/subagent-output-contract.md` before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
+> **Working Directory Discipline:** Applies to every `Task()` dispatch in Step 3, Step 3.5, and Step 3.6 (reproduction, debate, refutation, and gap-sweep agents). Apply the Working Directory Discipline rule from the composed review-dispatch bundle (or, standalone, `_shared/subagent-dispatch-core.md`) before any git or path-sensitive command in the agent prompt. See also `_shared/git-discipline.md`.
 
 > **Full diff content is read here, in the lens agents — not in the main thread.** Step 2 deliberately holds only `--stat`/`--name-only`, so this dispatch is the first point at which actual diff content is read. Give each lens agent the shared context bundle's path (built below) plus the diff *scope* — the base/branch refs, or the own-work file set when the Merge-Provenance Check found merge commits. Do not inline diff text into the prompts from the main thread: every dispatched agent has its own context window, and re-inlining the diff N times reintroduces the cost Step 2 exists to avoid.
 
@@ -49,13 +67,13 @@ At `xhigh` and `max`, append the resolver's `effortLine` output to each dispatch
 >
 > Do **not** `Read` the changed files into this thread to "front-load" them. `Read` places their full content in main-thread context, and each dispatched agent still reads its own copy regardless — so the front-load saves no I/O and costs the entire diff plus every touched file, the exact cost Step 2 exists to avoid. An agent needing more than the bundle (imports, schemas, callers) reads those itself, in its own context window.
 
-> **Parallel execution (conditional):** At `medium` and above, when the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. At `low`, dispatch single agents per the Low-tier single-read rule above instead. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i). Dispatch shape: single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) applies.
+> **Parallel execution (conditional):** At `medium` and above, when the diff spans 10+ files, dispatch each applicable lens (3a-3f) as a **reproduction pair** — 2 identical agents per lens (up to 12 Task agents total: 6 reproduction lenses × 2). When the diff is smaller, run each lens as a 2-agent reproduction pair sequentially in the main thread. At `low`, dispatch single agents per the Low-tier single-read rule above instead. Lenses 3g-cov, 3h, and 3i are not dispatched as reproduction pairs — they run as single agents (3h) or main-thread procedures (3g-cov, 3i). Dispatch shape: single-assistant-message rule (the composed review-dispatch bundle's, or standalone `_shared/subagent-dispatch-core.md`'s, fan-out section) applies.
 >
 > **Reproduction dispatch (Mode 1 — per lens):** For each lens, dispatch 2 agents in one batch with **byte-identical prompts** (same scope, same Template-A contract, same model profile). Independent runs — no agent sees the other's output. After both return, write each agent's `findings` array to `{ctx-dir}/lens-{LENS}-agentA.json` / `{ctx-dir}/lens-{LENS}-agentB.json` and call:
 > ```bash
 > node "${CLAUDE_PLUGIN_ROOT}/bin/review-coordination.js" categorise-reproduction {ctx-dir}/lens-{LENS}-agentA.json {ctx-dir}/lens-{LENS}-agentB.json
 > ```
-> A dispatched lens agent that fails mid-flight is a different case from one that completes — see `_shared/subagent-output-contract.md`'s "Failed-agent retrieval" section for how to read its result cheaply, without blocking on the full envelope.
+> A dispatched lens agent that fails mid-flight is a different case from one that completes — see the composed review-dispatch bundle's (or, standalone, `_shared/subagent-dispatch-core.md`'s) "Failed-agent retrieval" section for how to read its result cheaply, without blocking on the full envelope.
 >
 > **Reproduction-pair partner dies to a session/usage limit.** When one agent in a reproduction pair terminates early on an account session/usage limit (the `Agent terminated early due to an API error: You've hit your session limit` signature), retry that one agent once. If the retry also terminates the same way, treat the surviving partner as a Low-tier single read for that lens only — its findings enter `unconfirmed` unless elevated via the Direct-verification override below, never auto-promoted to `confirmed` on the strength of one agent alone. Log `STAGED {HH:MM:SS} — Reproduction: lens "{lens}" partner agent terminated on a session limit twice; single-read coverage. Reversibility: high.` to `decisions.md`, and carry a one-line coverage-caveat into the Step 7 summary and the PR verdict comment naming the affected lens.
 >

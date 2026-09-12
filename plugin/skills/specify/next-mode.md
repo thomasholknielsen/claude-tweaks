@@ -449,7 +449,7 @@ prompt, so `--mode auto` is a structural fact of the form itself (the
 deprecated `next` alias inherits the same posture), not a policy choice.
 `runId` for every claim this firing makes is this firing's own resolved
 run directory identity — resolved **once per firing, not once per
-iteration**, via `_shared/pipeline-run-dir.md`'s standalone-auto fallback
+iteration**, via `_shared/run-dir-resolution.md`'s standalone-auto fallback
 (Resolution order step 4) — `specify` is on that file's allowlist as of
 this task, added alongside `/claude-tweaks:dispatch`'s own bare-drain
 entry, for the identical reason: bare drain is the headless-safe form a

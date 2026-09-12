@@ -29,7 +29,7 @@ Anything else in `$ARGUMENTS` is an error — report it and stop; sweep delibera
 
 ## Step 0: Resolve the run directory
 
-Resolve one standalone run directory per `_shared/pipeline-run-dir.md`'s standalone-auto fallback (sweep is on that file's allowlist):
+Resolve one standalone run directory per `_shared/run-dir-resolution.md`'s standalone-auto fallback (sweep is on that file's allowlist):
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --mode auto --standalone sweep --create

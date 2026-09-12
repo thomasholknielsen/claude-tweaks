@@ -17,7 +17,7 @@ Rules only — each is a rule plus one clause of why. Where a rule carries an `[
 - Don't forget to update README.md and `/help` when adding or changing skills
 - Don't use emojis in skill files — use `**(Recommended)**` bold text instead
 - Don't write to `~/.claude-tweaks/` from skill content — that path is runtime state owned by the harness layer
-- Don't dispatch parallel Task agents without inlining a literal output template (Template A/B/C) from `plugin/skills/_shared/subagent-output-contract.md` — references won't reach the agent
+- Don't dispatch parallel Task agents without inlining a literal output template (Template A from `plugin/skills/_shared/subagent-dispatch-core.md`; B/C from `plugin/skills/_shared/subagent-output-contract.md`) — references won't reach the agent
 - Don't dispatch agents running `git` or `node --test` without anchoring the working directory in the prompt — CWD doesn't propagate reliably. Require `cd "$WORKTREE"` plus a `pwd` + `git rev-parse --show-toplevel` check before commit
 - Don't invent new mid-flow stops in `auto` mode — stage decision-worthy things to the auto-decision log for the Wrap-Up Review Console; stops are reserved for HARD-GATEs and `_shared/auto-mode-contract.md`'s "not silenced" list
 - Don't auto-resolve a decision without writing to the auto-decision log — silent automation without an audit trail is forbidden
