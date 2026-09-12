@@ -16,6 +16,7 @@
 - The consolidation instruction must never claim to skip brainstorming's own final approval gate — it only reduces *how many times* mid-design approval is asked, never *whether* (spec's Overview).
 - Every policy key is flat kebab-case, `^[a-z0-9]+(-[a-z0-9]+)*$` (`tests/policy-key-naming.test.js`).
 - `specify/SKILL.md` is close to `context-cost.js`'s 40960-byte per-file ceiling (37522 bytes on the merge base = 91.6%, already past the file's own 90% warn threshold) — new prose there must be short citations (Task 3 budgets ≤ 600 bytes total across both edited sites), with the full procedure living in the new `specify/brainstorming-ceremony.md` sub-file instead.
+- `plugin/skills/_shared/policy-schema.md` is even tighter: 39494 bytes on the merge base, 1466 bytes of headroom against the same 40960 ceiling (confirmed via `plan-audit.js`). Task 1's new table row measures 802 bytes — it fits (leaving ~664 bytes headroom afterward), but do not pad or restate its Meaning column; a future addition to this file has very little room left and may need to split it first.
 - Commit tests only where this plan asks for them, sized like the neighboring test files in each touched directory; scratch checks stay scratch. Touch only what each task requires.
 
 ---
@@ -30,7 +31,9 @@
 **Interfaces:**
 - Produces: the policy key `design-ceremony` (values `fast-lane` | `standard`, default `standard`), resolvable via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" design-ceremony` — Task 2 and Task 3 both read this value.
 
-- [ ] **Step 1: Add the schema entry**
+- [ ] **Step 1: Add the schema entry and its documentation row together**
+
+This task has no new test of its own — it is verified entirely by the existing generic suites named below — so, unlike Task 2/3, its schema edit and doc edit land in one step rather than a separate red/green pair (a standalone "run the naming test, expect FAIL" checkpoint between them would only hold once this step's own edit has already landed, which a pre-dispatch, read-only audit of the *unedited* tree cannot reflect).
 
 In `plugin/bin/lib/policy-schema.js`, immediately after the `merge-authorization` entry (currently ending `category: 'merge-safety', tier: 'advanced' },` around line 54), insert:
 
@@ -40,25 +43,18 @@ In `plugin/bin/lib/policy-schema.js`, immediately after the `merge-authorization
 
 (The summary is 106 characters, under the 140-char test ceiling, and does not contain the string `design-ceremony`.)
 
-- [ ] **Step 2: Verify the generic schema tests pick it up**
-
-Run: `node --test tests/policy-schema-metadata.test.js tests/policy-key-naming.test.js`
-Expected: FAIL — `policy-key-naming.test.js`'s `'policy-schema.md documents a "## Key naming" section and every POLICY_KEYS key has a table row there'` test fails because `policy-schema.md` has no `design-ceremony` row yet. (`policy-schema-metadata.test.js` passes at this point — the new entry already carries `summary`/`category`/`tier` and the core-tier cap is unaffected since this entry's tier is `advanced`.)
-
-- [ ] **Step 3: Document the key in `policy-schema.md`**
-
 In `plugin/skills/_shared/policy-schema.md`, under `## Auto-mode levers`, immediately after the `specify-auto-continue` row (line 191), insert:
 
 ```markdown
 | `design-ceremony` | `policy.yml` — no run dir exists at the check point (brainstorming completes before any pipeline run starts, same timing as `specify-auto-continue` above) | `/claude-tweaks:specify` (its three `/superpowers:brainstorming` invocation sites) | `standard` | `fast-lane`/`standard` — on `fast-lane`, `/specify` prepends one consolidation sentence to the `/superpowers:brainstorming` Skill-tool call's `args`, asking the Architectural path to present its remaining design sections as one consolidated block once the decision-carrying questions are answered and the approach is chosen, instead of gating each section — brainstorming's own final approval gate is never removed. Composed via `bin/compose-brainstorm-args.js`; full procedure in `specify/brainstorming-ceremony.md` |
 ```
 
-- [ ] **Step 4: Run the schema/doc tests again**
+- [ ] **Step 2: Run the schema/doc tests**
 
 Run: `node --test tests/policy-schema-metadata.test.js tests/policy-key-naming.test.js tests/resolve-policy-cli.test.js tests/resolve-policy-lib.test.js`
 Expected: PASS — all four suites green, `design-ceremony` now appears in `--all` output with `value: 'standard', source: 'default'` on a fixture with no policy override.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add plugin/bin/lib/policy-schema.js plugin/skills/_shared/policy-schema.md
