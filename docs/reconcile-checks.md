@@ -60,6 +60,33 @@ against reality than trusting it in the abstract; do that for whichever check yo
      interacts with console execution.
    - The check's own `tests/bin-lib/reconcile/{check}.test.js`.
 
+## Merged-proof for the two branch checks
+
+`archive-branches.js` (local `-D`) and `prune-remote.js` (the family's one pushed `push --delete`)
+both need proof that a plugin-owned branch's content already sits on the integration branch. Two
+proofs exist, evaluated in order, and a branch proven by either is eligible:
+
+1. **Cherry-equivalence** — `isCherryEquivalent` (`archive-branches.js`): every branch commit is
+   patch-equivalent to one on the integration branch (`git cherry`). Covers merge commits,
+   rebases, cherry-picks, and a single-commit squash.
+2. **Squash provenance** — `isSquashMerged` (`squash-provenance.js`, #2252), consulted only when
+   cherry says no: the **confirmed** per-branch PR state is `MERGED` *and* that PR's own
+   `mergeCommit.oid` appears in `git rev-list --first-parent {merge-base}..{integration}`, where
+   `{merge-base}` is the branch's fork point from the integration branch. This is what
+   `gh pr merge --squash` (#2251) leaves for a multi-commit branch, whose single squash commit
+   matches none of the branch's patch-ids. The scan is **bounded to the fork point** — never a
+   full-history walk — and a rewritten/force-pushed tip that no longer carries the oid resolves
+   to `false`: not-yet-proven, never falsely proven. `mergeCommit` rides only on the per-branch
+   confirm (`resolvePrState`), not the bulk screen, so a squash candidate is always confirmed
+   before its verdict is final.
+
+Reason vocabulary after #2252 — a deliberate, documented exception to #1082's "no new per-branch
+reasons" pin: `prune-remote`'s skip reason `not-cherry-equivalent` is renamed `not-proven-merged`
+(emitted only when **neither** proof holds), its delete reason on the squash path is
+`merged-pr-squash-merged` (beside `merged-pr-cherry-equivalent`), and `archive-branches` deletes
+with reason `squash-merged` (beside `cherry-equivalent`). `merged-pr-without-cherry-equivalence`
+keeps its name — still literally true when neither proof holds.
+
 ## Referenced by
 
 `CLAUDE.md`'s `### Reconcile` subsection points here for anyone touching
