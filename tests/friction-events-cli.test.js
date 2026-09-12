@@ -18,6 +18,7 @@ function fakeDeps(overrides = {}) {
     cwd: () => '/wt/current',
     readEvents: (runDir, source) => (runDir === '/run/primary' ? [{ type: 'gate-denial', ts: 't1', _tag: 'primary-fixture' }] : []),
     findRunsByWorktreePath: (cwd, target, excludeDir) => { calls.findRunsByWorktreePath.push({ cwd, target, excludeDir }); return []; },
+    readTranscriptText: () => null,
     stdout: (s) => calls.stdout.push(s),
     stderr: (s) => calls.stderr.push(s),
     ...overrides,
@@ -257,4 +258,87 @@ test('#2016: a run dir whose events.jsonl holds only commit rows prints []', () 
   const code = run(['--run', dir], deps);
   assert.equal(code, 0);
   assert.deepEqual(JSON.parse(deps.calls.stdout[0]), []);
+});
+
+// --- contract-violation dedup (record #2041) --------------------------------
+//
+// A dispatched agent that itself waits on nested background work re-fires
+// SubagentStop once per "still waiting" narration turn, each one logged as its
+// own contract-violation event sharing the SAME transcriptPath (Task 1). The
+// Friction Lens reads this file's output, not events.jsonl directly, so
+// dedup belongs here — re-check each transcriptPath's CURRENT last-assistant
+// text (by read time the dispatch has usually produced its real final reply)
+// rather than trusting the write-time snapshot.
+
+test('#2041: a transcriptPath group that is now compliant drops every event for that transcript', () => {
+  const deps = fakeDeps({
+    readEvents: (runDir) => (runDir === '/run/primary' ? [
+      { type: 'contract-violation', ts: 't1', firstLine: 'Still waiting on 3 of 5...', transcriptPath: '/tmp/agent-a.jsonl' },
+      { type: 'contract-violation', ts: 't2', firstLine: 'Still waiting on 1 of 5...', transcriptPath: '/tmp/agent-a.jsonl' },
+    ] : []),
+    readTranscriptText: (p) => (p === '/tmp/agent-a.jsonl' ? 'DONE\nAll checks green.' : null),
+  });
+  const code = run(['--run', '/run/primary'], deps);
+  assert.equal(code, 0);
+  assert.deepEqual(JSON.parse(deps.calls.stdout[0]), []);
+});
+
+test('#2041: a transcriptPath group still non-compliant collapses to one event with a refreshed firstLine', () => {
+  const deps = fakeDeps({
+    readEvents: (runDir) => (runDir === '/run/primary' ? [
+      { type: 'contract-violation', ts: 't1', firstLine: 'Still waiting on 3 of 5...', transcriptPath: '/tmp/agent-b.jsonl' },
+      { type: 'contract-violation', ts: 't2', firstLine: 'Still waiting on 1 of 5...', transcriptPath: '/tmp/agent-b.jsonl' },
+      { type: 'contract-violation', ts: 't3', firstLine: 'I think I finished most of it.', transcriptPath: '/tmp/agent-b.jsonl' },
+    ] : []),
+    readTranscriptText: (p) => (p === '/tmp/agent-b.jsonl' ? 'I think I finished most of it.' : null),
+  });
+  const code = run(['--run', '/run/primary'], deps);
+  assert.equal(code, 0);
+  const out = JSON.parse(deps.calls.stdout[0]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].ts, 't1', 'keeps the earliest event as the carrier');
+  assert.equal(out[0].firstLine, 'I think I finished most of it.');
+});
+
+test('#2041: an event with no transcriptPath (pre-fix legacy log line) passes through unchanged', () => {
+  const deps = fakeDeps({
+    readEvents: (runDir) => (runDir === '/run/primary' ? [
+      { type: 'contract-violation', ts: 't1', firstLine: 'I did some things.' },
+    ] : []),
+    readTranscriptText: () => { throw new Error('must not be called for an event with no transcriptPath'); },
+  });
+  const code = run(['--run', '/run/primary'], deps);
+  assert.equal(code, 0);
+  const out = JSON.parse(deps.calls.stdout[0]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].firstLine, 'I did some things.');
+});
+
+test('#2041: an unreadable transcript (file gone by read time) fails open — keeps every event in the group unchanged', () => {
+  const deps = fakeDeps({
+    readEvents: (runDir) => (runDir === '/run/primary' ? [
+      { type: 'contract-violation', ts: 't1', firstLine: 'Still waiting on 3 of 5...', transcriptPath: '/tmp/gone.jsonl' },
+      { type: 'contract-violation', ts: 't2', firstLine: 'Still waiting on 1 of 5...', transcriptPath: '/tmp/gone.jsonl' },
+    ] : []),
+    readTranscriptText: () => null,
+  });
+  const code = run(['--run', '/run/primary'], deps);
+  assert.equal(code, 0);
+  const out = JSON.parse(deps.calls.stdout[0]);
+  assert.equal(out.length, 2, 'never lose evidence when the transcript cannot be re-verified');
+  assert.deepEqual(out.map((e) => e.ts), ['t1', 't2']);
+});
+
+test('#2041: a single-fire transcriptPath group still non-compliant is kept, with firstLine refreshed to the current read', () => {
+  const deps = fakeDeps({
+    readEvents: (runDir) => (runDir === '/run/primary' ? [
+      { type: 'contract-violation', ts: 't1', firstLine: 'stale snapshot text', transcriptPath: '/tmp/agent-c.jsonl' },
+    ] : []),
+    readTranscriptText: (p) => (p === '/tmp/agent-c.jsonl' ? 'current final malformed text' : null),
+  });
+  const code = run(['--run', '/run/primary'], deps);
+  assert.equal(code, 0);
+  const out = JSON.parse(deps.calls.stdout[0]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].firstLine, 'current final malformed text');
 });

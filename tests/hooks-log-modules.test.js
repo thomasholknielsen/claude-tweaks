@@ -80,6 +80,13 @@ test('subagent-stop flags a missing status line as contract violation (warn, non
   assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
 });
 
+test('subagent-stop tags the logged contract-violation event with the transcript path it was read from', () => {
+  const run = mkRun();
+  const t = transcript('I did some things.');
+  substop.run({ input: { agent_transcript_path: t }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' });
+  assert.strictEqual(readEvents(run)[0].transcriptPath, t);
+});
+
 test('subagent-stop accepts a compliant status line silently', () => {
   const run = mkRun();
   const out = substop.run({ input: { agent_transcript_path: transcript('DONE\nAll checks green.') }, runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x' });

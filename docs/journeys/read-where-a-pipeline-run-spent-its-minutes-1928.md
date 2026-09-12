@@ -6,6 +6,7 @@ files:
   - plugin/bin/lib/timing/derive.js
   - plugin/bin/phase-timing.js
   - plugin/bin/lib/hooks/subagent-stop.js
+  - plugin/bin/friction-events.js
   - plugin/skills/flow/summary-template.md
   - plugin/skills/wrap-up/summary-template.md
   - plugin/skills/_shared/pr-run-comments.md
@@ -48,8 +49,13 @@ files:
 - **Red flags:** An unfamiliar phase name in the table — an un-mapped `claude-tweaks:*` skill was invoked inside review or wrap-up and opened its own top-level span; add it to the nested parent map in `derive.js` if it belongs to the enclosing phase.
 
 ### 4. Trust the contract-violation count again
-- **URL:** `events.jsonl`, `type: "contract-violation"`
+- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/friction-events.js" --run "$PIPELINE_RUN_DIR"` (the Friction Lens's own read path — not raw `events.jsonl`)
 - **Action:** Read the count after a run that dispatched subagents.
-- **Should feel:** Only real subagent replies are graded; an orchestrator's own narration turns no longer show up.
-- **Should understand:** The SubagentStop hook grades `agent_transcript_path` only, and only when it names a file *distinct* from the same firing's own `transcript_path`. Two shapes are a deliberate no-op rather than a graded turn: the field absent entirely (no fallback to the parent session's transcript), and the field present but identical to `transcript_path` — the dispatching session's own file, which the harness sometimes sends while a main session ends its turn waiting on an async dispatch. A genuine subagent stop always carries its own distinct transcript, so neither no-op can hide a real violation.
-- **Red flags:** Zero violations on a run where an agent clearly replied without a status line — either the harness stopped sending `agent_transcript_path`, or it is sending this session's own `transcript_path` under that name. Compare the two fields in the firing before concluding the check is simply off.
+- **Should feel:** Only real subagent replies are graded; an orchestrator's own narration turns no longer show up — and a dispatch that waited on nested background work across several turns reports at most one contract-violation for that dispatch, not one per "still waiting" turn.
+- **Should understand:** The SubagentStop hook grades `agent_transcript_path` only, and only when it names a file *distinct* from the same firing's own `transcript_path` — the field absent entirely (no fallback to the parent session's transcript) and the field present but identical to `transcript_path` (the dispatching session's own file, sent while a main session ends its turn waiting on an async dispatch) are both a deliberate no-op. Every genuine firing is still logged to `events.jsonl` unchanged; `friction-events.js` (the Friction Lens's own read path) then groups logged `contract-violation` events by the `transcriptPath` each was read from and re-checks that transcript's *current* last-assistant text at read time — a group whose dispatch has since replied compliantly is dropped entirely, a group still non-compliant collapses to one event. An event logged before the `transcriptPath` field existed passes through `friction-events.js` unchanged.
+- **Red flags:** Zero violations on a run where an agent clearly replied without a status line — either the harness stopped sending `agent_transcript_path`, or it is sending this session's own `transcript_path` under that name (compare the two fields in the firing before concluding the check is simply off). Multiple violations surviving for what was actually one dispatch's narration — the transcript became unreadable (deleted/moved) by read time, which fails open and keeps every event in that group rather than guessing.
+
+## Origin
+- Created during build of #1928 (pipeline phase-timing table)
+- Updated for #2036 (subagent-stop no-ops a SubagentStop firing whose `agent_transcript_path` is identical to its own `transcript_path` — the dispatching session's own narration, not a distinct subagent)
+- Updated for #2041 (contract-violation dedup: `friction-events.js` re-checks each transcript's current reply at read time, so a multi-turn async-wait dispatch no longer over-reports one violation per intermediate narration turn)

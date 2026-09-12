@@ -70,6 +70,15 @@ function isExemptAgentType(agentType) {
   return agentType.slice(0, idx) !== OWN_PLUGIN_NAMESPACE;
 }
 
+// The `firstLine` field of a logged contract-violation event. Shared with
+// bin/friction-events.js, which re-derives the same field from the live
+// transcript when it refreshes an already-logged event (#2041) — one
+// truncation rule, so a refreshed firstLine and a freshly logged one are
+// shaped alike. Expects already-trimmed text.
+function firstLineOf(trimmedText) {
+  return trimmedText.split('\n')[0].slice(0, 120);
+}
+
 function lastAssistantText(transcriptPath) {
   let raw;
   try { raw = fs.readFileSync(transcriptPath, 'utf8'); } catch { return null; }
@@ -135,8 +144,8 @@ function run(ctx) {
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
   const trimmedText = text.trim();
   if (STATUS_RE.test(trimmedText)) return {};
-  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: trimmedText.split('\n')[0].slice(0, 120) }, ownedRun.attribution);
+  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: firstLineOf(trimmedText), transcriptPath }, ownedRun.attribution);
   return { json: { systemMessage: 'claude-tweaks: a subagent reply is missing the Subagent Contract status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED). Logged to events.jsonl.' } };
 }
 
-module.exports = { run, isExemptAgentType };
+module.exports = { run, isExemptAgentType, lastAssistantText, firstLineOf, STATUS_RE };
