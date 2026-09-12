@@ -117,11 +117,7 @@ Do NOT flag:
 When in doubt: would a calibrated senior engineer block a PR on this finding alone? If no, drop it.
 
 OUTPUT FORMAT (required):
-First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED — nothing before it, not even a lead-in sentence.
-WRONG: "Based on my review, DONE" — narration before the status word still violates this.
-WRONG: "I reviewed the diff and found two issues worth flagging. DONE_WITH_CONCERNS" — same violation even when the narration states real content instead of filler; the rule is about position, not about whether the lead-in is empty.
-Self-check before sending: is the very first token of your reply literally one of the four status words? If you were about to write a summary, transition, or acknowledgment first, delete it and start the reply with the status word instead.
-Then return ONLY a markdown table, no preamble:
+Return ONLY a markdown table, no preamble:
 
 | Severity | Path:Line | Finding | Evidence |
 |---|---|---|---|
@@ -132,9 +128,14 @@ Severity scale: critical / high / medium / low / info
 If no findings: return literal text "No findings."
 Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
 Do not add narration, headers, or summaries before or after the table.
+
+After the table, on its own trailing line — the last non-empty line of your reply — write exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED, as `STATUS: {WORD}`.
+WRONG: putting the status word first, before the table.
+WRONG: adding narration or a summary after the status line — it must be the reply's final line.
+Self-check before sending: is the very last non-empty line of your reply literally `STATUS: {WORD}`? If you were about to add a closing remark after it, delete it.
 ```
 
-Each agent's first reply line must be one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED`, then the table. The dispatcher merges findings into the Step 3 Routing table (`step3-routing.md`) — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation — check the status word's **position**, not merely its presence: a reply that opens with narration and states the status word only later (e.g. "Based on my review... DONE") is a violation even though the literal token appears somewhere in the reply. Verify line 1 of the reply is exactly the status word before accepting it as compliant (#606's wrap-up: a lens agent's narration-then-DONE reply was initially accepted on token presence alone, caught only by the Friction lens's `contract-violation` event).
+Each agent's reply ends with a trailing `STATUS: {WORD}` line — one of `DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED` — as its last non-empty line, after the table. The dispatcher merges findings into the Step 3 Routing table (`step3-routing.md`) — Severity maps directly, Path:Line maps to the Affected column, Finding maps to the Finding column, and the dispatcher fills the Category column from the lens that produced it. Re-prompt once on format violation — check the status word's **position**, not merely its presence: a reply whose last non-empty line is not exactly `STATUS: {WORD}` (e.g. narration or a re-stated finding follows the status word) is a violation even though the literal token appears somewhere in the reply. Verify the reply's last non-empty line is exactly the canonical `STATUS: {WORD}` form before accepting it as compliant (#606's wrap-up: a lens agent's narration-then-DONE reply was initially accepted on token presence alone, caught only by the Friction lens's `contract-violation` event).
 
 **Pass diff scope, not diff text.** When composing each prompt, give the agent the shared context bundle's path (built above) plus the base/branch refs (or the own-work file set when Step 2's Merge-Provenance Check found merge commits). Do not paste diff content into the prompt: Step 2 deliberately keeps only `--stat`/`--name-only` in the main thread, and inlining the diff into N lens prompts would pull the full diff back into main-thread context to compose them.
 

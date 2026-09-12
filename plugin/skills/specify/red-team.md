@@ -27,10 +27,8 @@ unchanged from before.
 > {Skeptical Reviewer addendum — the dispatcher composes this line in only when BOTH hold: the persona being dispatched is Skeptical Reviewer AND the record body actually contains a `Blocked by #N: {assumption}` line. Omit the line entirely from every other dispatch — the dispatcher knows both facts at compose time, so the agent never carries a self-skip branch it cannot act on. When included, the line reads: "Skeptical Reviewer addendum: the record carries a `Blocked by #N: {assumption}` line. Judge that trailing assumption text against this narrower check — does it assert a structural fact (a function, symbol, API, file, or exported artifact existing on #N) or a prose/documentation-shape claim (a specific string, wording, or a prediction about what #N's own `## Non-Goals` will or won't scope out)? A prose-shape assumption is fragile — #N's own later scoping decision can legitimately drop that exact wording while still shipping the capability — and must be surfaced as an unstated-assumption finding at that line's location, through the same findings table below. A structural assumption is not a finding under this check."}
 > Constraint: Surface only ambiguities, gaps, and unstated assumptions. Not stylistic feedback. Not approval/rejection. Focus on the 3-5 most load-bearing items, not exhaustive enumeration — that is a ceiling, not a quota: one finding, or "No findings.", is a valid and expected outcome on a tight record, and padding toward a count is itself a defect. Read-only — do not modify the record.
 >
-> Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
->
 > OUTPUT FORMAT (required):
-> Return ONLY a markdown table after the status line, no preamble:
+> Return ONLY a markdown table, no preamble:
 >
 > | Severity | Path:Line | Finding | Evidence | Suggested resolution |
 > |---|---|---|---|---|
@@ -42,6 +40,8 @@ unchanged from before.
 > If no findings: return literal text "No findings."
 > Return at most 7 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
 > Do not add narration, headers, or summaries before or after the table.
+>
+> After the table, on its own trailing line — the last non-empty line of your reply — write exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
 >
 > [Use: Standard] — resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" standard` (contract § Model Selection).
 > ```

@@ -145,7 +145,7 @@ function overCeiling(entries) {
   return entries.filter((e) => e.bytes > CEILING_BYTES);
 }
 
-// The per-file 40 KB ceiling is a warning tier since #1990 — the hard gate is
+// The per-file ceiling is a warning tier since #1990 — the hard gate is
 // composed bytes per compose call site (`overComposedCeiling`, Task 4).
 function overCeilingWarnings(entries) {
   return overCeiling(entries).map((e) => `${e.name || e.file} ${(e.bytes / 1024).toFixed(1)} KB`);

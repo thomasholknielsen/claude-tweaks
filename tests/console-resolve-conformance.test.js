@@ -6,6 +6,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+const { CEILING_BYTES } = require(path.join(ROOT, 'plugin', 'bin', 'lib', 'skill-audit', 'context-cost'));
 
 test('review-console.md calls console-resolve.js --run exactly once, inside the short-circuit section, and stays under the ceiling (#1932 AC7)', () => {
   const t = read('plugin/skills/wrap-up/review-console.md');
@@ -19,19 +20,19 @@ test('review-console.md calls console-resolve.js --run exactly once, inside the 
   assert.match(t, /exit codes 2 and 3/);
   assert.match(t, /HARD-GATE/);
   assert.match(t, /--dry-run/);
-  assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING_BYTES);
 });
 
 test('auto-merge-short-circuit.md logs the needs-human verdict the resolver reads (#1932 decision 3)', () => {
   const t = read('plugin/skills/wrap-up/auto-merge-short-circuit.md');
   assert.match(t, /assess-agent-autonomy verdict needs-human/);
-  assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING_BYTES);
 });
 
 test('settle-and-merge.md logs the needs-human verdict the resolver reads (#1932 C1)', () => {
   const t = read('plugin/skills/dispatch/settle-and-merge.md');
   assert.match(t, /assess-agent-autonomy verdict needs-human/);
-  assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING_BYTES);
 });
 
 test('autonomy-ceiling.md names console-resolve.js as consoleAutoResolve\'s execution (#1932)', () => {
@@ -41,7 +42,7 @@ test('autonomy-ceiling.md names console-resolve.js as consoleAutoResolve\'s exec
   // keeps bin/lib/reconcile/console-execute.js.
   assert.match(t, /reconciler-side caller keeps/);
   assert.match(t, /console-execute\.js/);
-  assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING_BYTES);
 });
 
 test('ceremony-derive.js no longer scopes its derivation to a headless firing (#1932 M1)', () => {
@@ -91,5 +92,5 @@ test('multispec-review-console.md fans console-resolve.js out over each spec dir
   // The bundle-level merge decision is never wired from any per-call merge.resolution field.
   assert.match(body, /bundle-level branch-finish\/merge decision is never read from any individual call's own `merge\.resolution` field/, 'must state the bundle merge decision is independent of any single call\'s merge field');
 
-  assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING_BYTES);
 });
