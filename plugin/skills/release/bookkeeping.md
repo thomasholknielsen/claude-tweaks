@@ -22,12 +22,12 @@ Read by `/claude-tweaks:release` Step 7. For each record in the shipped set, com
 
 Through `_shared/github-write-transport.md`'s CRUD mapping, so an MCP-only sandbox books the same set without `gh`:
 
-1. **Read state** — `gh issue view N --json state,comments` (or `issue_read` get mode): needed to skip an already-posted comment and to skip closing an already-closed record.
+1. **Read state** — needed to skip an already-posted comment and to skip closing an already-closed record. Two calls, per `_shared/github-write-transport.md`'s CRUD table: `gh issue view N --json state` (or `issue_read` get mode) for open/closed, and `gh api repos/{owner}/{repo}/issues/N/comments?per_page=100` (or `issue_read` get_comments mode) to check for an existing `Shipped in v{version}` comment.
 2. **Comment**, unless a comment already reads the exact text below — `gh issue comment N --body-file {file}` (or `add_issue_comment`), body:
    ```
    Shipped in v{version} — {release url}
    ```
-3. **Close**, only when the issue is still open — `gh issue close N --reason completed` (or `issue_write`, state-change mode). An already-closed record is commented at step 2 but never re-closed here.
+3. **Close**, only when the issue is still open — `gh issue close N --reason completed` (or `issue_write` (update mode, state change)). An already-closed record is commented at step 2 but never re-closed here.
 
 A record already carrying the exact comment and already closed is skipped entirely: no write, no per-record log line beyond the summary's count.
 
@@ -47,15 +47,15 @@ No `gh`/MCP call; the fact lives on the record file itself, via `bin/lib/issues/
 
 ## Failures never abort the loop
 
-A single record's write failing — a transient `gh`/MCP error, a locked or unwritable record file — is logged and the loop continues to the next record. One bad record never stops the rest of the shipped set from being booked:
+A single record's write failing — a transient `gh`/MCP error, a locked or unwritable record file — is logged and the loop continues to the next record. One bad record never stops the rest of the shipped set from being booked. `FAILED` is not one of `bin/log-decision.js`'s enumerated statuses (`plugin/bin/lib/log-decision/append.js`'s `STATUSES` — `AUTO`/`STAGED`/`KEPT-PROMPT`/`SCANNED`/`REFUSED`/`SKIP` — rejects it on purpose), so this one line is hand-composed rather than written through the canonical writer, the same precedent `plugin/bin/apply-refine-labels.js`'s `logFailed` already establishes for the identical reason:
 
 ```
-AUTO {HH:MM:SS} — Step 7: #N — {comment|close|shipped} failed: {message}. Reversibility: n/a (write did not land).
+FAILED {HH:MM:SS} — Step 7: #N — {comment|close|shipped} failed: {message}. Reversibility: n/a (write did not land).
 ```
 
 ## Log lines
 
-One line per record, plus one summary line for the step, through the canonical writer named in SKILL.md's Step 0 (`bin/log-decision.js --run "{run-dir}" --section "/release" --step "Step 7"`):
+One line per record that actually wrote something, plus one summary line for the step, through the canonical writer named in SKILL.md's Step 0 (`bin/log-decision.js --run "{run-dir}" --section "/release" --step "Step 7"`). A record skipped entirely as already-idempotent — already commented and closed (github-issues), or already carrying `shipped: v{version}` (local-files) — gets no per-record line, only the summary's count:
 
 ```
 AUTO {HH:MM:SS} — Step 7: #N — commented Shipped in v{version}{, closed}. Reversibility: high.
