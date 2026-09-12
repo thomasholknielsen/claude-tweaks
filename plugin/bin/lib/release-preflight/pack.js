@@ -13,13 +13,14 @@ const { promisify } = require('util');
 const { conventionalHistory } = require('../release-local/commits.js');
 const { bumpPart } = require('../release-local/bump.js');
 const { nextVersion } = require('../release/compose.js');
-const { resolvePolicyKeys } = require('../policy-schema.js');
+const { resolvePolicyConfig } = require('../policy-schema.js');
 const { wrapProbe, withTimeout } = require('../wrap-up/pack.js');
 
 const PROBE_NAMES = ['engine', 'lastTag', 'unreleased', 'proposedVersion', 'releasePr', 'ciTip', 'openReleasePrConflict', 'hook'];
 const PROBE_TIMEOUT_MS = 60000;
 const EXEC_OPTS = { maxBuffer: 32 * 1024 * 1024, timeout: 30000 };
 const ENGINES = new Set(['pr-first', 'local-merge']);
+const CONFIG_SOURCES = new Set(['policy', 'run-config']);
 const HOOK_DISABLED = new Set(['false', 'off', 'none', 'null']);
 const ON_LINE_RE = /^on:[ \t]*(.*)$/;
 const PUBLISHED_RE = /\bpublished\b/;
@@ -127,21 +128,26 @@ function memo(fn) {
 
 // `root`, when the caller already resolved it (the CLI's own exit-3 check runs
 // `git rev-parse --show-toplevel` before any run-dir handling), is used as-is —
-// one rev-parse per process rather than the same spawn twice.
-async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: overrides = {}, root: rootArg = null } = {}) {
+// one rev-parse per process rather than the same spawn twice. `runDir`, when
+// the CLI resolved one, is where a run's pinned config.yml overrides policy.yml
+// — the same precedence every other consumer of resolvePolicyConfig honours.
+async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: overrides = {}, root: rootArg = null, runDir = null } = {}) {
   const deps = { ...defaultDeps(cwd), ...overrides };
   const limit = Number.isFinite(deps.probeTimeoutMs) ? deps.probeTimeoutMs : PROBE_TIMEOUT_MS;
   const t0 = deps.now();
-  const root = rootArg || deps.git(['rev-parse', '--show-toplevel']).trim();
-  const policyRaw = deps.readFile(path.join(root, '.claude-tweaks', 'policy.yml'));
-  const policy = resolvePolicyKeys(['integration-model', 'integration-branch', 'release-hook'], { policyRaw, runConfigRaw: null });
+  const gitForPolicy = rootArg
+    ? (args) => (args.join(' ') === 'rev-parse --show-toplevel' ? `${rootArg}\n` : deps.git(args))
+    : deps.git;
+  const { root, result: policy } = resolvePolicyConfig({ git: gitForPolicy, readFile: deps.readFile, runDir, keys: ['integration-model', 'integration-branch', 'release-hook'] });
   const branch = policyString(policy['integration-branch']) || 'main';
   let tipRef = `refs/heads/${branch}`;
   try { deps.git(['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`]); tipRef = `origin/${branch}`; } catch { /* no remote-tracking ref: read the local branch */ }
 
-  // Ruling 2: the explicit policy value only — a guessed engine is exactly what AC 6 forbids.
+  // Ruling 2: an explicitly configured value only — a guessed engine is exactly
+  // what AC 6 forbids. Either config source counts: a run's pinned config.yml
+  // is as explicit as policy.yml, and it is what the rest of the run obeys.
   const engineEntry = policy['integration-model'];
-  const engine = engineEntry && engineEntry.source === 'policy' && ENGINES.has(engineEntry.value) ? engineEntry.value : null;
+  const engine = engineEntry && CONFIG_SOURCES.has(engineEntry.source) && ENGINES.has(engineEntry.value) ? engineEntry.value : null;
   const needEngine = () => { if (!engine) throw new Error('engine unresolved'); return engine; };
 
   const history = memo(() => conventionalHistory(deps.git, tipRef));

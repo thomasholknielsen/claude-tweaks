@@ -128,6 +128,18 @@ test('hook (pr-first): the `on:` trigger decides, not any release: line — bloc
   assert.strictEqual((await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps().deps })).hook.value, false);
 });
 
+test("engine honours the run's pinned config.yml over policy.yml (ruling 13)", async () => {
+  const runDir = path.join(ROOT, '.claude-tweaks/pipelines/2026-09-12T000000-release');
+  const { deps } = fakeDeps({ files: { [path.join(runDir, 'config.yml')]: 'integration-model: local-merge\n' } });
+  const pack = await gatherReleasePreflight({ cwd: ROOT, root: ROOT, runDir, deps });
+  assert.strictEqual(pack.engine.ok, true);
+  assert.strictEqual(pack.engine.value, 'local-merge');
+  assert.strictEqual(pack.ciTip.value, 'n/a');
+  // Without the run dir the same fixture resolves policy.yml's own value.
+  const unpinned = await gatherReleasePreflight({ cwd: ROOT, root: ROOT, deps: fakeDeps().deps });
+  assert.strictEqual(unpinned.engine.value, 'pr-first');
+});
+
 test('a caller-supplied root is used as-is — the pack never spawns its own rev-parse --show-toplevel', async () => {
   const { deps, calls } = fakeDeps();
   const pack = await gatherReleasePreflight({ cwd: ROOT, root: ROOT, deps });

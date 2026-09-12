@@ -102,7 +102,9 @@ async function run(argv, deps = {}) {
     }
     file = path.join(parent, path.basename(wanted));
   }
-  const pack = await gatherReleasePreflight({ cwd: cwd(), only: o.only, deps: deps.packDeps || {}, root });
+  // A scratch directory is not a run directory: it holds no pinned config.yml,
+  // so the pack resolves policy.yml alone there.
+  const pack = await gatherReleasePreflight({ cwd: cwd(), only: o.only, deps: deps.packDeps || {}, root, runDir: scratch ? null : dir });
   const text = `${JSON.stringify(pack, null, 2)}\n`;
   writeFileAtomic(file, text);
   if (scratch) stderr(`release-preflight.js: no run directory resolved — ${FILE} written to ${file}\n`);
