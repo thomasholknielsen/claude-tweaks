@@ -111,8 +111,13 @@ test('POLICY_KEYS entries are unique', () => {
   // groups queue-pull-script.md folds into one multi-spec group; 0 disables
   // bundling, grouping.js's FASTLANE_BUNDLE_CAP_DEFAULT stays the unset
   // fallback (sibling of #1654's dispatch-group-size-guard above).
-  assert.strictEqual(POLICY_KEYS.length, 66);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 66);
+  // 66 -> 67, #1886 (design-ceremony lever): design-ceremony — new static
+  // per-project policy key gating whether /claude-tweaks:specify's
+  // /superpowers:brainstorming handoff prepends a per-section-approval
+  // consolidation instruction (fast-lane) or leaves the invocation
+  // unchanged (standard, the default).
+  assert.strictEqual(POLICY_KEYS.length, 67);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 67);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
