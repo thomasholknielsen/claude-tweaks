@@ -1,6 +1,7 @@
 {
-  "released": true,
-  "runId": "2026-09-09T145100-sweep-standalone",
-  "reason": "shaped: #1983",
-  "releasedAt": "2026-09-09T19:03:36.486Z"
+  "runId": "2026-09-12T095500-record-1983",
+  "sessionId": "27652808-4c73-4ef7-9e03-9fa81b47b059",
+  "claimedAt": "2026-09-12T09:57:28.563Z",
+  "ttlHours": 72,
+  "host": "Thomass-MacBook-Pro-3376.local"
 }
