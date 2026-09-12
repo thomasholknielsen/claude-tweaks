@@ -53,6 +53,8 @@ test('resolveReleaseType: exactly one stack row -> its type; zero or two rows ->
   const two = tmp(); write(two, 'package.json', '{}'); write(two, 'go.mod', 'module x');
   assert.equal(rb.resolveReleaseType(two).releaseType, 'simple');
   assert.equal(rb.resolveReleaseType(tmp()).releaseType, 'simple');
+  const dirPkg = tmp(); fs.mkdirSync(path.join(dirPkg, 'package.json'));
+  assert.equal(rb.resolveReleaseType(dirPkg).releaseType, 'simple');
 });
 
 test('resolveReleaseType: simple names the first version-bearing JSON manifest as an extra-file', () => {

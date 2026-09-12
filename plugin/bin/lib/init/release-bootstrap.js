@@ -92,7 +92,7 @@ function markerMatches(marker, entries) {
     const suffix = marker.slice(1);
     return entries.some((e) => !e.isDir && e.name.endsWith(suffix));
   }
-  return entries.some((e) => e.name === marker);
+  return entries.some((e) => !e.isDir && e.name === marker);
 }
 
 function versionOfJson(file) {
