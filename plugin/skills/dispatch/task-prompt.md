@@ -44,7 +44,7 @@ each template's own "CRITICAL"/re-derive-from-artifacts language, unchanged by t
 into the minted run directory, one physical line each:
 `node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step claims "{plugin-root}/skills/_shared/issue-claims.md"`
 and
-`node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step merge "{plugin-root}/skills/_shared/pr-first-merge.md" "{plugin-root}/skills/_shared/pr-early-run-lifecycle.md"`.
+`node "{plugin-root}/bin/compose-context.js" --run "{minted-run-dir}" --step merge "{plugin-root}/skills/_shared/pr-first-merge.md" "{plugin-root}/skills/_shared/pr-checklist-refresh.md"`.
 The directory needs nothing else to compose into: Step 4 minted it mkdir-only, and `mode` is
 unresolved at this point (no `config.yml` yet) — neither bundle's sources branch on that key
 today. `integration-model` resolves only from `.claude-tweaks/policy.yml`'s pin — on a repo that

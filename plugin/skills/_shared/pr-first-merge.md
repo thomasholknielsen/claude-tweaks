@@ -70,7 +70,7 @@ row(s) is the remedy — this guard only detects the gap, it does not repair it.
 
 ## Step 2: Mark the PR ready
 
-First, run `_shared/pr-early-run-lifecycle.md`'s "Pre-merge title/description refresh" section —
+First, run `_shared/pr-checklist-refresh.md`'s "Pre-merge title/description refresh" section —
 an unconditional `AUTO` step, never a stop — so the title and phase checklist are current before
 the merge attempt below.
 
@@ -120,7 +120,7 @@ overlay applied to another's merge.
 
 <!-- when: transport=mcp -->
 `gh` absent → the lever is unenforceable; proceed as `off` and disclose at **warn** tier per
-`_shared/pr-early-run-lifecycle.md`'s degrade table (its "gh absent at merge time" row). Under
+`_shared/pr-checklist-refresh.md`'s "Merge-time gh-absent degrade" section. Under
 pr-first this is near-unreachable: no `gh` means no PR, so this procedure's own precondition
 already fails.
 <!-- /when -->
