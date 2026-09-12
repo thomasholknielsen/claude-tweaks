@@ -100,6 +100,9 @@ function run(argv, deps) {
   let version = null;
   let branch = null;
   let editedPaths = [];
+  // Subset of editedPaths that did not exist before the run — recovery deletes
+  // those rather than restoring them (there is nothing to restore them from).
+  let createdPaths = [];
   let hook = null;
   let hasOrigin = false;
   try {
@@ -143,7 +146,12 @@ function run(argv, deps) {
     // Every write is recorded as it lands, so a throw part-way through
     // applyVersion still leaves editedPaths naming exactly what is on disk
     // (ruling 11: the recovery command must list the real partial state).
-    const trackedWrite = (p, text) => { deps.writeFile(p, text); editedPaths.push(p); };
+    const trackedWrite = (p, text) => {
+      const before = deps.readFile(p);
+      deps.writeFile(p, text);
+      editedPaths.push(p);
+      if (before === null || before === undefined) createdPaths.push(p);
+    };
     manifest.applyVersion(targets, current, version, deps.readFile, trackedWrite);
     trackedWrite('CHANGELOG.md', prependSection(deps.readFile('CHANGELOG.md'), section));
     deps.git(['add', ...editedPaths]);
@@ -171,8 +179,15 @@ function run(argv, deps) {
     if (stage === 'planning') { deps.stderr(`release-local: ${message} — nothing written\n`); return 1; }
     if (stage === 'editing') {
       if (editedPaths.length === 0) { deps.stderr(`release-local: ${message} — nothing written\n`); return 1; }
+      // `git checkout --` restores from the index, so anything already `git add`ed
+      // would stay staged at its bumped value; `git restore --staged --worktree`
+      // undoes both. A file this run created has no pre-image to restore — remove it.
+      const modified = editedPaths.filter((p) => !createdPaths.includes(p));
+      const clauses = [];
+      if (modified.length) clauses.push(`git restore --staged --worktree -- ${modified.join(' ')}`);
+      if (createdPaths.length) clauses.push(`rm ${createdPaths.join(' ')}`);
       deps.stderr(`partial: ${editedPaths.join(', ')} edited on disk but NOT committed (${message}). ` +
-        `Do NOT re-run release-local. Recover: git checkout -- ${editedPaths.join(' ')}\n`);
+        `Do NOT re-run release-local. Recover: ${clauses.join(' && ')}\n`);
       return 1;
     }
     if (stage === 'pushed' || (stage === 'tagged' && !hasOrigin)) {

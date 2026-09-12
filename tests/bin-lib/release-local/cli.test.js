@@ -149,7 +149,16 @@ test('exit 1 (named partial state): a commit failure after the files were edited
   const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('commit ') });
   assert.strictEqual(run([], deps), 1);
   assert.match(state.err, /partial: \.release-please-manifest\.json, package\.json, CHANGELOG\.md edited on disk but NOT committed/);
-  assert.match(state.err, /git checkout -- \.release-please-manifest\.json package\.json CHANGELOG\.md/);
+  // `git checkout --` restores from the index, so after `git add` the bump would stay staged.
+  assert.match(state.err, /git restore --staged --worktree -- \.release-please-manifest\.json package\.json CHANGELOG\.md/);
+  assert.ok(!/git checkout --/.test(state.err), state.err);
+});
+
+test('exit 1 (named partial state): a file the run CREATED is removed, not restored', () => {
+  const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('commit ') });
+  delete state.files['CHANGELOG.md'];
+  assert.strictEqual(run([], deps), 1);
+  assert.match(state.err, /Recover: git restore --staged --worktree -- \.release-please-manifest\.json package\.json && rm CHANGELOG\.md$/m);
 });
 
 test('exit 1 (named partial state): applyVersion throws part-way — the recovery lists exactly what landed', () => {
@@ -158,7 +167,7 @@ test('exit 1 (named partial state): applyVersion throws part-way — the recover
   assert.strictEqual(run([], deps), 1);
   assert.deepStrictEqual(state.writes, ['.release-please-manifest.json']);
   assert.match(state.err, /partial: \.release-please-manifest\.json edited on disk but NOT committed \(package\.json carries no version token/);
-  assert.match(state.err, /git checkout -- \.release-please-manifest\.json$/m);
+  assert.match(state.err, /git restore --staged --worktree -- \.release-please-manifest\.json$/m);
   assert.ok(!state.git.some((c) => /^(add|commit|tag -a)/.test(c)));
 });
 
