@@ -170,19 +170,21 @@ Read `bookkeeping.md` in this skill's directory now: for each record in the ship
 Render one summary block:
 
 ```
-release: {version} — {released | dry-run | HELD | PARTIAL}
+release: {version} — {released | dry-run | HELD | PARTIAL | failed}
 engine:  {pr-first | local-merge}
 records: {n} shipped{, m unattributed commits}
 {partial state and recovery command, when the outcome is PARTIAL}
 {gate and staged path, when the outcome is HELD}
+{the engine's or forge's own error line, when the outcome is failed}
 ```
 
-The four outcomes are distinct and never folded together:
+The five outcomes are distinct and never folded together:
 
 - **`released`** — Step 5 landed and Step 6 verified every check.
 - **`dry-run`** — Step 5 was a no-op by request. `{version}` is the version that *would* have been cut.
 - **`HELD`** — a `--train` HARD-GATE fired **before** Step 5. Nothing was merged, nothing was tagged; `release-held.md` is staged in the run directory.
 - **`PARTIAL`** — Step 5 landed and Step 6 found a miss. The release exists; something after it did not complete. Never reported as `HELD` (which means nothing landed) and never as `released`.
+- **`failed`** — Step 5 was attempted and landed nothing, and no HARD-GATE fired: the engine exited `1` with nothing written or `4` on a tag collision, the forge refused the merge, or the `Release-As:` re-render never arrived within its bound. Nothing exists to verify or book; the error line is the engine's or forge's own, quoted verbatim. Never reported as `HELD` (no gate fired) and never as `PARTIAL` (nothing landed).
 
 Then render the `## Next Actions` block below — unless this run was invoked by a parent (see `## Component-Skill Contract`), in which case omit it.
 
