@@ -67,3 +67,28 @@ test('standard passes the input through byte-identical on stdout, exit 0', () =>
   assert.equal(code, 0);
   assert.equal(deps.calls.stdout.join(''), 'a bare topic string');
 });
+
+test('an empty --input-file is malformed — exit 2', () => {
+  const deps = fakeDeps({ readFile: () => '' });
+  const code = run(['--design-ceremony', 'standard', '--input-file', 'empty.txt'], deps);
+  assert.equal(code, 2);
+  assert.match(deps.calls.stderr.join(''), /--input-file is empty or whitespace-only/);
+  assert.equal(deps.calls.stdout.join(''), '');
+});
+
+test('a whitespace-only --input-file is malformed — exit 2', () => {
+  const deps = fakeDeps({ readFile: () => '   \n\t  \n' });
+  const code = run(['--design-ceremony', 'standard', '--input-file', 'blank.txt'], deps);
+  assert.equal(code, 2);
+  assert.match(deps.calls.stderr.join(''), /--input-file is empty or whitespace-only/);
+  assert.equal(deps.calls.stdout.join(''), '');
+});
+
+test('an unrecognized --design-ceremony value warns on stderr but still passes through unchanged, exit 0', () => {
+  const deps = fakeDeps({ readFile: () => 'a bare topic string' });
+  const code = run(['--design-ceremony', 'bogus-value', '--input-file', 'topic.txt'], deps);
+  assert.equal(code, 0);
+  assert.equal(deps.calls.stdout.join(''), 'a bare topic string');
+  assert.match(deps.calls.stderr.join(''), /warning/);
+  assert.match(deps.calls.stderr.join(''), /bogus-value/);
+});

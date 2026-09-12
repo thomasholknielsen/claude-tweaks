@@ -14,12 +14,14 @@
 // topic string, exactly as it would otherwise be passed to the Skill
 // tool's `args`) and prints the composed string to stdout, unchanged
 // unless --design-ceremony is literally 'fast-lane'. Exit 0 on success;
-// 2 on a malformed invocation (missing/unknown flag, or an unreadable
-// --input-file). Any --design-ceremony value other than 'fast-lane'
-// (including 'standard', a typo, or an empty string) is accepted and
-// passes the input through unchanged — composeBrainstormingArgs's own
-// fail-safe, not a validation error, so this CLI never rejects on the
-// enum value itself.
+// 2 on a malformed invocation (missing/unknown flag, an unreadable
+// --input-file, or an --input-file that is empty/whitespace-only). Any
+// --design-ceremony value other than 'fast-lane' (including 'standard'
+// or a typo) is accepted and passes the input through unchanged —
+// composeBrainstormingArgs's own fail-safe, not a validation error, so
+// this CLI never rejects on the enum value itself; a value that is
+// neither 'fast-lane' nor 'standard' additionally prints a warning to
+// stderr before the unchanged stdout.
 'use strict';
 
 const fs = require('fs');
@@ -70,6 +72,15 @@ function run(argv, deps = realDeps) {
   } catch (err) {
     deps.stderr(`compose-brainstorm-args: could not read --input-file: ${err && err.message ? err.message : String(err)}\n`);
     return 2;
+  }
+
+  if (input.trim() === '') {
+    deps.stderr('compose-brainstorm-args: --input-file is empty or whitespace-only\n' + USAGE);
+    return 2;
+  }
+
+  if (opts.designCeremony !== 'fast-lane' && opts.designCeremony !== 'standard') {
+    deps.stderr(`compose-brainstorm-args: warning — --design-ceremony "${opts.designCeremony}" is not "fast-lane" or "standard"; passing input through unchanged\n`);
   }
 
   deps.stdout(composeBrainstormingArgs(input, opts.designCeremony));

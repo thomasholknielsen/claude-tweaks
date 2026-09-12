@@ -2,20 +2,28 @@
 
 Cited by `SKILL.md`'s cases 1, 4, and 5 (case 5 reads "see case 1 for the
 full procedure" and inherits this by that existing pointer, so it carries
-no separate citation of its own). Before invoking `/superpowers:brainstorming`
-at any of those three sites:
+no separate citation of its own). Case 1's own citation of this file
+avoids the literal word `fast-lane` in its wording — that paragraph
+already contains `skip` elsewhere, and `tests/ceremony-profile-roster.test.js`
+flags any skill-file line pairing those two words; if you reword case 1's
+citation, keep it clear of both words on the same line, or check that
+test. Before invoking `/superpowers:brainstorming` at any of those three
+sites:
 
 1. Resolve the policy value — no `--run` flag, the same timing
    `specify-auto-continue` (`_shared/policy-schema.md`) already uses,
    since brainstorming completes before any pipeline run directory exists:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" design-ceremony
+   node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values design-ceremony
    ```
 
 2. Write the exact text that would otherwise be passed as the Skill
    tool's `args` (case 1/5: the record's title + body; case 4: the bare
-   topic string) to a temp file, then compose the actual `args` value:
+   topic string) to a file under your session's scratchpad directory
+   (never `/tmp` directly — a Bash write there can land in a per-process
+   overlay a later call reads back empty), then compose the actual
+   `args` value:
 
    ```bash
    node "${CLAUDE_PLUGIN_ROOT}/bin/compose-brainstorm-args.js" \
