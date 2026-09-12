@@ -259,6 +259,29 @@ test('backlog/attention-mode.md: Tidy row still renders a one-line cross-run cou
   );
 });
 
+// --- (10) #1884: sweep's Next Actions carries attention's batch-launcher
+// lines verbatim in the needs-you slot, under both orderings ---
+test('sweep/SKILL.md: Step 4 item 2 and Next Actions cite attention\'s Batch launchers block verbatim, replacing the whole needs-you slot', () => {
+  const source = read(SWEEP_DIR, 'SKILL.md');
+  assert.ok(
+    source.includes('This includes its `### Batch launchers` block'),
+    'expected Step 4 item 2 to name attention\'s Batch launchers block',
+  );
+  assert.ok(
+    source.includes('never re-derives them'),
+    'expected Step 4 item 2 to state the lines are taken verbatim, never re-derived',
+  );
+  const nextActions = source.split('\n## Next Actions\n')[1].split('\n## Component-Skill Contract')[0];
+  assert.ok(
+    nextActions.includes('its lines — one\nper group, in that block\'s own order — replace `/claude-tweaks:dispatch` in this slot entirely'),
+    'expected the precedence rule to replace the whole needs-you slot with every batch-launcher line, not just the top pick',
+  );
+  assert.ok(
+    nextActions.includes('applies under both orderings above'),
+    'expected the rule to apply to both the tidy-staged and nothing-staged orderings',
+  );
+});
+
 // --- (7) --source sweep in both tidy's and specify's argument-hint lines ---
 test('tidy and specify argument-hint lines both carry --source sweep', () => {
   // Discrimination: base commit 0ac4d7a00's tidy argument-hint was

@@ -145,6 +145,64 @@ test('attention-mode.md: A5 shaped:headless launcher points at the sweep\'s Gran
   );
 });
 
+// --- #1884: Batch launchers block, between the table and "Pick up next" ---
+
+test('attention-mode.md: Batch launchers heading exists between the table and Pick up next, citing tidy\'s Yours grouping rule', () => {
+  const source = read(SKILL_DIR, 'attention-mode.md');
+  assert.match(source, /### Batch launchers/, 'expected a "### Batch launchers" heading');
+  assert.match(
+    source,
+    /tidy\/step-6-auto\.md.{0,40}Yours grouping/s,
+    'expected a citation of tidy\'s Yours grouping section, not a restated key derivation',
+  );
+  const headingIdx = source.indexOf('### Batch launchers');
+  const pickUpNextIdx = source.indexOf('Pick up next: #{n}');
+  assert.ok(headingIdx > 0 && pickUpNextIdx > headingIdx, 'Batch launchers must sit between the table and Pick up next');
+});
+
+test('attention-mode.md: needs:decision/bot:blocked/needs:* catch-all batch into one backlog refine line', () => {
+  const source = read(SKILL_DIR, 'attention-mode.md');
+  assert.ok(
+    source.includes('/claude-tweaks:backlog refine #{a},#{b},…'),
+    'expected the batchable-target closing line naming a comma list',
+  );
+  assert.match(source, /`needs:decision`, `bot:blocked`,\s*\n?\s*and any other `needs:\*` catch-all/);
+});
+
+test('attention-mode.md: shaped:headless (no grant) rows key on the ref-less bare refine line, a distinct group from the batchable one', () => {
+  const source = read(SKILL_DIR, 'attention-mode.md');
+  assert.match(
+    source,
+    /distinct from the batchable[\s\S]{0,20}`backlog refine` group below even though both cite the same skill\+mode/,
+    'expected the Grant lane to be stated as a distinct group from the batchable backlog-refine group',
+  );
+  assert.ok(
+    source.includes('closes with one line, `/claude-tweaks:backlog refine`'),
+    'expected the ref-less closing line for the Grant lane group',
+  );
+});
+
+test('attention-mode.md: needs:definition and solution:unjustified are never batched, and a dual-type row lands in both paste blocks', () => {
+  const source = read(SKILL_DIR, 'attention-mode.md');
+  assert.match(source, /`needs:definition` and `solution:unjustified` are never batched/);
+  assert.match(source, /specify\/SKILL\.md.{0,20}batch branch/);
+  assert.match(source, /single-ref only by its[\s\S]{0,20}`argument-hint`/);
+  assert.ok(
+    source.includes(
+      "a `needs:definition + solution:unjustified` row's number appears in both the `specify`\npaste block and the `challenge` paste block, never elided into one.",
+    ),
+    'expected the dual-type-row contributes-to-both-blocks rule',
+  );
+});
+
+test('attention-mode.md: empty ranked table omits the Batch launchers block too', () => {
+  const source = read(SKILL_DIR, 'attention-mode.md');
+  assert.ok(
+    source.includes('omit both the Batch launchers block and the "Pick up next" line'),
+    'expected the empty-state paragraph to also omit the Batch launchers block',
+  );
+});
+
 test('refine-record.md exists and carries the #N resolver + --reset-breaker + shim-with-removal-condition contract', () => {
   const filePath = path.join(SKILL_DIR, 'refine-record.md');
   assert.ok(fs.existsSync(filePath), 'refine-record.md must exist');
