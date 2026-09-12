@@ -29,6 +29,8 @@
 7. **Verify (Step 6)** under pr-first: tag on origin (`git ls-remote --tags origin v{version}`), `gh release view v{version}`, then the `release: published` workflow run via `gh run list --event release --json status,conclusion,name,url --limit 20`, bounded 15 × 20 s — missing after the bound, or `conclusion` not `success`, is the named partial state; under local-merge the engine's own exit code is the verdict (`5` = hook failed after the tag; `1` = a named partial state, quoted verbatim).
 8. **The shipped set** is the `(#N)` suffixes of the pack's `unreleased.value.commits[].subject`; commits without a suffix render in an "unattributed commits" row; the conventional `(#N)` suffix is what the merge-time composer (#2251) writes.
 9. **`--train` refusal** reads `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" release-train` and `… autonomy`; refused unless `true` and `unattended`; the run then behaves exactly as on-demand and logs `train: refused — autonomy {value}` (or `release-train false`).
+11. **The description-corpus ceiling rises for the 36th skill** — `DESCRIPTION_TOTAL_CEILING_CHARS` 7,900 → 8,200 in `plugin/bin/lib/skill-audit/context-cost.js`, the precedent the file's own comment records for each new skill (Task 3's description is exactly 260 chars, keywords intact — nothing to trim without weakening selection).
+12. **The conformance scanner exempts section literals** — `## /release` (the decisions-log heading) and `--section "/release"` are not skill references; Task 3 confirmed no bare invocation reference exists.
 10. **A journey** `docs/journeys/release-a-version-2256.md` is written at the build's Common Step 6 (the design's Phase 6 names `release-a-version.md` as unit 7's replacement for `release-a-plugin-version.md`; the multi-spec suffix keeps the two apart until then).
 
 ---
@@ -272,7 +274,9 @@ Every miss is reported as a named partial state with its recovery command; never
 - Modify: `plugin/skills/_shared/integration-model.md` (Consumer table row: `/claude-tweaks:release` (`release/execute.md`) | Routing Step 5 to `gh pr merge` (pr-first) or `bin/release-local.js` (local-merge))
 - Modify: `plugin/skills/help/reference-card.md` (row), `plugin/skills/help/context-flow.md` (Artifact Flow row), `docs/getting-started.md` (one paragraph in the skill list, after `/claude-tweaks:wrap-up`'s)
 
-- [ ] **Step 1: Run the catalog test to see the failures** — `node --test tests/skill-catalog-completeness.test.js tests/integration-model.test.js tests/skill-graph-table-structure.test.js` — Expected: FAIL on the missing section/rows.
+- Modify: `plugin/bin/lib/skill-audit/context-cost.js` (`DESCRIPTION_TOTAL_CEILING_CHARS` — raise for the 36th skill exactly as the comment above it records the previous raise; the corpus is 8,131 chars after Task 3 against a 7,900 ceiling — set 8,200 and extend the comment with `#2256: +release`)
+
+- [ ] **Step 1: Run the catalog test to see the failures** — `node --test tests/skill-catalog-completeness.test.js tests/integration-model.test.js tests/skill-graph-table-structure.test.js tests/bin-lib/skill-audit/context-cost.test.js` — Expected: FAIL on the missing section/rows and the description-corpus ceiling.
 - [ ] **Step 2: Edit** — the `## release` section:
 
 ```
@@ -302,7 +306,7 @@ The reference-card row (copy the table's column order from line 27): `| `/claude
 **Files:**
 - Test: `tests/release-skill-reference-form.test.js`
 
-- [ ] **Step 1: Write the test** — scans every `plugin/skills/release/*.md`: inside actionable text (the body of every `## Step` section and the `## Step 8` Next Actions block — a section-slicing helper like `tests/feedback-next-actions-plain-markdown-conformance.test.js`'s `section()`), a bare `/release` or `/{skill}` reference to any shipped skill (from `listSkillDirs` in `plugin/bin/lib/skill-audit/skill-catalog.js`) not prefixed by `/claude-tweaks:` is a failure; descriptive prose (the Lifecycle line, `## When to Use`, Anti-Patterns) is exempt per `docs/skill-authoring.md`. Expose the scanner as a function and assert it on two inline fixtures: `'## Step 1\nRun /release now.\n'` → one violation naming `/release`; `'## Step 1\nRun /claude-tweaks:release now.\n'` → none (AC 7).
+- [ ] **Step 1: Write the test** — scans every `plugin/skills/release/*.md`: inside actionable text (the body of every `## Step` section and the `## Step 8` Next Actions block — a section-slicing helper like `tests/feedback-next-actions-plain-markdown-conformance.test.js`'s `section()`), a bare `/release` or `/{skill}` reference to any shipped skill (from `listSkillDirs` in `plugin/bin/lib/skill-audit/skill-catalog.js`) not prefixed by `/claude-tweaks:` is a failure; descriptive prose (the Lifecycle line, `## When to Use`, Anti-Patterns) is exempt per `docs/skill-authoring.md`; two literals are never references and must be exempt: the decisions-log section heading `## /release` (and its `--section "/release"` argument) and a `/release` inside a fenced code block or backticks that names a log-section, not a skill invocation — the scanner treats a `/{skill}` immediately preceded by `--section "` or `## ` as a section literal. Expose the scanner as a function and assert it on two inline fixtures: `'## Step 1\nRun /release now.\n'` → one violation naming `/release`; `'## Step 1\nRun /claude-tweaks:release now.\n'` → none (AC 7).
 - [ ] **Step 2: Run** — `node --test tests/release-skill-reference-form.test.js` — Expected: PASS on the shipped files and the fixtures.
 - [ ] **Step 3: Commit** — `git add tests/release-skill-reference-form.test.js` / `git commit -m "Pin the fully-qualified reference form inside the release skill's actionable text, refs #2256"` + trailer.
 
