@@ -16,8 +16,9 @@ notes: >
   bump, and merges release-please's PR (pr-first) or runs bin/release-local.js (local-merge)
   only for a minor or patch bump whose review came back clean or non-blocking. Two policy
   levers gate every firing: `release-train: true` and `autonomy: unattended` in
-  .claude-tweaks/policy.yml. Without both, --train is refused and the firing ends as a
-  reported-blocked no-op — nothing merged, nothing tagged, no record touched. A major bump
+  .claude-tweaks/policy.yml. Without both, --train is refused and, no human being present,
+  the skill stops before its Step 1 with outcome `failed` and the refusal as its reason —
+  nothing read, nothing merged, nothing tagged, no record touched; the firing reports blocked. A major bump
   (measured on the effective version, --as included) or a `review: blocking` verdict ends the
   firing with `HELD` and a `release-held.md` in the firing's run directory naming the gate;
   re-run the train once the gate is addressed. A hook that fails after the tag landed is
