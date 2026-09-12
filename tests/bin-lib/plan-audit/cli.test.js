@@ -8,6 +8,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const CLI = path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'plan-audit.js');
+const { CEILING_BYTES } = require(path.resolve(__dirname, '..', '..', '..', 'plugin', 'bin', 'lib', 'skill-audit', 'context-cost'));
 
 function makeTmpRepo() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'plan-audit-cli-'));
@@ -74,7 +75,7 @@ test('AC3: a fixture plan adding prose to a near-ceiling governed file gets a so
   const rel = 'plugin/skills/build/plan-audit.md';
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, 'x'.repeat(40 * 1024 - 500));
+  fs.writeFileSync(abs, 'x'.repeat(CEILING_BYTES - 500));
   try {
     const plan = writePlan(repo, [
       '### Task 1: Add prose',
@@ -98,7 +99,7 @@ test('AC4: a fixture plan adding prose to a governed file already over the ceili
   const rel = 'plugin/skills/build/SKILL.md';
   const abs = path.join(repo, rel);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, 'x'.repeat(40 * 1024 + 1));
+  fs.writeFileSync(abs, 'x'.repeat(CEILING_BYTES + 1));
   try {
     const plan = writePlan(repo, [
       '### Task 1: Add prose',

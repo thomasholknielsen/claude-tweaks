@@ -1456,6 +1456,16 @@ one central assertion — every `plugin/skills/*/SKILL.md` under `CEILING_BYTES`
 `_shared/*.md` remain warning-tier only (they are either composed or lazily read, so raw bytes are
 never the true per-invocation cost).
 
+**Update (2026-09-12): `CEILING_BYTES` raised from 40 KB to 45 KB, by explicit maintainer
+decision** (`flow/SKILL.md` had drifted to 41,184 B, failing this entry's own hard gate on `main`
+and blocking CI). Every literal `40960`/`40 * 1024` restating the shared constant — in
+`context-cost.js` and the handful of tests that hardcoded it instead of importing
+`CEILING_BYTES` — moved to the new value; independent tighter pins on specific sub-files/`_shared`
+files were left untouched, since they were never this constant. The `claims` entry in
+`COMPOSED_STEP_EXCEPTIONS` (added as a stopgap by #2289's predecessor) became redundant at the new
+ceiling and was removed. This does not reopen #2020's "yes" — invocation units still keep the
+central hard ceiling — it only moves the number.
+
 ## IL-154 — A safe path-passing pattern used earlier in an edit was not used later in the same edit
 
 `plugin/skills/dispatch/settle-and-merge.md`'s #1963 fix added two new inline `node -e "..."`
