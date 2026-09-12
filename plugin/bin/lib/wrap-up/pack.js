@@ -266,19 +266,31 @@ function withTimeout(fn, ms) {
   });
 }
 
+// Closed enum, `_shared/ledger-format.md`'s Status Lifecycle: `open` (blocking)
+// plus five terminal values. Anything else is a data-quality signal — an
+// out-of-enum status was never `open`, so it must stay non-blocking, but it
+// must not silently fold into the terminal count either (parse-signal-discipline).
+const TERMINAL_STATUSES = new Set(['fixed', 'deferred', 'accepted', 'acknowledged', 'observation']);
+
 function parseLedger(text) {
   const rows = text.split('\n').filter((l) => /^\|\s*\d+\s*\|/.test(l));
   const byPhase = {};
   let open = 0;
+  let unrecognized = 0;
+  const unrecognizedValues = new Set();
   for (const row of rows) {
     const cells = row.split('|').slice(1, -1).map((c) => c.trim());
     const phase = cells[1] || 'unknown';
     const status = (cells[3] || '').toLowerCase();
-    byPhase[phase] = byPhase[phase] || { open: 0, total: 0 };
+    byPhase[phase] = byPhase[phase] || { open: 0, total: 0, unrecognized: 0 };
     byPhase[phase].total += 1;
-    if (status === 'open') { open += 1; byPhase[phase].open += 1; }
+    if (status === 'open') {
+      open += 1; byPhase[phase].open += 1;
+    } else if (!TERMINAL_STATUSES.has(status)) {
+      unrecognized += 1; byPhase[phase].unrecognized += 1; unrecognizedValues.add(cells[3] || '');
+    }
   }
-  return { open, total: rows.length, byPhase };
+  return { open, total: rows.length, byPhase, unrecognized, unrecognizedValues: Array.from(unrecognizedValues) };
 }
 
 // A ledger filename names record {n} only at a `-{n}-` or `-{n}.` boundary. A
@@ -292,19 +304,22 @@ function namesRecord(file, n) {
 function ledgerProbe(inputs, deps) {
   const dir = path.join(inputs.worktree, 'docs', 'plans');
   const files = deps.readdir(dir).filter((f) => f.endsWith('-ledger.md') && inputs.records.some((n) => namesRecord(f, n)));
-  const totals = { open: 0, total: 0, byPhase: {}, files: files.map((f) => path.posix.join('docs', 'plans', f)) };
+  const totals = { open: 0, total: 0, byPhase: {}, files: files.map((f) => path.posix.join('docs', 'plans', f)), unrecognized: 0, unrecognizedValues: [] };
+  const unrecognizedValues = new Set();
   for (const f of files) {
     // Read-and-catch, like headerRecords: a ledger archived between the
     // readdir snapshot and this read is skipped, not a whole-probe failure.
     const text = readText(deps, path.join(dir, f));
     if (text === null) continue;
     const one = parseLedger(text);
-    totals.open += one.open; totals.total += one.total;
+    totals.open += one.open; totals.total += one.total; totals.unrecognized += one.unrecognized;
+    for (const v of one.unrecognizedValues) unrecognizedValues.add(v);
     for (const [phase, c] of Object.entries(one.byPhase)) {
-      totals.byPhase[phase] = totals.byPhase[phase] || { open: 0, total: 0 };
-      totals.byPhase[phase].open += c.open; totals.byPhase[phase].total += c.total;
+      totals.byPhase[phase] = totals.byPhase[phase] || { open: 0, total: 0, unrecognized: 0 };
+      totals.byPhase[phase].open += c.open; totals.byPhase[phase].total += c.total; totals.byPhase[phase].unrecognized += c.unrecognized;
     }
   }
+  totals.unrecognizedValues = Array.from(unrecognizedValues);
   return totals;
 }
 
