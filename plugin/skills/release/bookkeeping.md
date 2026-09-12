@@ -66,7 +66,7 @@ AUTO {HH:MM:SS} — Step 7: #N — commented Shipped in v{version}{, closed}. Re
 AUTO {HH:MM:SS} — Step 7: bookkeeping: {n} records commented, {m} closed, {k} failed. Reversibility: n/a.
 ```
 
-`{, closed}` appears only when this record's close actually ran this turn (github-issues: it was open and got closed; local-files: `closeRecord` ran) — an already-closed record, or the local-files `markShipped`-only path, omits it. The summary's `{n}`/`{m}`/`{k}` are this step's own counts across the shipped set (comments written including idempotent skips counted as commented, closes that actually ran, and failures) — a distinct tally from Step 8's `records: {n} shipped{, m unattributed commits}` line, which reads its `{n}` from the shipped-set size and its `{m}` from Step 4's unattributed-commits count, never from this step's counters.
+`{, closed}` appears only when this record's close actually ran this turn (github-issues: it was open and got closed; local-files: `closeRecord` ran) — an already-closed record, or the local-files `markShipped`-only path, omits it. The summary's `{n}`/`{m}`/`{k}` are this step's own counts across the shipped set (comments written including idempotent skips counted as commented, closes that actually ran, and failures) — a distinct tally from Step 8's `records: {n} {shipped | would ship}{, m unattributed commits}` line, which reads its `{n}` from the shipped-set size and its `{m}` from Step 4's unattributed-commits count, never from this step's counters.
 
 ## Anti-Patterns
 

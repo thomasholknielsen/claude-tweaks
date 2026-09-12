@@ -68,7 +68,7 @@ no open release PR — release-please has not rendered one; check the workflow
 **Transport.** `command -v gh` absent: `_shared/github-write-transport.md`'s CRUD mapping covers issue operations only and has no merge row — there is no MCP equivalent for merging a PR. Do not improvise one. Stop at the console and print the merge as a paste-ready command, the same posture the Review Console takes for an unrunnable action:
 
 ```
-gh pr merge {releasePr.value.number} --squash
+gh pr merge {releasePr.value.number} --squash --repo {owner}/{repo}
 ```
 
 **`--as {version}` — push the override, then wait for the re-render.** release-please derives the PR from the commits it sees, so the override must reach the integration branch and be re-read before the PR is merged. Every git call is anchored to `$RUN_ROOT` — a bare `git commit` from a worktree cwd would put the override on the worktree's branch, where release-please will never see it. Assert the anchor is on the integration branch first:
@@ -190,7 +190,7 @@ Keep only the lines whose ref is exactly `refs/tags/v{version}` or `refs/tags/v{
 Empty after the bound:
 
 ```
-PARTIAL: PR #{n} merged but v{version} is not on origin after 5 min — release-please has not tagged the merge; recover: gh run list --workflow release-please* --limit 5
+PARTIAL: PR #{n} merged but v{version} is not on origin after 5 min — release-please has not tagged the merge; recover: gh run list --workflow release-please.yml --limit 5
 ```
 
 The recovery is a *different* command from the probe, deliberately: re-running `git ls-remote` only re-asks the question this step already answered. The tagging is release-please's own workflow run, so the recovery looks at that run — substitute the repo's actual release-please workflow name for `release-please*` (the workflow this project wires to `release-please-action`) — and, when it shows a failed run, re-runs it with `gh run rerun {databaseId}`.
@@ -275,7 +275,7 @@ Step 8 renders the block; these are the values this file produces for it.
 ```
 release: {version} — PARTIAL
 engine:  {pr-first | local-merge}
-records: {n} shipped{, m unattributed commits}
+records: {n} {shipped | would ship}{, m unattributed commits}
 {the named partial state, verbatim}
 {the recovery command, on its own line, paste-ready}
 ```

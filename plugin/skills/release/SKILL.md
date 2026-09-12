@@ -66,7 +66,7 @@ echo "$RUN_DIR"
 
 `$RUN_ROOT` is the main checkout, never a worktree cwd — a bare relative path silently shadows the main copy (`[IL-127]`). An `export` inside this snippet does not survive into the next Bash call; re-resolve with the same snippet in any later step that needs the path, and carry the resolved path as a fact of this run.
 
-**Determine inherited-vs-created here, once.** At this point — and only here — record which of the two branches above ran: `$PIPELINE_RUN_DIR` was already set at invocation, or an existing directory resolved at step 2 whose `run-state.json` does not carry `createdBy: release-standalone` → **inherited**; this run wrote the `createdBy: "release-standalone"` stamp above → **created**. Carry that verdict as a run-scoped fact alongside the run dir path itself and **never re-read it from disk later** — the directory can be archived out from under a re-read, exactly as `wrap-up/SKILL.md`'s identical rule records.
+**Determine inherited-vs-created here, once.** At this point — and only here — record which of the two branches above ran: `$PIPELINE_RUN_DIR` was already set at invocation, or an existing directory resolved at step 2 (whatever its `createdBy` — a prior standalone release run's directory counts) → **inherited**; this run minted the directory and wrote the `createdBy: "release-standalone"` stamp above → **created**. Carry that verdict as a run-scoped fact alongside the run dir path itself and **never re-read it from disk later** — the directory can be archived out from under a re-read, exactly as `wrap-up/SKILL.md`'s identical rule records.
 
 **Every log line this skill writes goes to `{run-dir}/decisions.md` under a `## /release` section**, appended through the canonical writer per `_shared/auto-decision-log.md`'s entry schema — never hand-appended:
 
@@ -167,7 +167,7 @@ Read `console.md` in this skill's directory now and render the console it define
 
 ## Step 5: Execute
 
-Read `execute.md` in this skill's directory now. It holds the engine dispatch: `gh pr merge {releasePr} --squash` under pr-first (with the `Release-As:` push and its bounded re-render poll when `--as` was given), `node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" [--dry-run]` under local-merge (no `--as` — see the Input table), and the MCP-only-sandbox posture where the merge renders as a paste-ready command instead of executing. The engine value comes from Step 1's pack (`_shared/integration-model.md`'s Consumer table), never from a fresh detection here.
+Read `execute.md` in this skill's directory now. It holds the engine dispatch: `gh pr merge {releasePr} --squash --repo {owner}/{repo}` under pr-first (with the `Release-As:` push and its bounded re-render poll when `--as` was given), `node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" [--dry-run]` under local-merge (no `--as` — see the Input table), and the MCP-only-sandbox posture where the merge renders as a paste-ready command instead of executing. The engine value comes from Step 1's pack (`_shared/integration-model.md`'s Consumer table), never from a fresh detection here.
 
 Under `--dry-run` this step is a no-op: no merge, no tag, no `Release-As:` commit, no engine invocation without its own `--dry-run`. Say so in the console and in Step 8's summary rather than reporting a version as released.
 
@@ -183,7 +183,7 @@ Under `--dry-run` this step does not run — Step 5 landed nothing, so there is 
 
 Read `bookkeeping.md` in this skill's directory now: for each record in the shipped set, a `Shipped in v{version}` comment carrying the Release URL and a close if the record is still open (pr-first, through `_shared/github-write-transport.md` so MCP-only sandboxes work), or a `shipped: v{version}` frontmatter line on the record file (local-merge with local records). Every action logs per `_shared/auto-decision-log.md`.
 
-**Skipped entirely under `--dry-run`** — nothing shipped, so there is nothing to book. Skipped too when Step 6 reported a partial state that means the release did not land at all; when the tag landed and only the hook missed, the records did ship and the bookkeeping runs, with the partial state named in Step 8's summary.
+**Skipped entirely under `--dry-run`** — nothing shipped, so there is nothing to book. Skipped too when Step 5 or Step 6 reported a state in which the tag has not reached origin — the local engine's exit-`1` `partial:` (tagged locally, not pushed) and Step 6's tag-missing probe are the two (`execute.md` and `bookkeeping.md` name them); when the tag landed and only the hook missed, the records did ship and the bookkeeping runs, with the partial state named in Step 8's summary.
 
 ## Step 8: Summary and Next Actions
 
@@ -200,8 +200,8 @@ records: {n} {shipped | would ship}{, m unattributed commits}
 
 The `records:` line varies with the outcome, because "shipped" is only true when something shipped:
 
-- `released` and `PARTIAL` (the tag landed) — `records: {n} shipped{, m unattributed commits}`.
-- `dry-run` and `HELD` — `records: {n} would ship{, m unattributed commits}`. Nothing was booked in either case, and the same form is used for both: a held run and a dry run both name the set that *would* have been booked.
+- `released`, and `PARTIAL` where Step 7 ran (the tag reached origin, only the Release or the hook missed) — `records: {n} shipped{, m unattributed commits}`.
+- `dry-run`, `HELD`, and `PARTIAL` where Step 7 did not run (the tag has not reached origin) — `records: {n} would ship{, m unattributed commits}`. Nothing was booked in any of these, and the same form is used for all: they name the set that *would* have been booked. The key is whether Step 7 ran, never the outcome word alone.
 - `failed` — `records: 0 shipped`. Nothing landed, so there is no set to name.
 
 The five outcomes are distinct and never folded together:
