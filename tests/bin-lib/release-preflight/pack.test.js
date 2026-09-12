@@ -215,6 +215,23 @@ test('AC 7: openReleasePrConflict is true when the newest PR commit has a human 
   assert.strictEqual(clean.openReleasePrConflict.value, false);
   const edited = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ prs: pr, prCommits: [{ oid: 'a', authors: [bot] }, { oid: 'b', authors: [human] }] }).deps });
   assert.strictEqual(edited.openReleasePrConflict.value, true);
+  // A human commit the bot later built on top of is still a human edit — the
+  // last commit alone never decides it.
+  const buried = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ prs: pr, prCommits: [{ oid: 'a', authors: [bot] }, { oid: 'b', authors: [human] }, { oid: 'c', authors: [bot] }] }).deps });
+  assert.strictEqual(buried.openReleasePrConflict.value, true);
+  // Authorship GitHub did not return is unknown, never "a human edited it".
+  const unknown = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ prs: pr, prCommits: [{ oid: 'a', authors: [bot] }, { oid: 'b', authors: [] }] }).deps });
+  assert.strictEqual(unknown.openReleasePrConflict.ok, false);
+  assert.match(unknown.openReleasePrConflict.error, /release PR commit authorship unavailable/);
+});
+
+test('a dependency that fails is named in the dependent field\'s error, never reported as the dependent\'s own failure', async () => {
+  const down = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ ghFail: 'spawn gh ENOENT', ghCode: 'ENOENT' }).deps });
+  assert.match(down.openReleasePrConflict.error, /^releasePr unresolved: .*spawn gh ENOENT/);
+  const { deps } = fakeDeps();
+  deps.git = ((orig) => (args) => { if (args[0] === 'describe') throw new Error('fatal: not a git repository'); return orig(args); })(deps.git);
+  const broken = await gatherReleasePreflight({ cwd: ROOT, deps });
+  for (const k of ['lastTag', 'unreleased', 'proposedVersion']) assert.match(broken[k].error, /^history unresolved: .*not a git repository/, k);
 });
 
 test('ciTip (pr-first): the branch is asked by name, paginated, with local/remote skew recorded (ruling 11); AC 3: a gh failure degrades ciTip and releasePr alone', async () => {

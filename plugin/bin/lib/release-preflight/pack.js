@@ -207,7 +207,15 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
     return best;
   };
 
+  // A field that depends on another field's work names that dependency in its
+  // error (`engine unresolved`'s convention), so a degraded pack never reads as
+  // if the dependent probe itself is what broke.
+  const dependency = async (name, fn) => {
+    try { return await fn(); } catch (err) { throw new Error(`${name} unresolved: ${String((err && err.message) || err)}`); }
+  };
+
   const history = memo(() => conventionalHistory(deps.git, tipRef));
+  const historyOf = () => dependency('history', history);
   const releasePr = memo(async () => {
     if (needEngine() === 'local-merge') return 'none';
     const prs = JSON.parse(await deps.execFileAsync('gh', ['pr', 'list', '--state', 'open', '--limit', '50', '--json', 'number,state,mergeable,headRefName,title']));
@@ -218,16 +226,16 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
   const probes = {
     engine: () => { if (!engine) throw new Error('integration-model unresolved'); return engine; },
     lastTag: async () => {
-      const { lastTag } = await history();
+      const { lastTag } = await historyOf();
       if (!lastTag) throw new Error(`no v* tag reachable from ${tipRef}`);
       return { tag: lastTag, version: lastTag.replace(/^v/, ''), tipRef };
     },
     unreleased: async () => {
-      const { lastTag, commits } = await history();
+      const { lastTag, commits } = await historyOf();
       return { since: lastTag, tipRef, commits: commits.map((c) => ({ sha: c.sha, type: c.type, scope: c.scope, breaking: c.breaking, subject: c.subject, description: c.description, unconventional: c.unconventional })) };
     },
     proposedVersion: async () => {
-      const { lastTag, commits } = await history();
+      const { lastTag, commits } = await historyOf();
       const part = bumpPart(commits);
       if (part === 'none') throw new Error(`nothing to release: ${commits.length} commit(s) since ${lastTag || 'the first commit'}, none feat/fix/breaking`);
       const { base, baseSource } = versionBase(lastTag);
@@ -261,13 +269,17 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
       const state = counts.total === 0 ? 'none' : counts.failure ? 'failure' : counts.pending ? 'pending' : 'success';
       return { ref: branch, headSha, localSha, tipBehind: headSha !== localSha, state, ...counts, truncated: counts.total > list.length };
     },
+    // ANY human-authored commit on the branch is a human edit — release-please
+    // force-pushes its own commit on top of one it did not write, so the last
+    // commit alone decides nothing. Authorship GitHub did not return is
+    // unknown, and a degraded field says so rather than guessing `true`.
     openReleasePrConflict: async () => {
-      const pr = await releasePr();
+      const pr = await dependency('releasePr', releasePr);
       if (pr === 'none') return false;
       const { commits } = JSON.parse(await deps.execFileAsync('gh', ['pr', 'view', String(pr.number), '--json', 'commits']));
-      const last = commits && commits.length ? commits[commits.length - 1] : null;
-      if (!last || !last.authors || !last.authors.length) return true;
-      return !last.authors.every(isBotAuthor);
+      const list = commits || [];
+      if (list.some((c) => !c.authors || !c.authors.length)) throw new Error('release PR commit authorship unavailable');
+      return !list.every((c) => c.authors.every(isBotAuthor));
     },
     hook: () => {
       if (needEngine() === 'local-merge') {
