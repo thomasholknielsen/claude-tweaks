@@ -49,8 +49,11 @@ function parseArgs(argv) {
   return out;
 }
 
+// The checkout root, or null when `cwd` is not inside one. Returns the root
+// rather than a boolean so the pack can be handed the answer instead of
+// spawning the identical rev-parse a second time.
 function insideGitCheckout(cwd) {
-  try { execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); return true; } catch { return false; }
+  try { return execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; } catch { return null; }
 }
 
 async function run(argv, deps = {}) {
@@ -66,7 +69,8 @@ async function run(argv, deps = {}) {
     stderr(`release-preflight.js: ${err.message}\n${USAGE}\n`);
     return 2;
   }
-  if (!inCheckout(cwd())) {
+  const root = inCheckout(cwd());
+  if (!root) {
     stderr('release-preflight.js: not inside a git checkout — nothing written\n');
     return 3;
   }
@@ -98,7 +102,7 @@ async function run(argv, deps = {}) {
     }
     file = path.join(parent, path.basename(wanted));
   }
-  const pack = await gatherReleasePreflight({ cwd: cwd(), only: o.only, deps: deps.packDeps || {} });
+  const pack = await gatherReleasePreflight({ cwd: cwd(), only: o.only, deps: deps.packDeps || {}, root });
   const text = `${JSON.stringify(pack, null, 2)}\n`;
   writeFileAtomic(file, text);
   if (scratch) stderr(`release-preflight.js: no run directory resolved — ${FILE} written to ${file}\n`);

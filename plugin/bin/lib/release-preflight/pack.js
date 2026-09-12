@@ -58,11 +58,14 @@ function memo(fn) {
   return () => { if (p === undefined) p = Promise.resolve().then(fn); return p; };
 }
 
-async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: overrides = {} } = {}) {
+// `root`, when the caller already resolved it (the CLI's own exit-3 check runs
+// `git rev-parse --show-toplevel` before any run-dir handling), is used as-is —
+// one rev-parse per process rather than the same spawn twice.
+async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: overrides = {}, root: rootArg = null } = {}) {
   const deps = { ...defaultDeps(cwd), ...overrides };
   const limit = Number.isFinite(deps.probeTimeoutMs) ? deps.probeTimeoutMs : PROBE_TIMEOUT_MS;
   const t0 = deps.now();
-  const root = deps.git(['rev-parse', '--show-toplevel']).trim();
+  const root = rootArg || deps.git(['rev-parse', '--show-toplevel']).trim();
   const policyRaw = deps.readFile(path.join(root, '.claude-tweaks', 'policy.yml'));
   const policy = resolvePolicyKeys(['integration-model', 'integration-branch', 'release-hook'], { policyRaw, runConfigRaw: null });
   const branch = policyString(policy['integration-branch']) || 'main';

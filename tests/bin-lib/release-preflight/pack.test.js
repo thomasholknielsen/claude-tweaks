@@ -119,6 +119,13 @@ test('hook (pr-first): true only when a workflow declares a release trigger with
   assert.strictEqual((await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps().deps })).hook.value, false);
 });
 
+test('a caller-supplied root is used as-is — the pack never spawns its own rev-parse --show-toplevel', async () => {
+  const { deps, calls } = fakeDeps();
+  const pack = await gatherReleasePreflight({ cwd: ROOT, root: ROOT, deps });
+  assert.strictEqual(pack.engine.value, 'pr-first');
+  assert.deepStrictEqual(calls.git.filter((c) => c === 'rev-parse --show-toplevel'), []);
+});
+
 test('--only limits the probes gathered; the rest are absent from the pack', async () => {
   const pack = await gatherReleasePreflight({ cwd: ROOT, only: ['engine', 'lastTag'], deps: fakeDeps().deps });
   assert.deepStrictEqual(Object.keys(pack).filter((k) => PROBE_NAMES.includes(k)), ['engine', 'lastTag']);
