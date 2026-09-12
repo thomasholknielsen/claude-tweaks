@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-12T08:49:27.169Z",
+  "computedAt": "2026-09-12T09:54:29.462Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -195,12 +195,12 @@
       },
       {
         "number": 1985,
-        "updatedAt": "2026-09-12T04:50:57Z",
+        "updatedAt": "2026-09-12T09:18:07Z",
         "state": "OPEN"
       },
       {
         "number": 1984,
-        "updatedAt": "2026-09-12T04:50:55Z",
+        "updatedAt": "2026-09-12T09:18:02Z",
         "state": "OPEN"
       },
       {
@@ -235,7 +235,7 @@
       },
       {
         "number": 1944,
-        "updatedAt": "2026-09-12T04:50:44Z",
+        "updatedAt": "2026-09-12T09:17:56Z",
         "state": "OPEN"
       },
       {
@@ -1621,6 +1621,86 @@
           "notPlanned": false,
           "shapedHeadless": false
         }
+      },
+      {
+        "body": "Surface: infra\n\n## Current State\n\nThree skills touch the same fact, \"does the doc a `by:docs-health` record names still exist\", at three different times, and only one of them acts on it:\n\n- `/claude-tweaks:docs-health` files a record from a scan of the doc as it exists at scan time; `bin/lib/docs-health/issue-payload.js` renders the doc id in the `Doc:` header (a repo-relative path once #1851 lands). Re-verifying at filing time cannot help here: in the observed case the deletion happened *after* filing and *before* dispatch.\n- `/claude-tweaks:tidy` proposes deleting orphaned `docs/plans/*-ledger.md` files (`scan-procedures.md`'s ledger glob) with a \"quick judgment read\" that no open record references the ledger's filename or slug, and its GitHub issue scan separately proposes closing a `by:docs-health` record whose flagged doc is gone (this sweep staged exactly that: `staged/tidy-close-issue-1.md` for #1878, deleted in #1969, and `staged/tidy-close-issue-2.md` for #1776, deleted in #1819). Both are judgment reads and both wait for `tidy --approve`.\n- `/claude-tweaks:dispatch`'s queue pull (`queue-pull-script.md`) excludes blocked, oversized, and open-linked-PR records (#1224) but never checks whether a record's named target exists at the integration tip; `flow/materialize.md`'s Named-location drift note (#315) leaves that to the builder, inside the build.\n\nObserved 2026-09-05/06: #1776, #1804, and #1818 each burned a build attempt against the retry ceiling and stopped at the HARD-GATE because tidy PR #1819 had deleted their target ledgers; every failure was handled correctly and every build was wasted. #1984 (sibling, shaped alongside this record) covers the neighbouring case, a record whose deliverables are already shipped on `main`, at the same pre-flight site.\n\n## Deliverables\n\n- [ ] **Named-target extraction, once.** `plugin/bin/lib/issues/named-target.js` exporting `namedTarget(record) → { path } | null`: for `by:docs-health` records, the `Doc:` header value when it is a repo-relative path, else `docs/{id}.md` derived from the pre-#1851 id form; for other origins `null` (this record does not guess targets from prose; #1769's marker and #1829's `Premise-check:` line cover authored claims).\n- [ ] **Dispatch excludes a record whose target is gone.** `dispatch/queue-pull-script.md`: after the open-linked-PR exclusion, for every eligible record with a non-null `namedTarget`, test existence at the integration tip (`git cat-file -e {ref}:{path}`, one spawn per such record, never a checkout read); a missing path excludes the record into `dispatch-target-missing-excluded.json`, logs `AUTO … — dispatch: #N excluded, named target {path} absent at {ref}`, and stages one Close proposal per excluded record in the run's `staged/` using tidy's `Close (GitHub)` proposal shape (`Finding`/`Proposed`/`Rows`/`Commands`), so the next `tidy --approve` closes it and no build is minted. The record keeps its labels; nothing is written to GitHub by dispatch.\n- [ ] **Tidy's delete proposal bundles the closes.** `tidy/scan-procedures.md`'s ledger Delete recommendation replaces the \"quick judgment read\" with a mechanical pass over the session record snapshot: every open record whose `namedTarget` (or body text) names the ledger's path or slug is listed in the same staged Delete proposal as a Close row, so approval deletes the file and closes its records in one action; no ledger is deleted while a referencing record stays open and unproposed.\n- [ ] **Tests.** `tests/bin-lib/issues/named-target.test.js` (both header forms, non-docs-health → `null`). A prose pin (sized like `tests/dispatch-*` conformance tests) asserting the queue-pull exclusion step, its log line, the staged-close shape, and `scan-procedures.md`'s mechanical Close-row rule; `docs/plugin-structure.md` lists the module.\n\n## Acceptance Criteria\n\n1. `namedTarget` returns `docs/plans/x-ledger.md` for a `by:docs-health` record in either header form and `null` for a `by:capture` record.\n2. In a fixture queue where a `by:docs-health` record's target is absent at the integration tip, the queue pull writes the record to `dispatch-target-missing-excluded.json`, logs the line, stages a Close proposal, mints no run directory for it, and selects the remaining records exactly as before.\n3. A tidy run whose ledger Delete proposal targets a file named by an open record renders that record as a Close row inside the same proposal.\n4. Replaying #1776/#1804/#1818 against a tip where #1819 has merged yields three exclusions and three staged closes and zero build attempts; quoted in the PR description.\n5. `npm test` green; existing dispatch and tidy conformance tests pass with only additive assertions.\n\n## Technical Approach\n\nPut the check where the wasted work starts (dispatch), reuse the proposal shape tidy already uses so approval stays one surface, and make tidy's own delete step carry its consequences instead of relying on a judgment read. Reject (a): re-verifying at filing time cannot see a later deletion. Keep the target extraction narrow (docs-health only) so this record never guesses at authored prose; the sibling #1984 adds the \"already shipped\" heuristic at the same pre-flight site with its own false-positive posture.\n\n### Key Files\n\n- `plugin/bin/lib/issues/named-target.js` — new: `namedTarget(record)`\n- `plugin/skills/dispatch/queue-pull-script.md` — target-existence exclusion, log line, staged Close proposal\n- `plugin/skills/tidy/scan-procedures.md` — ledger Delete proposal bundles Close rows mechanically\n- `tests/bin-lib/issues/named-target.test.js`, a dispatch/tidy prose-pin sibling — new cases\n- `docs/plugin-structure.md` — module line\n\n## Gotchas\n\n- Existence is checked at the integration tip, not the working tree: a worktree session's tree may lag, and a dirty tree must not hide a deletion.\n- The queue-order cache (#1571) persists groups/excluded; the new exclusion must be part of the persisted `excluded` so a cache hit does not resurrect the record.\n- `tidy --approve` applies staged proposals; dispatch writing into `staged/` under its own run dir is the same shape sweep uses (attention's Tidy row globs `*-sweep-standalone*`; add the dispatch run-dir glob there only if the row must surface these too, and say so in the record if it does).\n- Never close on GitHub from dispatch; the staged proposal is the write path and stays human-approved.\n\n## Original request\n\nSurface: infra\n\n## Current State\n\nDuring a `/claude-tweaks:dispatch --budget all` drain (2026-09-05/06), three separate docs-health-filed records (#1776, #1804, #1818) all hit an identical build-time HARD-GATE: their target `docs/plans/*-ledger.md` file had already been deleted by an unrelated tidy sweep (PR #1819, \"Tidy: delete 2 completed execution plans + 8 orphaned pipeline ledgers\") before the dispatch drain ever reached them. Each record's own Acceptance Criteria was unsatisfiable -- there was nothing left to edit. All three were caught cleanly by the build gate and Settle's failure-classification path (no code lost, no false auto-merge, no auto:build stripped prematurely), but three separate build attempts were wasted on a coordination gap between two of this plugin's own health-sweep/hygiene skills.\n\n## Deliverables\n\n- [ ] Decide and implement one of: (a) docs-health's own filing step re-verifies the target file/row still exists immediately before creating a record (a live check, not just at scan time), or (b) tidy's cleanup sweep checks for an open issue referencing a ledger file before deleting it, or (c) some combination of both\n- [ ] Add regression coverage for whichever mechanism is chosen\n\n## Acceptance Criteria\n\n1. A docs-health-filed record whose target was deleted between filing and dispatch either never gets `auto:build` in the first place, or dispatch recognizes the mismatch and skips/closes it without burning a build attempt against the retry ceiling\n2. Existing docs-health and tidy test suites still pass\n\n## Technical Approach\n\nTwo independent skills currently operate with no shared state about \"in-flight backlog records reference this file\" -- docs-health's scan-and-file step and tidy's own cleanup sweep. The cheapest fix is likely (a): a live existence check right before the record-creation write in docs-health's own filing path, at negligible cost since it's already reading the file to compute the finding. (b) is more invasive (tidy would need to grep open issues for a path reference before every delete) but closes the gap from the other direction too.\n\n### Key Files\n\n- `plugin/skills/docs-health/SKILL.md` (or its filing sub-file) -- filing step\n- `plugin/skills/tidy/SKILL.md` / `step-6-auto.md` -- the cleanup sweep that deleted the ledgers in PR #1819\n\n## Gotchas\n\n- Whichever fix is chosen must not slow down docs-health's or tidy's own sweep meaningfully -- both already run against a large repo tree.\n\n## Decision Rationale\n\nFiled per this project's no-implicit-deferrals rule -- discovered live during a `/claude-tweaks:dispatch` drain (three independent instances, same root cause), real and reproducible, but out of scope for that drain's own per-record diffs.\n\nDefer-reason: genuinely-larger\n\n",
+        "createdAt": "2026-09-06T09:40:31Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Size: medium effort",
+            "color": "fbca04"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
+            "name": "ceremony:standard",
+            "description": "Ceremony: standard review",
+            "color": "c5def5"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
+            "name": "shaped:headless",
+            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
+            "color": "ededed"
+          }
+        ],
+        "number": 1983,
+        "state": "OPEN",
+        "title": "docs-health filings and tidy's cleanup sweep aren't coordinated -- a docs-health-filed ledger correction can target a file tidy is about to delete",
+        "updatedAt": "2026-09-12T04:50:53Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "medium",
+          "ceremony": "standard",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": true
+        }
       }
     ],
     [
@@ -1690,336 +1770,6 @@
         "facets": {
           "origin": "capture",
           "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`dispatch/queue-pull-script.md` fetches open PRs once per firing (`gh pr list --state open --json number,files,closingIssuesReferences --limit 100` into `dispatch-open-prs.json`), runs `grouping.js`'s `detectCrossPRFileOverlap(groups, openPRs)` once, and writes `dispatch-crosspr-overlap.json`; `cross-pr-overlap-report.md` renders one warning line per entry before Step 3 and states it is a warning only, never a gate. `dispatch/SKILL.md` Step 5 then dispatches the selected groups one at a time, sequentially, each group opening its own draft PR at run start (`_shared/pr-early-run-lifecycle.md`, recorded as `pr` in the group's `run-state.json`), and Step 6's Auto-merge gate (`settle-and-merge.md`) judges each `auto:merge` group with `merge-check` before merging. Nothing between groups re-reads the PR list, so a PR opened by group 1 is invisible to group 2's overlap check, and the Auto-merge gate never asks whether the PR it is about to merge overlaps another PR the same drain opened.\n\nObserved 2026-09-05/06 (`--budget all`): #1480 and #1596, dispatched sequentially, each edited the same paragraph of `plugin/skills/_shared/subagent-output-contract.md`; both PRs built, reviewed, and passed; the conflict surfaced only when a human tried to merge both.\n\n`detectCrossPRFileOverlap` is pure and takes any PR list, so the missing piece is the input (the drain's own PRs) and two call sites, not a new algorithm. Tests: `tests/bin-lib/issues/grouping.test.js` covers the function; `tests/dispatch-*` conformance tests pin the skill prose.\n\n## Deliverables\n\n- [ ] **The drain keeps its own PR list.** `dispatch/SKILL.md` Step 5: after each group's first Task call returns with a recorded PR (or after the second call, when the first did not open one), read the group's `run-state.json` `pr.number`, fetch that one PR's changed files (`gh pr view {n} --json number,files,closingIssuesReferences`), and append the entry to a session-scoped `dispatch-drain-prs.json` (`_shared/session-tmp-root.md`). One `gh pr view` per dispatched group; no repeated `gh pr list`.\n- [ ] **Re-check before each subsequent mint.** Step 4, for every group after the first: run `detectCrossPRFileOverlap([group], preDrainOpenPRs ∪ drainPRs)` and, for each hit against a drain PR, render `cross-pr-overlap-report.md`'s warning line with the suffix \"(opened by this drain, group {k})\" and log `STAGED … — dispatch: group [{issues}] overlaps drain PR #{pr} on {files}; dispatched anyway, serialize before merge`. Still a warning, never a gate; the group dispatches.\n- [ ] **Hold auto-merge on a live drain overlap.** `settle-and-merge.md`'s Auto-merge gate, before `merge-check`: if the group's PR overlaps (by the same function) any other drain PR that is still open, the gate falls back to the Review Console for that group with the log line `AUTO … — Auto-merge gate: group [{issues}] held — overlaps drain PR #{pr} on {files}; merge order is a human call. Reversibility: n/a.`; once the overlapping PR has merged or closed, the next firing's gate proceeds normally (the check re-reads state, it does not persist a hold).\n- [ ] **Report file.** `cross-pr-overlap-report.md` gains a \"Second and third invocation\" paragraph naming the two new sites, the drain-PR list, and the unchanged pre-drain report.\n- [ ] **Tests.** `grouping.test.js`: `detectCrossPRFileOverlap` over a union of pre-drain and drain PR lists attributes the hit to the drain PR (a `source` or ordering the caller can read); prose pins (sized like `tests/dispatch-budget-drain.test.js`) for Step 5's list write, Step 4's re-check and log line, the Auto-merge gate's hold and log line, and the report paragraph.\n\n## Acceptance Criteria\n\n1. In a fixture drain of three groups where group 2's key files overlap group 1's PR files, group 2's mint step logs the `STAGED` overlap line naming group 1's PR and still dispatches; group 3 (no overlap) logs nothing new.\n2. With `auto:merge` on both overlapping groups, the second group's Auto-merge gate logs the held line and routes to the Review Console instead of merging while the first PR is open; after the first PR merges, a re-run of the gate proceeds.\n3. The pre-drain overlap report and `dispatch-crosspr-overlap.json` are byte-identical to today for the same queue.\n4. Exactly one `gh pr view` per dispatched group is added; no additional `gh pr list` calls.\n5. `npm test` green; the existing grouping and dispatch conformance tests pass with only additive assertions.\n6. Replaying the #1480/#1596 sequence in a fixture logs the overlap at group 2's mint and holds the second auto-merge; quoted in the PR description.\n\n## Technical Approach\n\nTwo trigger points, both cheap: the mint-time re-check catches the overlap as early as the pipeline can know it (the first PR exists), and the gate-time hold is the one place where the cost of being wrong is a conflicting auto-merge. Feed both from the drain's own list rather than re-listing all open PRs, so cost scales with groups dispatched, not with repository size. Keep the pre-drain report unchanged and keep the warning non-gating at mint; only the merge is held, and only by routing to the console the drain already has.\n\n### Key Files\n\n- `plugin/skills/dispatch/SKILL.md` — Step 5 drain-PR list write; Step 4 re-check and log line\n- `plugin/skills/dispatch/settle-and-merge.md` — Auto-merge gate hold and log line\n- `plugin/skills/dispatch/cross-pr-overlap-report.md` — second/third invocation paragraph\n- `plugin/bin/lib/issues/grouping.js` — `detectCrossPRFileOverlap` attribution of the matched PR's source (additive)\n- `tests/bin-lib/issues/grouping.test.js`, a `tests/dispatch-*` prose-pin sibling — new cases\n\n## Gotchas\n\n- The queue-order cache (#1571) must not cache the drain-PR list across firings; it is per firing by construction (session tmp), and Step 4's re-check unions it with the persisted pre-drain snapshot.\n- A group that opened no PR (local-merge, or a degraded PR-early lifecycle) contributes nothing to the list; log that once so a silent gap is visible.\n- The Auto-merge gate's hold must read the overlapping PR's *current* state; a PR merged mid-drain releases the hold on the next evaluation.\n- `--limit 100` on the pre-drain list is untouched; the drain list is bounded by `--budget`.\n\n## Original request\n\nSurface: infra\n\n## Current State\n\n`dispatch/cross-pr-overlap-report.md`'s cross-PR file-overlap check runs exactly once, at Step 2's queue pull, before that firing's drain has dispatched anything -- it can only see open PRs that already existed at that moment. During a live `--budget all` drain (2026-09-05/06), two candidates dispatched sequentially in the *same* firing (#1480, #1596) each independently edited the same paragraph in `plugin/skills/_shared/subagent-output-contract.md`. Neither PR existed when the pre-drain overlap check ran, so it reported clean for both; the resulting merge conflict was discovered only when a human later asked to merge both PRs and hit it directly. Both PRs individually built, reviewed, and passed cleanly -- the overlap was invisible to the pipeline the whole time it was happening.\n\n## Deliverables\n\n- [ ] Decide where a per-group overlap re-check should run inside a drain that dispatches multiple groups sequentially -- candidates: immediately before a group's second call reaches its Auto-merge gate, or right before minting each new group's run directory (Step 4) using the drain's own in-flight PR list instead of (or in addition to) the pre-drain snapshot\n- [ ] Implement the chosen check and surface a finding when a group's key files overlap another PR opened *by this same drain*, not just PRs that predate it\n\n## Acceptance Criteria\n\n1. A `--budget all` (or `--budget N>1`) drain that dispatches two groups touching the same file surfaces that overlap to the human before both PRs sit open unmerged and conflicting, or at minimum before either is auto-merged\n2. The existing pre-drain overlap report continues to work unchanged for pre-existing PRs\n\n## Technical Approach\n\nThe current report (`dispatch/cross-pr-overlap-report.md`) already has the shape needed (`gh pr list` + key-file comparison) -- the gap is purely *when* it runs. Re-running it once per group, right before that group's Auto-merge gate, would catch this case at low marginal cost (one extra `gh pr list` call per group in a drain, not per firing). Needs design thought on exactly which trigger point and how much extra API cost is acceptable for a large drain.\n\n### Key Files\n\n- `plugin/skills/dispatch/cross-pr-overlap-report.md`\n- `plugin/skills/dispatch/queue-pull-script.md` -- current single invocation site\n- `plugin/skills/dispatch/settle-and-merge.md` -- candidate second invocation site (before Auto-merge gate)\n\n## Gotchas\n\n- Re-running this check per group multiplies its `gh pr list` cost by the drain's group count -- worth checking whether the existing `--limit 100` cap and its own truncation-warning convention still make sense at higher call frequency.\n\n## Decision Rationale\n\nFiled per this project's no-implicit-deferrals rule -- discovered live during a `/claude-tweaks:dispatch` drain, real and reproducible (not hypothetical: it actually produced a merge conflict a human had to resolve), but the design work needed is bigger than this drain's own scope.\n\nDefer-reason: genuinely-larger\n\n",
-        "createdAt": "2026-09-06T09:40:42Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2oaA",
-            "name": "type:feature",
-            "description": "Type: new capability or enhancement",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1985,
-        "state": "OPEN",
-        "title": "dispatch's cross-PR overlap check only runs once at drain start -- misses overlap between PRs the same drain opens",
-        "updatedAt": "2026-09-12T04:50:57Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`/claude-tweaks:dispatch`'s queue pull (`dispatch/queue-pull-script.md`) excludes blocked, oversized, and open-linked-PR records; the open-PR exclusion (#1224) reads each candidate's `closedByPullRequestsReferences` connection through one batched GraphQL query built in `bin/lib/issues/record.js` (`i{n}: issue(number){ closedByPullRequestsReferences(first:10){ nodes{ number state } } }`, fetched by `bin/lib/issues/linked-prs.js`) and `partitionByOpenLinkedPR`. That connection only lists PRs linked by a closing keyword, so a merged PR that resolved a record while merely mentioning it is invisible to the pull, and the record stays eligible with a live `auto:build`.\n\nObserved 2026-09-05/06: #1791 (created 2026-09-02) was resolved by PR #1803 (merged 2026-09-03), whose body references `#1791` with no closing keyword; #1484 by PR #1857 (its body references `#1484`, `#1124`, `#1730`, `#1858`). Both were caught only because an agent re-verified deliverables by hand before dispatching; each would otherwise have burned a build cycle to discover the same thing mid-pipeline. Key Files existence is a weak signal on its own: a record's Key Files name files to *modify*, which exist before and after the work.\n\nSibling: #1983 (shaped alongside) adds the \"named target no longer exists\" exclusion at the same pre-flight site; #1944 adds a title-similarity tokenizer this record can reuse.\n\n## Deliverables\n\n- [ ] **Fetch mentions, not only closers.** Extend the batched query in `record.js` with each candidate's cross-reference timeline: `timelineItems(itemTypes:[CROSS_REFERENCED_EVENT], first:20){ nodes{ ... on CrossReferencedEvent { source { ... on PullRequest { number title state merged mergedAt } } } } }`; `linked-prs.js` returns them beside the closers. One query, no per-record spawn.\n- [ ] **A two-tier heuristic, documented as one.** `bin/lib/issues/shipped-candidate.js` exporting `classifyShipped(record, mentions, opts)` → `{ tier: 'strong' | 'weak' | 'none', pr, signals }`: a mention by a **merged** PR merged after the record's `createdAt` is the base signal (`weak`); it becomes `strong` only when, additionally, the PR's title token similarity to the record's title is at or above the threshold (the #1944 tokenizer when present, else a local Jaccard with the same normalization) **or** the PR's changed files (`gh pr view --json files`, fetched only for `weak` candidates, capped at 5 per pull) cover every path in the record's `### Key Files`. A record with no `### Key Files` and no title match can never be `strong`. Mentions by open or closed-unmerged PRs are ignored.\n- [ ] **Act by tier.** `queue-pull-script.md`, after #1983's target-existence step: `strong` → exclude for this pull into `dispatch-shipped-excluded.json`, log `AUTO … — dispatch: #N excluded, shipped by merged PR #M ({signals})`, and stage one Close proposal in tidy's `Close (GitHub)` shape naming the PR and signals; `weak` → keep the record eligible, log one `AUTO … — dispatch: #N mentioned by merged PR #M without a closing keyword; dispatching anyway` line, and append the PR to the record's dispatch context so the build's Spec Step 2 checks it first; `none` → nothing. Dispatch never closes on GitHub; the staged proposal is the only write path. The exclusion is recomputed every pull and the proposal is fingerprint-deduplicated, so an unresolved candidate is surfaced, not silently re-selected, each firing.\n- [ ] **Posture, written down.** A \"False-positive posture\" paragraph in `dispatch/SKILL.md` Step 2: `strong` requires two independent signals; a genuinely open record can only be excluded when a merged PR both mentions it and either matches its title or touches all its Key Files, and the exclusion costs one human approval, never a close; `weak` never blocks. Name the residual false negative (a resolving PR that never mentions the record) as accepted.\n- [ ] **Tests.** `tests/bin-lib/issues/shipped-candidate.test.js`: fixtures for the #1791/#1803 and #1484/#1857 shapes → `strong`; a merged PR mentioning the record in a \"refs #N, follow-up\" sense with unrelated title and files → `weak`; an open PR mention → `none`; no Key Files and no title match → never `strong`. `linked-prs` tests for the extended query shape. A prose pin for the queue-pull step, the two log lines, and the posture paragraph.\n\n## Acceptance Criteria\n\n1. `classifyShipped` returns `strong` for both observed instances' fixtures, `weak` for a mention-only fixture, and `none` for an open-PR mention.\n2. In a fixture queue, a `strong` record is written to `dispatch-shipped-excluded.json`, logged, and staged as a Close proposal; no run directory is minted for it; a `weak` record is dispatched with the extra log line and context.\n3. The batched GraphQL query carries the timeline selection and `linked-prs.js` returns mentions without a second network round trip; changed-file fetches happen only for `weak`-tier candidates and are capped.\n4. `dispatch/SKILL.md` states the false-positive posture and the accepted false negative.\n5. `npm test` green; existing `linked-prs` and queue-pull conformance tests pass with only additive assertions.\n6. Replaying the drain of 2026-09-05/06 in a fixture excludes #1791 and #1484 with staged closes and zero build attempts; quoted in the PR description.\n\n## Technical Approach\n\nMake the mention the trigger and require a second, independent signal before anything changes, because the record's own gotcha is right: skipping a live record is the expensive mistake. Reuse the batched query so the pull's cost stays one round trip; fetch changed files lazily and capped. Keep every effect staged: exclusion for the firing plus a proposal, never a close.\n\n### Key Files\n\n- `plugin/bin/lib/issues/record.js` — batched query gains the cross-reference timeline selection\n- `plugin/bin/lib/issues/linked-prs.js` — return mentions beside closers\n- `plugin/bin/lib/issues/shipped-candidate.js` — new: `classifyShipped`\n- `plugin/skills/dispatch/queue-pull-script.md` — tiered step after #1983's exclusion; log lines; staged Close\n- `plugin/skills/dispatch/SKILL.md` — Step 2 false-positive posture paragraph\n- `tests/bin-lib/issues/shipped-candidate.test.js`, `tests/bin-lib/issues/linked-prs.test.js` (or sibling), a queue-pull prose pin\n- `docs/plugin-structure.md` — module line\n\n## Gotchas\n\n- `timelineItems` returns mentions from any repository; filter to this repo's PRs before classifying.\n- A PR that mentions many records (PR #1857 mentions four) is a `strong` candidate only for the records its title or files actually match; the mention alone is `weak` for the rest.\n- The queue-order cache (#1571) persists `excluded`; recompute this exclusion on every full pull and include it in the persisted set so a cache hit stays consistent.\n- Order the pre-flight steps: open-PR exclusion (#1224) → target-missing (#1983) → shipped (this record); a record excluded earlier is never re-classified here.\n\n## Original request\n\nSurface: infra\n\n## Current State\n\nDuring a `/claude-tweaks:dispatch --budget all` drain (2026-09-05/06), ranking surfaced two records (#1484, #1791) whose full deliverable set was already shipped on `main` via an earlier, unrelated PR (#1857 and #1803 respectively) -- but neither PR's own commit(s) stamped a per-issue `Fixes #N` closing keyword for the record it actually resolved, so both records stayed open with a live `auto:build` grant despite there being no code left to write. Both were caught by a human/agent manually re-verifying the record's deliverables against current `main` before dispatching a build -- had that check not happened, dispatch would have burned a full build cycle discovering the same thing at the worst possible point (mid-pipeline).\n\n## Deliverables\n\n- [ ] Give dispatch's queue-pull step (or a cheap pre-flight immediately before minting a group's run directory) a lightweight \"is this record's own deliverable already present on `main`?\" check -- scoped to avoid false positives (a record whose Key Files/Deliverables already exist verbatim is a strong signal; a record with no Key Files section can't use this check at all)\n- [ ] When the check fires, skip dispatching a build and instead surface the record for a quick human/agent decision (close directly with an explanation, same as the two manual instances this record documents) rather than silently continuing to re-select it every firing\n\n## Acceptance Criteria\n\n1. A record whose full deliverable set is verifiably already on `main` is flagged before a build attempt starts, not discovered mid-build\n2. The check has a documented false-positive/false-negative posture (it's a heuristic, not a guarantee) and never blocks a genuinely-still-open record\n\n## Technical Approach\n\nThe two live instances both resolved the same way: check the record's `### Key Files` paths for existence, and/or search for an already-merged PR whose title/body closely matches the record's own title, referencing the record's number without a closing keyword. Either signal alone is weak; both together (files exist AND a plausible unlinked PR is found) is a reasonably strong heuristic. This needs design thought before implementation -- a naive version risks false-positiving on a record that's genuinely still open but happens to share file paths with unrelated already-merged work.\n\n### Key Files\n\n- `plugin/skills/dispatch/queue-pull-script.md` -- candidate pre-flight site\n- `plugin/skills/dispatch/SKILL.md` Step 3/4 -- where a pre-build check would plug in\n\n## Gotchas\n\n- False positives here are worse than false negatives: incorrectly skipping/closing a genuinely-open record is a much bigger mistake than occasionally still dispatching a build for something already shipped (the status quo, which at least fails safely at build time).\n\n## Decision Rationale\n\nFiled per this project's no-implicit-deferrals rule -- discovered live during a `/claude-tweaks:dispatch` drain (two independent instances, same root cause), real and reproducible, but the design work needed is bigger than this drain's own scope.\n\nDefer-reason: genuinely-larger\n\n",
-        "createdAt": "2026-09-06T09:40:37Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2oaA",
-            "name": "type:feature",
-            "description": "Type: new capability or enhancement",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1984,
-        "state": "OPEN",
-        "title": "dispatch has no pre-build check for a record whose deliverables are already shipped on main",
-        "updatedAt": "2026-09-12T04:50:55Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\nNothing in the plugin compares a record being shaped or dispatched against the rest of the open queue for near-duplication. The closest surfaces each solve a different problem: `/claude-tweaks:specify`'s decomposition mode runs an Overlap Analysis of a *design doc* against open records (a prose judgment, `decomposition-mode.md`); `/claude-tweaks:dispatch`'s queue pull groups eligible records whose `### Key Files` overlap (`groupByFileOverlap`, `bin/lib/issues/grouping.js`) so they build together rather than collide, and since #1224 excludes any record with an open linked PR; the health sweeps dedup their own filings by fingerprint (`bin/lib/health-core/dedup`). Shaping mode's single-record path (`specify/shaping-mode.md`) and the headless drain (`specify/next-mode-shape.md`) have no step that looks at sibling records at all; the drain's refusal grounds (\"already implemented\", \"duplicate of open record\") exist only as the shaper's own judgment.\n\nObserved: #1821 and #1224 were shaped independently, built in parallel branches, and #1224's review-passed PR #1852 surfaced only during #1821's review, after both builds. In this sweep's own headless drain (run `2026-09-09T145100-sweep-standalone`), the shaper refused and absorbed nine records by hand for the same reason (#1812–#1817, #1832, #1858, #1810 among them), each found by grepping titles and Key Files against the queue — the check the plugin does not perform.\n\n`grouping.js` already exports `extractKeyFiles` (a record body → Key Files list) and the overlap logic dispatch uses; the session-scoped record snapshot (`_shared/record-queue-fetch.md`) already holds every open record's title and body during a specify run.\n\n## Deliverables\n\n- [ ] **A candidate finder, not a verdict.** `plugin/bin/lib/issues/near-duplicate.js` exporting `findNearDuplicates(subject, records, opts)` → `[{ number, title, score, signals }]`, where `signals` names which of three tests fired: (1) Key Files overlap — two or more shared paths from `extractKeyFiles`, or one shared path when either list has at most two entries; (2) title similarity — Jaccard over lowercased word tokens after stripping stop words, numbers, and `#refs`, at or above 0.5; (3) body-anchor overlap — the same named symbol or file path appearing in both `## Current State` sections. Records carrying `parent-issue`, `parked`, or the subject's own number are excluded. Pure function, no I/O; thresholds are `opts` with the defaults above.\n- [ ] **Shaping mode consults it.** `specify/shaping-mode.md`'s sanity-check paragraph gains a step before composition: run the finder over the session snapshot; when candidates exist, render a three-column table (record, score, signals) in the shaping output, append each candidate to the body's `**Related:**` line, and, when a candidate is `ready` with an open linked PR or `bot:in-progress`, stop shaping and route the record to the existing `needs:decision` path with a proposed Absorb naming the candidate (the same refusal shape this sweep used by hand). `next-mode-shape.md` cites the same step for the headless drain.\n- [ ] **Dispatch warns on cross-group candidates.** `dispatch/queue-pull-script.md`: after grouping, run the finder pairwise across records in *different* groups and log one `AUTO … — near-duplicate candidates across groups: #A / #B ({signals})` line per pair; no selection change (grouping already co-builds same-Key-Files records, and #1224 already excludes open-PR duplicates), so the warning is the dispatcher's cue, not a gate.\n- [ ] **Tests.** `tests/bin-lib/issues/near-duplicate.test.js`: each signal fires alone; thresholds honoured; exclusions honoured; a fixture built from #1821/#1224's titles and Key Files returns each as the other's candidate; unrelated records return nothing. Prose pins for the shaping step, the drain citation, and the dispatch log line, sized like `tests/specify-decomposition-crossref-prose.test.js`.\n\n## Acceptance Criteria\n\n1. `findNearDuplicates(#1821-shaped, [#1224-shaped, …])` returns #1224 with `signals` including Key Files overlap and title similarity; the same call with unrelated fixtures returns `[]`.\n2. `/claude-tweaks:specify #N` on a record whose Key Files and title match an open `ready` record renders the candidate table and appends the candidate to `**Related:**`; when that candidate has an open linked PR, shaping stops with a `needs:decision` Absorb proposal instead of writing `ready`.\n3. The headless drain performs the same check and counts the refusal as `failed` (deliberate refusal) with the candidate named in the log line.\n4. `dispatch`'s queue pull logs the cross-group candidate line and selects exactly what it selected before the change for the same queue.\n5. `npm test` green; `tests/bin-lib/issues/grouping.test.js` (or its sibling) unchanged.\n6. Re-running the #1821/#1224 sequence in a fixture queue stops the second shaping at the candidate table; quoted in the PR description.\n\n## Technical Approach\n\nKeep the finder a pure, cheap screen: the shaper still judges (a candidate is not a verdict), and only the one unambiguous case (candidate already has an open PR or is in progress) refuses automatically, mirroring the refusal grounds this sweep applied by hand. Reuse `extractKeyFiles` and the snapshot so no new fetch is added to specify or dispatch. Title similarity is normalization-sensitive; pin the tokenizer with fixtures rather than tuning thresholds in prose.\n\n### Key Files\n\n- `plugin/bin/lib/issues/near-duplicate.js` — new: `findNearDuplicates` with the three signals and exclusions\n- `plugin/bin/lib/issues/grouping.js` — reuse `extractKeyFiles`; no behavior change\n- `plugin/skills/specify/shaping-mode.md` — candidate step before composition; `**Related:**` append; refusal route\n- `plugin/skills/specify/next-mode-shape.md` — cite the step for the drain\n- `plugin/skills/dispatch/queue-pull-script.md` — cross-group candidate log line\n- `tests/bin-lib/issues/near-duplicate.test.js`; a prose-pin test sibling of `tests/specify-decomposition-crossref-prose.test.js`\n\n## Gotchas\n\n- Stop-word and token normalization decide everything (memory: similarity scores are normalization-sensitive); ship the tokenizer with fixtures, and treat a score as a screen, never a merge decision.\n- The snapshot may be stale within a session (`record-snapshot-ttl`); invalidate per `_shared/record-queue-fetch.md` before the check in the drain, which already invalidates between records.\n- Reconcile-filed residue records share titles by construction (`reconcile: structurally-stuck on …`); exclude records whose title starts with `reconcile:` (the auto-filed residue carries no origin label, only `bug`) from title similarity, or the drain would flag every one against every other.\n- `docs/plugin-structure.md` lists `bin/lib/issues/` modules; add the new module's line.\n\n## Original request\n\nDefer-reason: tangential\n\n**Related:** #1821, #1224\n\nContext: #1821 and #1224 independently built the identical dispatch fix in parallel branches; #1224's own already-open, review-passed PR (#1852) wasn't discovered until #1821's review, after both were built.\n\nScope: A specify/dispatch-time check for near-duplicate existing issues (title/body similarity, or overlapping Key Files) before a build starts, to catch this class of duplication earlier than review.\n",
-        "createdAt": "2026-09-05T21:49:53Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1944,
-        "state": "OPEN",
-        "title": "Detect near-duplicate open records before build (specify/dispatch time)",
-        "updatedAt": "2026-09-12T04:50:44Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n\nThree skills touch the same fact, \"does the doc a `by:docs-health` record names still exist\", at three different times, and only one of them acts on it:\n\n- `/claude-tweaks:docs-health` files a record from a scan of the doc as it exists at scan time; `bin/lib/docs-health/issue-payload.js` renders the doc id in the `Doc:` header (a repo-relative path once #1851 lands). Re-verifying at filing time cannot help here: in the observed case the deletion happened *after* filing and *before* dispatch.\n- `/claude-tweaks:tidy` proposes deleting orphaned `docs/plans/*-ledger.md` files (`scan-procedures.md`'s ledger glob) with a \"quick judgment read\" that no open record references the ledger's filename or slug, and its GitHub issue scan separately proposes closing a `by:docs-health` record whose flagged doc is gone (this sweep staged exactly that: `staged/tidy-close-issue-1.md` for #1878, deleted in #1969, and `staged/tidy-close-issue-2.md` for #1776, deleted in #1819). Both are judgment reads and both wait for `tidy --approve`.\n- `/claude-tweaks:dispatch`'s queue pull (`queue-pull-script.md`) excludes blocked, oversized, and open-linked-PR records (#1224) but never checks whether a record's named target exists at the integration tip; `flow/materialize.md`'s Named-location drift note (#315) leaves that to the builder, inside the build.\n\nObserved 2026-09-05/06: #1776, #1804, and #1818 each burned a build attempt against the retry ceiling and stopped at the HARD-GATE because tidy PR #1819 had deleted their target ledgers; every failure was handled correctly and every build was wasted. #1984 (sibling, shaped alongside this record) covers the neighbouring case, a record whose deliverables are already shipped on `main`, at the same pre-flight site.\n\n## Deliverables\n\n- [ ] **Named-target extraction, once.** `plugin/bin/lib/issues/named-target.js` exporting `namedTarget(record) → { path } | null`: for `by:docs-health` records, the `Doc:` header value when it is a repo-relative path, else `docs/{id}.md` derived from the pre-#1851 id form; for other origins `null` (this record does not guess targets from prose; #1769's marker and #1829's `Premise-check:` line cover authored claims).\n- [ ] **Dispatch excludes a record whose target is gone.** `dispatch/queue-pull-script.md`: after the open-linked-PR exclusion, for every eligible record with a non-null `namedTarget`, test existence at the integration tip (`git cat-file -e {ref}:{path}`, one spawn per such record, never a checkout read); a missing path excludes the record into `dispatch-target-missing-excluded.json`, logs `AUTO … — dispatch: #N excluded, named target {path} absent at {ref}`, and stages one Close proposal per excluded record in the run's `staged/` using tidy's `Close (GitHub)` proposal shape (`Finding`/`Proposed`/`Rows`/`Commands`), so the next `tidy --approve` closes it and no build is minted. The record keeps its labels; nothing is written to GitHub by dispatch.\n- [ ] **Tidy's delete proposal bundles the closes.** `tidy/scan-procedures.md`'s ledger Delete recommendation replaces the \"quick judgment read\" with a mechanical pass over the session record snapshot: every open record whose `namedTarget` (or body text) names the ledger's path or slug is listed in the same staged Delete proposal as a Close row, so approval deletes the file and closes its records in one action; no ledger is deleted while a referencing record stays open and unproposed.\n- [ ] **Tests.** `tests/bin-lib/issues/named-target.test.js` (both header forms, non-docs-health → `null`). A prose pin (sized like `tests/dispatch-*` conformance tests) asserting the queue-pull exclusion step, its log line, the staged-close shape, and `scan-procedures.md`'s mechanical Close-row rule; `docs/plugin-structure.md` lists the module.\n\n## Acceptance Criteria\n\n1. `namedTarget` returns `docs/plans/x-ledger.md` for a `by:docs-health` record in either header form and `null` for a `by:capture` record.\n2. In a fixture queue where a `by:docs-health` record's target is absent at the integration tip, the queue pull writes the record to `dispatch-target-missing-excluded.json`, logs the line, stages a Close proposal, mints no run directory for it, and selects the remaining records exactly as before.\n3. A tidy run whose ledger Delete proposal targets a file named by an open record renders that record as a Close row inside the same proposal.\n4. Replaying #1776/#1804/#1818 against a tip where #1819 has merged yields three exclusions and three staged closes and zero build attempts; quoted in the PR description.\n5. `npm test` green; existing dispatch and tidy conformance tests pass with only additive assertions.\n\n## Technical Approach\n\nPut the check where the wasted work starts (dispatch), reuse the proposal shape tidy already uses so approval stays one surface, and make tidy's own delete step carry its consequences instead of relying on a judgment read. Reject (a): re-verifying at filing time cannot see a later deletion. Keep the target extraction narrow (docs-health only) so this record never guesses at authored prose; the sibling #1984 adds the \"already shipped\" heuristic at the same pre-flight site with its own false-positive posture.\n\n### Key Files\n\n- `plugin/bin/lib/issues/named-target.js` — new: `namedTarget(record)`\n- `plugin/skills/dispatch/queue-pull-script.md` — target-existence exclusion, log line, staged Close proposal\n- `plugin/skills/tidy/scan-procedures.md` — ledger Delete proposal bundles Close rows mechanically\n- `tests/bin-lib/issues/named-target.test.js`, a dispatch/tidy prose-pin sibling — new cases\n- `docs/plugin-structure.md` — module line\n\n## Gotchas\n\n- Existence is checked at the integration tip, not the working tree: a worktree session's tree may lag, and a dirty tree must not hide a deletion.\n- The queue-order cache (#1571) persists groups/excluded; the new exclusion must be part of the persisted `excluded` so a cache hit does not resurrect the record.\n- `tidy --approve` applies staged proposals; dispatch writing into `staged/` under its own run dir is the same shape sweep uses (attention's Tidy row globs `*-sweep-standalone*`; add the dispatch run-dir glob there only if the row must surface these too, and say so in the record if it does).\n- Never close on GitHub from dispatch; the staged proposal is the write path and stays human-approved.\n\n## Original request\n\nSurface: infra\n\n## Current State\n\nDuring a `/claude-tweaks:dispatch --budget all` drain (2026-09-05/06), three separate docs-health-filed records (#1776, #1804, #1818) all hit an identical build-time HARD-GATE: their target `docs/plans/*-ledger.md` file had already been deleted by an unrelated tidy sweep (PR #1819, \"Tidy: delete 2 completed execution plans + 8 orphaned pipeline ledgers\") before the dispatch drain ever reached them. Each record's own Acceptance Criteria was unsatisfiable -- there was nothing left to edit. All three were caught cleanly by the build gate and Settle's failure-classification path (no code lost, no false auto-merge, no auto:build stripped prematurely), but three separate build attempts were wasted on a coordination gap between two of this plugin's own health-sweep/hygiene skills.\n\n## Deliverables\n\n- [ ] Decide and implement one of: (a) docs-health's own filing step re-verifies the target file/row still exists immediately before creating a record (a live check, not just at scan time), or (b) tidy's cleanup sweep checks for an open issue referencing a ledger file before deleting it, or (c) some combination of both\n- [ ] Add regression coverage for whichever mechanism is chosen\n\n## Acceptance Criteria\n\n1. A docs-health-filed record whose target was deleted between filing and dispatch either never gets `auto:build` in the first place, or dispatch recognizes the mismatch and skips/closes it without burning a build attempt against the retry ceiling\n2. Existing docs-health and tidy test suites still pass\n\n## Technical Approach\n\nTwo independent skills currently operate with no shared state about \"in-flight backlog records reference this file\" -- docs-health's scan-and-file step and tidy's own cleanup sweep. The cheapest fix is likely (a): a live existence check right before the record-creation write in docs-health's own filing path, at negligible cost since it's already reading the file to compute the finding. (b) is more invasive (tidy would need to grep open issues for a path reference before every delete) but closes the gap from the other direction too.\n\n### Key Files\n\n- `plugin/skills/docs-health/SKILL.md` (or its filing sub-file) -- filing step\n- `plugin/skills/tidy/SKILL.md` / `step-6-auto.md` -- the cleanup sweep that deleted the ledgers in PR #1819\n\n## Gotchas\n\n- Whichever fix is chosen must not slow down docs-health's or tidy's own sweep meaningfully -- both already run against a large repo tree.\n\n## Decision Rationale\n\nFiled per this project's no-implicit-deferrals rule -- discovered live during a `/claude-tweaks:dispatch` drain (three independent instances, same root cause), real and reproducible, but out of scope for that drain's own per-record diffs.\n\nDefer-reason: genuinely-larger\n\n",
-        "createdAt": "2026-09-06T09:40:31Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1983,
-        "state": "OPEN",
-        "title": "docs-health filings and tidy's cleanup sweep aren't coordinated -- a docs-health-filed ledger correction can target a file tidy is about to delete",
-        "updatedAt": "2026-09-12T04:50:53Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
           "size": "medium",
           "ceremony": "standard",
           "solutionUnjustified": false,
