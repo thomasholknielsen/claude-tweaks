@@ -504,7 +504,11 @@ avoids a second source of truth that could drift from what was actually granted)
 
 ```bash
 TODAY=$(date -u +%Y-%m-%d)
-gh search issues --repo "$(gh repo view --json nameWithOwner -q .nameWithOwner)" \
+# Host-qualified --repo (github.com/owner/repo, or the GHE equivalent) — a bare
+# owner/repo value resolves against gh's default host, github.com, regardless
+# of which host this checkout's remote actually points at (#2021).
+REPO_SLUG=$(gh repo view --json nameWithOwner,url -q '(.url|capture("://(?<h>[^/]+)/").h)+"/"+.nameWithOwner')
+gh search issues --repo "$REPO_SLUG" \
   --match comments "grant-mode-audit: date=${TODAY}" --json number | node -e "
     const rows = JSON.parse(require('fs').readFileSync(0, 'utf8'));
     console.log(rows.length);
