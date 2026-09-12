@@ -113,8 +113,8 @@ function run(ctx) {
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
   const trimmedText = text.trim();
   if (STATUS_RE.test(trimmedText)) return {};
-  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: trimmedText.split('\n')[0].slice(0, 120) }, ownedRun.attribution);
+  ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: trimmedText.split('\n')[0].slice(0, 120), transcriptPath }, ownedRun.attribution);
   return { json: { systemMessage: 'claude-tweaks: a subagent reply is missing the Subagent Contract status line (DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED). Logged to events.jsonl.' } };
 }
 
-module.exports = { run, isExemptAgentType };
+module.exports = { run, isExemptAgentType, lastAssistantText, STATUS_RE };
