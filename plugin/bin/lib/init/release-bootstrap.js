@@ -73,6 +73,12 @@ function isBootstrapShaped(parsed) {
     && typeof parsed.packages['.']['release-type'] === 'string');
 }
 
+// already-bootstrapped requires BOTH the config and the manifest present
+// (matching the shape), not the config alone: bootstrapRelease writes its
+// files sequentially with no rollback, so a config-written-manifest-missing
+// state is a half-written bootstrap, not a done one — it must re-run to
+// completion (idempotently, since the config content is unchanged) rather
+// than be read as finished and have the missing files hidden forever.
 function detectReleaseProcess(root) {
   const entries = rootEntries(root);
   for (const { name, isDir } of entries) {
@@ -83,7 +89,8 @@ function detectReleaseProcess(root) {
   if (entries.some((e) => !e.isDir && e.name === CONFIG_FILE)) {
     const parsed = readJson(path.join(root, CONFIG_FILE));
     if (!isBootstrapShaped(parsed)) return { verdict: 'conflict', tool: 'release-please (foreign config)', evidence: CONFIG_FILE };
-    return { verdict: 'already-bootstrapped' };
+    const manifestExists = entries.some((e) => !e.isDir && e.name === MANIFEST_FILE);
+    if (manifestExists) return { verdict: 'already-bootstrapped' };
   }
   return { verdict: 'fresh' };
 }

@@ -36,6 +36,8 @@ test('detectReleaseProcess: a foreign release-please config -> conflict; the boo
   assert.deepEqual(rb.detectReleaseProcess(b), { verdict: 'already-bootstrapped' });
   const c = tmp(); write(c, 'release-please-config.json', 'not json');
   assert.equal(rb.detectReleaseProcess(c).verdict, 'conflict');
+  const d = tmp(); write(d, 'release-please-config.json', SHAPED);
+  assert.deepEqual(rb.detectReleaseProcess(d), { verdict: 'fresh' });
 });
 
 test('detectReleaseProcess: v* tags are never conflict evidence (root scan only, no tag input)', () => {
@@ -192,4 +194,16 @@ test('bootstrapRelease: unresolved integration-model -> skipped before any detec
   assert.equal(r.verdict, 'fresh');
   assert.deepEqual(r.written, ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release-please.yml']);
   assert.equal(fs.existsSync(path.join(b, 'release-please-config.json')), false);
+});
+
+test('bootstrapRelease: a missing manifest after a config write is a half-written bootstrap, not a done one — re-run completes it (fix round 1)', () => {
+  const root = tmp(); write(root, 'package.json', '{"name":"x"}');
+  const first = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => ['v2.0.0'] });
+  assert.equal(first.verdict, 'fresh');
+  const configBefore = read(root, 'release-please-config.json');
+  fs.unlinkSync(path.join(root, '.release-please-manifest.json'));
+  const second = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => ['v2.0.0'] });
+  assert.equal(second.verdict, 'fresh');
+  assert.equal(fs.existsSync(path.join(root, '.release-please-manifest.json')), true);
+  assert.equal(read(root, 'release-please-config.json'), configBefore);
 });
