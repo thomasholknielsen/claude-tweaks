@@ -1,6 +1,6 @@
 {
-  "computedAt": "2026-09-12T11:51:07.687Z",
-  "runId": null,
+  "computedAt": "2026-09-12T12:16:08.566Z",
+  "runId": "2026-09-12T121420-dispatch-standalone",
   "freshnessSignal": {
     "issues": [
       {
@@ -165,7 +165,7 @@
       },
       {
         "number": 2019,
-        "updatedAt": "2026-09-12T04:51:11Z",
+        "updatedAt": "2026-09-12T11:54:17Z",
         "state": "OPEN"
       },
       {
@@ -1129,82 +1129,6 @@
           "grants": {
             "build": true,
             "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Defer-reason: genuinely-larger\nOrigin: /flow #1994 plan-time survey (flow ledger row 22; parent #1987 promise F6)\n\n**Related:** #1987, #2002\n\n## Current State\n\nRecord #1994 asked `review/code-mode-steps.md` and `test/verification.md` to compose `review-code` and `test-verify` bundles from `_shared/subagent-output-contract.md`, `_shared/pipeline-run-dir.md`, `_shared/auto-decision-log.md`, and `_shared/pr-early-run-lifecycle.md`. A survey found the premise false on three counts:\n\n1. Neither step file cites those contracts (one section pointer in `code-mode-steps.md:334`; zero in `verification.md`). The citers are `review/step3-lens-dispatch.md`, `review/step3-routing.md`, `review/step3-debate-and-refutation.md`, `test/fix-mode.md`, `test/SKILL.md`, and `test/qa-prompts.md`.\n2. The whole-file bundles are 94,317 B and 60,273 B raw against the 40,960 B composed ceiling (`plugin/bin/lib/skill-audit/context-cost.js`, `overComposedCeiling`), and three of the four sources carry no `when:` markers, so no condition combination is smaller.\n3. What those citers actually depend on is section-sized: roughly 20.9 KB of `subagent-output-contract.md` (Working Directory Discipline, Model Selection, Template A, Failed-agent retrieval, the fan-out section), 9.6 KB of `pipeline-run-dir.md` (the resolution order and its Bash snippet), 3.4 KB of `pr-early-run-lifecycle.md` (Phase-checklist update). A bundle of those sections fits the gate; the composer composes whole files with fences, so section scoping means restructuring the sources — the shape #2002 already carries for the `merge` bundle. `subagent-output-contract.md` is 252 B under its raw single-file gate.\n\n#1995 (the dispatch-prompt boundary) assumes `review-code`/`test-verify` exist; parent #1987's promise F6 tells it they do not.\n\n## Deliverables\n\n- A restructuring of `subagent-output-contract.md` and `pipeline-run-dir.md` that lets a reader-need subset compose under the gate — either sub-files the composer names as sources (the dispatch-facing sections in one file, the rest in another) or fences on a reader-need key if the vocabulary grows one — decided together with #2002's `merge` restructuring so the two use one pattern.\n- Compose call sites at the files that actually cite the contracts: `review/step3-lens-dispatch.md`, `review/step3-routing.md`, `review/step3-debate-and-refutation.md` (one `review-dispatch` bundle), `test/fix-mode.md` and `test/SKILL.md` (one `test-verify` bundle, if the sections justify it), each stating the standalone (no run directory) case and carrying the verbatim fallback sentence; every bundle under `overComposedCeiling` with no `COMPOSED_STEP_EXCEPTIONS` entry.\n- Byte-identity proofs for any file that only gains marker lines; a composed-behavior pin suite per bundle on the `tests/flow-manifesto-composition.test.js` shape.\n- #1995's dispatch-prompt citations retargeted to the bundles that exist (or left as raw `_shared/` paths where none does).\n\n## Acceptance Criteria\n\n- `node -e` over `composedBytesReport(\"plugin\")` shows every new step under the ceiling with no exception entry, and `tests/bin-lib/skill-audit/context-cost.test.js` stays green.\n- Every citer listed above reads the composed bundle when `$PIPELINE_RUN_DIR` is set and states what a standalone invocation reads.\n- `npm test` green apart from the tracked baseline (#1900).\n\n\n_Filed from the /flow #1988-#1997 consolidated Review Console (run 2026-09-06T110420, PR #1998); staged proposal: spec-1994/staged/record-proposal-1.md._\n",
-        "createdAt": "2026-09-07T04:12:32Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2oaA",
-            "name": "type:feature",
-            "description": "Type: new capability or enhancement",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsDgIWw",
-            "name": "size:high",
-            "description": "Scoring: large change — consider decomposition before building",
-            "color": "BFD4F2"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          }
-        ],
-        "number": 2019,
-        "state": "OPEN",
-        "title": "Section-scoped review/test context bundles at the files that actually cite the shared contracts, after restructuring subagent-output-contract.md and pipeline-run-dir.md for composition",
-        "updatedAt": "2026-09-12T04:51:11Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "high",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
           },
           "bot": {
             "inProgress": false,
