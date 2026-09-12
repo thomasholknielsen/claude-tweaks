@@ -10,7 +10,8 @@ process: a CLI gathers everything that phase needs, writes one JSON document int
 and the prose reads fields out of it. The runner owns execution and bounding; the skill owns
 judgment. Two are shipped — `plugin/bin/lib/wrap-up/pack.js` + `plugin/bin/wrap-up-pack.js`
 (wrap-up Phases 3-4, eight probes) and `plugin/bin/lib/flow/preflight.js` +
-`plugin/bin/flow-preflight.js` (`/flow`'s second call) — and they agree on every rule below.
+`plugin/bin/flow-preflight.js` (`/flow`'s second call) — and they agree on every rule below
+except selective-probe filtering (see the `--only` bullet).
 Read both before writing a third.
 
 ## The shape
@@ -32,7 +33,11 @@ Read both before writing a third.
   claim, archives, posts, or edits a record — a pack is re-runnable at any point in the phase.
 - **Write atomically** (`lib/atomic-write.js`), because a consumer may be reading the previous
   pack while this one is written.
-- **`--only <probe,...>`** so a consumer that needs one field does not pay for eight.
+- **`--only <probe,...>`** so a consumer that needs one field does not pay for eight —
+  `wrap-up-pack.js`/`pack.js` only; `flow-preflight.js` has no `--only` flag, and
+  `flow/preflight.js`'s `gatherPreflight` computes every probe unconditionally regardless of
+  `--steps` (its own parse-error text calls `--steps` "metadata — every field is computed
+  regardless"), since `/flow`'s second call always needs the full set.
 
 ## Every field owes a location, a freshness, and a phase — traced before it is written
 
