@@ -4,6 +4,7 @@ files:
   - plugin/skills/release/console.md
   - plugin/skills/release/execute.md
   - plugin/skills/release/bookkeeping.md
+  - plugin/skills/release/routine-template.yml
   - plugin/bin/release-preflight.js
   - plugin/bin/release-local.js
   - plugin/skills/review/SKILL.md
@@ -40,7 +41,7 @@ files:
 - **Red flags:** `released` printed while the publish workflow is still running or failed; a record closed without the `Shipped in` comment; `--as 7.0.0` accepted without the major-bump gate; a red release PR merged because the review was clean; `Shipped in v1.3.0` written when the engine shipped `v1.4.0`.
 
 ### 4. Unattended — `--train`
-- **URL:** `/claude-tweaks:release --train` (the release train Routine, #2258, or by hand on an `unattended` repo)
+- **URL:** `/claude-tweaks:release --train` — by hand on an `unattended` repo, or as the scheduled firing `/claude-tweaks:routine create release` instantiates from `skills/release/routine-template.yml` (the release train Routine, #2258: daily on weekdays, a refused no-op until `release-train: true` and `autonomy: unattended` are set)
 - **Action:** Refused as on-demand unless `release-train: true` and `autonomy: unattended`; otherwise Steps 1–4 run without a console prompt, and a major bump (effective, after `--as`) or `review: blocking` stages `release-held.md` and exits with `HELD`; a Step 6 miss after the merge landed is `PARTIAL`, never `HELD`.
 - **Should feel:** Trustworthy to leave alone — the two things it will never do on its own (ship a major, ship past a blocking review) are exactly the two a human would want to see.
 - **Should understand:** `HELD` means nothing moved; `PARTIAL` means the tag landed and the hook did not — different recovery, different urgency.
