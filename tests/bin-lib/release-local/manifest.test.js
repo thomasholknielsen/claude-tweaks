@@ -35,6 +35,20 @@ test('spliceVersion json: only the version token changes, formatting untouched, 
   assert.strictEqual(M.spliceVersion('json', '{"name":"x"}', '1.3.0').found, false);
 });
 
+test('spliceVersion json: a nested "version" PRECEDING the root one is never the match (structural, not first-occurrence)', () => {
+  const text = '{\n  "publishConfig": {\n    "version": "9.9.9"\n  },\n  "version": "1.2.0"\n}\n';
+  const out = M.spliceVersion('json', text, '1.3.0');
+  assert.strictEqual(out.previous, '1.2.0');
+  assert.strictEqual(out.text, text.replace('"version": "1.2.0"', '"version": "1.3.0"'));
+  assert.ok(out.text.includes('"version": "9.9.9"'), out.text);
+  // a "version"-looking key inside an array at the root is not a root key either
+  const arr = '{\n  "bundles": [\n    { "version": "9.9.9" }\n  ],\n  "version": "1.2.0"\n}\n';
+  assert.strictEqual(M.spliceVersion('json', arr, '1.3.0').previous, '1.2.0');
+  // escaped quotes in a preceding string value must not desynchronize the scanner
+  const esc = '{\n  "desc": "a \\"version\\": \\"9.9.9\\" quote",\n  "version": "1.2.0"\n}\n';
+  assert.strictEqual(M.spliceVersion('json', esc, '1.3.0').previous, '1.2.0');
+});
+
 test('spliceVersion json-lock: the first two root tokens change, nested dependency versions do not', () => {
   const text = '{\n  "name": "x",\n  "version": "1.2.0",\n  "packages": {\n    "": {\n      "version": "1.2.0"\n    },\n    "node_modules/y": {\n      "version": "1.2.0"\n    }\n  }\n}\n';
   const out = M.spliceVersion('json-lock', text, '1.3.0');

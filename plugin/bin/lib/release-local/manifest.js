@@ -72,18 +72,37 @@ function spliceMatch(text, re, to, group) {
   return { text: text.slice(0, start) + to + text.slice(start + m[group].length), found: true, previous: m[group] };
 }
 
-function spliceJsonKey(text, key, to, occurrences = 1) {
-  const re = new RegExp(`("${escapeRe(key)}"\\s*:\\s*")(${SEMVER})(")`, 'g');
-  let out = text; let previous = null; let found = 0; let shift = 0;
-  let m;
-  while (found < occurrences && (m = re.exec(text)) !== null) {
-    const start = m.index + m[1].length + shift;
-    out = out.slice(0, start) + to + out.slice(start + m[2].length);
-    shift += to.length - m[2].length;
-    if (previous === null) previous = m[2];
-    found += 1;
+// Structural, not first-occurrence: a `"version"` nested in an earlier object
+// (`{"publishConfig": {"version": "9.9.9"}, "version": "1.2.0"}`) is a different
+// key, and a regex that takes the first hit bumps the wrong token. Walk the text
+// tracking string state (with escapes) and brace/bracket depth, and accept the
+// key only as a string token at object depth `depth` — 1 for a whole file's root
+// object, 0 for the packages[""] slice spliceJsonLock hands over (its text
+// already begins inside that object).
+const JSON_VERSION_VALUE_RE = new RegExp(`^\\s*:\\s*"(${SEMVER})"`);
+
+function spliceJsonKey(text, key, to, { depth = 1 } = {}) {
+  let level = 0;
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '"') {
+      const open = i;
+      i += 1;
+      while (i < text.length && text[i] !== '"') i += text[i] === '\\' ? 2 : 1;
+      const token = text.slice(open + 1, i);
+      i += 1;
+      if (level !== depth || token !== key) continue;
+      const m = JSON_VERSION_VALUE_RE.exec(text.slice(i));
+      if (!m) continue;
+      const at = i + m[0].length - 1 - m[1].length;
+      return { text: text.slice(0, at) + to + text.slice(at + m[1].length), found: true, previous: m[1] };
+    }
+    if (ch === '{' || ch === '[') level += 1;
+    else if (ch === '}' || ch === ']') level -= 1;
+    i += 1;
   }
-  return { text: out, found: found > 0, previous };
+  return { text, found: false, previous: null };
 }
 
 // package-lock.json: the root "version" plus, on lockfileVersion 2/3, the
@@ -93,13 +112,13 @@ function spliceJsonKey(text, key, to, occurrences = 1) {
 // is bounded by the first "node_modules/ key so an entry without a version
 // cannot leak the match into a dependency either.
 function spliceJsonLock(text, to) {
-  const root = spliceJsonKey(text, 'version', to, 1);
+  const root = spliceJsonKey(text, 'version', to);
   const block = /"packages"\s*:\s*\{\s*""\s*:\s*\{/.exec(root.text);
   if (!block) return root;
   const at = block.index + block[0].length;
   const end = root.text.indexOf('"node_modules/', at);
   const scope = end === -1 ? root.text.slice(at) : root.text.slice(at, end);
-  const inner = spliceJsonKey(scope, 'version', to, 1);
+  const inner = spliceJsonKey(scope, 'version', to, { depth: 0 });
   const rest = end === -1 ? '' : root.text.slice(end);
   return { text: root.text.slice(0, at) + inner.text + rest, found: root.found || inner.found, previous: root.previous };
 }
@@ -122,9 +141,9 @@ function spliceToml(text, sections, to) {
 
 function spliceVersion(kind, text, to, opts = {}) {
   switch (kind) {
-    case 'json': return spliceJsonKey(text, 'version', to, 1);
+    case 'json': return spliceJsonKey(text, 'version', to);
     case 'json-lock': return spliceJsonLock(text, to);
-    case 'manifest': return spliceJsonKey(text, '.', to, 1);
+    case 'manifest': return spliceJsonKey(text, '.', to);
     case 'toml': return spliceToml(text, opts.sections || [], to);
     case 'text': {
       if (text === null || text === undefined) return { text: to, found: false, previous: null };
