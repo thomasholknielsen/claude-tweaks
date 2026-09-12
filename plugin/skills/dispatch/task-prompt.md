@@ -2,7 +2,7 @@
 
 Referenced by `skills/dispatch/SKILL.md` Step 5. Unlike `sequential-execution.md` and `deprecated-aliases.md` (background detail, read for understanding), **each of this file's two templates must be inlined verbatim into its own `Task()` tool call** when dispatching a group — they are the operative templates, not supplementary reading. Never inline both into one call. Copy each fenced block below exactly, substituting `{issue list}`, `{minted-run-dir}`, `{plugin-root}`, `{context-pack}`, etc. as SKILL.md's Step 5 directs.
 
-Each group is dispatched as **two sequential `Task()` calls**, not one (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history). The single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) creates no batching decision here — these two calls are sequential by design, never emitted together.
+Each group is dispatched as **two sequential `Task()` calls**, not one (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history). The single-assistant-message rule (`_shared/subagent-dispatch-core.md`'s fan-out section) creates no batching decision here — these two calls are sequential by design, never emitted together.
 
 ## Context pack (#1542 — resolve once, substitute into both calls)
 
@@ -77,6 +77,15 @@ the run stalls silently (#1965).
 
 {context-pack}
 
+Ephemeral dev server (only if this run's steps include a browser-driving step in a later,
+separate call -- review or stories/QA): if this call starts an ephemeral worktree dev server (a
+background dev command on a free port, recorded in `ephemeral-server.txt`), start it detached --
+POSIX: launch under `setsid` (e.g. `setsid {dev command} > {log} 2>&1 &`); Windows: no detach
+primitive exists, record `detached: no` instead -- and append a fourth field to the recorded
+line (`detached:yes`/`detached:no`). Never delete `ephemeral-server.txt` at the end of this call,
+whether or not the server is still alive -- the record belongs to the run, not to this call, and
+the second call's own liveness re-check depends on it still being there.
+
 If the build or test step hits a HARD-GATE, handle it per
 skills/dispatch/settle-and-merge.md's Settle procedure (claim ownership check against
 basename($PIPELINE_RUN_DIR), release, assess-agent-autonomy failure classification, retry
@@ -143,7 +152,7 @@ review,polish,wrap-up`. Bundle -> run `PIPELINE_RUN_DIR="{minted-run-dir}"
 {minted-run-dir} value substituted into those commands is the same run directory dispatch
 minted before either call and the first call's own /flow invocation adopted; passing it on
 the command line is what makes this call resume that exact run rather than start a new one --
-_shared/pipeline-run-dir.md's resolution order step 1 (the env var, its documented preferred
+_shared/run-dir-resolution.md's resolution order step 1 (the env var, its documented preferred
 path) feeding flow/SKILL.md Step 3's adopt-if-set branch. You need no other input about what
 the prior call did or found.
 
@@ -154,6 +163,13 @@ agent's completion notification; a dispatched agent that yields this way is neve
 the run stalls silently (#1965).
 
 {context-pack}
+
+Ephemeral dev server liveness (only if `{minted-run-dir}/ephemeral-server.txt` exists): before
+the first browser-driving step, and again before any `trace stop`, verify the recorded pid
+answers on the recorded port. On a dead pid, start a fresh server the same way the plugin's own
+Ephemeral server start procedure does (re-resolve the port lease, launch detached, poll until
+reachable), rewrite `ephemeral-server.txt`, and log `AUTO {time} -- ephemeral server restarted:
+recorded pid {old} dead, new pid {new} on port {port}`.
 
 CRITICAL: your review step must re-derive its verdict from raw artifacts -- the actual diff,
 the actual test-output log in the run directory -- never from a prior claim, whether that
@@ -265,4 +281,4 @@ pipeline's own steps select their own models as usual. Resolve via
 `node "{plugin-root}/bin/resolve-profile.js" standard` (contract § Model Selection).
 ```
 
-None of Templates A/B/C in `_shared/subagent-output-contract.md` fit an agent that executes pipeline stages rather than returning findings/locations/a yes-no, so these are their own minimal templates, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.
+None of Templates A/B/C (A in `_shared/subagent-dispatch-core.md`; B/C in `_shared/subagent-output-contract.md`) fit an agent that executes pipeline stages rather than returning findings/locations/a yes-no, so these are their own minimal templates, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.

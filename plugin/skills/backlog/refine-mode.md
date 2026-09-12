@@ -2,6 +2,11 @@
 
 The comprehensive "ensure every issue has the right labels" sweep: `priority:*`/`**Related:**` suggestions plus `auto:build`/`auto:merge` grants, presented together and confirmed once.
 
+**`#N[,#M...]` filter (#1887).** When `SKILL.md`'s Input resolved a named record list, every
+population computed below (Resolve, the priority/Related/grant fetches, `.blocked`) narrows to
+just those numbers before Step 4 renders — one procedure, never a second mode. Bare `refine`
+leaves every population at its full whole-queue scope.
+
 ## Step 1: Fetch
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line, per `overview-mode.md`'s convention this file shares.)*
@@ -106,6 +111,15 @@ When `--budget <n>` was passed (see `SKILL.md`'s Input), set `PRIORITY_BUDGET=<n
 When `--origin <name>` was passed (see `SKILL.md`'s Input), export `BACKLOG_ORIGIN=<name>` before running the fetch script above; omitted, it's unset and the script runs unfiltered. The origin-agnostic default and the `blocked` lane mirror the retired `/claude-tweaks:triage` skill's old Step 1; the compute block above resolves the split three ways: `blocked` = hit the retry ceiling (`bot:blocked`), a re-authorization candidate; `inProgress` = actively claimed by a live run (`bot:in-progress`) — excluded from grant checks entirely, mirroring `refine-headless.md`'s own not-already-claimed exclusion, because a grant-check dispatch is wasted on a record mid-build and a grant written mid-run changes nothing the executing pipeline reads; `fresh` = neither, the only lane grant checks run over.
 
 **These are two separate fetches, not one.** The priority/Related fetch is unfiltered (needs the whole backlog); the grant fetch is server-side filtered to `--label ready` (preserves today's exact starvation-avoidance guarantee — an unfiltered pull risks pushing older `ready`-labeled issues out of a shared result window on a large backlog). Both route through the same `backlog-fetch-limit` config key and truncation-warning pattern, just as two independent invocations of it.
+
+**Resolve fetch (`work-backend: github-issues` only — a third population, #1887).** Over the same
+open-issue set the priority/Related fetch already holds (narrowed to the `#N` filter above, when
+present), run `refine-record.md`'s Step 1 fetch-and-classify — an unresolved `<!-- needs-decision:
+… -->` comment from any producer (backlog-refine, specify, tidy), the `backlog-refine-human-only`
+compatibility shim, or `bot:blocked` — over every record in that set instead of a named list. A
+record with a live proposal AND `bot:blocked` yields two independent lane rows (below), never
+merged. Population lives in `session-scoped backlog-refine-resolve.json`; read there, not
+re-fetched, by Step 4.
 
 ## Step 2: Priority/Related synthesis (bounded)
 
@@ -262,13 +276,19 @@ born-`ready` by this path and this step does nothing.
 
 *(Narration allowance: no "running"/"passed" line for this step — only the run's one opening line and any failure/degradation line.)*
 
-One lane per record, precedence: Re-authorize → Grant → Flag-back → Needs-decision → Priority →
-Dependency repair → Needs you.
+One lane per record, precedence: Resolve → Re-authorize → Grant → Flag-back → Needs-decision →
+Priority → Dependency repair → Needs you. Resolve and Re-authorize are the one stated exception to
+"renders exactly once, in the earliest lane reached" below — independent axes (resolving a
+proposal never resolves a co-occurring `bot:blocked`, and vice versa), so a record carrying both
+renders once in each (#1887).
 
 Read `refine-lanes.md` in this skill's directory for the full rendering procedure — the lane tables
 and paste-block templates, the consequence-line trust and `solution:unjustified` annotation templates, the
 count-summary line, the Needs-you lane, the ceiling/skip-case footers, the closing `Next:` line
-rule, and the confirm gate (`<!-- refine-confirm-gate -->`).
+rule, and the confirm gate (`<!-- refine-confirm-gate -->`). For the Resolve lane specifically,
+`refine-lanes.md` points at `refine-record.md`'s own batch-table render and Step 4's per-choice
+write mechanics rather than restating them — read that file for the choices, evidence column, and
+apply mechanics; only the *population* (whole-queue or `#N`-filtered, above) is new here.
 
 ## Step 5: Apply
 

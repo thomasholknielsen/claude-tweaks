@@ -84,7 +84,7 @@ at this bridge that shipped the gate change before the read path was finished.
 
 ### Step 1: Resolve this firing's run id
 
-Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run-dir resolution in `_shared/pipeline-run-dir.md` (dispatch is on the allowlist) — `$RUN_ID` is that run directory's basename (e.g. `2026-07-14T140322-dispatch-standalone`). This value scopes only this firing's own `decisions.md` (queue pull, selection, per-group minting log) — it is never a claim's `runId` and never passed to a Task call. Each *group's* claim identity is a separate value, minted per group in Step 4 (`$GROUP_RUN_ID`) and passed to both of that group's Task calls as `PIPELINE_RUN_DIR` (Task agents don't inherit shell variables — per `_shared/subagent-output-contract.md`'s Input Discipline, a dispatched agent is a clean room). Step 6's ownership check (`claim.runId === basename($PIPELINE_RUN_DIR)`) — performed inside whichever of that group's two Task calls handles its terminal outcome (the first call on a `build,test` failure, the second on every path that reaches wrap-up), never in this thread — compares against that group's own minted directory, not this firing's `$RUN_ID`.
+Resolve this firing's `$RUN_ID` once, before Step 2, via the standalone-auto run-dir resolution in `_shared/run-dir-resolution.md` (dispatch is on the allowlist) — `$RUN_ID` is that run directory's basename (e.g. `2026-07-14T140322-dispatch-standalone`). This value scopes only this firing's own `decisions.md` (queue pull, selection, per-group minting log) — it is never a claim's `runId` and never passed to a Task call. Each *group's* claim identity is a separate value, minted per group in Step 4 (`$GROUP_RUN_ID`) and passed to both of that group's Task calls as `PIPELINE_RUN_DIR` (Task agents don't inherit shell variables — per `_shared/subagent-output-contract.md`'s Input Discipline, a dispatched agent is a clean room). Step 6's ownership check (`claim.runId === basename($PIPELINE_RUN_DIR)`) — performed inside whichever of that group's two Task calls handles its terminal outcome (the first call on a `build,test` failure, the second on every path that reaches wrap-up), never in this thread — compares against that group's own minted directory, not this firing's `$RUN_ID`.
 
 ### Step 2: Pull the authorized queue and group by file overlap
 
@@ -92,7 +92,20 @@ First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js
 
 Common to every selection form — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
-The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + no open linked PR (#1224) + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` (the Auto-merge gate's promotion of an already-existing `auto:merge-pending` to `auto:merge` is maturation of a grant already present, not origination — see `settle-and-merge.md`) — see Anti-Patterns.
+The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + no open linked PR (#1224) + not already shipped by a `strong`-tier merged-PR mention (#1984) + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` (the Auto-merge gate's promotion of an already-existing `auto:merge-pending` to `auto:merge` is maturation of a grant already present, not origination — see `settle-and-merge.md`) — see Anti-Patterns.
+
+**False-positive posture (#1984).** A record whose full deliverable set is already shipped, but
+whose resolving PR never carried a closing keyword, can only be excluded here when a **merged**
+PR both mentions it AND either matches its title (Jaccard token similarity) or touches every path
+in its own `### Key Files` — two independent signals, never one alone. That exclusion costs one
+human approval (the staged Close proposal `queue-pull-script.md` stages, never an autonomous
+close) — it is never silent and it never removes a candidate from `dispatch-groups.json` without
+also naming the reason in `dispatch-shipped-excluded.json`. A `weak`-tier mention (the base signal
+alone — merged, no second signal) never blocks: the record stays fully eligible, with the mention
+carried forward as build-time context. The residual false negative — a resolving PR that never
+mentions the record at all, by number or otherwise — is accepted: there is no signal left to
+detect it from, and the status quo (dispatch discovers it at build time) is the existing, already-
+safe fallback this record improves on rather than replaces.
 
 Read `queue-pull-script.md` in this skill's directory and run its script verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), which every selection form below reads. That file also carries the MCP-path substitution and the queue-pull-notes pointer.
 
@@ -106,9 +119,24 @@ The `bot:*` filter here is the cheap label-based pre-filter — labels are proje
 
 **Open-PR exclusion report (refs #1224).** See `open-pr-exclusion-report.md`, this skill's directory (same convention as the Blocked-exclusion report above; not a gate — the exclusion itself already happened inside `queue-pull-script.md`).
 
+**Shipped-candidate exclusion report (refs #1984).** Read `dispatch-shipped-excluded.json`
+(`queue-pull-script.md`'s output, `{number, pr, signals}[]`). Non-empty: render one line per
+entry — `#{number} excluded — already shipped by merged PR #{pr} ({signals}); a Close proposal is
+staged in this firing's run dir for approval.` — same non-gating, already-happened-in-
+`queue-pull-script.md` convention as the two reports above. A `weak`-tier mention never appears
+here — see the False-positive posture paragraph above.
+
 **Oversized-group report (refs #1228).** See `oversized-group-report.md`, this skill's directory (groups over the size guard stay selectable via `#N`/`#N,#M,...`; not a gate).
 
 **Cross-PR root-cause overlap report (refs #1579).** See `cross-pr-overlap-report.md`, this skill's directory (warning only, never a gate).
+
+**Near-duplicate candidate warning (refs #1944).** `queue-pull-script.md`'s final step runs
+`bin/lib/issues/near-duplicate.js`'s `findNearDuplicates` pairwise across every pair of records
+landing in *different* file-overlap groups, logging one `AUTO — dispatch: near-duplicate
+candidates across groups: #A / #B ({signals})` line per firing pair to stderr. Same-group pairs
+are already co-built together by Step 2's grouping and have nothing new to warn about. Warning
+only, never a gate — no selection change; a same-group pair (already covered by
+`groupByFileOverlap`) never re-fires here.
 
 **Bare (drain)** `/dispatch` — headless, no `AskUserQuestion` (skip this and the rest of Step 3 if the zero-groups case above applies). Resolve `{budget}`: `--budget <n|all>` if present (or its deprecated `--batch-size <n>`/`--concurrent <n>` aliases, each with its own notice), else `dispatch-batch-size` (or its deprecated `dispatch-pick-max-concurrent` key, same notice) — CLI arg beats project policy per `_shared/auto-mode-card.md`. `n` = attempt count; `all` drains to empty. `--budget` + `next`/`#N,#M,...`: **rejected with one notice** (bare-drain-only; `next` already means `--budget 1`).
 
@@ -126,16 +154,21 @@ Loop: run the `next` ranking below (`next-ranking.md` verbatim, oversized and th
 member and branch on its output; read `sibling-session-check.md` in this skill's directory and
 follow it.
 
+**Cross-PR overlap re-check against this drain's own in-flight PRs (refs #1985), for every group
+after the first.** Read `drain-pr-overlap.md`'s "Step 4" section, this skill's directory, and
+follow it before minting below — a warning only, never a gate.
+
 **Mint this group's run directory.** This group's **representative record** is its
 lowest-numbered member (the same rule `_shared/pr-early-run-lifecycle.md` already uses for a
 bundle's PR title). Run `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug
 "record-{representative}" --create` (`_shared/pipeline-run-dir.md`'s Anchoring section — mkdir
 only: no `config.yml`, no `decisions.md`, and no claim written here either). The directory's
-`{ISO-timestamp}` prefix is UTC, per `_shared/pipeline-run-dir.md`'s ISO-timestamp rule
+`{ISO-timestamp}` prefix is UTC, per `_shared/run-dir-resolution.md`'s ISO-timestamp rule
 (`date -u`) — `resolve-run-dir` mints it, this step never composes it by hand. Call the result
 `$GROUP_RUN_DIR`; `$GROUP_RUN_ID` is its basename. Log one line to this firing's own
-`decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted
-{$GROUP_RUN_DIR} for group [{issue list}].` A minted-but-never-claimed directory is reclaimed by
+`decisions.md` (Step 1's standalone dir, not this new one): `AUTO {time} — Step 4: minted {$GROUP_RUN_DIR} for group [{issue list}]{, naming it a fast-lane bundle when this group's member set
+matches an entry in dispatch-fastlane-bundles.json — see reporting.md for the full wording}.`
+A minted-but-never-claimed directory is reclaimed by
 the reconciler's archive sweep (`bin/lib/reconcile/archive-merged.js`'s `isOrphanedMint`
 criterion) once its TTL elapses.
 
@@ -186,6 +219,11 @@ Each group's two `Task()` prompts are defined in `task-prompt.md` in this skill'
 
 **Before either call, resolve `task-prompt.md`'s own "Context pack" section (#1542)** once per group, and substitute it into both templates' `{context-pack}` placeholder — read that section for what it resolves and why.
 
+**Record this group's own PR into the firing's drain-PR list (refs #1985).** Read
+`drain-pr-overlap.md`'s "Step 5" section, this skill's directory, and follow it once either Task
+call returns — this is the list Step 4's own re-check (above) reads for every group dispatched
+after this one.
+
 ### Step 6: Settle — on pipeline failure, and the Auto-merge gate
 
 Two conditional branches that don't run on the common clean pending-review path — a `/flow` HARD-GATE failure (Settle), or a group whose every member carries `auto:merge` or a matured `auto:merge-pending` reaching `/wrap-up`'s Review Console (Auto-merge gate). Read `settle-and-merge.md` in this skill's directory for the full procedure: Settle's ownership check, `assess-agent-autonomy` failure classification, retry-ceiling counting and `bot:blocked` escalation; the Auto-merge gate's two-layer check and acceptance labeling (both run inside the second Task call). Under `integration-model: pr-first` (`_shared/integration-model.md`), the second Task call also performs the merge itself, right there via `_shared/pr-first-merge.md` — `gh pr merge` needs no checkout, so there is no structural reason to split it out. Under `local-merge`, that split still applies: a Task-tool subagent cannot reach the main checkout (Step 5's sequential-execution note: cwd-pinned to its own worktree), so on `OUTCOME: ready-to-merge` this dispatching session runs the Dispatching-session merge execution (local-merge fallback) section itself, right here in Step 6, before entering the next group's worktree.
@@ -220,7 +258,7 @@ Render only when a human is present to answer — bare / `next` / `#N` / `#N,#M,
 
 `/claude-tweaks:dispatch` is never invoked as a pipeline component by another skill — a human runs one of its forms directly, or a scheduled Routine fires `/claude-tweaks:dispatch --budget 1` headlessly (see Routine Configuration above). See Next Actions above for the render/suppress rule.
 
-`$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/pipeline-run-dir.md`'s allowlist) purely to write its own `decisions.md` — the queue-pull/selection/minting audit trail for this firing, scoped to the firing as a whole (which may dispatch multiple groups in bare mode). That directory is distinct from the per-group run directory Step 4 mints, before `/flow`'s Step 2.8 claims it — the one that *becomes* the dispatched group's own `PIPELINE_RUN_DIR` once its first Task call invokes `/flow` and adopts it (`flow/steps-and-gates.md`'s Adopting-an-inherited-run-directory case 2). Unlike before, there is no separate identity to bridge between the two: the minted directory's basename is the claim's `runId` directly, passed on the Task call's command line, nothing parsed out of a report.
+`$PIPELINE_RUN_DIR` is not this skill's own state. Dispatch resolves its own standalone-auto run dir (per `_shared/run-dir-resolution.md`'s allowlist) purely to write its own `decisions.md` — the queue-pull/selection/minting audit trail for this firing, scoped to the firing as a whole (which may dispatch multiple groups in bare mode). That directory is distinct from the per-group run directory Step 4 mints, before `/flow`'s Step 2.8 claims it — the one that *becomes* the dispatched group's own `PIPELINE_RUN_DIR` once its first Task call invokes `/flow` and adopts it (`flow/steps-and-gates.md`'s Adopting-an-inherited-run-directory case 2). Unlike before, there is no separate identity to bridge between the two: the minted directory's basename is the claim's `runId` directly, passed on the Task call's command line, nothing parsed out of a report.
 
 ## Anti-Patterns
 
