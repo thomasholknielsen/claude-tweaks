@@ -92,7 +92,7 @@ test('applyVersion python: setup.py alone is enough; no stack manifest at all th
   const t = M.resolveTargets({ releaseType: 'python', extraFiles: [] });
   const run = (store) => {
     const writes = [];
-    M.applyVersion(t, '1.2.0', '1.3.0', (p) => (p in store ? store[p] : null), (p, text) => { writes.push(p); store[p] = text; });
+    M.applyVersion(t, '1.3.0', (p) => (p in store ? store[p] : null), (p, text) => { writes.push(p); store[p] = text; });
     return writes;
   };
   const setupOnly = { 'setup.py': "setup(version='1.2.0')\n" };
@@ -105,7 +105,7 @@ test('applyVersion python: setup.py alone is enough; no stack manifest at all th
   assert.deepStrictEqual(run(cfgOnly), ['setup.cfg']);
   const writes = [];
   assert.throws(
-    () => M.applyVersion(t, '1.2.0', '1.3.0', () => null, (p) => writes.push(p)),
+    () => M.applyVersion(t, '1.3.0', () => null, (p) => writes.push(p)),
     (e) => e instanceof M.ManifestError && /no stack manifest carried a version token \(looked for pyproject\.toml, setup\.py, setup\.cfg\)/.test(e.message),
   );
   assert.deepStrictEqual(writes, []);
@@ -142,14 +142,14 @@ test('applyVersion: writes only files that exist (optional targets skipped, text
   const store = { 'package.json': '{"version": "1.2.0"}\n' };
   const writes = [];
   const t = M.resolveTargets({ releaseType: 'node', extraFiles: [] });
-  const out = M.applyVersion(t, '1.2.0', '1.3.0', (p) => (p in store ? store[p] : null), (p, text) => { writes.push(p); store[p] = text; });
+  const out = M.applyVersion(t, '1.3.0', (p) => (p in store ? store[p] : null), (p, text) => { writes.push(p); store[p] = text; });
   assert.deepStrictEqual(writes, ['package.json']);
   assert.deepStrictEqual(out, [{ path: 'package.json', previous: '1.2.0' }]);
   assert.strictEqual(store['package.json'], '{"version": "1.3.0"}\n');
   const simple = M.resolveTargets({ releaseType: 'simple', extraFiles: [] });
   const s2 = {}; const w2 = [];
-  M.applyVersion(simple, null, '0.2.0', (p) => (p in s2 ? s2[p] : null), (p, text) => { w2.push(p); s2[p] = text; });
+  M.applyVersion(simple, '0.2.0', (p) => (p in s2 ? s2[p] : null), (p, text) => { w2.push(p); s2[p] = text; });
   assert.deepStrictEqual(w2, ['version.txt']);
   assert.strictEqual(s2['version.txt'], '0.2.0');
-  assert.throws(() => M.applyVersion(t, '1.2.0', '1.3.0', () => '{"name":"x"}', () => {}), /no version token/);
+  assert.throws(() => M.applyVersion(t, '1.3.0', () => '{"name":"x"}', () => {}), /no version token/);
 });

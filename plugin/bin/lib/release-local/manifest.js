@@ -8,6 +8,8 @@
 // JSON.parse+stringify, never a TOML re-emit — so a release diff shows one
 // token per file (spec: byte-preserving AC).
 
+const path = require('path');
+
 // Only genuine path absence reads as "no version here". A bad ref (`invalid
 // object name`) is a git error and propagates — unlike manifest-path.js's
 // NOT_FOUND_ERROR_RE, which folds both because its callers key on the
@@ -72,7 +74,16 @@ function resolveTargets({ releaseType, extraFiles = [] }) {
   // carry a version — `oneOf` names the set so applyVersion can say so before writing.
   const oneOf = stack.length > 0 && stack.every((t) => t.optional) ? stack.map((t) => t.path) : null;
   const stackTargets = oneOf ? stack.map((t) => ({ ...t, oneOf })) : stack;
-  return [{ path: MANIFEST_FILE, kind: 'manifest', optional: true }, ...stackTargets, ...extraFiles.map(extraFileTarget)];
+  // extra-files names paths the engine writes; the config must not be able to
+  // point those outside the repo it is releasing.
+  const extras = extraFiles.map(extraFileTarget);
+  for (const target of extras) {
+    const normalized = path.posix.normalize(String(target.path));
+    if (normalized.startsWith('..') || path.posix.isAbsolute(normalized)) {
+      throw new ManifestError(`extra-files path escapes the repo root: ${target.path}`);
+    }
+  }
+  return [{ path: MANIFEST_FILE, kind: 'manifest', optional: true }, ...stackTargets, ...extras];
 }
 
 function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -211,7 +222,7 @@ function firstVersion(targets, read) {
 function currentVersion(targets, readFile) { return firstVersion(targets, readFile); }
 function versionAtRef(targets, show) { return firstVersion(targets, show); }
 
-function applyVersion(targets, from, to, readFile, writeFile) {
+function applyVersion(targets, to, readFile, writeFile) {
   // Pre-pass, before any write: a one-of stack (python) with no member carrying a
   // version token is a misconfigured repo, and half a bumped manifest set on disk
   // is worse than nothing.

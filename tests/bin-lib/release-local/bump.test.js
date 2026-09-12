@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { bumpPart, nextVersionFor } = require('../../../plugin/bin/lib/release-local/bump.js');
+const { bumpPart } = require('../../../plugin/bin/lib/release-local/bump.js');
 
 const c = (type, breaking = false) => ({ type, breaking });
 
@@ -15,12 +15,4 @@ test('precedence: breaking > feat > fix > none', () => {
 
 test('an unconventional commit with a breaking footer still forces major', () => {
   assert.strictEqual(bumpPart([{ type: null, breaking: true }]), 'major');
-});
-
-test('nextVersionFor: major/minor/patch over the base, null for none', () => {
-  assert.strictEqual(nextVersionFor('1.2.3', 'major'), '2.0.0');
-  assert.strictEqual(nextVersionFor('1.2.3', 'minor'), '1.3.0');
-  assert.strictEqual(nextVersionFor('1.2.3', 'patch'), '1.2.4');
-  assert.strictEqual(nextVersionFor('0.1.0', 'minor'), '0.2.0');
-  assert.strictEqual(nextVersionFor('1.2.3', 'none'), null);
 });

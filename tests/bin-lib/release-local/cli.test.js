@@ -58,6 +58,29 @@ test('exit 2: unknown flag, and a repo with no release-please-config.json (boots
   assert.deepStrictEqual(b.state.writes, []);
 });
 
+test('exit 2: a config the engine cannot serve is a config error, not a git failure', () => {
+  const java = makeDeps({ files: { 'release-please-config.json': JSON.stringify({ packages: { '.': { 'release-type': 'java' } } }) } });
+  assert.strictEqual(run([], java.deps), 2);
+  assert.match(java.state.err, /release-type java/);
+  assert.match(java.state.err, /usage/);
+  assert.deepStrictEqual(java.state.writes, []);
+  const escapes = makeDeps({ files: { 'release-please-config.json': JSON.stringify({ packages: { '.': { 'release-type': 'simple', 'extra-files': ['../x.json'] } } }) } });
+  assert.strictEqual(run([], escapes.deps), 2);
+  assert.match(escapes.state.err, /extra-files path escapes the repo root: \.\.\/x\.json/);
+  assert.deepStrictEqual(escapes.state.writes, []);
+});
+
+test('exit 1: a `git remote get-url` failure that is NOT "no such remote" propagates, nothing written', () => {
+  const { deps, state } = makeDeps();
+  deps.git = ((orig) => (args) => {
+    if (args.join(' ') === 'remote get-url origin') { state.git.push(args.join(' ')); throw new Error('fatal: unexpected'); }
+    return orig(args);
+  })(deps.git);
+  assert.strictEqual(run([], deps), 1);
+  assert.match(state.err, /release-local: fatal: unexpected — nothing written/);
+  assert.deepStrictEqual(state.writes, []);
+});
+
 test('AC 1: --dry-run reports 1.3.0, three bullets, no hook, and writes nothing', () => {
   const { deps, state } = makeDeps();
   assert.strictEqual(run(['--dry-run'], deps), 0);

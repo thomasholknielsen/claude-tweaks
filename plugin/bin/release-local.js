@@ -66,8 +66,18 @@ function policyValue(deps, key) {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 }
 
+// Only "there is no origin" reads as no origin. Any other git failure here (a
+// broken config, a permissions error) propagates rather than silently
+// downgrading the run to the no-origin path, which would skip the push.
+const NO_ORIGIN_RE = /No such remote|not a git repository|does not appear to be a git repository/i;
+
 function remoteUrl(deps) {
-  try { return deps.git(['remote', 'get-url', 'origin']).trim() || null; } catch { return null; }
+  try {
+    return deps.git(['remote', 'get-url', 'origin']).trim() || null;
+  } catch (err) {
+    if (NO_ORIGIN_RE.test(String((err && err.message) || err))) return null;
+    throw err;
+  }
 }
 
 function planLines({ version, part, history, hook, edits, unconventional }) {
@@ -157,9 +167,9 @@ function run(argv, deps) {
       editedPaths.push(p);
       if (before === null || before === undefined) createdPaths.push(p);
     };
-    manifest.applyVersion(targets, current, version, deps.readFile, trackedWrite);
+    manifest.applyVersion(targets, version, deps.readFile, trackedWrite);
     trackedWrite('CHANGELOG.md', prependSection(deps.readFile('CHANGELOG.md'), section));
-    deps.git(['add', ...editedPaths]);
+    deps.git(['add', '--', ...editedPaths]);
     deps.git(['commit', '-m', `chore(release): v${version}`]);
     stage = 'committed';
     deps.git(['tag', '-a', `v${version}`, '-m', `v${version}`]);
@@ -181,6 +191,10 @@ function run(argv, deps) {
   } catch (err) {
     const message = String((err && err.message) || err);
     if (err instanceof UsageError) { deps.stderr(`${message}\n${USAGE}\n`); return 2; }
+    // A ManifestError before any write is a bad release-please-config.json —
+    // malformed, an unknown/unsupported release-type, an unsupported extra-files
+    // entry. That is a usage problem the operator fixes, not a git failure.
+    if (err instanceof manifest.ManifestError && stage === 'planning') { deps.stderr(`${message}\n${USAGE}\n`); return 2; }
     if (stage === 'planning') { deps.stderr(`release-local: ${message} — nothing written\n`); return 1; }
     if (stage === 'editing') {
       if (editedPaths.length === 0) { deps.stderr(`release-local: ${message} — nothing written\n`); return 1; }
