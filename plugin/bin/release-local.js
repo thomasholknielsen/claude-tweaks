@@ -111,6 +111,10 @@ function run(argv, deps) {
     branch = opts.branch || policyValue(deps, 'integration-branch') || 'main';
     guardReleasableTree(deps, { branch });
     hasOrigin = remoteUrl(deps) !== null;
+    // A remote whose <branch> was never pushed has no origin/<branch>: precheck's
+    // fetch would die with "couldn't find remote ref" on an otherwise valid first
+    // release. Probe once and treat it as origin-less for reading, not for pushing.
+    const remoteBranchExists = hasOrigin && deps.git(['ls-remote', '--heads', 'origin', branch]).trim() !== '';
 
     const history = conventionalHistory(deps.git);
     const part = bumpPart(history.commits);
@@ -121,7 +125,7 @@ function run(argv, deps) {
     const targets = manifest.resolveTargets(config);
     const current = manifest.currentVersion(targets, deps.readFile);
     const check = precheck(deps, part, {
-      keySource: 'tags', branch, hasOrigin,
+      keySource: 'tags', branch, hasOrigin: remoteBranchExists,
       versionAtRef: (ref) => manifest.versionAtRef(targets, (p) => deps.git(['show', `${ref}:${p}`])),
     });
     version = check.candidate;
@@ -136,6 +140,7 @@ function run(argv, deps) {
     const unconventional = history.commits.filter((c) => c.unconventional);
     const edits = targets.filter((t) => t.create || deps.readFile(t.path) !== null).map((t) => t.path);
     for (const line of planLines({ version, part, history, hook, edits, unconventional })) deps.stdout(`${line}\n`);
+    if (hasOrigin && !remoteBranchExists) deps.stdout(`origin: ${branch} is not on origin yet — first push\n`);
     if (history.lastTag && current && current !== history.lastTag.replace(/^v/, '')) {
       deps.stdout(`manifest-drift: manifest says ${current}, last tag is ${history.lastTag} — the tag is the version of record\n`);
     }
@@ -160,7 +165,7 @@ function run(argv, deps) {
     deps.git(['tag', '-a', `v${version}`, '-m', `v${version}`]);
     stage = 'tagged';
     if (hasOrigin) {
-      pushAfterAncestryCheck(deps, { branch, refs: [branch, `v${version}`], onDiverged: `origin/${branch} moved between pre-check and push` });
+      pushAfterAncestryCheck(deps, { branch, refs: [branch, `v${version}`], remoteBranchExists, onDiverged: `origin/${branch} moved between pre-check and push` });
       stage = 'pushed';
     }
     if (hook) {

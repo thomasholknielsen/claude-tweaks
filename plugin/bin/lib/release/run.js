@@ -15,7 +15,12 @@ function guardReleasableTree(deps, { branch = 'main' } = {}) {
   }
 }
 
-function pushAfterAncestryCheck(deps, { branch = 'main', refs = [branch], onDiverged }) {
+// `remoteBranchExists: false` — the branch is not on origin yet (release-local's
+// first release into a fresh remote, #2254): there is no origin/<branch> to fetch
+// or compare against, so the fetch would die with "couldn't find remote ref" and
+// the ancestry check would have nothing to check. Push straight out.
+function pushAfterAncestryCheck(deps, { branch = 'main', refs = [branch], onDiverged, remoteBranchExists = true }) {
+  if (!remoteBranchExists) { deps.git(['push', 'origin', ...refs]); return; }
   deps.git(['fetch', 'origin', branch]);
   try {
     deps.git(['merge-base', '--is-ancestor', `origin/${branch}`, 'HEAD']);

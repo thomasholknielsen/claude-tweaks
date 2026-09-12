@@ -190,3 +190,12 @@ test('pushAfterAncestryCheck: fetch → ancestry → push of every ref; divergen
   assert.throws(() => pushAfterAncestryCheck(diverged, { branch: 'main', refs: ['main'], onDiverged: 'origin moved — recover by hand' }), /origin moved — recover by hand/);
   assert.ok(!calls.includes('d:push'));
 });
+
+// #2254 F6: a branch that is not on origin yet has no origin/<branch> to fetch or
+// compare against — the fetch would die with "couldn't find remote ref".
+test('pushAfterAncestryCheck: remoteBranchExists:false pushes without the fetch or the ancestry check', () => {
+  const calls = [];
+  const deps = { git: (a) => { calls.push(a.join(' ')); return ''; } };
+  pushAfterAncestryCheck(deps, { branch: 'main', refs: ['main', 'v1.3.0'], remoteBranchExists: false, onDiverged: 'moved' });
+  assert.deepStrictEqual(calls, ['push origin main v1.3.0']);
+});

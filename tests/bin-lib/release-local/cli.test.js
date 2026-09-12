@@ -23,6 +23,7 @@ function makeDeps(o = {}) {
       if (key.startsWith('describe')) { if (o.noTag) throw new Error('fatal: No names found, cannot describe anything.'); return 'v1.2.0\n'; }
       if (key.startsWith('log --first-parent')) return LOG(o.subjects || ['fix: a', 'feat: b', 'fix: c']);
       if (key.startsWith('fetch')) return '';
+      if (key.startsWith('ls-remote --heads origin ')) return o.lsRemote === undefined ? `${SHA}\trefs/heads/${o.branch || 'main'}\n` : o.lsRemote;
       if (key.startsWith('show ')) { const p = key.slice(key.indexOf(':') + 1); if (p in state.files) return state.files[p]; throw new Error(`fatal: path '${p}' does not exist`); }
       if (key === 'worktree list --porcelain') return o.worktrees || 'worktree /repo\nbranch refs/heads/main\n';
       if (key === 'tag -l v*') return o.tags === undefined ? 'v1.2.0\n' : o.tags;
@@ -213,6 +214,15 @@ test('no origin: no fetch, no push, unlinked CHANGELOG heading, still exit 0', (
   assert.strictEqual(run([], deps), 0);
   assert.ok(!state.git.some((c) => /^(fetch|push|merge-base)/.test(c)));
   assert.match(state.files['CHANGELOG.md'], /^# Changelog\n\n## 1\.3\.0 \(2026-09-12\)\n/);
+});
+
+test('origin exists but the branch was never pushed: no fetch, no ancestry check, branch + tag still pushed', () => {
+  const { deps, state } = makeDeps({ lsRemote: '' });
+  assert.strictEqual(run([], deps), 0);
+  assert.ok(!state.git.some((c) => c.startsWith('fetch') || c.startsWith('merge-base')), state.git.join(' | '));
+  assert.ok(state.git.includes('push origin main v1.3.0'), state.git.join(' | '));
+  assert.match(state.out, /^origin: main is not on origin yet — first push$/m);
+  assert.match(state.out, /released v1\.3\.0/);
 });
 
 test('integration-branch policy selects the branch; --branch overrides it', () => {
