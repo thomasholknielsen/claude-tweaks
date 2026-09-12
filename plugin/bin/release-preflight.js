@@ -1,0 +1,113 @@
+#!/usr/bin/env node
+// plugin/bin/release-preflight.js — /claude-tweaks:release Step 1's fact pack
+// (#2255): engine, last tag, unreleased commits, proposed version, open
+// release PR, CI on the tip, human-edited release PR, hook presence — one
+// process, one JSON, per-field {ok, value | error} envelopes. Read-only apart
+// from the pack file. Exit 0 whenever the pack was produced (a degraded
+// field is data the skill acts on, never an exit code), 2 on a malformed
+// invocation, 3 when --run / PIPELINE_RUN_DIR does not resolve under the
+// main checkout ([IL-127]/[IL-150] — decided on the real path) or the cwd is
+// not inside a git checkout at all. With no run dir the pack goes to a fresh
+// scratch directory under the system temp dir (run-directory-fact-packs'
+// documented fallback); its path is printed on stderr.
+'use strict';
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { execFileSync } = require('child_process');
+const { gatherReleasePreflight, PROBE_NAMES } = require('./lib/release-preflight/pack');
+const { resolveTarget } = require('./lib/stage-item/write');
+const { safeReal } = require('./lib/hooks/worktree-detect');
+const { writeFileAtomic } = require('./lib/atomic-write');
+
+const USAGE = 'usage: release-preflight.js [--run <dir>] [--json <path>] [--only <probe,...>]';
+const FILE = 'release-preflight.json';
+
+class UsageError extends Error {}
+
+function parseArgs(argv) {
+  const out = { run: null, json: null, only: null };
+  for (let i = 0; i < argv.length; i++) {
+    const flag = argv[i];
+    const value = argv[i + 1];
+    if (flag === '--run' || flag === '--json' || flag === '--only') {
+      if (value === undefined || value.startsWith('--')) throw new UsageError(`${flag} requires a value`);
+      if (flag === '--only') {
+        const names = value.split(',').map((s) => s.trim()).filter(Boolean);
+        const bad = names.find((n) => !PROBE_NAMES.includes(n));
+        if (bad) throw new UsageError(`unknown probe: ${bad} (known: ${PROBE_NAMES.join(', ')})`);
+        out.only = names;
+      } else {
+        out[flag.slice(2)] = value;
+      }
+      i += 1;
+      continue;
+    }
+    throw new UsageError(`unknown flag: ${flag}`);
+  }
+  return out;
+}
+
+function insideGitCheckout(cwd) {
+  try { execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); return true; } catch { return false; }
+}
+
+async function run(argv, deps = {}) {
+  const cwd = deps.cwd || (() => process.cwd());
+  const env = deps.env || process.env;
+  const stdout = deps.stdout || ((s) => process.stdout.write(s));
+  const stderr = deps.stderr || ((s) => process.stderr.write(s));
+  const mkdtemp = deps.mkdtemp || ((prefix) => fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
+  const inCheckout = deps.insideGitCheckout || insideGitCheckout;
+  let o;
+  try { o = parseArgs(argv); } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    stderr(`release-preflight.js: ${err.message}\n${USAGE}\n`);
+    return 2;
+  }
+  if (!inCheckout(cwd())) {
+    stderr('release-preflight.js: not inside a git checkout — nothing written\n');
+    return 3;
+  }
+  // --run, else PIPELINE_RUN_DIR, else a fresh scratch dir. Both explicit
+  // sources must resolve under the main checkout (exit 3), exactly as the
+  // sibling packs demand; the scratch fallback is what the pattern permits
+  // when no run directory exists to anchor to.
+  let dir;
+  let scratch = false;
+  const requested = o.run || env.PIPELINE_RUN_DIR || null;
+  if (requested) {
+    const target = resolveTarget({ runDir: requested, cwd: cwd(), mainRoot: deps.mainRoot });
+    if (!target.ok) {
+      stderr(`release-preflight.js: run dir ${requested} refused (${target.reason === 'missing' ? 'missing' : 'not anchored under the main checkout'}) — nothing written\n`);
+      return 3;
+    }
+    dir = target.dir;
+  } else {
+    dir = mkdtemp('release-preflight-');
+    scratch = true;
+  }
+  let file = path.join(dir, FILE);
+  if (o.json) {
+    const wanted = path.resolve(cwd(), o.json);
+    const parent = safeReal(path.dirname(wanted));
+    if (!parent || !resolveTarget({ runDir: parent, cwd: cwd(), mainRoot: deps.mainRoot }).ok) {
+      stderr(`release-preflight.js: --json ${o.json} refused (its directory does not resolve under the main checkout) — nothing written\n`);
+      return 3;
+    }
+    file = path.join(parent, path.basename(wanted));
+  }
+  const pack = await gatherReleasePreflight({ cwd: cwd(), only: o.only, deps: deps.packDeps || {} });
+  const text = `${JSON.stringify(pack, null, 2)}\n`;
+  writeFileAtomic(file, text);
+  if (scratch) stderr(`release-preflight.js: no run directory resolved — ${FILE} written to ${file}\n`);
+  stdout(text);
+  return 0;
+}
+
+if (require.main === module) {
+  run(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (err) => { process.stderr.write(`release-preflight.js: ${err && err.stack ? err.stack : err}\n`); process.exitCode = 2; });
+}
+
+module.exports = { run, parseArgs, USAGE };
