@@ -5,6 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { gitRepo, fixtureGit } = require('../../helpers/git-fixtures.js');
@@ -38,6 +39,27 @@ function bootstrapped(version) {
   });
   return root;
 }
+
+// A bare repo wired up as `origin`, with `main` deliberately never pushed — the
+// shape a project has on its very first release into a fresh remote (#2254 F6).
+function bareOrigin(root) {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ct-origin-')));
+  fixtureGit(['init', '--bare', '-q', dir]);
+  fixtureGit(['-C', root, 'remote', 'add', 'origin', dir]);
+  return dir;
+}
+
+// A bootstrapped-but-untagged repo with that origin and a release-hook policy.
+function withOriginAndHook() {
+  const root = bootstrapped('1.2.0');
+  bareOrigin(root);
+  fs.mkdirSync(path.join(root, '.claude-tweaks'), { recursive: true });
+  fs.writeFileSync(path.join(root, '.claude-tweaks', 'policy.yml'), 'release-hook: "touch hook-ran.txt"\n');
+  commit(root, 'feat: one');
+  return root;
+}
+
+const lsRemote = (root, kind, ref) => fixtureGit(['-C', root, 'ls-remote', kind, 'origin', ...(ref ? [ref] : [])]).toString();
 
 function tagged(version) {
   const root = bootstrapped(version);
@@ -103,6 +125,32 @@ test('AC 7: no prior v* tag → the full first-parent history, base from the see
   const r = runCli(root, ['--dry-run']);
   assert.strictEqual(r.code, 0, r.stderr);
   assert.match(r.stdout, /v0\.2\.0 \(minor\) from no prior tag/);
+});
+
+test('origin exists but main was never pushed: the first release pushes branch + tag and runs the release-hook', () => {
+  const root = withOriginAndHook();
+  const r = runCli(root);
+  assert.strictEqual(r.code, 0, r.stderr);
+  assert.match(r.stdout, /origin: main is not on origin yet — first push/);
+  assert.match(r.stdout, /hook: touch hook-ran\.txt/);
+  assert.match(lsRemote(root, '--tags'), /refs\/tags\/v1\.3\.0/);
+  assert.match(lsRemote(root, '--heads', 'main'), /refs\/heads\/main/);
+  assert.ok(fs.existsSync(path.join(root, 'hook-ran.txt')), 'the release-hook must run after the push');
+  assert.strictEqual(fixtureGit(['-C', root, 'status', '--porcelain', '--untracked-files=no']).toString(), '');
+});
+
+test('a second release on the same repo advances both refs on the remote (the ancestry-checked path)', () => {
+  const root = withOriginAndHook();
+  assert.strictEqual(runCli(root).code, 0);
+  commit(root, 'fix: two');
+  const r = runCli(root);
+  assert.strictEqual(r.code, 0, r.stderr);
+  assert.ok(!r.stdout.includes('is not on origin yet'), r.stdout);
+  const head = fixtureGit(['-C', root, 'rev-parse', 'HEAD']).toString().trim();
+  assert.strictEqual(lsRemote(root, '--heads', 'main').split('\t')[0], head);
+  const tags = lsRemote(root, '--tags');
+  assert.match(tags, /refs\/tags\/v1\.3\.0/);
+  assert.match(tags, /refs\/tags\/v1\.3\.1/);
 });
 
 test('a first-parent merge keeps branch commits out of the plan (design stance 3)', () => {
