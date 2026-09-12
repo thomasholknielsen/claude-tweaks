@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-12T07:15:45.949Z",
+  "computedAt": "2026-09-12T07:53:02.709Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -270,7 +270,7 @@
       },
       {
         "number": 1887,
-        "updatedAt": "2026-09-12T04:50:33Z",
+        "updatedAt": "2026-09-12T07:19:18Z",
         "state": "OPEN"
       },
       {
@@ -280,12 +280,12 @@
       },
       {
         "number": 1884,
-        "updatedAt": "2026-09-12T04:50:29Z",
+        "updatedAt": "2026-09-12T07:19:13Z",
         "state": "OPEN"
       },
       {
         "number": 1883,
-        "updatedAt": "2026-09-12T04:50:26Z",
+        "updatedAt": "2026-09-12T07:19:07Z",
         "state": "OPEN"
       },
       {
@@ -2468,278 +2468,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`backlog/SKILL.md`'s Input routing loads two different procedures for one command: bare `refine` → `refine-mode.md` (fetch, Priority/Related synthesis, grant-check, body-shape re-verification, then Step 4's lanes in the precedence Re-authorize → Grant → Flag-back → Needs-decision → Priority → Dependency repair → Needs you, one batch confirm, Step 5 apply); `refine #N[,#M...]` → `refine-record.md`'s per-record decision resolver (fetch the named records' unresolved `<!-- needs-decision: … -->` comments and `bot:blocked` state, one batch table, one confirm, apply with its own write mechanics, then strip `needs:decision`). `refine-record.md` states the split explicitly: \"`refine-mode.md`'s whole-queue sweep never loads this file, and this file never runs that sweep\", and gives the reason — `refine-mode.md` sits at the 40,960-byte per-file ceiling (36,761 bytes today; `refine-lanes.md` 28,799; `refine-record.md` 13,298).\n\nThe sweep's Needs-decision lane is the *producer* side only: it stamps `needs:decision` on records `grant-check` refused, and `grant-lane-decision.md`'s idempotence check renders one annotation line and writes nothing for a record that already carries an unresolved proposal. So a bare sweep never resolves an existing proposal, and the resolver never grants. `attention-mode.md` encodes the split in its launchers: `needs:decision` rows say `run /claude-tweaks:backlog refine #{n} — proposed: …`, `shaped:headless (no grant)` rows say `run /claude-tweaks:backlog refine to grant via the sweep's Grant lane`, and the file notes the resolver \"has no grant path for a `shaped:headless`-only row\". Neither form's closing summary names the rows it skipped or the other command.\n\nObserved on plugin 6.114.1 after a sweep: 15 attention rows (8 `needs:decision`, 7 `shaped:headless`) needed two invocations with non-overlapping effects, and the wrong order makes the bare sweep annotate around records the resolver would clear a minute later.\n\nHeadless posture (`refine-headless.md`, `--source routine|sweep`) runs the labeling lanes and the grant chain without a click; it never resolves proposals, which is correct — those are human decisions. Tests: `tests/backlog-refine-headless.test.js`, `backlog-refine-closing-render.test.js`, `backlog-refine-body-reverify.test.js`, `backlog-refine-reverify-before-write.test.js`.\n\n## Deliverables\n\n- [ ] **One procedure, `#N` as a filter.** `backlog/SKILL.md` Input routing: `refine [#N[,#M...]]` loads `refine-mode.md` in every case; a `#N` list narrows the worklist (every lane's population) to the named records instead of selecting a different mode. `--reset-breaker` stays the standalone form it is today.\n- [ ] **A Resolve lane in the sweep.** `refine-mode.md` Step 1 gains the resolver's detection as one more worklist population (records with an unresolved `<!-- needs-decision: … -->` comment from any producer — backlog-refine, specify, tidy — and records carrying `bot:blocked`), and Step 4's precedence becomes Resolve → Re-authorize → Grant → Flag-back → Needs-decision → Priority → Dependency repair → Needs you. The lane's rendering and write mechanics stay in `refine-record.md` (retitled as the Resolve lane's sub-file, still holding `--reset-breaker`), which Step 4 now reads for that lane; `refine-lanes.md` gains only the `## Resolve` heading with the proposal-pre-filled row shape and a pointer. `refine-mode.md`'s additions stay under 2 KB so the file remains beneath its ceiling.\n- [ ] **One confirm, two blast radii.** The existing single `AskUserQuestion` covers the Resolve lane too; its options fold in the resolver's \"Apply all recommended / re-authorize\" semantics. Resolve rows and Grant rows render as visually distinct lanes with distinct `[auto-applied]` stamping under `refineAutoApply` (the write shapes differ: applying a stated proposal vs. granting `auto:*`).\n- [ ] **Headless posture skips Resolve, aloud.** `refine-headless.md`: the Resolve lane never applies without a human; under `--source routine|sweep` it renders nothing and the closing summary names the count with `run /claude-tweaks:backlog refine` as the drain command.\n- [ ] **Closing summary names what was skipped.** `refine-closing-summary.md`: when a `#N` filter excluded rows, or posture skipped the Resolve lane, one line each names the skipped rows and the exact command that handles them. This is the record's fallback alternative folded in, so a partial invocation is never silent.\n- [ ] **Attention launchers stay valid.** `attention-mode.md`: `refine #{n}` and bare `refine` both still work as launchers (the former is now a filter); update the `shaped:headless` row's explanatory clause, which says the per-record form has no grant path, to say the filtered form grants too.\n- [ ] **Tests.** Prose pins sized like `backlog-refine-headless.test.js`: SKILL.md routing loads `refine-mode.md` for both forms; Step 4 precedence names Resolve first; `refine-record.md` is read from Step 4 and no longer claims the sweep never loads it; `refine-headless.md` states the Resolve skip and its summary line; `refine-closing-summary.md` carries the skipped-rows lines; `refine-mode.md` byte size stays below 40,960 (assert on file length).\n\n## Acceptance Criteria\n\n1. `/claude-tweaks:backlog refine` on a queue holding both unresolved proposals and ungranted `shaped:headless` records renders one confirm covering a Resolve lane and a Grant lane, and one apply pass resolves the proposals and grants what was approved.\n2. `/claude-tweaks:backlog refine #N` on a record with an unresolved proposal renders the same lanes restricted to #N, and the closing summary names how many rows were excluded by the filter and the bare command that covers them.\n3. `/claude-tweaks:backlog refine --source sweep` (and `routine`) applies no Resolve row, and its closing summary names the Resolve count with the human command.\n4. `refine-mode.md` is under 40,960 bytes after the change; `refine-record.md` no longer states that the sweep never loads it.\n5. `attention-mode.md`'s launchers still point at working forms and the `shaped:headless` clause is corrected.\n6. `npm test` green; the four existing backlog-refine test files pass with only additive assertions.\n7. Replaying the reported 15-row queue in a fixture drains in one confirm; quoted in the PR description.\n\n## Technical Approach\n\nFold the resolver into the sweep as a lane, not the sweep into the resolver: the sweep already owns the fetch, the single confirm, `refineAutoApply`, and the closing summary, so the resolver contributes only a population and a write shape. Keep the resolver's text where it is to respect the byte ceiling, and make `refine-mode.md` cite it the way Step 4 already cites `refine-lanes.md`. The headless boundary is the one design constraint to hold: proposals are resolved by humans only, so the lane exists in every render but applies only human-present.\n\n### Key Files\n\n- `plugin/skills/backlog/SKILL.md` — Input routing: `#N` is a filter, one procedure\n- `plugin/skills/backlog/refine-mode.md` — Step 1 Resolve population; Step 4 precedence; Step 5 pointer for Resolve writes (additions under 2 KB)\n- `plugin/skills/backlog/refine-record.md` — retitle to the Resolve lane sub-file; drop the never-loaded-by-the-sweep claim; keep `--reset-breaker`\n- `plugin/skills/backlog/refine-lanes.md` — `## Resolve` heading, row shape, pointer\n- `plugin/skills/backlog/refine-headless.md` — Resolve skip and summary line\n- `plugin/skills/backlog/refine-closing-summary.md` — skipped-rows lines\n- `plugin/skills/backlog/attention-mode.md` — `shaped:headless` clause\n- `tests/backlog-refine-headless.test.js` and siblings — prose pins; byte-size assertion for `refine-mode.md`\n\n## Gotchas\n\n- Byte ceiling first: measure `refine-mode.md` before authoring (36,761 today); every addition there is a pointer, and the lane's procedure lives in `refine-record.md`.\n- The resolver's rule that resolving `needs:decision` never touches a co-occurring `bot:blocked` (and vice versa) must survive the fold; keep two rows per record when both apply.\n- `grant-lane-decision.md`'s idempotence annotation for already-proposed records stays in the Needs-decision (producer) lane; the Resolve lane is where those same records now get a row, so the annotation must point at the Resolve row rather than say \"writes nothing this run\".\n- Sweep/routine firings must never resolve proposals; the headless test pins that the Resolve lane has no headless apply path.\n- `docs/skill-graph.md` edges for `/backlog` do not change (no new skill relationships); do not add a row there.\n\n## Original request\n\n**Summary:** `backlog attention` unifies *discovery* of everything a human owes into one ranked list, but *acting* on that list is split across two forms of the same command that cannot substitute for each other — bare `refine` (labeling lanes + grant lane, skips any record carrying `needs:decision`) and `refine #N[,#M...]` (resolves `needs:decision`/`bot:blocked` proposals only, no grant lane) — so a human has to know which label each row carries to pick the right invocation.\n\n**Kind:** Gap\n\n**Affected component:** `/claude-tweaks:backlog` — `refine-mode.md` (bare sweep), `refine-record.md` (per-record resolver), `attention-mode.md` (the list both are meant to drain)\n\n**Use case:** After a `/claude-tweaks:sweep` in a private project, `backlog attention` listed 15 actionable rows: 8 carrying `needs:decision` (each with a \"proposed: …\" line from the headless grant chain or tidy) and 7 `shaped:headless (no grant)`. Draining that list takes two invocations with non-overlapping effects: `refine #N,#M,...` acts on the 8 proposals but reports nothing to do for the 7 ungranted specs; bare `refine` grant-checks the 7 but only renders an annotation for the 8 and moves on (`grant-lane-decision.md`'s idempotence check). Run in the wrong order, the bare sweep annotates around records the list form would have cleared a minute later. Nothing in either form's output tells the human the other form exists for the rows it skipped, and the attention table's per-row launchers are the only place the split is visible.\n\nProposed: one `refine` entry point that drains the whole attention list — the per-record decision rows rendered as their own lane (proposal pre-filled, one choice per row, same write mechanics as `refine-record.md` today) alongside the existing Grant/Priority/Related/Flag-back lanes, under the existing single batch-confirm. The `#N[,#M...]` form can stay as a scoped filter over the same unified render rather than a different mode. The two write shapes have different blast radius (applying a stated proposal vs. mass-granting `auto:build`/`auto:merge`), so they should stay visually distinct lanes with distinct `[auto-applied]` stamping under `refineAutoApply`, but not distinct commands. Alternative if the split is deliberate: make each form's report name the rows it skipped and the exact other-form command that handles them.\n\n**Definition:** Clear\n\n**Plugin version:** 6.114.1\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-748f72c0 -->\n\n",
-        "createdAt": "2026-09-05T09:00:28Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-KA",
-            "name": "enhancement",
-            "description": "New feature or request",
-            "color": "a2eeef"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2oaA",
-            "name": "type:feature",
-            "description": "Type: new capability or enhancement",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1887,
-        "state": "OPEN",
-        "title": "backlog refine: bare sweep and refine #N are two disjoint action surfaces for one human-owed list",
-        "updatedAt": "2026-09-12T04:50:33Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n`backlog/attention-mode.md` Step 4 renders one launcher per row in the Recommended-action column and closes with a single `Pick up next: #{n} …` line. Nothing groups the rows by the command the human will run, so a 19-row table (the reporter's case: 10 `needs:decision`, 7 `shaped:headless (no grant)`, 2 `needs:definition`) offers 19 per-row commands plus one pick, when three commands would cover it: `/claude-tweaks:backlog refine #a,#b,…` for the decision rows (`backlog/SKILL.md`'s `argument-hint` accepts `[#N[,#M...]]` and `refine-record.md`'s per-record resolver takes the list), bare `/claude-tweaks:backlog refine` once for the headless-shaped rows (the Grant lane is ref-less, per the render text's own \"never `refine #{n}`\" rule for that type), and one `/claude-tweaks:specify #{n}` line per `needs:definition` row (`specify/SKILL.md`'s batch branch fails the whole invocation on a `needs:definition` element by design). `tidy/step-6-auto.md`'s \"Yours grouping (by the command the human runs)\" already states the rule that produces exactly this — group by the leading command key, read the target skill's `argument-hint` at render time, close a batchable group with one batch line, a single-ref group with a paste block, a ref-less group with one line — so attention mode is the inconsistent surface.\n\n`sweep/SKILL.md`'s `## Next Actions` inherits the gap: it surfaces `tidy --approve`, `dispatch`, and `backlog attention`, with the needs-you launcher slot carrying only the single top pick, so a sweep that ends with a full attention table hands the human one record's command.\n\n## Deliverables\n- [ ] `backlog/attention-mode.md` Step 4 gains a `### Batch launchers` block between the table and the `Pick up next` line, rendered per `tidy/step-6-auto.md`'s Yours grouping rule by reference (cite it; do not restate the key derivation or group order): group heads `{command} ({k})` with their record numbers, then one batch line for a batchable target (`/claude-tweaks:backlog refine #a,#b,…` for `needs:decision`, `bot:blocked`, and the generic `needs:*` catch-all rows), one ref-less line for the Grant lane (`/claude-tweaks:backlog refine` for `shaped:headless (no grant)` rows), and a paste block (one command per record) for `/claude-tweaks:specify` (`needs:definition` — named explicitly as never batched, with the specify batch-rejection rule as the reason) and `/claude-tweaks:challenge` (`solution:unjustified`, single-ref by its `argument-hint`). A `needs:definition + solution:unjustified` row contributes one line to each of those two paste blocks.\n- [ ] The per-row Recommended-action column is unchanged (the conformance pins in `tests/backlog-attention-rows.test.js` for the three launchers stay green), and `Pick up next` still renders last; the block is omitted when the table is empty.\n- [ ] `sweep/SKILL.md` `## Next Actions`: the needs-you slot renders attention's batch-launcher lines (one per group, in that block's order) instead of a single top-pick launcher, under both orderings (tidy-staged-first and the original), with the same bold/recommended rule applied to the first line only; the file's Step 4 text says the lines are taken verbatim from attention's block, never re-derived.\n- [ ] Tests: `tests/backlog-attention-rows.test.js` pins the new block's heading, the batch-line rule for `needs:decision`, the ref-less line for `shaped:headless`, and the never-batched paste-block rule for `needs:definition`; `tests/sweep-orchestrator.test.js` pins that `## Next Actions` cites attention's batch-launcher block.\n\n## Acceptance Criteria\n1. For the reporter's 19-row shape the block renders exactly three groups: one `backlog refine #…` batch line naming all 10 decision records, one bare `backlog refine` line, and a two-line `specify` paste block.\n2. A table with only `solution:unjustified` rows renders one `challenge` paste block and no batch line; a `needs:definition + solution:unjustified` row appears in both the `specify` and `challenge` blocks.\n3. Sweep's `## Next Actions` carries the same lines verbatim; the top slot's bold/recommended treatment follows the existing tidy-staged rule.\n4. Every existing assertion in `tests/backlog-attention-rows.test.js` passes unmodified; the new pins pass; `npm test` is green.\n\n## Technical Approach\nReuse, not a second grouping rule: the Yours grouping section is the one place the command-key derivation, group order, and batchable/single-ref/ref-less split live, and it already reads `argument-hint` at render time so a skill gaining a batch form shortens both renders with no edit. Attention's block cites that section and adds only the two attention-specific facts (the Grant lane is ref-less; `needs:definition` is never batched). Sweep copies the rendered lines rather than re-grouping, keeping its Step 4 free of attention's row logic as its own text requires (\"any future change to attention's row types or ranking must need no edit in this file\").\n\n### Key Files\n- `plugin/skills/backlog/attention-mode.md` — Step 4 Render (table, launcher rules, `Pick up next`, empty-table branch).\n- `plugin/skills/tidy/step-6-auto.md` — \"Yours grouping (by the command the human runs)\" (read-only; cited).\n- `plugin/skills/sweep/SKILL.md` — Step 4 item 2 and `## Next Actions` (both orderings).\n- `plugin/skills/backlog/SKILL.md`, `plugin/skills/specify/SKILL.md`, `plugin/skills/challenge/SKILL.md` — `argument-hint` frontmatter (read at render time).\n- `tests/backlog-attention-rows.test.js`, `tests/sweep-orchestrator.test.js`.\n\n## Gotchas\n- #1887 (shaped this sweep) makes `refine #N` a per-record filter with a Resolve-first lane; the batch line here is that same form with a comma list, so the two records agree and neither blocks the other.\n- The multi-record shorthand ban in tidy's rule (`(and N more)`, `et al.`) applies here too; a group's records are listed in full on the head line or the batch line, never elided.\n- The ref-less Grant lane line renders only when its group has at least one `shaped:headless (no grant)` row; no other row type routes to bare `refine` today.\n- `docs/skill-graph.md` needs no new edge: attention already routes to `backlog refine`, `specify`, and `challenge`; sweep already invokes attention.\n\n## Original request\n**Summary:** `backlog attention` renders one launcher per row and a single \"Pick up next\" line; it never emits a batch command per launcher group, even though `refine #N[,#M...]` and bare `refine` cover most rows in one call, and tidy's own Yours section already implements exactly that grouping rule.\n\n**Kind:** Gap\n\n**Affected component:** `backlog/attention-mode.md` (Step 4 Render); `/claude-tweaks:sweep`'s Next Actions precedence (surfaces only the top pick)\n\n**Use case:** After a `/claude-tweaks:sweep` run in a private project, the attention table held 19 rows: 10 `needs:decision`, 7 `shaped:headless (no grant)`, 2 `needs:definition`. The user asked for \"a simple command to go with all the recommended actions in the table\". The answer is three commands, but nothing renders them: `/claude-tweaks:backlog refine #a,#b,...` (the per-record resolver accepts a comma list — `backlog/refine-record.md`) covers all 10 decision rows; bare `/claude-tweaks:backlog refine` (one Grant lane with one batch-confirm) covers all 7 headless-shaped rows; the 2 `needs:definition` rows must stay one-per-command because specify's batch form rejects `needs:definition` elements by design. `tidy/step-6-auto.md`'s Yours grouping rule already does this — group rows by the launcher's command key, read the target skill's `argument-hint` to decide batch line vs paste block — so attention mode is the inconsistent surface. Proposed: reuse that grouping rule in attention's Step 4 render (a batch line under each launcher group; `needs:definition` and `solution:unjustified` explicitly render as paste blocks, one line per record), and let sweep's Next Actions carry the group batch lines rather than only the single \"Pick up next\" launcher.\n\n**Definition:** Clear\n\n**Plugin version:** 6.114.1\n\n\n",
-        "createdAt": "2026-09-05T08:32:51Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-KA",
-            "name": "enhancement",
-            "description": "New feature or request",
-            "color": "a2eeef"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2oaA",
-            "name": "type:feature",
-            "description": "Type: new capability or enhancement",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1884,
-        "state": "OPEN",
-        "title": "backlog attention: no per-group batch launcher lines, unlike tidy's Yours grouping",
-        "updatedAt": "2026-09-12T04:50:29Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`sweep/SKILL.md` Step 1 invokes `/claude-tweaks:tidy --source sweep`; tidy's Component-Skill Contract says that under that flag findings stage to the shared `staged/`, entries log to the shared `decisions.md`, and tidy suppresses its own report and `## Next Actions`, returning counts to the parent. Sweep's Step 4 then (1) invalidates the snapshot, (2) executes `backlog/attention-mode.md` Steps 1-4 as its first output block, and (3) renders its `## Next Actions` and logs a summary line. Attention's Tidy row is, by design, one line — `{count} tidy proposal(s) staged awaiting approval — run /claude-tweaks:tidy --approve` — computed from the newest `*-tidy-standalone*`/`*-sweep-standalone*` run dir's `staged/`. Nothing between these steps renders the staged items.\n\n`tidy/step-6-auto.md` mandates the opposite for a standalone run: the Approve section is \"the click surface, nothing approved unseen\", rendered in a three-line-per-item shape, kept in full even when the condense rule (report over 40 lines → full report to `{run-dir}/report.md`, condensed report in chat) collapses everything else, and lint-checked by `bin/tidy-report-lint.js --surface=full|condensed` before sending. Under `--source sweep` the chat copy is suppressed and only `report.md` is written; the user is never pointed at it.\n\nObserved on plugin 6.114.1: a sweep staged four proposals (17 remote-branch deletions, 2 claim releases, 3 registry rows, 6 run-dir archivals) and the close-out printed the bare count; the user had to ask what approval would do. Adjacent, already closed: #1822 (ordering of the `tidy --approve` line in sweep's Next Actions).\n\nTests: `tests/sweep-orchestrator.test.js` pins sweep's three component calls, the invalidation repeats, and failure propagation; `tests/tidy-report-rules.test.js` pins the report rules and the lint.\n\n## Deliverables\n\n- [ ] **Tidy persists the click surface under sweep.** `tidy/step-6-auto.md`: under `--source sweep`, in addition to `{run-dir}/report.md`, write the condensed report (or the whole report when the condense rule did not fire) to `{run-dir}/report-condensed.md`, lint-clean under `--surface=condensed` with the `Full report: {relative run-dir path}/report.md` footer; suppress only the chat send and `## Next Actions`. `tidy/SKILL.md`'s Component-Skill Contract sentence changes from \"suppresses its report\" to \"writes it to the run dir for the parent to inline\".\n- [ ] **Sweep inlines it.** `sweep/SKILL.md` Step 4 gains a step between the attention render and `## Next Actions`: when `{run-dir}/staged/` is non-empty, render `{run-dir}/report-condensed.md`'s Approve section verbatim as a `## Staged for approval` block (falling back to `report.md`'s Approve section when the condensed file is absent), so every staged item appears in tidy's three-line shape with its command; when `staged/` is empty, render nothing. State that attention's Tidy row stays the one-line count (it is a cross-run summary; sweep's block is the run's own click surface), so the items render once.\n- [ ] **Run the lint on what sweep sends.** Sweep's close-out runs `node \"${CLAUDE_PLUGIN_ROOT}/bin/tidy-report-lint.js\" --surface=condensed` over the block it is about to inline and fixes findings before sending, the same pre-send scan `step-6-auto.md` mandates.\n- [ ] **Tests.** `tests/sweep-orchestrator.test.js`: Step 4 names `report-condensed.md`, the `## Staged for approval` block, the empty-`staged/` omission, and the lint call, positioned after the attention render and before `## Next Actions`. `tests/tidy-report-rules.test.js` (or a sibling): `step-6-auto.md` states the `--source sweep` persistence and `tidy/SKILL.md`'s contract sentence no longer says the report is suppressed.\n\n## Acceptance Criteria\n\n1. A `/claude-tweaks:sweep` run whose tidy step stages one or more items prints, after the attention block and before `## Next Actions`, a `## Staged for approval` block listing every staged item in tidy's three-line shape with its command; a run that stages nothing prints no such block.\n2. `{run-dir}/report-condensed.md` exists after tidy's Step 6 under `--source sweep` and passes `tidy-report-lint.js --surface=condensed`; `report.md` is still written.\n3. `tidy/SKILL.md`'s Component-Skill Contract no longer says the report is suppressed under sweep; `step-6-auto.md` names the persisted file and the parent's inline duty once.\n4. `attention-mode.md`'s Tidy row is unchanged.\n5. `npm test` green; the existing sweep and tidy-report tests pass with only the new assertions added.\n6. This sweep run (`2026-09-09T145100-sweep-standalone`) is the worked example: its `report-condensed.md` and staged set are quoted in the PR description as the block the new step would have printed.\n\n## Technical Approach\n\nPersist-then-inline rather than duplicate: tidy already composes and lints the exact block; the only missing hops are writing it to the run dir under sweep and having sweep read it back. Keep attention's row a count so the items render once per close-out. The lint's condensed surface already requires the space-free `Full report:` footer, which gives the user the pointer to `report.md` the report also asked for.\n\n### Key Files\n\n- `plugin/skills/sweep/SKILL.md` — Step 4: `## Staged for approval` block from `report-condensed.md`, lint call, empty-`staged/` omission\n- `plugin/skills/tidy/step-6-auto.md` — `--source sweep`: persist `report-condensed.md`, suppress only the chat send\n- `plugin/skills/tidy/SKILL.md` — Component-Skill Contract sentence\n- `tests/sweep-orchestrator.test.js`, `tests/tidy-report-rules.test.js` — prose pins\n\n## Gotchas\n\n- The condense rule counts fences, headers, and footer toward the 40-line threshold; sweep must inline the Approve *section*, not the whole condensed report, or a large sweep close-out re-triggers the very verbosity the rule exists to cap.\n- `tidy-report-lint.js`'s condensed footer regex needs a space-free path; the run-dir path under `.claude-tweaks/pipelines/` is safe, but render it relative to the repo root.\n- Sweep never approves anything; the block is display only. `tidy --approve` remains the single write path.\n- Under `worktree-always: true` + `pr-first`, tidy's Step 7.5 may also commit `report.md` into the housekeeping PR (#1493/#1494 and #1778); `report-condensed.md` is not in the gitignore exception list and stays uncommitted, which is fine for a chat-only artifact — say so rather than widening the exception.\n\n## Original request\n\n**Summary:** Under `--source sweep`, tidy's staged Approve set (the click surface) is never rendered to the user; sweep's close-out shows only \"{N} tidy proposal(s) staged awaiting approval\", so the user has to ask what they would be approving.\n\n**Kind:** Defect\n\n**Affected component:** `/claude-tweaks:sweep` (Step 4 close-out) and `/claude-tweaks:tidy`'s `--source sweep` Component-Skill Contract; `backlog/attention-mode.md`'s Tidy row\n\n**Repro steps:**\n1. In a project whose tidy scan produces findings that Stage at the `moderate` tier (e.g. merged remote branches to delete, stale issue claims to release, missing `docs/REGISTRY.md` rows, clean pipeline-run dirs to archive), run `/claude-tweaks:sweep`.\n2. Tidy runs as Step 1 with `--source sweep`, stages the items under the shared run dir's `staged/`, and per its Component-Skill Contract suppresses its own report and `## Next Actions`, returning only counts to the parent.\n3. Sweep's Step 4 renders `backlog/attention-mode.md`, whose Tidy row is the single line `{count} tidy proposal(s) staged awaiting approval — run /claude-tweaks:tidy --approve`.\n4. Observe: nothing in the chat output names the staged items, their actions, or their exact mutations. The only place they appear is the run dir's `report.md`, which the user is never told to open.\n\n**Expected vs. actual:**\nExpected: The staged Approve set renders in full somewhere in sweep's close-out — the same three-line-per-item shape `tidy/step-6-auto.md` mandates for the Approve section (\"the click surface, nothing approved unseen\"; its own condense rule keeps Approve in full even when everything else collapses). Either sweep inlines tidy's Approve section before the attention render, or attention's Tidy row lists each staged item with its action and command.\nActual: A bare count. In a live run with 4 staged items (17 remote-branch deletions, 2 claim releases, 3 registry rows, 6 run-dir archivals) the user's first reaction was to ask what the four proposals were and what approving would do — exactly the \"approved unseen\" outcome the tidy rule exists to prevent. Adjacent but distinct from #1822, which is about the *ordering* of the `tidy --approve` line in Next Actions, not the visibility of the items behind it.\n\n**Definition:** Clear\n\n**Plugin version:** 6.114.1\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-701c8e78 -->\n\n",
-        "createdAt": "2026-09-05T08:32:38Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
-            "name": "bug",
-            "description": "Something isn't working",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: defect in existing behavior",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1883,
-        "state": "OPEN",
-        "title": "sweep: close-out never renders tidy's staged Approve set, only a count",
-        "updatedAt": "2026-09-12T04:50:26Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
         }
       }
     ],
