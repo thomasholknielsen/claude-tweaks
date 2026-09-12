@@ -116,8 +116,13 @@ test('POLICY_KEYS entries are unique', () => {
   // /superpowers:brainstorming handoff prepends a per-section-approval
   // consolidation instruction (fast-lane) or leaves the invocation
   // unchanged (standard, the default).
-  assert.strictEqual(POLICY_KEYS.length, 67);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 67);
+  // 67 -> 69, #2253 (release family, unit 3): release-hook — the local
+  // engine's post-tag publish/mirror/deploy command, ignored under
+  // pr-first; release-train — opt-in for the unattended release train,
+  // honored only at autonomy: unattended. Both non-core scaffolding seeded
+  // commented-out by /claude-tweaks:init Step 21; consumers land in units 4 and 6.
+  assert.strictEqual(POLICY_KEYS.length, 69);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 69);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
@@ -814,6 +819,24 @@ test('resolveValue passes an unrecognized key through unchanged', () => {
 test('resolveValue never throws on a malformed value of any type', () => {
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', {}));
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', ['x']));
+});
+
+test('resolveValue accepts a whitespace-bearing release-hook command via allowWhitespace (#2253)', () => {
+  assert.strictEqual(resolveValue('release-hook', 'npm run deploy'), 'npm run deploy');
+});
+
+test('resolveValue still rejects a whitespace-only release-hook value — blank after trim falls back to the default', () => {
+  assert.strictEqual(resolveValue('release-hook', '   '), undefined);
+});
+
+test('resolveValue control: integration-branch has no allowWhitespace and still rejects a spaced value', () => {
+  assert.strictEqual(resolveValue('integration-branch', 'dev branch'), undefined);
+});
+
+test('resolveValue strips one matched pair of surrounding quotes from an allowWhitespace value before validation (F6, #2253)', () => {
+  assert.strictEqual(resolveValue('release-hook', '"npm run deploy"'), 'npm run deploy');
+  assert.strictEqual(resolveValue('release-hook', "'./publish.sh --tag'"), './publish.sh --tag');
+  assert.strictEqual(resolveValue('release-hook', '"unbalanced'), '"unbalanced');
 });
 
 test('specify-budget is registered as an integer defaulting to 5, sibling of dispatch-batch-size (#1491)', () => {

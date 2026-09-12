@@ -182,6 +182,17 @@ const POLICY_KEYS = [
   // reversibility/confidence-floor entry (it writes .env.local, not code or
   // history). It IS a POLICY_KEYS row (this one) and a policy-schema.md row.
   { key: 'port-services', type: 'list', default: [], summary: "Names the services that get a port from this checkout's leased block; empty keeps port isolation off.", category: 'pipeline-behavior', tier: 'advanced' },
+  // release-hook / release-train (#2253, unit 3 of #2250): schema scaffolding
+  // only — /claude-tweaks:init Step 21 seeds both as commented-out rows;
+  // bin/release-local.js (unit 4) reads release-hook, /claude-tweaks:release
+  // --train (unit 6) reads release-train. Neither is a Manifesto lever, so
+  // _shared/auto-mode-contract.md's five-site checklist does not apply.
+  // Non-core by design: promoting either would widen what the Manifesto
+  // surfaces by default (tests/policy-schema-metadata.test.js pins it).
+  // release-hook is a shell command and may contain spaces, so it opts out
+  // of the string type's whitespace rule via allowWhitespace.
+  { key: 'release-hook', type: 'string', allowWhitespace: true, summary: "Names the command the local release engine runs once its tag lands — publish, mirror, or deploy; ignored under pr-first.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'release-train', type: 'boolean', default: false, summary: "Lets the unattended release train cut minor and patch releases on its own; honored only when autonomy resolves unattended.", category: 'housekeeping', tier: 'advanced' },
 ];
 
 const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
@@ -327,11 +338,14 @@ function isValidValue(schemaEntry, value) {
     case 'enum':
       return schemaEntry.values.includes(value);
     case 'string':
-      // Non-empty and whitespace-free. Enough to catch a mistyped branch name
-      // ("dev branch") without reimplementing git check-ref-format's full rules
-      // — a name git itself would reject is worth flagging, but this validator
-      // has no repo to resolve the name against.
-      return value.length > 0 && !/\s/.test(value);
+      // Non-blank (trimmed); whitespace-free by default. Enough to catch a
+      // mistyped branch name ("dev branch") without reimplementing git
+      // check-ref-format's full rules — a name git itself would reject is
+      // worth flagging, but this validator has no repo to resolve the name
+      // against. allowWhitespace: true opts a command-shaped key (e.g.
+      // release-hook) out of the whitespace-free rule, but not out of the
+      // non-blank rule — a whitespace-only value is still invalid.
+      return value.trim().length > 0 && (schemaEntry.allowWhitespace === true || !/\s/.test(value));
     case 'list':
     case 'opaque':
       return true;
@@ -355,15 +369,31 @@ function isValidValue(schemaEntry, value) {
 // programmatic (non-audit) reader — a caller with a raw policy.yml string
 // (or nothing at all) calls this once and trusts what comes back without
 // re-validating it itself.
+// Strips exactly one matched pair of surrounding quotes ("…" or '…') — an
+// unmatched leading quote (a typo, e.g. an unterminated `"foo`) is left
+// alone rather than silently dropped.
+function stripMatchedQuotes(value) {
+  if (value.length >= 2) {
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' || first === "'") && first === last) return value.slice(1, -1);
+  }
+  return value;
+}
+
 function resolveValue(key, rawValue) {
   const entry = SCHEMA_BY_KEY.get(key);
   if (!entry) return rawValue;
   if (rawValue === undefined || rawValue === null || rawValue === '') return entry.default;
-  const strValue = String(rawValue);
+  let strValue = String(rawValue);
+  // allowWhitespace entries (a shell command, e.g. release-hook) may be
+  // quoted for readability in policy.yml — strip one matched pair before
+  // validating, so a quoted command validates and resolves unquoted.
+  if (entry.allowWhitespace === true) strValue = stripMatchedQuotes(strValue.trim());
   if (!isValidValue(entry, strValue)) return entry.default;
   if (entry.type === 'integer') return parseInt(strValue, 10);
   if (entry.type === 'boolean') return strValue === 'true';
-  return rawValue;
+  return entry.allowWhitespace === true ? strValue : rawValue;
 }
 
 function hasOwn(obj, key) {
