@@ -181,6 +181,15 @@ const POLICY_KEYS = [
   // reversibility/confidence-floor entry (it writes .env.local, not code or
   // history). It IS a POLICY_KEYS row (this one) and a policy-schema.md row.
   { key: 'port-services', type: 'list', default: [], summary: "Names the services that get a port from this checkout's leased block; empty keeps port isolation off.", category: 'pipeline-behavior', tier: 'advanced' },
+  // release-hook / release-train (#2253, unit 3 of #2250): schema scaffolding
+  // only — /claude-tweaks:init Step 21 seeds both as commented-out rows;
+  // bin/release-local.js (unit 4) reads release-hook, /claude-tweaks:release
+  // --train (unit 6) reads release-train. Neither is a Manifesto lever, so
+  // _shared/auto-mode-contract.md's five-site checklist does not apply.
+  // Non-core by design: promoting either would widen what the Manifesto
+  // surfaces by default (tests/policy-schema-metadata.test.js pins it).
+  { key: 'release-hook', type: 'string', summary: "Names the command the local release engine runs once its tag lands — publish, mirror, or deploy; ignored under pr-first.", category: 'housekeeping', tier: 'advanced' },
+  { key: 'release-train', type: 'boolean', default: false, summary: "Lets the unattended release train cut minor and patch releases on its own; honored only when autonomy resolves unattended.", category: 'housekeeping', tier: 'advanced' },
 ];
 
 const SCHEMA_BY_KEY = new Map(POLICY_KEYS.map((entry) => [entry.key, entry]));
