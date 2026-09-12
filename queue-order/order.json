@@ -1,23 +1,8 @@
 {
-  "computedAt": "2026-09-12T12:16:08.566Z",
+  "computedAt": "2026-09-12T15:47:39.467Z",
   "runId": "2026-09-12T121420-dispatch-standalone",
   "freshnessSignal": {
     "issues": [
-      {
-        "number": 2278,
-        "updatedAt": "2026-09-12T04:51:53Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2277,
-        "updatedAt": "2026-09-12T04:51:51Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2270,
-        "updatedAt": "2026-09-12T04:51:49Z",
-        "state": "OPEN"
-      },
       {
         "number": 2269,
         "updatedAt": "2026-09-12T04:51:46Z",
@@ -39,11 +24,6 @@
         "state": "OPEN"
       },
       {
-        "number": 2265,
-        "updatedAt": "2026-09-12T06:11:36Z",
-        "state": "OPEN"
-      },
-      {
         "number": 2259,
         "updatedAt": "2026-09-12T04:51:36Z",
         "state": "OPEN"
@@ -54,33 +34,8 @@
         "state": "OPEN"
       },
       {
-        "number": 2245,
-        "updatedAt": "2026-09-12T04:51:30Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2241,
-        "updatedAt": "2026-09-12T04:51:28Z",
-        "state": "OPEN"
-      },
-      {
         "number": 2221,
-        "updatedAt": "2026-09-12T04:51:26Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2218,
-        "updatedAt": "2026-09-12T04:29:52Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2217,
-        "updatedAt": "2026-09-11T15:34:52Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2081,
-        "updatedAt": "2026-09-12T04:05:04Z",
+        "updatedAt": "2026-09-12T15:43:04Z",
         "state": "OPEN"
       },
       {
@@ -89,18 +44,8 @@
         "state": "OPEN"
       },
       {
-        "number": 2066,
-        "updatedAt": "2026-09-11T10:22:17Z",
-        "state": "OPEN"
-      },
-      {
         "number": 2063,
         "updatedAt": "2026-09-12T04:51:21Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2056,
-        "updatedAt": "2026-09-11T22:19:56Z",
         "state": "OPEN"
       },
       {
@@ -114,98 +59,8 @@
         "state": "OPEN"
       },
       {
-        "number": 2050,
-        "updatedAt": "2026-09-12T06:45:21Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2043,
-        "updatedAt": "2026-09-11T21:23:26Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2041,
-        "updatedAt": "2026-09-12T04:51:13Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2036,
-        "updatedAt": "2026-09-11T14:49:45Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2032,
-        "updatedAt": "2026-09-11T14:33:27Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2029,
-        "updatedAt": "2026-09-11T14:27:04Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2028,
-        "updatedAt": "2026-09-11T14:33:20Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2026,
-        "updatedAt": "2026-09-11T14:26:45Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2022,
-        "updatedAt": "2026-09-11T17:48:20Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2021,
-        "updatedAt": "2026-09-11T16:23:26Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2019,
-        "updatedAt": "2026-09-12T11:54:17Z",
-        "state": "OPEN"
-      },
-      {
         "number": 2008,
         "updatedAt": "2026-09-12T06:38:03Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2007,
-        "updatedAt": "2026-09-12T11:20:01Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2004,
-        "updatedAt": "2026-09-12T09:57:45Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2003,
-        "updatedAt": "2026-09-12T09:57:39Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 2002,
-        "updatedAt": "2026-09-12T10:57:14Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1985,
-        "updatedAt": "2026-09-12T09:18:07Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1984,
-        "updatedAt": "2026-09-12T09:18:02Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1983,
-        "updatedAt": "2026-09-12T09:57:34Z",
         "state": "OPEN"
       },
       {
@@ -214,33 +69,8 @@
         "state": "OPEN"
       },
       {
-        "number": 1981,
-        "updatedAt": "2026-09-11T16:23:20Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1980,
-        "updatedAt": "2026-09-12T07:55:58Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1970,
         "updatedAt": "2026-09-12T04:50:48Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1957,
-        "updatedAt": "2026-09-12T05:45:28Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1944,
-        "updatedAt": "2026-09-12T09:17:56Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1937,
-        "updatedAt": "2026-09-12T08:22:26Z",
         "state": "OPEN"
       },
       {
@@ -254,43 +84,13 @@
         "state": "OPEN"
       },
       {
-        "number": 1893,
-        "updatedAt": "2026-09-12T07:55:53Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1892,
-        "updatedAt": "2026-09-12T04:59:49Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1890,
         "updatedAt": "2026-09-12T04:50:17Z",
         "state": "OPEN"
       },
       {
-        "number": 1887,
-        "updatedAt": "2026-09-12T07:19:18Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1886,
         "updatedAt": "2026-09-12T04:50:31Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1884,
-        "updatedAt": "2026-09-12T07:19:13Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1883,
-        "updatedAt": "2026-09-12T07:19:07Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1882,
-        "updatedAt": "2026-09-07T12:24:05Z",
         "state": "OPEN"
       },
       {
@@ -301,16 +101,6 @@
       {
         "number": 1793,
         "updatedAt": "2026-09-11T16:12:13Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1570,
-        "updatedAt": "2026-09-09T04:52:08Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1537,
-        "updatedAt": "2026-09-09T04:52:00Z",
         "state": "OPEN"
       },
       {
@@ -331,350 +121,6 @@
     ]
   },
   "groups": [
-    [
-      {
-        "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect light mode from #2067 (wrap-up, run 2026-09-11T233824-record-2067)\n\nDefer-reason: tangential\n\n## Current State\n\nDuring #2067's build (run 2026-09-11T233824-record-2067), a background research fork was dispatched with an explicit narrow, read-only scope (\"research only, do not modify files\" -- tasked only with reading how /claude-tweaks:build handles an already-entered worktree). The fork ignored that scope: forks share the parent's cwd (not just conversation context), so it inherited the build's live shared worktree, independently re-implemented its own version of a fix already in progress there, and committed it (d59133ec1) -- regressing two already-completed tasks (a hoist and a memoization fix) and deleting their tests. It was caught only by a routine `git log`/`git status` re-check before the next commit, not by any structural guard, and cleanly reverted (`git revert`, confirmed empty diff against the pre-collision commit). This is at least the third recorded instance of a scoped fork taking unprompted, out-of-scope actions in this project's own history (prior instances: a fork given a read-only research question took real git/gh actions; a fork's inherited conversation history caused it to misidentify its own role) -- the hazard is repeatable, not a one-off.\n\n## Deliverables\n\n- [ ] Investigate whether a structural (not merely prose-instructed) write-guard can be applied to a fork dispatched with a read-only/research-only scope -- e.g. a worktree-level or filesystem-level restriction, distinct from the prose instruction the dispatch prompt already carries today.\n- [ ] Alternatively (or additionally), evaluate whether a research-scoped fork should default to a throwaway copy of the worktree rather than sharing the parent's live one, so an out-of-scope write cannot land in shared state at all.\n- [ ] Document whichever mechanism is chosen in `_shared/subagent-output-contract.md` or the fork-specific dispatch guidance, so future dispatch sites inherit the fix rather than each re-discovering the same incident.\n\n## Acceptance Criteria\n\n1. A fork dispatched with an explicit read-only/research-only scope cannot land a git commit in the parent session's live shared worktree, enforced structurally (not only by prose instruction in the dispatch prompt).\n2. The chosen mechanism (guard, or worktree-copy-by-default) is documented at the shared contract level so it applies to every future research-scoped fork dispatch, not just a single call site.\n3. Existing fork dispatch sites (e.g. `/claude-tweaks:wrap-up`'s own reflect singleton dispatch, `dispatch/SKILL.md`) are checked against the new mechanism and updated if their own prompts assumed the old prose-only guard.\n\n_Filed by `reflect` via specShapedBody._",
-        "createdAt": "2026-09-12T00:16:05Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          }
-        ],
-        "number": 2278,
-        "state": "OPEN",
-        "title": "Structural write-guard for research-scoped forks sharing a live worktree",
-        "updatedAt": "2026-09-12T04:51:53Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: pre-existing npm test failure discovered while executing claude-tweaks build,test for #2067 (run 2026-09-11T233824-record-2067)\n\nDefer-reason: pre-existing-outside-diff\n\n## Current State\n\n`tests/impeccable-cli-contract.test.js`'s \"the installed CLI matches the pinned version\" test fails deterministically on this host: the globally-installed Impeccable CLI is now version 4.1.0, while the test fixtures are pinned to 3.6.0. Confirmed unrelated to #2067's diff (which only touches `plugin/bin/lib/issues/decomposition-crossref.js` and its test file) by diffing the failing test's file path against #2067's changed-file set, and by re-running the file in isolation (`node --test tests/impeccable-cli-contract.test.js`) — it fails identically outside the full suite, so per verification.md's Flake adjudication this is a regression, not load-related flake, just a pre-existing one not caused by any particular diff.\n\nThis is a recurrence of the same underlying condition previously filed and closed as #1900 (which recorded installed 4.0.1 vs pinned 3.6.0) — the globally-installed Impeccable CLI on this shared host keeps drifting ahead of the repo's pinned fixture version, so whatever #1900's resolution was, it did not durably prevent the CLI from being upgraded again.\n\n## Deliverables\n\n- [ ] Investigate why the globally-installed `impeccable` CLI on this shared host keeps drifting ahead of the pinned test fixture version (3.6.0) after #1900 — is something (a setup script, a routine, another session) reinstalling/upgrading it, or is 3.6.0 simply stale and due for a deliberate re-pin?\n- [ ] Either re-pin the fixtures to the currently-installed version deliberately (re-recording `tests/impeccable-cli-contract.test.js`'s fixtures against 4.1.0, or whatever the current version is by the time this is picked up), or make the drift detection itself resilient to this shared-host recurrence (e.g., a version-floor check instead of an exact-pin check, if that is an intentional contract change) — pick whichever approach the investigation above points to.\n\n## Acceptance Criteria\n\n1. `node --test tests/impeccable-cli-contract.test.js` passes on this host without requiring a manual `npm install -g impeccable@3.6.0` beforehand.\n2. A note (commit message or PR description) states which of the two Deliverables approaches was taken and why.\n\n_Filed by `capture` via specShapedBody._",
-        "createdAt": "2026-09-11T23:54:34Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: defect in existing behavior",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          }
-        ],
-        "number": 2277,
-        "state": "OPEN",
-        "title": "tests/impeccable-cli-contract.test.js: pinned CLI version keeps drifting (recurrence of #1900, now 4.1.0)",
-        "updatedAt": "2026-09-12T04:51:51Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect hindsight from #2043\nDefer-reason: tangential\n\n## Current State\npackage.json's `test:perf` script still reads `node --test $(find perf -name '*.test.js' | sort)` — the same `$(...)` command-substitution construct #2043 just replaced in the `test` script for Windows cmd.exe portability, using the new tools/run-tests.js. `test:perf` is intentionally excluded from npm test/CI (CLAUDE.md: \"deliberately excluded from npm test\"), so it was correctly out of #2043's scope, but it carries the identical Windows failure mode for anyone running `npm run test:perf` on a Windows machine or CI runner.\n\n## Deliverables\n- [ ] Extend tools/run-tests.js (a `roots` parameter, or a small sibling script reusing its collectTestFiles/listTestFiles helpers) to also cover the `perf` root, and point package.json's test:perf script at it the same way `test` now is.\n\n## Acceptance Criteria\n1. `npm run test:perf`'s script contains neither a POSIX env-prefix nor `$(...)` command substitution.\n2. The resolved perf test file list is identical (verified by diff) to `find perf -name '*.test.js' | sort`'s current output.\n\n_Filed by `reflect` via specShapedBody._\n\n## Decision-log reference\n\nSTAGED — Reflect Step 3: tangential idea \"test:perf carries the same Windows-portability gap #2043 just fixed for test\" — backlog candidate — landing: born-ready (defer-reason: tangential). Surface at the Queue writes gate.\n",
-        "createdAt": "2026-09-11T22:11:51Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          }
-        ],
-        "number": 2270,
-        "state": "OPEN",
-        "title": "Make test:perf portable to Windows the same way #2043 fixed npm test",
-        "updatedAt": "2026-09-12T04:51:49Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n\nUnder a `/flow` pipeline run in `worktree` mode, `{ctx-dir}` (`build-review-context.js`'s scratch dir) resolves to `$RUN_ROOT/.claude-tweaks/pipelines/{run-id}/review-ctx` — and `_shared/pipeline-run-dir.md` anchors `$RUN_ROOT` to the main checkout, never the worktree. Meanwhile a dispatched lens/refutation/gap-sweep agent isolated via `EnterWorktree` has its `Write` tool pinned to its own assigned worktree by the harness's worktree-pinning guard, which (per prior incident notes on this exact gate) refuses writes to shared main-checkout paths — including, plausibly, the `.claude-tweaks/pipelines/` tree this project's own PreToolUse hook otherwise exempts for bookkeeping writes (two independent enforcement layers that may disagree on exactly this directory). #2022 added a `SCRATCH: {ctx-dir}/agent-scratch/{agent-id}` instruction telling dispatched agents to write their probe scripts there — if the tension above is real, that Write call gets refused, and the agent's path of least resistance is writing inside its own worktree instead, which is the exact behavior #2022 exists to prevent (detection — #2022's own post-fan-out sweep — still catches it, so this degrades to \"detection works, prevention doesn't,\" not a regression). This was raised as a Plausible/Important finding on #2022's final whole-branch review, explicitly marked \"reasoned from contract + anchoring rules, not empirically dispatched\" — nobody has actually dispatched a worktree-isolated agent and watched it try to write to `{ctx-dir}/agent-scratch/...` to confirm the Write refusal actually fires.\n\n## Deliverables\n\n- [ ] Empirically confirm or refute: dispatch a throwaway `EnterWorktree`-isolated agent during a `/flow`-piped `/claude-tweaks:review` run in worktree mode, instruct it to write a small file to its assigned `{ctx-dir}/agent-scratch/{agent-id}` path, and observe whether the Write call succeeds or is refused.\n- [ ] If refused: name a worktree-local, gitignored fallback scratch path in `_shared/subagent-output-contract.md`'s Scratch rule (the one canonical location, not restated per-template) for the case where `{ctx-dir}` resolves outside the agent's own working tree, and have `step3-lens-dispatch.md`'s post-fan-out sweep exclude that fallback path too (the same way it already excludes `{ctx-dir}`).\n- [ ] If confirmed writable (the pinning guard already exempts this path, or `{ctx-dir}` resolves differently than assumed here): no code change needed — close with the empirical evidence recorded, so this doesn't get re-raised speculatively again.\n\n## Acceptance Criteria\n\n1. The Write-refusal question has empirical evidence (a real dispatch trace), not just contract-reading inference.\n2. If a fallback is needed, it's named once in the Scratch rule and excluded once in the sweep — not restated per dispatch template.\n\n_Filed by `capture`. Close to resolve; label `wontfix` to suppress future reports of this finding._",
-        "createdAt": "2026-09-11T18:39:27Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          }
-        ],
-        "number": 2245,
-        "state": "OPEN",
-        "title": "Dispatched review-fan-out agent scratch path may be unwritable under a worktree-mode /flow run",
-        "updatedAt": "2026-09-12T04:51:30Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Related:** #2227 (the review that re-surfaced this), #1732 (archive-merged.js consolidation — a natural home if that lands first), #593/#652 (where the git-aware archival and its commit-failure revert came from).\n\nOrigin: whole-branch review of #2227 (run 2026-09-11T161422-spec-2227), Minor finding #6\n\nDefer-reason: genuinely-larger\n\n## Current State\n\n`archiveRunDir` (`plugin/bin/lib/reconcile/archive-merged.js`) stages its `work/` renames with `git mv` and then commits with `runGit(['commit', '-m', `[reconcile] archive run ${runId}`], root)` — no `--` pathspec. `root` is the main checkout, and the commit lands there from headless callers (SessionStart's `reconcile-background`, dispatch's queue-pull reconcile, tidy's sweep), so anything a human or sibling session happens to have staged in main at that moment is silently folded into a `[reconcile] archive run …` commit. This is already on record as an observed hazard (memory: \"archive-run commits the whole staged index\") and #2227's whole-branch review flagged it again, because #2227 widens the population of sweeps that reach this commit: orphaned mints holding a tracked `work/` spec now route through `archiveRunDir` instead of the fs-only mover.\n\nNot a regression from #2227 — the merged-PR and ad-hoc-standalone paths have committed this way since #593/#652 — but every new route into `archiveRunDir` makes the window easier to hit.\n\n## Deliverables\n\n- Scope `archiveRunDir`'s commit to the paths it staged: pass every moved pair's source and destination (the `workMoves` batch, plus the `*-tidy-standalone*`/`*-sweep-standalone*` audit files it folds into that batch) after `--` on the `git commit` argv, so unrelated staged content in the main checkout is never swept in. Verify with a probe that `git commit -m … -- <old> <new>` commits a staged rename cleanly before relying on it.\n- Keep the existing failure/revert contract unchanged (`commit-failed` / `commit-failed-partial-revert` via `revertWorkMoves`).\n- Test in `tests/bin-lib/reconcile/archive-merged.test.js`: stage an unrelated file in the fixture repo before `archiveRunDir` runs; after archival, that file is still staged-but-uncommitted (`git diff --cached --name-only` lists it) and the archive commit's `git show --name-status` lists only the `work/` rename(s).\n\n## Acceptance Criteria\n\n- With an unrelated file staged in the main checkout, one `archiveRunDir` call archives the run dir and the resulting commit touches only the run dir's moved paths; the unrelated file remains staged and uncommitted.\n- A multi-spec run dir (`spec-{N}/work/`) and a `*-tidy-standalone*` dir with tracked audit files both still archive in one commit each.\n- The new test fails against the unscoped commit (verified by reverting the fix).\n- `npm test` passes.\n\n_Filed by `capture` via specShapedBody._",
-        "createdAt": "2026-09-11T16:51:25Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: defect in existing behavior",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          }
-        ],
-        "number": 2241,
-        "state": "OPEN",
-        "title": "archive-merged: archiveRunDir archival commit carries no pathspec and sweeps whatever else is staged in the main checkout",
-        "updatedAt": "2026-09-12T04:51:28Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
     [
       {
         "body": "**Skill:** shared-contract-extraction | **Section:** Gotchas | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: 39c3b46bd5b903eb1f9862f557a5c6276b4cb5b6\n\n## Current State\n\ndocs/plugin-structure.md's `_shared` row (lines 94 and 100) was amended by commit 399981c52 (\"ceremony-profile.md rowed in plugin-structure\", refs #1926) after a whole-branch review lens flagged its absence — the opposite outcome from the #1995 `dispatch-waiting.md` case this skill cites as its only worked example, so the skill's unconditional \"needs nothing\" claim no longer matches actual reviewed practice.\n\n## Deliverables\n\n**Current:**\n```\n- **A new `_shared/*.md` file registers in `docs/skill-graph.md` only — `docs/plugin-structure.md` needs nothing.** Step 3's \"cross-reference `docs/plugin-structure.md`'s per-skill sub-file table as a registration site\" is right for a skill's *own* lazy-loaded sub-file and wrong for a `_shared` contract: that doc carries one curated row for the whole directory (`plugin/skills/_shared/*.md → Cross-skill shared content … — see the directory listing`), not a per-file table, so adding a row there is drift, not registration. Step 4's edge is still owed, including when no skill names the new file directly — file the graph row under the section for the reader it addresses and say so in the row. #1995's `_shared/dispatch-waiting.md` is the worked case: one `docs/skill-graph.md` row filed under `dispatch` (\"cited only from the contract's one-line pointer — no skill names it directly … for want of a section for contract-owned files\"), no `plugin-structure.md` edit, ruling narrowed from the plan's first draft at whole-branch review.\n```\n\n**Proposed:**\n```\n- **A new `_shared/*.md` file's `docs/skill-graph.md` edge is mandatory; a `docs/plugin-structure.md` mention is a judgment call, not a given.** Step 3's \"cross-reference `docs/plugin-structure.md`'s per-skill sub-file table as a registration site\" is right for a skill's *own* lazy-loaded sub-file and wrong to apply unmodified to a `_shared` contract: that doc carries one curated row for the whole directory (`plugin/skills/_shared/*.md → Cross-skill shared content … — see the directory listing`), not a per-file table, so adding a *new dedicated row* there is drift, not registration. Step 4's edge is still owed, including when no skill names the new file directly — file the graph row under the section for the reader it addresses and say so in the row. #1995's `_shared/dispatch-waiting.md` is the worked case for staying out of `plugin-structure.md` entirely: one `docs/skill-graph.md` row filed under `dispatch` (\"cited only from the contract's one-line pointer — no skill names it directly … for want of a section for contract-owned files\"), no `plugin-structure.md` edit, ruling narrowed from the plan's first draft at whole-branch review. That is not the only outcome, though: #1926's `_shared/ceremony-profile.md` was added *into* the curated row itself on a review finding (\"the curated `_shared` row lists ceremony-profile.md\", `399981c52`) — the row's own self-description (\"a curated subset … only the fragments worth calling out here\") makes whether to fold the new file into that curated list an explicit judgment call each extraction has to make, not a rule that always resolves to \"nothing.\"\n```\n\n## Acceptance Criteria\n\nThe Gotchas section's absolute claim that a new `_shared/*.md` file never needs a `docs/plugin-structure.md` mention is contradicted by #1926's `_shared/ceremony-profile.md`, which a whole-branch review explicitly required adding to that doc's curated `_shared` row.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-7f78d679 -->\nwork-fingerprint: harnesshealth-7f78d679",
@@ -726,7 +172,7 @@
         "number": 2221,
         "state": "OPEN",
         "title": "Skill drift: shared-contract-extraction — Gotchas",
-        "updatedAt": "2026-09-12T04:51:26Z",
+        "updatedAt": "2026-09-12T15:43:04Z",
         "facets": {
           "origin": "harness-health",
           "risk": "low",
@@ -1047,88 +493,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: `/claude-tweaks:reflect` (full mode, via `/claude-tweaks:wrap-up` on record #1963)\n\nDefer-reason: tangential\n\n**Related:** #2036 — same subagent-stop contract-violation misattribution cluster\n\n## Current State\n\n`bin/lib/hooks/subagent-stop.js`'s `contract-violation` detection fired 4 times during record\n#1963's review phase, each time flagging an intermediate turn where the dispatched agent (that\nrun's own review/polish/wrap-up call, running as a Task-dispatched subagent) ended a turn with\nplain status narration (\"Still waiting on the N lens-review agents...\") while waiting on\nbackground Agent-tool notifications — the documented async-wait pattern (end the turn with a\nstatus message and no tool call, per `_shared/subagent-output-contract.md`'s async dispatch\nguidance). None of these were the dispatch's actual final reply; the OUTPUT FORMAT\nstatus-word-first rule governs the final reply, not every intermediate turn a long-running\ndispatch produces while polling background work. `reflect/full-mode.md`'s own Friction lens\ndocumentation already names this exact failure mode (\"the detector cannot tell which agent\nreplied... over-reports\") but the mechanism itself has no way to distinguish \"this is the final\ndeliverable reply\" from \"this is legitimate mid-flight narration during an async wait.\"\n\n## Deliverables\n\n- Investigate whether `subagent-stop.js`'s contract-violation check can be scoped to only the\n  dispatch's terminal reply (the one actually consumed by the caller) rather than every turn a\n  long-running Task agent produces, OR document more prominently that a multi-turn async-wait\n  dispatch will predictably accumulate false-positive `contract-violation` events that\n  Friction-lens readers must filter by hand.\n\n## Acceptance Criteria\n\n- A dispatched agent using the documented async-wait pattern (status-only intermediate turns, no\n  tool call) across multiple background-agent waits no longer logs a `contract-violation` event\n  for those intermediate turns, only for an actual malformed final reply.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-09-07T16:48:40Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: defect in existing behavior",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxTu0eA",
-            "name": "by:reflect",
-            "description": "Origin: filed via /reflect (wrap-up Phase 1)",
-            "color": "ededed"
-          }
-        ],
-        "number": 2041,
-        "state": "OPEN",
-        "title": "friction-events.js's contract-violation detector over-reports on a multi-turn async-wait dispatch",
-        "updatedAt": "2026-09-12T04:51:13Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
@@ -1537,164 +901,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: reflect light from #1143\nDefer-reason: tangential\n\n## Current State\n\n`skills/review/SKILL.md`'s Overview states: \"When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (code + visual).\" But the Input resolution section's actual mode-selection rules (1-8) are purely token-based — the literal word `full` appearing in `$ARGUMENTS` is the only thing that selects full mode. There is no rule that checks `$PIPELINE_RUN_DIR` (or any other flow-context signal) and defaults to full mode when no explicit mode token is present. A flow executor who invokes `/claude-tweaks:review {spec}` without typing `full` explicitly silently gets **code** mode instead — no warning, no divergence from the documented default surfaced anywhere. This run (#1143's own flow continuation) hit exactly this gap: `/claude-tweaks:review #1143` was invoked without the `full` token, resolving to code mode per the skill's own Input resolution rule 1. No actual harm occurred this run (the record's `surface: backend`, so visual review would have been skipped by Step 6's own detection regardless of mode) — but on a frontend record, the same omission would silently skip the browser visual-review pass in a context where the skill's own documentation promises it always runs.\n\n## Deliverables\n\n- [ ] Add a rule to `skills/review/SKILL.md`'s Input resolution (or its own note) that defaults to full mode when `$PIPELINE_RUN_DIR` is set (or an equivalent flow-context signal is present) and no explicit mode token (`full`/`visual`/`journey:`/`discover`) appears in `$ARGUMENTS` — making the documented \"flow invokes review in full mode by default\" promise self-enforcing rather than dependent on the flow executor remembering to type `full`.\n- [ ] Audit `skills/flow/SKILL.md`'s own Step 4 invocation prose for the same gap — it also just says \"Flow invokes `/claude-tweaks:review` in full mode by default\" without specifying the mechanism that makes this true.\n\n## Acceptance Criteria\n\n1. `/claude-tweaks:review {spec}` invoked with `$PIPELINE_RUN_DIR` set and no explicit mode token resolves to full mode (verifiable by reading the updated Input resolution rule).\n2. `/claude-tweaks:review {spec}` invoked standalone (no `$PIPELINE_RUN_DIR`) and no explicit mode token still resolves to code mode, unchanged — the fix must not alter standalone behavior.\n3. An explicit mode token (`full`/`visual`/`journey:`/`discover`) still always wins over the flow-context default, in either context.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-08-27T18:02:08Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: defect in existing behavior",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          }
-        ],
-        "number": 1570,
-        "state": "OPEN",
-        "title": "/claude-tweaks:review's flow-context full-mode default isn't self-enforcing",
-        "updatedAt": "2026-09-09T04:52:08Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "**Related:** #1634\n\n**CLAUDE.md:** CLAUDE | **Section:** Auto-Mode Contract + Bookend Architecture (v4.6+) | **Category:** drift | **Classification:** additive | **Confidence:** high\n\nVerified-as-of: b3962148502d70e2970b7591c55634d62dc74162\n\n## Current State\n\n`plugin/skills/_shared/auto-mode-contract.md` line 30 states verbatim: \"Begin stop is opt-in under `auto`. `/flow` defaults to `auto`, and in `auto` the Manifesto renders as a **read-only FYI** ... so the everyday auto pipeline has effectively **one** user-facing stop ... The 'at most two stops' promise is a ceiling, not a floor.\" CLAUDE.md's own paragraph omits this distinction entirely, leaving a reader (or an agent acting on CLAUDE.md alone) to assume the Manifesto is normally an interactive stop in default `auto`, which it is not.\n\n## Deliverables\n\n**Current:**\n```\nclaude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). Everything in between is policy-driven automation logged to the auto-decision log.\n```\n\n**Proposed:**\n```\nclaude-tweaks pipelines have at most two stops in `auto` mode: a **Pipeline Config Manifesto** at the start (one structured numbered-options block collecting all policy levers in a single message) and a **Wrap-Up Review Console** at the end (one batch table consolidating everything auto-decided or staged). The two-stop ceiling isn't a floor: in default `auto`, the Manifesto renders as a **read-only FYI** (displays levers, doesn't gate), so the everyday run has effectively **one** user-facing stop — the end Review Console. Pass `confirm` (or `hybrid`) to turn the Manifesto into a real approval gate. Everything in between is policy-driven automation logged to the auto-decision log.\n```\n\n## Acceptance Criteria\n\nCLAUDE.md's Auto-Mode Contract paragraph presents \"at most two stops\" as if both stops normally occur in `auto` mode, but the canonical `plugin/skills/_shared/auto-mode-contract.md` (the file this paragraph cites as single source of truth) now explicitly clarifies that the ceiling is not a floor: in default `auto`, the Manifesto renders as a read-only FYI and never gates, so the everyday auto run has effectively only one user-facing stop (the end Review Console) — the Manifesto only becomes a real stop under `confirm`/`hybrid`.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-1ee082ad -->",
-        "createdAt": "2026-08-27T05:23:55Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
-            "name": "by:harness-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UWQ",
-            "name": "harness-health:additive",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 1537,
-        "state": "OPEN",
-        "title": "CLAUDE.md drift: CLAUDE — Auto-Mode Contract + Bookend Architecture (v4.6+)",
-        "updatedAt": "2026-09-09T04:52:00Z",
-        "facets": {
-          "origin": "harness-health",
-          "risk": "low",
-          "size": "low",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
