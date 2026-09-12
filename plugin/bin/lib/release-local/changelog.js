@@ -25,7 +25,10 @@ const SECTIONS = [
   { type: 'ci', title: 'Continuous Integration', hidden: true },
 ];
 
-const GITHUB_REMOTE_RE = /^(?:https?:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/;
+// The https form tolerates an optional userinfo prefix (a plain user, or a
+// token credential like `x-access-token:TOKEN@`) — never reflected in the
+// returned url, which is always the canonical lowercase github.com form.
+const GITHUB_REMOTE_RE = /^(?:https?:\/\/(?:[^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i;
 
 function parseGitHubRemote(url) {
   const m = GITHUB_REMOTE_RE.exec(String(url || '').trim());
