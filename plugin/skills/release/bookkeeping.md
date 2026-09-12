@@ -16,7 +16,7 @@ Read by `/claude-tweaks:release` Step 7. For each record in the shipped set, com
 
 ## Inputs
 
-- The shipped set — one entry per distinct `(#N)` suffix in `unreleased.value.commits[].subject` (`plugin/bin/lib/release-preflight/pack.js`), the same join Step 4's console row rendered, deduplicated across repeated suffixes. A commit subject carrying no `(#N)` suffix contributes no record here — it stayed in the console's nested `Unattributed commits` line, listed in Step 8's summary, never booked against a record that doesn't exist.
+- The shipped set — one entry per distinct `(#N)` suffix in `unreleased.value.commits[].subject` (`plugin/bin/lib/release-preflight/pack.js`), the same join Step 4's console row rendered, deduplicated across repeated suffixes, **minus the `(#N)` suffixes Step 4 dropped as PR numbers** (console.md's `Records shipped` row: a number whose `gh api repos/{owner}/{repo}/issues/N` payload carries a `pull_request` key is a PR, not a record — GitHub's default squash subject puts the PR number in the trailing `(#N)`, and `gh issue view` on it succeeds silently). Those numbers rendered on the console under `PR-number suffixes (not records)` and are never booked: commenting `Shipped in v{version}` on a PR and closing it would edit an already-merged pull request on the strength of a number collision. Reuse Step 4's already-resolved set rather than re-running the issue-vs-PR read here. A commit subject carrying no `(#N)` suffix contributes no record here — it stayed in the console's nested `Unattributed commits` line, listed in Step 8's summary, never booked against a record that doesn't exist.
 - The **shipped** version `{version}` — the engine's own number, reconciled at the end of Step 5 (`execute.md`'s "Two versions" section; SKILL.md's Step 5 "Two versions, reconciled once" paragraph defines the pair). Never the gating version the console rendered: when the two differ the engine's is what was tagged, and booking the other would stamp records with a version no tag carries.
 - The Release URL: Step 6's GitHub Release `url` field under pr-first; `none` under local-merge, which has no forge Release to link.
 - `work-backend` — read from the project's CLAUDE.md `## Work records` section (a missing flag is treated as `local-files`, the same convention `/claude-tweaks:capture`'s Backend Selection uses). This is the axis this step branches on, independently of the `pr-first`/`local-merge` release engine — a `local-merge` project can still carry `work-backend: github-issues`, and vice versa.
@@ -51,16 +51,26 @@ No `gh`/MCP call; the fact lives on the record file itself, via `bin/lib/issues/
   ```
 - **Record already carries `shipped: v{version}`** (a re-run against the same release) — skipped entirely, the same idempotency as the github-issues branch.
 
+**Commit the facet writes.** A local record is a tracked file, so a `shipped:`/`closed:` edit left uncommitted is a fact no other checkout — and no later release run — can see; the same discipline `wrap-up/cleanup-procedures.md`'s item 5 applies after its own `closeRecord`. After the loop, stage exactly the record files this step wrote and commit them once:
+
+```bash
+git -C "$RUN_ROOT" add {the record files this step wrote}
+git -C "$RUN_ROOT" commit -m "Mark records shipped in v{version}, refs #{n} …"
+```
+
+Stage the named files, never `-A` or `.`: this commit carries this step's facet edits and nothing else that happens to be dirty in the main checkout. A failing `add` or `commit` is one more `FAILED` line, verb `commit` — the facet edits stay in the working tree exactly as written (nothing is reverted), and Step 8's summary names them as written-but-uncommitted so a reader knows a commit is still owed.
+
 ## Failures never abort the loop
 
 A single record's read or write failing — a transient `gh`/MCP error, a locked or unwritable record file — is logged and the loop continues to the next record. One bad record never stops the rest of the shipped set from being booked. The idempotency read is included deliberately: a record whose state could not be read is skipped with the verb `read` and **no write attempted**, rather than written blind (the github-issues step 1 above). `FAILED` is not one of `bin/log-decision.js`'s enumerated statuses (`plugin/bin/lib/log-decision/append.js`'s `STATUSES` — `AUTO`/`STAGED`/`KEPT-PROMPT`/`SCANNED`/`REFUSED`/`SKIP` — rejects it on purpose), so this one line is hand-composed rather than written through the canonical writer, the same precedent `plugin/bin/apply-refine-labels.js`'s `logFailed` already establishes for the identical reason:
 
 ```
 FAILED {HH:MM:SS} — Step 7: #N — {read|comment|close|shipped} failed: {message}. Reversibility: n/a (write did not land).
+FAILED {HH:MM:SS} — Step 7: commit failed: {message}. Reversibility: n/a (facet edits left in the working tree).
 FAILED {HH:MM:SS} — Step 7: #N — read failed: {message}. Reversibility: n/a (no write attempted).
 ```
 
-The verb enumeration is `{read|comment|close|shipped}`. The second line is the `read` verb's own form: its Reversibility clause reads `no write attempted`, not `write did not land`, because for a read failure nothing was ever tried — the distinction is what tells a later reader whether that record might carry a half-written state.
+The verb enumeration is `{read|comment|close|shipped}`, plus the step-level `commit` verb on the third line — the only one of the four that is not per-record, because the local-files commit covers the whole loop's writes at once. The second line is the `read` verb's own form: its Reversibility clause reads `no write attempted`, not `write did not land`, because for a read failure nothing was ever tried — the distinction is what tells a later reader whether that record might carry a half-written state.
 
 ## Log lines
 

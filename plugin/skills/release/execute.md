@@ -83,15 +83,38 @@ no open release PR — release-please has not rendered one; check the workflow
 gh pr merge {releasePr.value.number} --squash --repo {owner}/{repo}
 ```
 
-**`--as {version}` — push the override, then wait for the re-render.** release-please derives the PR from the commits it sees, so the override must reach the integration branch and be re-read before the PR is merged. Every git call is anchored to `$RUN_ROOT` — a bare `git commit` from a worktree cwd would put the override on the worktree's branch, where release-please will never see it. Assert the anchor is on the integration branch first:
+The outcome is **`HELD`**, reason `no gh — merge rendered for a human`. Nothing was merged and nothing was tagged, which is exactly what `HELD` asserts — it is not `failed` (no merge was attempted and refused) and not `PARTIAL` (no release exists). Stage `release-held.md` carrying that reason, the effective version and its base, and the paste-ready command above, through the same writer the Step 4 gates use:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "{run-dir}" --id release-held --file {composed .md file}
+```
+
+Steps 6 and 7 do not run — there is no tag to verify and nothing shipped to book. This is the one `HELD` that is not a Step 4 HARD-GATE; SKILL.md's Step 8 names it as the third reason for the word.
+
+**`--as {version}` — push the override, then wait for the re-render.** release-please derives the PR from the commits it sees, so the override must reach the integration branch and be re-read before the PR is merged. Every git call is anchored to `$RUN_ROOT` — a bare `git commit` from a worktree cwd would put the override on the worktree's branch, where release-please will never see it. Assert three things about the anchor first — on the integration branch, clean, and exactly at the fetched `origin/{branch}` tip:
 
 ```bash
 git -C "$RUN_ROOT" rev-parse --abbrev-ref HEAD    # must equal {branch}; anything else → failed, no commit
+git -C "$RUN_ROOT" status --porcelain             # must print nothing; anything else → failed, no commit
+git -C "$RUN_ROOT" fetch origin {branch}
+git -C "$RUN_ROOT" rev-parse HEAD origin/{branch} # the two shas must be equal; anything else → failed, no commit
 git -C "$RUN_ROOT" commit --allow-empty -m "chore: release {version}" -m "Release-As: {version}"
 git -C "$RUN_ROOT" push origin {branch}
 ```
 
-`{branch}` is the pack's own `branch` field. A **rejected push** (non-fast-forward, protected branch, permissions) is `failed`: report `git`'s stderr verbatim and stop with no poll — the override never reached origin, so there is nothing for release-please to re-render and waiting five minutes would only delay the same answer.
+`{branch}` is the pack's own `branch` field. Each precondition is `failed` with **no commit made**, and each fails for its own reason:
+
+1. **Wrong branch** — the override would land on some other branch, where release-please never reads it.
+2. **Dirty anchor** — `status --porcelain` must be empty for staged *and* unstaged changes alike. `--allow-empty` means the commit needs no changes of its own, so it would silently absorb whatever is already staged in the main checkout (a sibling session's work-in-progress) into a commit whose whole purpose is to carry one trailer. Report the porcelain output verbatim; there is no recovery command to print — a human decides what to do with their own working tree.
+3. **Tip not at `origin/{branch}`** — a local tip behind origin would push an old tree (or be rejected), and a diverged one would push a history nobody else has. `recover: git -C "$RUN_ROOT" pull --ff-only origin {branch}`, then re-run `/claude-tweaks:release`.
+
+A **rejected push** (non-fast-forward, protected branch, permissions) is `failed`: report `git`'s stderr verbatim and stop with no poll — the override never reached origin, so there is nothing for release-please to re-render and waiting five minutes would only delay the same answer. The commit **has** been made by this point and is stranded locally on `{branch}` in `$RUN_ROOT`, so name its recovery in the same report:
+
+```
+recover: git -C "$RUN_ROOT" pull --rebase origin {branch} && git -C "$RUN_ROOT" push origin {branch}
+```
+
+Never `git -C "$RUN_ROOT" reset --soft origin/{branch}`: that unmakes the commit into a staged working tree and leaves the `Release-As:` trailer nowhere — the trailer is the entire payload — and in a shared main checkout it also mixes the staged residue into whatever a sibling session commits next.
 
 Once the push lands, poll for the re-render — `gh pr view {n} --repo {owner}/{repo} --json title,headRefOid` every 20 seconds, at most 15 attempts (5 minutes). Re-rendered means the PR **title** carries `{version}`; `headRefOid` is read in the same call so a moved head is visible rather than inferred:
 

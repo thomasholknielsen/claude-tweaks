@@ -68,6 +68,14 @@ echo "$RUN_DIR"
 
 **Determine inherited-vs-created here, once.** At this point — and only here — record which of the two branches above ran: `$PIPELINE_RUN_DIR` was already set at invocation, or an existing directory resolved at step 2 (whatever its `createdBy` — a prior standalone release run's directory counts) → **inherited**; this run minted the directory and wrote the `createdBy: "release-standalone"` stamp above → **created**. Carry that verdict as a run-scoped fact alongside the run dir path itself and **never re-read it from disk later** — the directory can be archived out from under a re-read, exactly as `wrap-up/SKILL.md`'s identical rule records.
 
+**Pin the review's auto-apply ceiling to `none`, here.** Step 3 reviews history that is already merged, so it has nothing to fix in place: a finding applied automatically there would land an unreviewed commit on the integration branch between the gate and the bump, and ship in the very release the gate exists to hold. For a **created** run directory, write the lever once:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/set-config.js" --run "{run-dir}" --key review-auto-apply-ceiling --value none
+```
+
+For an **inherited** one, do **not** write it — the parent pipeline's Manifesto owns that directory's `config.yml`, and overwriting a lever mid-pipeline would change how the parent's own later steps route. Log instead that the parent's ceiling governs and that Step 3's findings stage regardless of its value (Step 3 states that as a rule, and it holds at every ceiling).
+
 **Every log line this skill writes goes to `{run-dir}/decisions.md` under a `## /release` section**, appended through the canonical writer per `_shared/auto-decision-log.md`'s entry schema — never hand-appended:
 
 ```bash
@@ -136,7 +144,17 @@ Resolve the base, then invoke:
 
 Invoke `/claude-tweaks:review base:{base}` (Input rule 9 — a whole-branch scope: every first-parent commit from the base to `origin/{integration-branch}`, spanning many already-merged PRs) with `$PIPELINE_RUN_DIR={run-dir}` set, so its findings stage into this run's own `staged/` directory per `_shared/staged-patch.md` and its decisions land in this run's `decisions.md`. Review is a component skill here: it renders no Next Actions of its own.
 
-When it returns, read `{run-dir}/decisions.md`'s `## /review` block and classify **against the log lines `/claude-tweaks:review` actually writes**, not against a severity field it does not emit. Its two routing shapes (`review/step3-routing.md`'s routing table) are:
+**Invoke it from `$RUN_ROOT`, standing at the fetched tip.** Assert all three first — `git -C "$RUN_ROOT" fetch origin {branch}`, then `git -C "$RUN_ROOT" rev-parse --abbrev-ref HEAD` equal to `{branch}` and `git -C "$RUN_ROOT" rev-parse HEAD` equal to `origin/{branch}` — and run the review with `$RUN_ROOT` as its working directory. `/claude-tweaks:review`'s own test gate verifies the tree it is standing in (`review/code-mode-steps.md`'s Step 1.5), so a review invoked from a feature-branch worktree would gate the release on a tree the reviewed range does not contain. Anything else stops the run here, before Step 4: nothing has moved, so report `stopped before the console: review tree is not origin/{branch}` and Step 8's summary reads `failed` with that same reason.
+
+**This review stages; it never commits.** Whatever `review-auto-apply-ceiling` resolves to — Step 0 pins `none` on a created run directory, and an inherited one keeps the parent's value — this review's auto-apply tier is off at every ceiling: every finding is staged for a human, none is applied and committed. The range under review ends at `origin/{branch}`, the exact tip about to be tagged, so an auto-applied fix would ship inside the release it was meant to gate.
+
+**Mark the `## /review` block before invoking.** `log-decision.js` appends each entry at the **end of its section**, so an inherited (or re-adopted) run directory's prior `## /review` lines sit above this run's inside the same block — and a prior run's `critical finding` line would otherwise be read as this run's verdict. Count that block's existing lines first (`0` when the block is absent) and log the count as this step's marker:
+
+```
+AUTO {HH:MM:SS} — Step 3: whole-branch review starting, base {base}..{branch}; ## /review marker: {k} existing lines. Reversibility: n/a (marker).
+```
+
+When it returns, read **only the lines this run appended after index `{k}`** in `{run-dir}/decisions.md`'s `## /review` block — never the whole block — and classify **against the log lines `/claude-tweaks:review` actually writes**, not against a severity field it does not emit. Its two routing shapes (`review/step3-routing.md`'s routing table) are:
 
 ```
 KEPT-PROMPT {time} — Step 3 Routing: critical finding {category} at {file:line}. Surfaced inline. Reversibility: high.
@@ -147,11 +165,11 @@ A critical finding's line carries **no** stage-path clause — it is surfaced in
 
 | Verdict | Condition |
 |---------|-----------|
-| `review: blocking` | The `## /review` block contains a line carrying the literal token `critical finding` or the literal token `high-severity finding` |
-| `review: findings (n medium/low, staged)` | No such line, but the block contains any other routed finding — a `Step 3 Routing:` line at `medium-severity finding` or `applied low-severity` |
-| `review: clean` | The block contains no `Step 3 Routing:` line at all |
+| `review: blocking` | The lines after the marker contain one carrying the literal token `critical finding` or the literal token `high-severity finding` |
+| `review: findings (n medium/low, staged)` | No such line, but they contain any other routed finding — a `Step 3 Routing:` line at `medium-severity finding` or `applied low-severity` |
+| `review: clean` | They contain no `Step 3 Routing:` line at all |
 
-A `## /review` block that is absent, empty, or unparseable is **not** `review: clean` — it means the review did not complete, which is a stop, not a pass. Report which of the three it was and stop before Step 4.
+A `## /review` block that is absent, empty, unparseable, or carrying no new lines at all after the marker is **not** `review: clean` — it means the review did not complete, which is a stop, not a pass. Report which of the three it was and stop before Step 4.
 
 Log the verdict, and log the override separately when one applies:
 
@@ -208,11 +226,19 @@ The five outcomes are distinct and never folded together:
 
 - **`released`** — Step 5 landed and Step 6 verified every check.
 - **`dry-run`** — Step 5 was a no-op by request. `{version}` is the version that *would* have been cut.
-- **`HELD`** — a HARD-GATE fired at Step 4, **before** Step 5, in **any** mode — `--train`, `auto`, headless, or an interactive run whose gate question was answered `Stop`. Nothing was merged, nothing was tagged, nothing moved; `release-held.md` is staged in the run directory in every one of those cases (console.md's Gates section). An interactive `Proceed` answer is not `HELD` — the run continued to Step 5 and its outcome is whatever Steps 5–6 produced.
+- **`HELD`** — a HARD-GATE fired at Step 4, **before** Step 5, in **any** mode — `--train`, `auto`, headless, or an interactive run whose gate question was answered `Stop`. Nothing was merged, nothing was tagged, nothing moved; `release-held.md` is staged in the run directory in every one of those cases (console.md's Gates section). An interactive `Proceed` answer is not `HELD` — the run continued to Step 5 and its outcome is whatever Steps 5–6 produced. A third reason carries the same word beside those two HARD-GATEs: pr-first with no `gh` on `PATH`, where Step 5 renders the merge as a paste-ready command for a human instead of executing it (`execute.md`'s Transport section) — nothing merged, nothing tagged, `release-held.md` staged, exactly the fact `HELD` asserts.
 - **`PARTIAL`** — Step 5 landed and Step 6 found a miss. The release exists; something after it did not complete. Never reported as `HELD` (which means nothing landed) and never as `released`.
 - **`failed`** — Step 5 was attempted and landed nothing, and no HARD-GATE fired: the engine exited `1` with nothing written or `4` on a tag collision; the release PR's own checks were red, still pending past the bound, unreadable, or the PR was closed; the forge refused the merge; the `Release-As:` push was rejected or its re-render never arrived within its bound; or the shipped version was not the `--as` value. Nothing exists to verify or book; the error line is the engine's or forge's own, quoted verbatim. Never reported as `HELD` (no gate fired) and never as `PARTIAL` (nothing landed).
 
 Then render the `## Next Actions` block below — unless Step 0's inherited-vs-created fact reads **inherited** (see `## Component-Skill Contract`), in which case omit it.
+
+**Close the run directory when this run created it.** Once the summary (and the `## Next Actions` block, when it renders) is on screen, a **created** directory is closed so resume and reconcile paths classify it as terminal instead of `status: unknown` — the same call `/claude-tweaks:backlog`'s refine closing summary makes (`backlog/refine-closing-summary.md`):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" close-run --run "{run-dir}"
+```
+
+Always pass the explicit `--run` with the run *directory* — `close-run` rejects a file path outright, so never the `decisions.md` inside it. An **inherited** directory is never closed here: it is the parent pipeline's to close, and closing it mid-pipeline would stop the parent's own event logging (`docs/hooks.md`'s Ownership section). This runs in every outcome, `HELD` and `failed` included — a held run is still a finished run.
 
 ## Next Actions
 
