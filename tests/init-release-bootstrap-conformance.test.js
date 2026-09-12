@@ -51,6 +51,11 @@ test('step-21-release.md carries the gate, the three verdicts, the CLI, the defe
   assert.ok(STEP.includes('`v*` tags are not conflict evidence') || STEP.includes('never conflict evidence'));
 });
 
+test('step-21-release.md envelope line and fresh row cover tagsFailure (ledger row 38)', () => {
+  assert.ok(STEP.includes('tagsFailure?'), 'the envelope line must list the optional tagsFailure field');
+  assert.ok(STEP.includes('tagsFailure'), 'the fresh row must explain when tagsFailure appears');
+});
+
 test('the prose stack table matches RELEASE_STACK_TABLE row for row, in order', () => {
   const start = STEP.indexOf('## Stack table');
   assert.notEqual(start, -1, 'step-21-release.md has no "## Stack table" section');

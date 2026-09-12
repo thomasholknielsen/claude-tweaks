@@ -70,11 +70,23 @@ function isDirectory(root) {
   }
 }
 
+// { parsed } on success ({ parsed: undefined } for a missing file — ENOENT is
+// "absent", not a failure); { error: 'unparseable' } on a JSON parse failure;
+// { error: <e.code> } on any other read failure (e.g. EACCES) — callers that
+// need to tell "absent"/"foreign" apart from "couldn't even read it" read
+// `error` rather than collapsing every case to a bare undefined.
 function readJson(file) {
+  let text;
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
+    text = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return { parsed: undefined };
+    return { error: (e && e.code) || 'read-error' };
+  }
+  try {
+    return { parsed: JSON.parse(text) };
   } catch {
-    return undefined; // missing or unparseable — callers decide what that means
+    return { error: 'unparseable' };
   }
 }
 
@@ -98,8 +110,11 @@ function detectReleaseProcess(root) {
     }
   }
   if (entries.some((e) => !e.isDir && e.name === CONFIG_FILE)) {
-    const parsed = readJson(path.join(root, CONFIG_FILE));
-    if (!isBootstrapShaped(parsed)) return { verdict: 'conflict', tool: 'release-please (foreign config)', evidence: CONFIG_FILE };
+    const result = readJson(path.join(root, CONFIG_FILE));
+    if (result.error && result.error !== 'unparseable') {
+      return { verdict: 'conflict', tool: `release-please (config unreadable: ${result.error})`, evidence: CONFIG_FILE };
+    }
+    if (!isBootstrapShaped(result.parsed)) return { verdict: 'conflict', tool: 'release-please (foreign config)', evidence: CONFIG_FILE };
     const manifestExists = entries.some((e) => !e.isDir && e.name === MANIFEST_FILE);
     if (manifestExists) return { verdict: 'already-bootstrapped' };
   }
@@ -115,7 +130,7 @@ function markerMatches(marker, entries) {
 }
 
 function versionOfJson(file) {
-  const parsed = readJson(file);
+  const { parsed } = readJson(file); // any error (including unparseable) leaves parsed undefined -> null
   const v = parsed && typeof parsed === 'object' ? parsed.version : undefined;
   return typeof v === 'string' && SEMVER_RE.test(v) ? v : null;
 }
@@ -211,13 +226,25 @@ function renderPolicyRows() {
   ];
 }
 
+// { tags, failure: null } on success; { tags: [], failure: <e.code or
+// 'git-error'> } on any throw (not a git repo, git absent, permission
+// denied, …) — a git failure must read as distinguishable from "no tags",
+// even though both fall through to the same manifest/0.1.0 seed.
 function defaultListTags(root) {
   try {
-    return execFileSync('git', ['-C', root, 'tag', '-l', 'v*'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+    const tags = execFileSync('git', ['-C', root, 'tag', '-l', 'v*'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
       .split('\n').map((s) => s.trim()).filter(Boolean);
-  } catch {
-    return []; // not a git repo, or git absent — seeding falls through to the manifest/0.1.0
+    return { tags, failure: null };
+  } catch (e) {
+    return { tags: [], failure: (e && e.code) || 'git-error' };
   }
+}
+
+// The injected listTags seam may still return a plain array (older callers,
+// tests) — normalize that to the { tags, failure } shape so bootstrapRelease
+// has one thing to read.
+function normalizeListTagsResult(result) {
+  return Array.isArray(result) ? { tags: result, failure: null } : result;
 }
 
 // The step's whole decision, in one call: verdict first, then the writes.
@@ -238,13 +265,13 @@ function bootstrapRelease({ root, integrationModel, branch, dryRun = false, list
   const detected = detectReleaseProcess(root);
   if (detected.verdict !== 'fresh') return { ...detected, ...empty };
   const { releaseType, extraFiles } = resolveReleaseType(root);
-  const tags = (listTags || defaultListTags)(root);
+  const { tags, failure: tagsFailure } = normalizeListTagsResult((listTags || defaultListTags)(root));
   const version = seedManifestVersion({ tags, manifestVersion: readStackManifestVersion(root, releaseType) });
   // A manifest-missing re-run (detectReleaseProcess still reports `fresh`
   // when the config already exists in this step's own shape) must not
   // rewrite an already-correct — possibly hand-edited — config; only the
   // files actually missing get (re)written.
-  const configShaped = isBootstrapShaped(readJson(path.join(root, CONFIG_FILE)));
+  const configShaped = isBootstrapShaped(readJson(path.join(root, CONFIG_FILE)).parsed);
   const files = [];
   if (!configShaped) files.push([CONFIG_FILE, renderConfig({ releaseType, extraFiles })]);
   files.push([MANIFEST_FILE, renderManifest(version)]);
@@ -258,7 +285,9 @@ function bootstrapRelease({ root, integrationModel, branch, dryRun = false, list
     }
     written.push(rel);
   }
-  return { verdict: 'fresh', releaseType, version, written, policyRows: renderPolicyRows() };
+  const envelope = { verdict: 'fresh', releaseType, version, written, policyRows: renderPolicyRows() };
+  if (tagsFailure) envelope.tagsFailure = tagsFailure;
+  return envelope;
 }
 
 module.exports = {

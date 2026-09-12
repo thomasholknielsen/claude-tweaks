@@ -236,3 +236,55 @@ test('bootstrapRelease: a missing or non-directory root throws before any detect
   fs.writeFileSync(filePath, 'x');
   assert.throws(() => rb.bootstrapRelease({ root: filePath, integrationModel: 'pr-first', listTags: () => [] }), /not a directory/);
 });
+
+test('bootstrapRelease: an injected listTags reporting a git failure surfaces tagsFailure and still falls back to the manifest/0.1.0 seed (ledger row 38)', () => {
+  const root = tmp(); write(root, 'package.json', '{"name":"x"}');
+  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => ({ tags: [], failure: 'EACCES' }) });
+  assert.equal(r.verdict, 'fresh');
+  assert.equal(r.tagsFailure, 'EACCES');
+  assert.equal(r.version, '0.1.0');
+});
+
+test('bootstrapRelease: an injected listTags returning a plain array (no failure signal) carries no tagsFailure key (ledger row 38)', () => {
+  const root = tmp(); write(root, 'package.json', '{"name":"x"}');
+  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => ['v2.0.0'] });
+  assert.equal(r.verdict, 'fresh');
+  assert.equal('tagsFailure' in r, false);
+  assert.equal(r.version, '2.0.0');
+});
+
+test('defaultListTags: a plain directory with no .git reports a git failure distinguishable from "no tags" (ledger row 38)', () => {
+  const root = tmp();
+  const result = rb.defaultListTags(root);
+  assert.deepEqual(result.tags, []);
+  assert.equal(result.failure, 'git-error');
+});
+
+test('bootstrapRelease: the real (non-injected) listTags path on a plain directory carries tagsFailure in the fresh envelope (ledger row 38)', () => {
+  const root = tmp(); write(root, 'package.json', '{"name":"x"}');
+  const r = rb.bootstrapRelease({ root, integrationModel: 'local-merge', branch: 'main' });
+  assert.equal(r.verdict, 'fresh');
+  assert.equal(r.tagsFailure, 'git-error');
+  assert.equal(r.version, '0.1.0');
+});
+
+test('detectReleaseProcess: an unreadable config (EACCES) is a conflict naming the real cause, not "foreign config" (ledger row 39)', () => {
+  if (process.getuid && process.getuid() === 0) return; // root bypasses chmod restrictions
+  const root = tmp(); write(root, 'release-please-config.json', SHAPED);
+  fs.chmodSync(path.join(root, 'release-please-config.json'), 0o000);
+  try {
+    const r = rb.detectReleaseProcess(root);
+    assert.equal(r.verdict, 'conflict');
+    assert.match(r.tool, /config unreadable: EACCES/);
+    assert.equal(r.evidence, 'release-please-config.json');
+  } finally {
+    fs.chmodSync(path.join(root, 'release-please-config.json'), 0o644);
+  }
+});
+
+test('detectReleaseProcess: an unparseable config still reports "foreign config" unchanged (ledger row 39)', () => {
+  const root = tmp(); write(root, 'release-please-config.json', 'not json');
+  const r = rb.detectReleaseProcess(root);
+  assert.equal(r.verdict, 'conflict');
+  assert.equal(r.tool, 'release-please (foreign config)');
+});
