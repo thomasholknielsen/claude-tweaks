@@ -18,6 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { compareVersions } = require('../changelog');
 
 const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)$/;
@@ -188,8 +189,50 @@ function renderPolicyRows() {
   ];
 }
 
+function defaultListTags(root) {
+  try {
+    return execFileSync('git', ['-C', root, 'tag', '-l', 'v*'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+      .split('\n').map((s) => s.trim()).filter(Boolean);
+  } catch {
+    return []; // not a git repo, or git absent — seeding falls through to the manifest/0.1.0
+  }
+}
+
+// The step's whole decision, in one call: verdict first, then the writes.
+// Never touches .claude-tweaks/policy.yml — the two rows are returned for
+// the prose step to land through init/worktree-policy-finalization.md's
+// isolated-worktree write (a direct edit would be denied under
+// worktree-always, the same reason Step 6 defers its own row).
+function bootstrapRelease({ root, integrationModel, branch, dryRun = false, listTags } = {}) {
+  const empty = { written: [], policyRows: [] };
+  if (integrationModel !== 'pr-first' && integrationModel !== 'local-merge') {
+    return { verdict: 'skipped', reason: 'integration-model unresolved', ...empty };
+  }
+  const detected = detectReleaseProcess(root);
+  if (detected.verdict !== 'fresh') return { ...detected, ...empty };
+  const { releaseType, extraFiles } = resolveReleaseType(root);
+  const tags = (listTags || defaultListTags)(root);
+  const version = seedManifestVersion({ tags, manifestVersion: readStackManifestVersion(root, releaseType) });
+  const files = [
+    [CONFIG_FILE, renderConfig({ releaseType, extraFiles })],
+    [MANIFEST_FILE, renderManifest(version)],
+  ];
+  if (integrationModel === 'pr-first') files.push([WORKFLOW_FILE, renderWorkflowYaml({ branch })]);
+  const written = [];
+  for (const [rel, content] of files) {
+    if (!dryRun) {
+      const full = path.join(root, rel);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, content);
+    }
+    written.push(rel);
+  }
+  return { verdict: 'fresh', releaseType, version, written, policyRows: renderPolicyRows() };
+}
+
 module.exports = {
   RELEASE_STACK_TABLE, CONFLICT_MARKERS, CONFIG_FILE, MANIFEST_FILE, WORKFLOW_FILE,
   isBootstrapShaped, detectReleaseProcess, resolveReleaseType, readStackManifestVersion, seedManifestVersion,
   renderWorkflowYaml, renderConfig, renderManifest, renderPolicyRows,
+  defaultListTags, bootstrapRelease,
 };

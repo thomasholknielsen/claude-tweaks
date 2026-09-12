@@ -107,3 +107,89 @@ test('renderers: workflow, config, manifest, policy rows', () => {
   assert.match(rows[0], /^# release-hook: /);
   assert.equal(rows[1], '# release-train: false');
 });
+
+const { execFileSync } = require('child_process');
+function git(cwd, ...args) { return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(); }
+function gitRepo(root) {
+  git(root, 'init', '-b', 'main');
+  git(root, 'config', 'user.email', 't@t');
+  git(root, 'config', 'user.name', 't');
+  write(root, 'README.md', 'x\n');
+  git(root, 'add', 'README.md');
+  git(root, 'commit', '-m', 'init');
+}
+const read = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+
+test('bootstrapRelease: fresh Node repo, pr-first -> three files, release-type node, manifest 0.1.0 (AC 1)', () => {
+  const root = tmp(); write(root, 'package.json', '{"name":"x"}');
+  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => [] });
+  assert.equal(r.verdict, 'fresh');
+  assert.equal(r.releaseType, 'node');
+  assert.equal(r.version, '0.1.0');
+  assert.deepEqual(r.written, ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release-please.yml']);
+  assert.equal(JSON.parse(read(root, 'release-please-config.json')).packages['.']['release-type'], 'node');
+  assert.deepEqual(JSON.parse(read(root, '.release-please-manifest.json')), { '.': '0.1.0' });
+  assert.match(read(root, '.github/workflows/release-please.yml'), /release-please-action@v4/);
+  assert.deepEqual(r.policyRows, rb.renderPolicyRows());
+});
+
+test('bootstrapRelease: same fixture, local-merge -> config + manifest only, no workflow (AC 2)', () => {
+  const root = tmp(); write(root, 'package.json', '{"name":"x"}');
+  const r = rb.bootstrapRelease({ root, integrationModel: 'local-merge', listTags: () => [] });
+  assert.deepEqual(r.written, ['release-please-config.json', '.release-please-manifest.json']);
+  assert.equal(fs.existsSync(path.join(root, '.github/workflows/release-please.yml')), false);
+  assert.equal(r.releaseType, 'node');
+  assert.equal(r.version, '0.1.0');
+});
+
+test('bootstrapRelease: .changeset/ -> conflict, nothing written; manual v* tags alone stay fresh (AC 3)', () => {
+  const a = tmp(); fs.mkdirSync(path.join(a, '.changeset')); write(a, 'package.json', '{}');
+  const r = rb.bootstrapRelease({ root: a, integrationModel: 'pr-first', listTags: () => [] });
+  assert.equal(r.verdict, 'conflict');
+  assert.equal(r.tool, 'changesets');
+  assert.deepEqual(r.written, []);
+  assert.equal(fs.existsSync(path.join(a, 'release-please-config.json')), false);
+  const b = tmp(); gitRepo(b); write(b, 'package.json', '{"name":"x","version":"1.0.0"}');
+  git(b, 'tag', 'v1.0.0');
+  const r2 = rb.bootstrapRelease({ root: b, integrationModel: 'pr-first' }); // default listTags reads the real repo
+  assert.equal(r2.verdict, 'fresh');
+  assert.equal(r2.version, '1.0.0');
+});
+
+test('bootstrapRelease: conflict cleared on a later run proceeds to write (AC 6)', () => {
+  const root = tmp(); write(root, 'package.json', '{}'); write(root, '.releaserc', '{}');
+  assert.equal(rb.bootstrapRelease({ root, integrationModel: 'pr-first', listTags: () => [] }).verdict, 'conflict');
+  fs.unlinkSync(path.join(root, '.releaserc'));
+  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', listTags: () => [] });
+  assert.equal(r.verdict, 'fresh');
+  assert.equal(r.written.length, 3);
+});
+
+test('bootstrapRelease: re-running on an already-bootstrapped repo writes nothing and does not clobber (AC 7)', () => {
+  const root = tmp(); write(root, 'package.json', '{}');
+  rb.bootstrapRelease({ root, integrationModel: 'pr-first', listTags: () => ['v2.0.0'] });
+  const before = read(root, '.release-please-manifest.json');
+  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', listTags: () => ['v9.9.9'] });
+  assert.equal(r.verdict, 'already-bootstrapped');
+  assert.deepEqual(r.written, []);
+  assert.equal(read(root, '.release-please-manifest.json'), before);
+});
+
+test('bootstrapRelease: manifest seeded from the semver-newest tag on a real repo (AC 8)', () => {
+  const root = tmp(); gitRepo(root); write(root, 'package.json', '{"name":"x","version":"0.0.1"}');
+  git(root, 'tag', 'v1.9.0');
+  git(root, 'tag', 'v1.10.0');
+  const r = rb.bootstrapRelease({ root, integrationModel: 'local-merge' });
+  assert.equal(r.version, '1.10.0');
+  assert.deepEqual(JSON.parse(read(root, '.release-please-manifest.json')), { '.': '1.10.0' });
+});
+
+test('bootstrapRelease: unresolved integration-model -> skipped before any detection; dry-run writes nothing', () => {
+  const a = tmp(); fs.mkdirSync(path.join(a, '.changeset'));
+  assert.deepEqual(rb.bootstrapRelease({ root: a, integrationModel: null }), { verdict: 'skipped', reason: 'integration-model unresolved', written: [], policyRows: [] });
+  const b = tmp(); write(b, 'package.json', '{}');
+  const r = rb.bootstrapRelease({ root: b, integrationModel: 'pr-first', dryRun: true, listTags: () => [] });
+  assert.equal(r.verdict, 'fresh');
+  assert.deepEqual(r.written, ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release-please.yml']);
+  assert.equal(fs.existsSync(path.join(b, 'release-please-config.json')), false);
+});

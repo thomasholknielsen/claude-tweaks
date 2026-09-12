@@ -1,0 +1,46 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawnSync } = require('child_process');
+
+const CLI = path.join(__dirname, '..', '..', '..', 'plugin', 'bin', 'release-bootstrap.js');
+function run(args) { return spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8' }); }
+
+test('CLI: fresh local-merge root prints the JSON envelope and exits 0', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rb-cli-'));
+  fs.writeFileSync(path.join(root, 'package.json'), '{"name":"x"}');
+  const r = run(['--root', root, '--integration-model', 'local-merge', '--branch', 'main']);
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.verdict, 'fresh');
+  assert.equal(out.releaseType, 'node');
+  assert.deepEqual(out.written, ['release-please-config.json', '.release-please-manifest.json']);
+  assert.equal(out.policyRows.length, 2);
+});
+
+test('CLI: conflict is an outcome (exit 0, verdict in JSON), missing --integration-model is usage (exit 2)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rb-cli-'));
+  fs.mkdirSync(path.join(root, '.changeset'));
+  const r = run(['--root', root, '--integration-model', 'pr-first']);
+  assert.equal(r.status, 0);
+  assert.equal(JSON.parse(r.stdout).verdict, 'conflict');
+  const u = run(['--root', root]);
+  assert.equal(u.status, 2);
+  assert.match(u.stderr, /--integration-model/);
+  const unk = run(['--root', root, '--integration-model', 'pr-first', '--bogus']);
+  assert.equal(unk.status, 2);
+});
+
+test('CLI: --dry-run reports the plan without writing', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rb-cli-'));
+  fs.writeFileSync(path.join(root, 'go.mod'), 'module x\n');
+  const r = run(['--root', root, '--integration-model', 'pr-first', '--dry-run']);
+  assert.equal(r.status, 0);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.releaseType, 'go');
+  assert.equal(out.written.length, 3);
+  assert.equal(fs.existsSync(path.join(root, 'release-please-config.json')), false);
+});
