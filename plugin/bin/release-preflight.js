@@ -7,7 +7,9 @@
 // field is data the skill acts on, never an exit code), 2 on a malformed
 // invocation, 3 when --run / PIPELINE_RUN_DIR does not resolve under the
 // main checkout ([IL-127]/[IL-150] — decided on the real path) or the cwd is
-// not inside a git checkout at all. With no run dir the pack goes to a fresh
+// not inside a git checkout at all. An undecided crash — a throw that reaches
+// the top level rather than a decided outcome — is exit 1, as in both sibling
+// packs: the 0/2/3 vocabulary governs outcomes this CLI decided. With no run dir the pack goes to a fresh
 // scratch directory under the system temp dir (run-directory-fact-packs'
 // documented fallback); its path is printed on stderr.
 'use strict';
@@ -113,7 +115,7 @@ async function run(argv, deps = {}) {
 }
 
 if (require.main === module) {
-  run(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (err) => { process.stderr.write(`release-preflight.js: ${err && err.stack ? err.stack : err}\n`); process.exitCode = 2; });
+  run(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (err) => { process.stderr.write(`release-preflight.js: ${err && err.stack ? err.stack : err}\n`); process.exitCode = 1; });
 }
 
 module.exports = { run, parseArgs, USAGE };

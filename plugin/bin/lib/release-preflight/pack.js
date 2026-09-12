@@ -138,15 +138,18 @@ function memo(fn) {
   return () => { if (p === undefined) p = Promise.resolve().then(fn); return p; };
 }
 
+// The preamble every probe depends on — policy, root, branch, tip ref — plus
+// the probe table itself. Separated from gatherReleasePreflight so that a
+// failure here can be caught once and turned into a degraded envelope per
+// probe (ruling 13): the pack is still produced, every field says
+// `preamble failed: …`, and nobody reads a half-resolved context.
+//
 // `root`, when the caller already resolved it (the CLI's own exit-3 check runs
 // `git rev-parse --show-toplevel` before any run-dir handling), is used as-is —
 // one rev-parse per process rather than the same spawn twice. `runDir`, when
 // the CLI resolved one, is where a run's pinned config.yml overrides policy.yml
 // — the same precedence every other consumer of resolvePolicyConfig honours.
-async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: overrides = {}, root: rootArg = null, runDir = null } = {}) {
-  const deps = { ...defaultDeps(cwd), ...overrides };
-  const limit = Number.isFinite(deps.probeTimeoutMs) ? deps.probeTimeoutMs : PROBE_TIMEOUT_MS;
-  const t0 = deps.now();
+function prepare({ deps, rootArg, runDir }) {
   const gitForPolicy = rootArg
     ? (args) => (args.join(' ') === 'rev-parse --show-toplevel' ? `${rootArg}\n` : deps.git(args))
     : deps.git;
@@ -296,9 +299,27 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
     },
   };
 
+  return { branch, tipRef, probes };
+}
+
+async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: overrides = {}, root: rootArg = null, runDir = null } = {}) {
+  const deps = { ...defaultDeps(cwd), ...overrides };
+  const limit = Number.isFinite(deps.probeTimeoutMs) ? deps.probeTimeoutMs : PROBE_TIMEOUT_MS;
+  const t0 = deps.now();
   const names = PROBE_NAMES.filter((n) => !only || only.includes(n));
-  const pack = { generatedAt: new Date(t0).toISOString(), branch, tipRef };
-  const results = await Promise.all(names.map((n) => wrapProbe(n, withTimeout(probes[n], limit), deps.now)));
+  let context;
+  try {
+    context = prepare({ deps, rootArg, runDir });
+  } catch (err) {
+    // Ruling 13: the preamble is inside the envelope discipline. Every probe
+    // degrades with the same cause and the pack is still written (exit 0) with
+    // branch/tipRef null — a consumer reads a fact pack that says what failed,
+    // not a stack trace instead of a file.
+    const failed = () => { throw new Error(`preamble failed: ${String((err && err.message) || err)}`); };
+    context = { branch: null, tipRef: null, probes: Object.fromEntries(names.map((n) => [n, failed])) };
+  }
+  const pack = { generatedAt: new Date(t0).toISOString(), branch: context.branch, tipRef: context.tipRef };
+  const results = await Promise.all(names.map((n) => wrapProbe(n, withTimeout(context.probes[n], limit), deps.now)));
   names.forEach((n, i) => { pack[n] = results[i]; });
   pack.durationMs = deps.now() - t0;
   return pack;

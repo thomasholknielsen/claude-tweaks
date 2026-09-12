@@ -282,6 +282,18 @@ test('ciTip (pr-first): the branch is asked by name, paginated, with local/remot
   assert.strictEqual(down.hook.ok, true);
 });
 
+test('ruling 13: a failing preamble degrades every probe and the pack is still produced', async () => {
+  const { deps } = fakeDeps();
+  deps.readFile = (p) => { if (p === path.join(ROOT, '.claude-tweaks/policy.yml')) throw Object.assign(new Error(`EISDIR: illegal operation on a directory, read '${p}'`), { code: 'EISDIR' }); return null; };
+  const pack = await gatherReleasePreflight({ cwd: ROOT, deps });
+  assert.strictEqual(pack.branch, null);
+  assert.strictEqual(pack.tipRef, null);
+  for (const k of PROBE_NAMES) {
+    assert.strictEqual(pack[k].ok, false, k);
+    assert.match(pack[k].error, /preamble failed: .*EISDIR/, k);
+  }
+});
+
 test('a hung probe is bounded by the timeout and degrades itself only', async () => {
   const { deps } = fakeDeps();
   deps.execFileAsync = () => new Promise(() => {});
