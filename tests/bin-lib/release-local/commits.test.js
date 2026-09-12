@@ -57,3 +57,21 @@ test('conventionalHistory: combines lastTag and the range', () => {
   assert.strictEqual(h.lastTag, 'v1.2.0');
   assert.strictEqual(h.commits[0].type, 'fix');
 });
+
+test('lastTag/readCommits/conventionalHistory: an explicit ref replaces HEAD in every git call', () => {
+  const calls = [];
+  const git = (args) => { calls.push(args.join(' ')); return args[0] === 'describe' ? 'v1.2.0\n' : 'z'.repeat(40) + '\x1ffix: c\x1f\x1e\n'; };
+  const h = conventionalHistory(git, 'origin/main');
+  assert.strictEqual(h.lastTag, 'v1.2.0');
+  assert.strictEqual(calls[0], 'describe --tags --match v[0-9]* --abbrev=0 --first-parent origin/main');
+  assert.ok(calls[1].endsWith(' v1.2.0..origin/main'), calls[1]);
+  readCommits(git, null, 'refs/heads/main');
+  assert.ok(calls[2].endsWith(' refs/heads/main'), calls[2]);
+});
+
+test('lastTag/readCommits: the default ref is still HEAD', () => {
+  const calls = [];
+  const git = (args) => { calls.push(args.join(' ')); return args[0] === 'describe' ? 'v1.2.0\n' : ''; };
+  lastTag(git); readCommits(git, 'v1.2.0');
+  assert.ok(calls[0].endsWith(' HEAD') && calls[1].endsWith(' v1.2.0..HEAD'), calls.join(' | '));
+});

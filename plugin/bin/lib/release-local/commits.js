@@ -12,9 +12,9 @@ const RECORD = '\x1e';
 const FIELD = '\x1f';
 const NO_TAG_RE = /No names found|No tags can describe|cannot describe anything/i;
 
-function lastTag(git) {
+function lastTag(git, ref = 'HEAD') {
   try {
-    const out = git(['describe', '--tags', '--match', 'v[0-9]*', '--abbrev=0', '--first-parent', 'HEAD']).trim();
+    const out = git(['describe', '--tags', '--match', 'v[0-9]*', '--abbrev=0', '--first-parent', ref]).trim();
     return out || null;
   } catch (err) {
     if (NO_TAG_RE.test(String(err.message || err))) return null;
@@ -35,8 +35,8 @@ function parseCommit({ sha, subject, body = '' }) {
   return { sha, subject, type: m[1], scope: m[2] ? m[2].slice(1, -1) : null, breaking, breakingNote, description: m[4], unconventional: false };
 }
 
-function readCommits(git, tag) {
-  const range = tag ? `${tag}..HEAD` : 'HEAD';
+function readCommits(git, tag, ref = 'HEAD') {
+  const range = tag ? `${tag}..${ref}` : ref;
   const raw = git(['log', '--first-parent', `--format=%H${FIELD}%s${FIELD}%b${RECORD}`, range]);
   return raw.split(RECORD)
     .map((chunk) => chunk.replace(/^\n/, ''))
@@ -47,9 +47,9 @@ function readCommits(git, tag) {
     });
 }
 
-function conventionalHistory(git) {
-  const tag = lastTag(git);
-  return { lastTag: tag, commits: readCommits(git, tag) };
+function conventionalHistory(git, ref = 'HEAD') {
+  const tag = lastTag(git, ref);
+  return { lastTag: tag, commits: readCommits(git, tag, ref) };
 }
 
 module.exports = { HEADER_RE, lastTag, parseCommit, readCommits, conventionalHistory };
