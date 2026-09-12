@@ -41,6 +41,7 @@ const fs = require('fs');
 const path = require('path');
 const ctxLib = require('./lib/hooks/context');
 const { FRICTION_EVENT_TYPES } = require('./lib/friction-lens-vocab');
+const substop = require('./lib/hooks/subagent-stop');
 
 const FRICTION_TYPES = new Set(FRICTION_EVENT_TYPES);
 
@@ -98,10 +99,49 @@ function readEvents(runDir, source) {
   return out;
 }
 
+// #2041: a dispatched agent that itself orchestrates nested background work
+// re-fires SubagentStop once per "still waiting" narration turn, each one
+// logged (subagent-stop.js) as its own contract-violation event sharing the
+// same transcriptPath. By the time this aggregation layer runs, the
+// transcript has usually had a chance to accumulate the dispatch's real
+// final reply — re-check it fresh here rather than trusting the write-time
+// snapshot. Grouped by transcriptPath; an event with no transcriptPath
+// (logged before this field existed) is left untouched. An unreadable
+// transcript (deleted, moved) fails open — never drop evidence we can't
+// re-verify.
+function dedupeContractViolations(events, deps) {
+  const groups = new Map();
+  events.forEach((e, i) => {
+    if (e.type === 'contract-violation' && typeof e.transcriptPath === 'string' && e.transcriptPath) {
+      if (!groups.has(e.transcriptPath)) groups.set(e.transcriptPath, []);
+      groups.get(e.transcriptPath).push(i);
+    }
+  });
+  const drop = new Set();
+  const refreshed = new Map();
+  for (const [transcriptPath, indices] of groups) {
+    let text;
+    try { text = deps.readTranscriptText(transcriptPath); } catch { text = undefined; }
+    if (typeof text !== 'string') continue; // unreadable -> fail open, keep as logged
+    const trimmed = text.trim();
+    if (substop.STATUS_RE.test(trimmed)) {
+      indices.forEach((i) => drop.add(i));
+      continue;
+    }
+    const [keep, ...rest] = indices;
+    rest.forEach((i) => drop.add(i));
+    refreshed.set(keep, trimmed.split('\n')[0].slice(0, 120));
+  }
+  return events
+    .map((e, i) => (refreshed.has(i) ? { ...e, firstLine: refreshed.get(i) } : e))
+    .filter((_, i) => !drop.has(i));
+}
+
 const realDeps = {
   isDirectory: (p) => { try { return fs.statSync(p).isDirectory(); } catch { return false; } },
   cwd: () => process.cwd(),
   readEvents,
+  readTranscriptText: substop.lastAssistantText,
   findRunsByWorktreePath: ctxLib.findRunsByWorktreePath,
   stdout: (s) => process.stdout.write(s),
   stderr: (s) => process.stderr.write(s),
@@ -123,12 +163,12 @@ function run(argv, deps = realDeps) {
   for (const { runDir: siblingDir } of siblings) {
     events.push(...deps.readEvents(siblingDir, 'adhoc'));
   }
-  const friction = events.filter((e) => FRICTION_TYPES.has(e.type));
+  const friction = dedupeContractViolations(events.filter((e) => FRICTION_TYPES.has(e.type)), deps);
 
   deps.stdout(`${JSON.stringify(friction)}\n`);
   return 0;
 }
 
-module.exports = { run, parseArgs, readEvents, FRICTION_EVENT_TYPES };
+module.exports = { run, parseArgs, readEvents, FRICTION_EVENT_TYPES, dedupeContractViolations };
 
 if (require.main === module) process.exitCode = run(process.argv.slice(2), realDeps);
