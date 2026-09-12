@@ -196,6 +196,8 @@ Execution depends on the chosen execution strategy (see Build Options). **These 
 
 > **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-dispatch-core.md` for the full pattern.
 
+> **Cherry-pick source-branch PR check (#1957):** worktree strategy only. After each commit lands in this worktree, before moving to the next task, run `worktree-setup.md`'s "Cherry-pick source-branch PR check" section — a git-native `(cherry picked from commit {sha})` trailer scan that stops the build (not a silenceable auto-mode lever) when the cherry-picked source is also reachable from another record's branch that backs a still-open PR (#1821's incident). No trailer on the commit means no added work — the check is a no-op for the common case of an ordinary authored commit.
+
 **subagent** (default): read `dispatch.md` in this skill's directory and follow its full dispatch procedure — profile resolution, `tier=` alias handling, AC-forwarding, and review-model pinning. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`.
 
 **batched**: Invoke `/superpowers:executing-plans`. After the last batch completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`. `/build` handles post-execution steps before any branch finishing.

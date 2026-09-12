@@ -344,3 +344,34 @@ test('#1928 AC5: transcript_path alone appends no contract-violation event', () 
   assert.deepStrictEqual(out, {});
   assert.strictEqual(fs.existsSync(path.join(run, 'events.jsonl')), false);
 });
+
+// #2036: SubagentStop's agent_transcript_path identical to the same event's
+// own transcript_path is a known-unreliable attribution (claude-code#27755) —
+// the dispatching session's own async-wait status narration
+// (agent-tool-async-wait-pattern.md: status message, no tool call, while
+// awaiting an Agent-tool dispatch's async notification), not a distinct
+// subagent's final reply. AC1: no contract-violation event or systemMessage.
+test('#2036 AC1: agent_transcript_path identical to transcript_path appends no contract-violation event', () => {
+  const run = mkRun();
+  const t = transcript('Waiting on the code-simplifier subagent to return before proceeding.');
+  const out = substop.run({
+    input: { agent_transcript_path: t, transcript_path: t },
+    runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x',
+  });
+  assert.deepStrictEqual(out, {});
+  assert.strictEqual(fs.existsSync(path.join(run, 'events.jsonl')), false);
+});
+
+// #2036 AC2: a genuine subagent stop — a DISTINCT agent_transcript_path from
+// transcript_path, whose own final reply omits the status line — must still
+// be flagged. The #2036 fix narrows the false-positive without disabling the
+// real check.
+test('#2036 AC2: a genuinely distinct agent transcript missing the status line still logs a contract-violation, even when transcript_path is also present', () => {
+  const run = mkRun();
+  const out = substop.run({
+    input: { agent_transcript_path: transcript('I did some things.'), transcript_path: '/main-session/transcript.jsonl' },
+    runDir: run, runState: null, ownedRun: { dir: run, attribution: 'session' }, cwd: '/x',
+  });
+  assert.match(out.json.systemMessage, /status line/i);
+  assert.strictEqual(readEvents(run)[0].type, 'contract-violation');
+});

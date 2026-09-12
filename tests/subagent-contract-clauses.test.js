@@ -254,3 +254,26 @@ test('red-team.md states its own per-sub-issue batching unit (#649)', () => {
       'the next sub-issue\'s message rather than spending a whole message on one agent',
   );
 });
+
+test('subagent-output-contract.md states the Scratch rule inside Input Discipline (#2022)', () => {
+  const contract = FILES['skills/_shared/subagent-output-contract.md'];
+  const section = sectionRegion(contract, '## Input Discipline');
+  assert.notStrictEqual(section, '', 'contract must keep its Input Discipline section');
+  assert.match(
+    section,
+    /\*\*Scratch rule\.\*\*/,
+    'Input Discipline must state the Scratch rule as a bold-led paragraph, matching the ' +
+      'section\'s existing "**A file allowlist...**" / "**Inherited project context...**" style',
+  );
+  assert.match(
+    section,
+    /never under the repository tree/,
+    'the Scratch rule must say an agent-created verification file never goes under the ' +
+      'repository tree',
+  );
+  assert.match(
+    section,
+    /deletes what it created/,
+    'the Scratch rule must require the agent to delete what it created before its status word',
+  );
+});

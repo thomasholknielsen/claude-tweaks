@@ -12,6 +12,20 @@
 //    narration turns were logged as violations. Absent agent_transcript_path
 //    is now a no-op; a harness that stops sending the field silently
 //    disables this check rather than flooding the log.
+// 3. (fixed, #2036) #1928 closed the absent-agent_transcript_path case, but
+//    left one shape open: a SubagentStop firing whose agent_transcript_path
+//    is PRESENT yet identical to the same event's own transcript_path — the
+//    dispatching session's own file, not a distinct subagent session. This
+//    happens while a main session ends its turn per the documented async-wait
+//    convention (agent-tool-async-wait-pattern.md: status message, no tool
+//    call, while awaiting an Agent-tool dispatch's async notification) —
+//    claude-code#27755's unreliable SubagentStop firing attributes that
+//    narration turn to "agent_transcript_path" instead of leaving the field
+//    absent. Graded, it misfires on the orchestrator's own status narration
+//    ("Waiting on the code-simplifier subagent to return…") as if it were a
+//    subagent's final reply missing its status line. A genuine subagent stop
+//    always carries its OWN distinct transcript file, so this equality check
+//    can never suppress a real violation — only this known-unreliable shape.
 'use strict';
 const fs = require('fs');
 const ctxLib = require('./context');
@@ -109,6 +123,14 @@ function run(ctx) {
   // narration as a subagent reply — the bulk of the corpus's false fires.
   const transcriptPath = ctx.input.agent_transcript_path;
   if (typeof transcriptPath !== 'string' || !transcriptPath) return {};
+  // #2036: agent_transcript_path identical to this same event's own
+  // transcript_path means the harness never actually separated a distinct
+  // subagent transcript from the dispatching session's own — see the header
+  // comment's false-positive source 3. Best-effort no-op, matching this
+  // file's own posture.
+  // transcriptPath is already a confirmed non-empty string (checked above),
+  // so a straight equality test already implies mainTranscriptPath is one too.
+  if (ctx.input.transcript_path === transcriptPath) return {};
   const text = lastAssistantText(transcriptPath);
   if (typeof text !== 'string') return {}; // unreadable -> best-effort no-op
   const trimmedText = text.trim();
