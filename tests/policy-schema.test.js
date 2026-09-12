@@ -111,13 +111,18 @@ test('POLICY_KEYS entries are unique', () => {
   // groups queue-pull-script.md folds into one multi-spec group; 0 disables
   // bundling, grouping.js's FASTLANE_BUNDLE_CAP_DEFAULT stays the unset
   // fallback (sibling of #1654's dispatch-group-size-guard above).
-  // 66 -> 68, #2253 (release family, unit 3): release-hook — the local
+  // 66 -> 67, #1886 (design-ceremony lever): design-ceremony — new static
+  // per-project policy key gating whether /claude-tweaks:specify's
+  // /superpowers:brainstorming handoff prepends a per-section-approval
+  // consolidation instruction (fast-lane) or leaves the invocation
+  // unchanged (standard, the default).
+  // 67 -> 69, #2253 (release family, unit 3): release-hook — the local
   // engine's post-tag publish/mirror/deploy command, ignored under
   // pr-first; release-train — opt-in for the unattended release train,
   // honored only at autonomy: unattended. Both non-core scaffolding seeded
   // commented-out by /claude-tweaks:init Step 21; consumers land in units 4 and 6.
-  assert.strictEqual(POLICY_KEYS.length, 68);
-  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 68);
+  assert.strictEqual(POLICY_KEYS.length, 69);
+  assert.strictEqual(new Set(POLICY_KEYS.map((k) => k.key)).size, 69);
 });
 
 test('dispatch-batch-size is registered alongside its deprecated alias', () => {
