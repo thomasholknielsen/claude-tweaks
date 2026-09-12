@@ -40,6 +40,10 @@ files:
 - **Action:** A full sweep whose report would exceed 40 lines (a dozen-plus Yours records across several groups is enough — every single-ref record costs a row plus a paste line) writes the whole report to `{run-dir}/report.md` and sends a ~20-line condensed report: Approve in full, Yours as group heads with counts (plus batch lines), Applied and Clean collapsed to counts, and a `Full report:` footer.
 - **Expect:** Nothing is lost — every row and every paste block is in `report.md`; the condensed report is what the hard gate checks for, and Next Actions still derives from the groups. At 40 lines or fewer no `report.md` is written and the report arrives whole.
 
+## Origin
+- Created during build of #695 (tidy standalone-auto report shape)
+- Updated during build of #2252 (Reconcile under squash): Step 1 now names the second merged-in-substance proof — squash provenance via the PR's own merge commit — beside cherry-equivalence for both branch checks; `plugin/bin/lib/reconcile/squash-provenance.js` added to `files:`
+
 ## Example render
 
 An example of the post-#695 shape for a sweep with 3 auto-applied cleanups, no staged items, 16 Yours records across four groups, and six clean scans (fictional records). The 16 Yours records fit in 28 lines; the whole report is 49, so this render ships condensed, with this full form in `report.md`:
@@ -96,6 +100,3 @@ issue claims       12 checked
 Full decision log: .claude-tweaks/pipelines/2026-08-16T203000-tidy-standalone/decisions.md
 ````
 
-## Origin
-- Created during build of #695 (tidy standalone-auto report shape)
-- Updated during build of #2252 (Reconcile under squash): Step 1 now names the second merged-in-substance proof — squash provenance via the PR's own merge commit — beside cherry-equivalence for both branch checks; `plugin/bin/lib/reconcile/squash-provenance.js` added to `files:`
