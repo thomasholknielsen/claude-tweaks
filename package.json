@@ -5,6 +5,6 @@
   "description": "claude-tweaks plugin — test harness only; the plugin itself ships no runtime npm deps.",
   "scripts": {
     "test": "node tools/run-tests.js",
-    "test:perf": "node --test $(find perf -name '*.test.js' | sort)"
+    "test:perf": "node tools/run-tests.js perf"
   }
 }
