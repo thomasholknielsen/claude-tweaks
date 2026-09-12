@@ -60,6 +60,8 @@ When invoked by `/claude-tweaks:flow`, review runs in **full** mode by default (
 
 In visual, journey, and discover modes, delegate entirely to `/claude-tweaks:visual-review` — skip Steps 1-7 (an effort token passed alongside one of these mode keywords is silently ignored, since Steps 1-7 are exactly where the lens system it gates lives).
 
+**Flow-context default.** When `$PIPELINE_RUN_DIR` is set (this invocation is running inside a pipeline — `/claude-tweaks:flow` or another orchestrator) and none of rules 2/4/5/6's mode tokens (`full`/`visual`/`journey:`/`discover`) appear anywhere in `$ARGUMENTS`, rules 1 and 7's `Mode: code` resolves to **full** mode instead — code review followed by a visual browser review pass (Step 6). This makes the Overview's documented "flow invokes review in full mode by default" promise self-enforcing rather than dependent on the flow executor remembering to type `full`. An explicit mode token in `$ARGUMENTS` (`full`/`visual`/`journey:`/`discover`) always wins over this default. Standalone invocation (no `$PIPELINE_RUN_DIR`) is unaffected — rules 1 and 7 still resolve to code mode there, unchanged.
+
 ## Code-Mode Procedure (Steps 1-7)
 
 **Fast-lane shortcut.** When a pipeline run directory's `config.yml` already reads
