@@ -656,6 +656,7 @@ function renderVerifyTable(rows) {
 module.exports = {
   runVerify,
   renderVerifyTable,
+  sanitizeCell,
   resolveArchivedRunDir,
   registerCheck,
   defaultGit,
