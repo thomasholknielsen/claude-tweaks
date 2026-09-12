@@ -21,6 +21,8 @@ the runnable invocation lives in that hatch, refs #1376) — unchanged. Full rat
 Skip this step entirely under `ceremony-profile: fast-lane` (roster tag `review-step-1`,
 `_shared/ceremony-profile.md`) — proceed directly to Step 1.5.
 
+Skip it too on a `base:{ref}` scope (Input rule 9): no spec exists to verify — proceed to Step 1.5 with "no spec — base-ref scope" in Step 7's summary.
+
 If a spec number was provided, read the spec file and verify the implementation meets it:
 
 > **Parallel execution:** Use parallel tool calls aggressively — all Grep/Glob/Read operations searching the codebase for each deliverable's implementation and each criterion's verifiability are independent and should run concurrently.
@@ -104,6 +106,8 @@ read `cross-spec-promise-check.md` in this skill's directory.
 ## Step 2: Identify What Changed
 
 **Resolving `{base}`:** never trust a bare local branch name for `{base}` — a long-lived worktree's local tracking branch (commonly `main`) routinely drifts behind its remote. Resolve it via `git fetch origin {base}` then use `origin/{base}` in every command below, or otherwise confirm `git log -1 {base}` matches `git log -1 origin/{base}` before trusting the diff scope.
+
+On a `base:{ref}` scope, `{base}` is the given ref and `{branch}` is `origin/{integration-branch}`; the change set is `git log --first-parent {base}..{branch}` / `git diff {base}..{branch}` — the first-parent line of the integration branch, so each squash-merged PR is one commit and a `--no-ff` merge counts once.
 
 ### Merge-Provenance Check
 
