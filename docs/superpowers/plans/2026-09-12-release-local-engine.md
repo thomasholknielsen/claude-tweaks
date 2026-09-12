@@ -32,6 +32,7 @@
 8. **`manifest.js` skips only path absence** (`does not exist` / `exists on disk, but not in`); a bad ref (`invalid object name`) propagates. Found by Task 3's implementer: the brief reused `manifest-path.js`'s `NOT_FOUND_ERROR_RE`, which folds both, against a test that requires the throw.
 9. **`package-lock.json` splices are structural, not counted** — the root `version` plus the `packages[""]` entry's own `version` (bounded by the first `"node_modules/` key), never a dependency's. Task 3's reviewer caught the brief's "first two occurrences" corrupting a lockfileVersion 1 file's first dependency.
 10. **Plan claims stay in the local engine's precheck**, read through `deps.listPlanFiles` (`docs/superpowers/plans/*.md` when the directory exists, exactly as `release.js` provides it; a project without that directory has none). Task 6's implementer found the brief's `deps` lacked the member precheck requires. The same round fixed AC 2's ordering assertion, which bound to precheck's own earlier fetch instead of the push path's.
+11. **Partial-state messages name exactly what landed** — writes are tracked at the call site as they happen (an `applyVersion` throw part-way leaves the recovery command listing only the files actually edited, or "nothing written" when none), and a hook that throws after the tag (and push) is reported as the hook failure it is (exit 5), never as "not pushed". Task 6's reviewer found both gaps in the brief's stage machine; the tag-after-commit partial gained its own test.
 
 ---
 
@@ -1265,8 +1266,39 @@ test('exit 1 (named partial state): the push fails after the commit and tag land
 test('exit 1 (named partial state): a commit failure after the files were edited', () => {
   const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('commit ') });
   assert.strictEqual(run([], deps), 1);
-  assert.match(state.err, /partial: manifest and CHANGELOG edits are on disk but NOT committed/);
+  assert.match(state.err, /partial: \.release-please-manifest\.json, package\.json, CHANGELOG\.md edited on disk but NOT committed/);
   assert.match(state.err, /git checkout -- \.release-please-manifest\.json package\.json CHANGELOG\.md/);
+});
+
+test('exit 1 (named partial state): applyVersion throws part-way — the recovery lists exactly what landed', () => {
+  // the manifest file carries the version (so planning succeeds) but package.json has no token: the manifest is written, then package.json throws
+  const { deps, state } = makeDeps({ files: { 'package.json': '{\n  "name": "x"\n}\n' } });
+  assert.strictEqual(run([], deps), 1);
+  assert.deepStrictEqual(state.writes, ['.release-please-manifest.json']);
+  assert.match(state.err, /partial: \.release-please-manifest\.json edited on disk but NOT committed \(package\.json carries no version token/);
+  assert.match(state.err, /git checkout -- \.release-please-manifest\.json$/m);
+  assert.ok(!state.git.some((c) => /^(add|commit|tag -a)/.test(c)));
+});
+
+test('exit 1 (named partial state): the tag fails after the commit landed', () => {
+  const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('tag -a') });
+  assert.strictEqual(run([], deps), 1);
+  assert.match(state.err, /partial: the chore\(release\): v1\.3\.0 commit landed but the tag did NOT/);
+  assert.match(state.err, /git tag -a v1\.3\.0 -m v1\.3\.0 && git push origin main v1\.3\.0/);
+});
+
+test('exit 5: a hook that THROWS after the push is a hook failure, never reported as "not pushed"', () => {
+  const { deps, state } = makeDeps({ files: { '.claude-tweaks/policy.yml': 'release-hook: ./publish.sh\n' } });
+  deps.runHook = () => { throw new Error('spawn ENOENT'); };
+  assert.strictEqual(run([], deps), 5);
+  assert.match(state.err, /partial: v1\.3\.0 is committed, tagged and pushed; the release-hook threw \(spawn ENOENT\)/);
+  assert.match(state.err, /re-run the hook alone: \.\/publish\.sh/);
+  assert.ok(!/NOT pushed/.test(state.err));
+  const local = makeDeps({ noOrigin: true, files: { '.claude-tweaks/policy.yml': 'release-hook: ./publish.sh\n' } });
+  local.deps.runHook = () => { throw new Error('boom'); };
+  assert.strictEqual(run([], local.deps), 5);
+  assert.match(local.state.err, /is committed, tagged; the release-hook threw \(boom\)/);
+  assert.ok(!/git push/.test(local.state.err));
 });
 
 test('exit 5: the release-hook fails after the tag and push landed; the tag is final', () => {
@@ -1452,10 +1484,12 @@ function run(argv, deps) {
     if (opts.dryRun) { deps.stdout(`[dry-run] v${version} — no changes written\n`); return 0; }
 
     stage = 'editing';
-    const written = manifest.applyVersion(targets, current, version, deps.readFile, deps.writeFile);
-    editedPaths = written.map((w) => w.path);
-    deps.writeFile('CHANGELOG.md', prependSection(deps.readFile('CHANGELOG.md'), section));
-    editedPaths.push('CHANGELOG.md');
+    // Every write is recorded as it lands, so a throw part-way through
+    // applyVersion still leaves editedPaths naming exactly what is on disk
+    // (ruling 11: the recovery command must list the real partial state).
+    const trackedWrite = (p, text) => { deps.writeFile(p, text); editedPaths.push(p); };
+    manifest.applyVersion(targets, current, version, deps.readFile, trackedWrite);
+    trackedWrite('CHANGELOG.md', prependSection(deps.readFile('CHANGELOG.md'), section));
     deps.git(['add', ...editedPaths]);
     deps.git(['commit', '-m', `chore(release): v${version}`]);
     stage = 'committed';
@@ -1480,9 +1514,16 @@ function run(argv, deps) {
     if (err instanceof UsageError) { deps.stderr(`${message}\n${USAGE}\n`); return 2; }
     if (stage === 'planning') { deps.stderr(`release-local: ${message} — nothing written\n`); return 1; }
     if (stage === 'editing') {
-      deps.stderr(`partial: manifest and CHANGELOG edits are on disk but NOT committed (${message}). ` +
+      if (editedPaths.length === 0) { deps.stderr(`release-local: ${message} — nothing written\n`); return 1; }
+      deps.stderr(`partial: ${editedPaths.join(', ')} edited on disk but NOT committed (${message}). ` +
         `Do NOT re-run release-local. Recover: git checkout -- ${editedPaths.join(' ')}\n`);
       return 1;
+    }
+    if (stage === 'pushed' || (stage === 'tagged' && !hasOrigin)) {
+      // Only deps.runHook can throw here — the tag (and push) are final.
+      deps.stderr(`partial: v${version} is committed, tagged${hasOrigin ? ' and pushed' : ''}; the release-hook threw (${message}). ` +
+        `Do NOT re-run release-local (the tag is final). Recover: re-run the hook alone: ${hook}\n`);
+      return 5;
     }
     if (stage === 'committed') {
       deps.stderr(`partial: the chore(release): v${version} commit landed but the tag did NOT (${message}). ` +
@@ -1536,7 +1577,7 @@ Note for the test's `parseArgs` assertion: `dryRun` is `true` for `--dry-run` (t
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/bin-lib/release-local/cli.test.js`
-Expected: PASS (17 tests — every exit code 0/1/2/3/4/5 exercised, AC 6)
+Expected: PASS (20 tests — every exit code 0/1/2/3/4/5 exercised, AC 6, every named partial state including the tag-after-commit one)
 
 - [ ] **Step 5: Commit**
 
