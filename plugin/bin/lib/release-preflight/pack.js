@@ -21,8 +21,75 @@ const PROBE_TIMEOUT_MS = 60000;
 const EXEC_OPTS = { maxBuffer: 32 * 1024 * 1024, timeout: 30000 };
 const ENGINES = new Set(['pr-first', 'local-merge']);
 const HOOK_DISABLED = new Set(['false', 'off', 'none', 'null']);
-const RELEASE_TRIGGER_RE = /^\s*release:\s*$/m;
+const ON_LINE_RE = /^on:[ \t]*(.*)$/;
 const PUBLISHED_RE = /\bpublished\b/;
+
+// Ruling 10: `hook` reads the workflow's `on:` TRIGGER, never any line that
+// says `release:`. The two whole-file regexes this replaced called a job named
+// `release` beside the word "published" a release hook (false positive) and
+// missed `on: release` and `on: [push, release]` (false negatives, where every
+// activity type — published included — fires). A small text scanner, not a
+// YAML parser: one `on:` block, its three spellings.
+function indentOf(line) { return /^[ \t]*/.exec(line)[0].length; }
+
+function stripComment(value) { return value.replace(/\s+#.*$/, '').trim(); }
+
+// The value side of a `release` key in flow form. Empty (a key with no value,
+// or the next entry starting) means every activity type; otherwise `published`
+// must be among its `types:`.
+function releaseValuePublishes(value) {
+  const v = value.trim();
+  if (v === '' || v.startsWith(',') || v.startsWith('}')) return true;
+  const types = /types\s*:\s*\[([^\]]*)\]/.exec(v);
+  return types ? PUBLISHED_RE.test(types[1]) : false;
+}
+
+// `on: release`, `on: [push, release]`, `on: { release: { types: [published] } }`.
+function flowTriggersRelease(inline) {
+  if (inline === 'release') return true;
+  const list = /^\[(.*)\]$/.exec(inline);
+  if (list) return list[1].split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).includes('release');
+  const map = /^\{(.*)\}$/.exec(inline);
+  const body = map ? map[1] : inline;
+  const at = /(^|[{,\s])release\s*:/.exec(body);
+  return at ? releaseValuePublishes(body.slice(at.index + at[0].length)) : false;
+}
+
+// A `types:` line inside the release sub-block, plus whatever lines are nested
+// under it (`types:\n  - published` as well as `types: [published]`).
+function subBlockPublishes(sub) {
+  const idx = sub.findIndex((l) => /^\s*types\s*:/.test(l));
+  if (idx === -1) return false;
+  let region = /^\s*types\s*:[ \t]*(.*)$/.exec(sub[idx])[1];
+  const typesIndent = indentOf(sub[idx]);
+  for (let i = idx + 1; i < sub.length && indentOf(sub[i]) > typesIndent; i += 1) region += `\n${sub[i]}`;
+  return PUBLISHED_RE.test(region);
+}
+
+function blockTriggersRelease(lines, start, onIndent) {
+  const block = [];
+  for (let i = start; i < lines.length; i += 1) {
+    if (lines[i].trim() === '') continue;
+    if (indentOf(lines[i]) <= onIndent) break; // dedent — the on: block ended
+    block.push(lines[i]);
+  }
+  const idx = block.findIndex((l) => /^\s*release\s*:/.test(l));
+  if (idx === -1) return false;
+  const value = stripComment(/^\s*release\s*:[ \t]*(.*)$/.exec(block[idx])[1]);
+  if (value !== '') return releaseValuePublishes(value);
+  const releaseIndent = indentOf(block[idx]);
+  const sub = [];
+  for (let i = idx + 1; i < block.length && indentOf(block[i]) > releaseIndent; i += 1) sub.push(block[i]);
+  return sub.length === 0 ? true : subBlockPublishes(sub); // bare `release:` = every activity type
+}
+
+function workflowPublishesRelease(text) {
+  const lines = String(text).split('\n');
+  const i = lines.findIndex((l) => ON_LINE_RE.test(l));
+  if (i === -1) return false;
+  const inline = stripComment(ON_LINE_RE.exec(lines[i])[1]);
+  return inline !== '' ? flowTriggersRelease(inline) : blockTriggersRelease(lines, i + 1, indentOf(lines[i]));
+}
 
 function defaultDeps(cwd) {
   const execFileAsync = promisify(execFileCb);
@@ -138,10 +205,7 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
         return v !== null && !HOOK_DISABLED.has(v.toLowerCase());
       }
       const dir = path.join(root, '.github', 'workflows');
-      return deps.readdir(dir).filter((f) => /\.ya?ml$/.test(f)).some((f) => {
-        const text = deps.readFile(path.join(dir, f)) || '';
-        return RELEASE_TRIGGER_RE.test(text) && PUBLISHED_RE.test(text);
-      });
+      return deps.readdir(dir).filter((f) => /\.ya?ml$/.test(f)).some((f) => workflowPublishesRelease(deps.readFile(path.join(dir, f)) || ''));
     },
   };
 

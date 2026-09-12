@@ -9,7 +9,8 @@ const SHA = 'a'.repeat(40);
 const LOG = (subjects) => subjects.map((s, i) => `${String(i).repeat(40)}\x1f${s}\x1f\x1e\n`).join('');
 
 function fakeDeps(o = {}) {
-  const files = { [path.join(ROOT, '.claude-tweaks/policy.yml')]: o.policy === undefined ? 'integration-model: pr-first\n' : o.policy, ...(o.files || {}) };
+  const workflowFiles = Object.fromEntries(Object.entries(o.workflows || {}).map(([name, text]) => [path.join(ROOT, '.github/workflows', name), text]));
+  const files = { [path.join(ROOT, '.claude-tweaks/policy.yml')]: o.policy === undefined ? 'integration-model: pr-first\n' : o.policy, ...workflowFiles, ...(o.files || {}) };
   const calls = { git: [], gh: [] };
   return {
     calls,
@@ -109,13 +110,19 @@ test('ruling 7: no prior tag → lastTag degrades, unreleased covers the full hi
   assert.strictEqual(bare.proposedVersion.value.version, '0.0.1');
 });
 
-test('hook (pr-first): true only when a workflow declares a release trigger with published', async () => {
-  const yes = fakeDeps({ workflows: { 'publish.yml': 'on:\n  release:\n    types: [published]\njobs: {}\n' } });
-  yes.deps.readFile = ((orig) => (p) => (p === path.join(ROOT, '.github/workflows/publish.yml') ? 'on:\n  release:\n    types: [published]\njobs: {}\n' : orig(p)))(yes.deps.readFile);
-  assert.strictEqual((await gatherReleasePreflight({ cwd: ROOT, deps: yes.deps })).hook.value, true);
-  const no = fakeDeps({ workflows: { 'ci.yml': 'on: [push]\n' } });
-  no.deps.readFile = ((orig) => (p) => (p === path.join(ROOT, '.github/workflows/ci.yml') ? 'on: [push]\n' : orig(p)))(no.deps.readFile);
-  assert.strictEqual((await gatherReleasePreflight({ cwd: ROOT, deps: no.deps })).hook.value, false);
+const hookOf = async (workflows) => (await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ workflows }).deps })).hook.value;
+
+test('hook (pr-first): the `on:` trigger decides, not any release: line — block, flow and scalar forms (ruling 10)', async () => {
+  // A job NAMED release, beside the word "published" in a run step: the two
+  // whole-file regexes this replaced called that a release hook.
+  assert.strictEqual(await hookOf({ 'ci.yml': 'on: [push]\njobs:\n  release:\n    steps:\n      - run: echo published\n' }), false);
+  assert.strictEqual(await hookOf({ 'publish.yml': 'on:\n  release:\n    types: [published]\njobs: {}\n' }), true);
+  assert.strictEqual(await hookOf({ 'publish.yml': 'on: { release: { types: [published] } }\njobs: {}\n' }), true);
+  assert.strictEqual(await hookOf({ 'publish.yml': 'on: release\njobs: {}\n' }), true);
+  assert.strictEqual(await hookOf({ 'publish.yml': 'on: [push, release]\njobs: {}\n' }), true);
+  assert.strictEqual(await hookOf({ 'publish.yml': 'on:\n  release:\n    types: [created]\njobs: {}\n' }), false);
+  assert.strictEqual(await hookOf({ 'ci.yml': 'on: [push]\n' }), false);
+  assert.strictEqual(await hookOf({ 'ci.yml': 'on: [push]\n', 'publish.yml': 'on:\n  release:\n    types: [published]\n' }), true);
   assert.strictEqual((await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps().deps })).hook.value, false);
 });
 
