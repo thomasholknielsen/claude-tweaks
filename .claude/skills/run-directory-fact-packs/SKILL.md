@@ -8,10 +8,12 @@ description: Use when adding a fact pack for a pipeline phase, adding a probe to
 A fact pack replaces N ad-hoc reads scattered through a skill's prose with one deterministic
 process: a CLI gathers everything that phase needs, writes one JSON document into the run dir,
 and the prose reads fields out of it. The runner owns execution and bounding; the skill owns
-judgment. Two are shipped — `plugin/bin/lib/wrap-up/pack.js` + `plugin/bin/wrap-up-pack.js`
-(wrap-up Phases 3-4, eight probes) and `plugin/bin/lib/flow/preflight.js` +
-`plugin/bin/flow-preflight.js` (`/flow`'s second call) — and they agree on every rule below.
-Read both before writing a third.
+judgment. Three are shipped — `plugin/bin/lib/wrap-up/pack.js` + `plugin/bin/wrap-up-pack.js`
+(wrap-up Phases 3-4, eight probes), `plugin/bin/lib/flow/preflight.js` +
+`plugin/bin/flow-preflight.js` (`/flow`'s second call) and
+`plugin/bin/lib/release-preflight/pack.js` + `plugin/bin/release-preflight.js`
+(release preflight, eight probes) — and they agree on every rule below.
+Read them before writing a fourth.
 
 ## The shape
 

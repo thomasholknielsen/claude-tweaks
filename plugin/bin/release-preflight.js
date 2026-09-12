@@ -9,9 +9,10 @@
 // main checkout ([IL-127]/[IL-150] — decided on the real path) or the cwd is
 // not inside a git checkout at all. An undecided crash — a throw that reaches
 // the top level rather than a decided outcome — is exit 1, as in both sibling
-// packs: the 0/2/3 vocabulary governs outcomes this CLI decided. With no run dir the pack goes to a fresh
+// packs: the 0/2/3 vocabulary governs outcomes this CLI decided. The pack
+// itself always goes to stdout; with no run dir the file goes to a fresh
 // scratch directory under the system temp dir (run-directory-fact-packs'
-// documented fallback); its path is printed on stderr.
+// documented fallback) and only that path is printed on stderr.
 'use strict';
 
 const fs = require('fs');
@@ -37,6 +38,9 @@ function parseArgs(argv) {
       if (value === undefined || value.startsWith('--')) throw new UsageError(`${flag} requires a value`);
       if (flag === '--only') {
         const names = value.split(',').map((s) => s.trim()).filter(Boolean);
+        // `--only ,` asks for nothing at all. Gathering every probe instead
+        // would silently answer a different question than the one asked.
+        if (names.length === 0) throw new UsageError(`${flag} names no probes (known: ${PROBE_NAMES.join(', ')})`);
         const bad = names.find((n) => !PROBE_NAMES.includes(n));
         if (bad) throw new UsageError(`unknown probe: ${bad} (known: ${PROBE_NAMES.join(', ')})`);
         out.only = names;

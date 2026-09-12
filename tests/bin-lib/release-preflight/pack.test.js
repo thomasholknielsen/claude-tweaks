@@ -128,6 +128,17 @@ test('ruling 12: the base is the highest of the v* tags, the manifest at tipRef 
   const bare = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ noTag: true, tags: [], subjects: ['fix: x'] }).deps });
   assert.strictEqual(bare.proposedVersion.ok, false);
   assert.match(bare.proposedVersion.error, /no version base resolvable \(no v\* tag, no manifest at origin\/main\)/);
+  // A manifest that is not valid JSON carries no version — it does not take the probe down.
+  const broken = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ noTag: true, tags: [], subjects: ['fix: x'], show: { 'origin/main:.release-please-manifest.json': '{ not json' } }).deps });
+  assert.match(broken.proposedVersion.error, /no version base resolvable/);
+});
+
+test('unreleased commits carry the breaking-change note alongside the flag', async () => {
+  const pack = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ subjects: ['feat!: drop the old flag'] }).deps });
+  assert.strictEqual(pack.unreleased.value.commits[0].breaking, true);
+  assert.strictEqual(pack.unreleased.value.commits[0].breakingNote, 'drop the old flag');
+  const plain = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps().deps });
+  assert.strictEqual(plain.unreleased.value.commits[0].breakingNote, null);
 });
 
 test('ruling 12: a release-please-config.json at tipRef routes the manifest read through release-local/manifest.js', async () => {

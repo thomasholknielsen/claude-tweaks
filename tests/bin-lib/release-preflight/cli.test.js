@@ -46,6 +46,8 @@ test('parseArgs: --run/--json/--only, unknown flags and unknown probes are usage
   assert.throws(() => parseArgs(['--bogus']), /unknown flag/);
   assert.throws(() => parseArgs(['--only', 'nope']), /unknown probe: nope/);
   assert.throws(() => parseArgs(['--run']), /requires a value/);
+  // An empty list asks for nothing — never silently "everything".
+  assert.throws(() => parseArgs(['--only', ',']), /names no probes/);
 });
 
 test('AC 4a: --run anchored under the main checkout → exit 0, release-preflight.json written there with every field, printed to stdout', async () => {
@@ -94,6 +96,8 @@ test('exit 2: usage errors print USAGE and write nothing', async () => {
   const { d, err } = baseDeps(fx);
   assert.strictEqual(await run(['--only', 'nope'], d), 2);
   assert.match(err(), /usage:/);
+  assert.strictEqual(await run(['--only', ','], d), 2);
+  assert.match(err(), /names no probes/);
   assert.ok(!fs.existsSync(path.join(fx.runDir, 'release-preflight.json')));
 });
 
