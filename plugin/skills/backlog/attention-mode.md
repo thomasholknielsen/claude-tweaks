@@ -310,10 +310,11 @@ replaces the generic clause with `run /claude-tweaks:backlog refine #{n} — pro
 line, verbatim}"` (the record's captured `proposed` text from Step 2, quoted exactly);
 `shaped:headless (no grant)` keeps its existing no-human-reviewed clause, `run
 /claude-tweaks:backlog refine to grant via the sweep's Grant lane (spec was headlessly shaped —
-no human has reviewed it)` — bare `refine`'s Grant lane (the sweep), never `refine #{n}` (the
-per-record resolver has no grant path for a `shaped:headless`-only row: `refine-record.md`'s own
-fetch reads only decision comments and `bot:blocked`, so pointing this row at `refine #{n}` would
-route the human to a command that finds nothing to grant); `bot:blocked` says `run
+no human has reviewed it)` — bare `refine`'s Grant lane (the sweep), rather than `refine #{n}`.
+Since #1887, `refine #{n}` *would* also grant it — `#N` now filters `refine-mode.md`'s whole
+sweep, Grant lane included, so a `#{n}`-filtered run reaches the same Grant-lane check restricted
+to that one record — this row still recommends the bare form because it covers every ungranted
+`shaped:headless` record in one batch-confirm rather than one command per record; `bot:blocked` says `run
 /claude-tweaks:backlog refine #{n} to re-authorize after the failure`. This `refine #{n}` catch-all is the **permanent default** for any future `needs:*`
 marker — a new marker earns a dedicated launcher only by a later record's own explicit decision,
 never by default. The trailing "Pick up next" line names the single oldest/highest-priority
@@ -331,8 +332,10 @@ facts specific to attention's row types, on top of that shared rule:
 
 - **The Grant lane is ref-less.** `shaped:headless (no grant)` rows key on the *whole-queue*
   `/claude-tweaks:backlog refine` form (its Recommended-action text above), never `refine #{n}` —
-  same reason the per-row text already states (the per-record resolver has no grant path for a
-  `shaped:headless`-only row). This renders as its own group, distinct from the batchable
+  same reason the per-row text already states (bare `refine` covers every ungranted
+  `shaped:headless` record in one batch-confirm; `refine #{n}` would now also grant a filtered
+  record since #1887, but one command per record is strictly more clicks than the bare form for
+  this row type). This renders as its own group, distinct from the batchable
   `backlog refine` group below even though both cite the same skill+mode: a ref-less command is
   identical for every row and closes with one line, `/claude-tweaks:backlog refine`; it is never
   folded into a batch line naming specific record numbers.

@@ -29,11 +29,12 @@ what extends it to that genuinely new case. This zero-click commit applies at an
 `autonomy` ceiling in this posture, not only `unattended` — presence and ceiling are orthogonal
 (`SKILL.md`'s Input table); only the grant chain below is gated by the ceiling.
 
-Every human-decision lane stays unreachable in this posture: Re-authorize, the Grant lane's
-interactive confirm, the `#N` single-record form, and `--reset-breaker` all remain
-human-present-only exactly as `refine-mode.md` and `refine-lanes.md` document them. The presence
-switch gates only which lanes run and whether the Grant lane's origination needs a click or the
-two-key opt-in below — it never makes a human-present-only action reachable headlessly.
+Every human-decision lane stays unreachable in this posture: **Resolve** (#1887 — resolving an
+existing proposal is a human decision in every render, whole-queue or `#N`-filtered, never
+machine-applied here), Re-authorize, the Grant lane's interactive confirm, and `--reset-breaker`
+all remain human-present-only exactly as `refine-mode.md` and `refine-lanes.md` document them. The
+presence switch gates only which lanes run and whether the Grant lane's origination needs a click
+or the two-key opt-in below — it never makes a human-present-only action reachable headlessly.
 
 A judgment-required Dependency-repair finding — the ambiguous case `refine-lanes.md`'s Dependency
 repair section routes to the Needs-you lane rather than a mechanical wire — stamps `needs:decision`
@@ -493,6 +494,13 @@ chain, not a human, decides. At the end, render a short summary (record count gr
 re-authorized / needs-decision / skipped, with skip reasons grouped by `failedKey`) and the Next Actions block
 from `SKILL.md` (rendered only when a human is present — see that file's Next Actions section
 and Component-Skill Contract).
+
+**Resolve-lane skip line (#1887).** This posture never applies a Resolve row (above) — when
+`refine-mode.md` Step 1's Resolve fetch found a non-zero count this run, name it in the summary
+rather than silently omitting the lane: `{n} record(s) carry an unresolved decision proposal or
+bot:blocked, unresolved this run (human decision only) — run /claude-tweaks:backlog refine` as the
+drain command. Omit this line when the count is zero. Mirrors `refine-closing-summary.md`'s own
+skipped-rows convention for the `#N` filter case, applied here to the posture-skip case instead.
 
 ## Cap tracking
 

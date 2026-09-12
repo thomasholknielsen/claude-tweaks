@@ -235,19 +235,23 @@ test('refine-record.md exists and carries the #N resolver + --reset-breaker + sh
   );
 });
 
-test('refine-mode.md does not route to refine-record.md; SKILL.md does', () => {
+// Superseded by #1887: refine-mode.md's Step 4 now reads refine-record.md for
+// the Resolve lane on every invocation (whole-queue or #N-filtered) — the two
+// files are folded into one procedure, not routed apart by SKILL.md. See the
+// #1887 block below for the live pins.
+test('refine-mode.md Step 4 reads refine-record.md for the Resolve lane; SKILL.md still routes --reset-breaker there', () => {
   const refineModeSource = read(SKILL_DIR, 'refine-mode.md');
   const skillSource = read(SKILL_DIR, 'SKILL.md');
 
-  assert.doesNotMatch(
+  assert.match(
     refineModeSource,
     /refine-record\.md/,
-    'refine-mode.md\'s whole-queue sweep must never mention refine-record.md — routing lives in SKILL.md',
+    'refine-mode.md Step 4 must cite refine-record.md for the Resolve lane\'s render/write mechanics (#1887)',
   );
   assert.match(
     skillSource,
     /refine-record\.md/,
-    'SKILL.md must route the #N[,#M...] and --reset-breaker forms to refine-record.md',
+    'SKILL.md must still route the standalone --reset-breaker form to refine-record.md',
   );
 });
 
