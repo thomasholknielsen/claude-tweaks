@@ -95,3 +95,7 @@ issue claims       12 checked
 
 Full decision log: .claude-tweaks/pipelines/2026-08-16T203000-tidy-standalone/decisions.md
 ````
+
+## Origin
+- Created during build of #695 (tidy standalone-auto report shape)
+- Updated during build of #2252 (Reconcile under squash): Step 1 now names the second merged-in-substance proof — squash provenance via the PR's own merge commit — beside cherry-equivalence for both branch checks; `plugin/bin/lib/reconcile/squash-provenance.js` added to `files:`
