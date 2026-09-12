@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-12T07:53:02.709Z",
+  "computedAt": "2026-09-12T08:19:37.817Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -220,7 +220,7 @@
       },
       {
         "number": 1980,
-        "updatedAt": "2026-09-12T04:50:50Z",
+        "updatedAt": "2026-09-12T07:55:58Z",
         "state": "OPEN"
       },
       {
@@ -255,7 +255,7 @@
       },
       {
         "number": 1893,
-        "updatedAt": "2026-09-12T04:50:37Z",
+        "updatedAt": "2026-09-12T07:55:53Z",
         "state": "OPEN"
       },
       {
@@ -1873,86 +1873,6 @@
         }
       },
       {
-        "body": "Surface: infra\n\n## Current State\n\nThree skills touch the same fact, \"does the doc a `by:docs-health` record names still exist\", at three different times, and only one of them acts on it:\n\n- `/claude-tweaks:docs-health` files a record from a scan of the doc as it exists at scan time; `bin/lib/docs-health/issue-payload.js` renders the doc id in the `Doc:` header (a repo-relative path once #1851 lands). Re-verifying at filing time cannot help here: in the observed case the deletion happened *after* filing and *before* dispatch.\n- `/claude-tweaks:tidy` proposes deleting orphaned `docs/plans/*-ledger.md` files (`scan-procedures.md`'s ledger glob) with a \"quick judgment read\" that no open record references the ledger's filename or slug, and its GitHub issue scan separately proposes closing a `by:docs-health` record whose flagged doc is gone (this sweep staged exactly that: `staged/tidy-close-issue-1.md` for #1878, deleted in #1969, and `staged/tidy-close-issue-2.md` for #1776, deleted in #1819). Both are judgment reads and both wait for `tidy --approve`.\n- `/claude-tweaks:dispatch`'s queue pull (`queue-pull-script.md`) excludes blocked, oversized, and open-linked-PR records (#1224) but never checks whether a record's named target exists at the integration tip; `flow/materialize.md`'s Named-location drift note (#315) leaves that to the builder, inside the build.\n\nObserved 2026-09-05/06: #1776, #1804, and #1818 each burned a build attempt against the retry ceiling and stopped at the HARD-GATE because tidy PR #1819 had deleted their target ledgers; every failure was handled correctly and every build was wasted. #1984 (sibling, shaped alongside this record) covers the neighbouring case, a record whose deliverables are already shipped on `main`, at the same pre-flight site.\n\n## Deliverables\n\n- [ ] **Named-target extraction, once.** `plugin/bin/lib/issues/named-target.js` exporting `namedTarget(record) → { path } | null`: for `by:docs-health` records, the `Doc:` header value when it is a repo-relative path, else `docs/{id}.md` derived from the pre-#1851 id form; for other origins `null` (this record does not guess targets from prose; #1769's marker and #1829's `Premise-check:` line cover authored claims).\n- [ ] **Dispatch excludes a record whose target is gone.** `dispatch/queue-pull-script.md`: after the open-linked-PR exclusion, for every eligible record with a non-null `namedTarget`, test existence at the integration tip (`git cat-file -e {ref}:{path}`, one spawn per such record, never a checkout read); a missing path excludes the record into `dispatch-target-missing-excluded.json`, logs `AUTO … — dispatch: #N excluded, named target {path} absent at {ref}`, and stages one Close proposal per excluded record in the run's `staged/` using tidy's `Close (GitHub)` proposal shape (`Finding`/`Proposed`/`Rows`/`Commands`), so the next `tidy --approve` closes it and no build is minted. The record keeps its labels; nothing is written to GitHub by dispatch.\n- [ ] **Tidy's delete proposal bundles the closes.** `tidy/scan-procedures.md`'s ledger Delete recommendation replaces the \"quick judgment read\" with a mechanical pass over the session record snapshot: every open record whose `namedTarget` (or body text) names the ledger's path or slug is listed in the same staged Delete proposal as a Close row, so approval deletes the file and closes its records in one action; no ledger is deleted while a referencing record stays open and unproposed.\n- [ ] **Tests.** `tests/bin-lib/issues/named-target.test.js` (both header forms, non-docs-health → `null`). A prose pin (sized like `tests/dispatch-*` conformance tests) asserting the queue-pull exclusion step, its log line, the staged-close shape, and `scan-procedures.md`'s mechanical Close-row rule; `docs/plugin-structure.md` lists the module.\n\n## Acceptance Criteria\n\n1. `namedTarget` returns `docs/plans/x-ledger.md` for a `by:docs-health` record in either header form and `null` for a `by:capture` record.\n2. In a fixture queue where a `by:docs-health` record's target is absent at the integration tip, the queue pull writes the record to `dispatch-target-missing-excluded.json`, logs the line, stages a Close proposal, mints no run directory for it, and selects the remaining records exactly as before.\n3. A tidy run whose ledger Delete proposal targets a file named by an open record renders that record as a Close row inside the same proposal.\n4. Replaying #1776/#1804/#1818 against a tip where #1819 has merged yields three exclusions and three staged closes and zero build attempts; quoted in the PR description.\n5. `npm test` green; existing dispatch and tidy conformance tests pass with only additive assertions.\n\n## Technical Approach\n\nPut the check where the wasted work starts (dispatch), reuse the proposal shape tidy already uses so approval stays one surface, and make tidy's own delete step carry its consequences instead of relying on a judgment read. Reject (a): re-verifying at filing time cannot see a later deletion. Keep the target extraction narrow (docs-health only) so this record never guesses at authored prose; the sibling #1984 adds the \"already shipped\" heuristic at the same pre-flight site with its own false-positive posture.\n\n### Key Files\n\n- `plugin/bin/lib/issues/named-target.js` — new: `namedTarget(record)`\n- `plugin/skills/dispatch/queue-pull-script.md` — target-existence exclusion, log line, staged Close proposal\n- `plugin/skills/tidy/scan-procedures.md` — ledger Delete proposal bundles Close rows mechanically\n- `tests/bin-lib/issues/named-target.test.js`, a dispatch/tidy prose-pin sibling — new cases\n- `docs/plugin-structure.md` — module line\n\n## Gotchas\n\n- Existence is checked at the integration tip, not the working tree: a worktree session's tree may lag, and a dirty tree must not hide a deletion.\n- The queue-order cache (#1571) persists groups/excluded; the new exclusion must be part of the persisted `excluded` so a cache hit does not resurrect the record.\n- `tidy --approve` applies staged proposals; dispatch writing into `staged/` under its own run dir is the same shape sweep uses (attention's Tidy row globs `*-sweep-standalone*`; add the dispatch run-dir glob there only if the row must surface these too, and say so in the record if it does).\n- Never close on GitHub from dispatch; the staged proposal is the write path and stays human-approved.\n\n## Original request\n\nSurface: infra\n\n## Current State\n\nDuring a `/claude-tweaks:dispatch --budget all` drain (2026-09-05/06), three separate docs-health-filed records (#1776, #1804, #1818) all hit an identical build-time HARD-GATE: their target `docs/plans/*-ledger.md` file had already been deleted by an unrelated tidy sweep (PR #1819, \"Tidy: delete 2 completed execution plans + 8 orphaned pipeline ledgers\") before the dispatch drain ever reached them. Each record's own Acceptance Criteria was unsatisfiable -- there was nothing left to edit. All three were caught cleanly by the build gate and Settle's failure-classification path (no code lost, no false auto-merge, no auto:build stripped prematurely), but three separate build attempts were wasted on a coordination gap between two of this plugin's own health-sweep/hygiene skills.\n\n## Deliverables\n\n- [ ] Decide and implement one of: (a) docs-health's own filing step re-verifies the target file/row still exists immediately before creating a record (a live check, not just at scan time), or (b) tidy's cleanup sweep checks for an open issue referencing a ledger file before deleting it, or (c) some combination of both\n- [ ] Add regression coverage for whichever mechanism is chosen\n\n## Acceptance Criteria\n\n1. A docs-health-filed record whose target was deleted between filing and dispatch either never gets `auto:build` in the first place, or dispatch recognizes the mismatch and skips/closes it without burning a build attempt against the retry ceiling\n2. Existing docs-health and tidy test suites still pass\n\n## Technical Approach\n\nTwo independent skills currently operate with no shared state about \"in-flight backlog records reference this file\" -- docs-health's scan-and-file step and tidy's own cleanup sweep. The cheapest fix is likely (a): a live existence check right before the record-creation write in docs-health's own filing path, at negligible cost since it's already reading the file to compute the finding. (b) is more invasive (tidy would need to grep open issues for a path reference before every delete) but closes the gap from the other direction too.\n\n### Key Files\n\n- `plugin/skills/docs-health/SKILL.md` (or its filing sub-file) -- filing step\n- `plugin/skills/tidy/SKILL.md` / `step-6-auto.md` -- the cleanup sweep that deleted the ledgers in PR #1819\n\n## Gotchas\n\n- Whichever fix is chosen must not slow down docs-health's or tidy's own sweep meaningfully -- both already run against a large repo tree.\n\n## Decision Rationale\n\nFiled per this project's no-implicit-deferrals rule -- discovered live during a `/claude-tweaks:dispatch` drain (three independent instances, same root cause), real and reproducible, but out of scope for that drain's own per-record diffs.\n\nDefer-reason: genuinely-larger\n\n",
-        "createdAt": "2026-09-06T09:40:31Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1983,
-        "state": "OPEN",
-        "title": "docs-health filings and tidy's cleanup sweep aren't coordinated -- a docs-health-filed ledger correction can target a file tidy is about to delete",
-        "updatedAt": "2026-09-12T04:50:53Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
         "body": "Surface: infra\n\n## Current State\n\nNothing in the plugin compares a record being shaped or dispatched against the rest of the open queue for near-duplication. The closest surfaces each solve a different problem: `/claude-tweaks:specify`'s decomposition mode runs an Overlap Analysis of a *design doc* against open records (a prose judgment, `decomposition-mode.md`); `/claude-tweaks:dispatch`'s queue pull groups eligible records whose `### Key Files` overlap (`groupByFileOverlap`, `bin/lib/issues/grouping.js`) so they build together rather than collide, and since #1224 excludes any record with an open linked PR; the health sweeps dedup their own filings by fingerprint (`bin/lib/health-core/dedup`). Shaping mode's single-record path (`specify/shaping-mode.md`) and the headless drain (`specify/next-mode-shape.md`) have no step that looks at sibling records at all; the drain's refusal grounds (\"already implemented\", \"duplicate of open record\") exist only as the shaper's own judgment.\n\nObserved: #1821 and #1224 were shaped independently, built in parallel branches, and #1224's review-passed PR #1852 surfaced only during #1821's review, after both builds. In this sweep's own headless drain (run `2026-09-09T145100-sweep-standalone`), the shaper refused and absorbed nine records by hand for the same reason (#1812–#1817, #1832, #1858, #1810 among them), each found by grepping titles and Key Files against the queue — the check the plugin does not perform.\n\n`grouping.js` already exports `extractKeyFiles` (a record body → Key Files list) and the overlap logic dispatch uses; the session-scoped record snapshot (`_shared/record-queue-fetch.md`) already holds every open record's title and body during a specify run.\n\n## Deliverables\n\n- [ ] **A candidate finder, not a verdict.** `plugin/bin/lib/issues/near-duplicate.js` exporting `findNearDuplicates(subject, records, opts)` → `[{ number, title, score, signals }]`, where `signals` names which of three tests fired: (1) Key Files overlap — two or more shared paths from `extractKeyFiles`, or one shared path when either list has at most two entries; (2) title similarity — Jaccard over lowercased word tokens after stripping stop words, numbers, and `#refs`, at or above 0.5; (3) body-anchor overlap — the same named symbol or file path appearing in both `## Current State` sections. Records carrying `parent-issue`, `parked`, or the subject's own number are excluded. Pure function, no I/O; thresholds are `opts` with the defaults above.\n- [ ] **Shaping mode consults it.** `specify/shaping-mode.md`'s sanity-check paragraph gains a step before composition: run the finder over the session snapshot; when candidates exist, render a three-column table (record, score, signals) in the shaping output, append each candidate to the body's `**Related:**` line, and, when a candidate is `ready` with an open linked PR or `bot:in-progress`, stop shaping and route the record to the existing `needs:decision` path with a proposed Absorb naming the candidate (the same refusal shape this sweep used by hand). `next-mode-shape.md` cites the same step for the headless drain.\n- [ ] **Dispatch warns on cross-group candidates.** `dispatch/queue-pull-script.md`: after grouping, run the finder pairwise across records in *different* groups and log one `AUTO … — near-duplicate candidates across groups: #A / #B ({signals})` line per pair; no selection change (grouping already co-builds same-Key-Files records, and #1224 already excludes open-PR duplicates), so the warning is the dispatcher's cue, not a gate.\n- [ ] **Tests.** `tests/bin-lib/issues/near-duplicate.test.js`: each signal fires alone; thresholds honoured; exclusions honoured; a fixture built from #1821/#1224's titles and Key Files returns each as the other's candidate; unrelated records return nothing. Prose pins for the shaping step, the drain citation, and the dispatch log line, sized like `tests/specify-decomposition-crossref-prose.test.js`.\n\n## Acceptance Criteria\n\n1. `findNearDuplicates(#1821-shaped, [#1224-shaped, …])` returns #1224 with `signals` including Key Files overlap and title similarity; the same call with unrelated fixtures returns `[]`.\n2. `/claude-tweaks:specify #N` on a record whose Key Files and title match an open `ready` record renders the candidate table and appends the candidate to `**Related:**`; when that candidate has an open linked PR, shaping stops with a `needs:decision` Absorb proposal instead of writing `ready`.\n3. The headless drain performs the same check and counts the refusal as `failed` (deliberate refusal) with the candidate named in the log line.\n4. `dispatch`'s queue pull logs the cross-group candidate line and selects exactly what it selected before the change for the same queue.\n5. `npm test` green; `tests/bin-lib/issues/grouping.test.js` (or its sibling) unchanged.\n6. Re-running the #1821/#1224 sequence in a fixture queue stops the second shaping at the candidate table; quoted in the PR description.\n\n## Technical Approach\n\nKeep the finder a pure, cheap screen: the shaper still judges (a candidate is not a verdict), and only the one unambiguous case (candidate already has an open PR or is in progress) refuses automatically, mirroring the refusal grounds this sweep applied by hand. Reuse `extractKeyFiles` and the snapshot so no new fetch is added to specify or dispatch. Title similarity is normalization-sensitive; pin the tokenizer with fixtures rather than tuning thresholds in prose.\n\n### Key Files\n\n- `plugin/bin/lib/issues/near-duplicate.js` — new: `findNearDuplicates` with the three signals and exclusions\n- `plugin/bin/lib/issues/grouping.js` — reuse `extractKeyFiles`; no behavior change\n- `plugin/skills/specify/shaping-mode.md` — candidate step before composition; `**Related:**` append; refusal route\n- `plugin/skills/specify/next-mode-shape.md` — cite the step for the drain\n- `plugin/skills/dispatch/queue-pull-script.md` — cross-group candidate log line\n- `tests/bin-lib/issues/near-duplicate.test.js`; a prose-pin test sibling of `tests/specify-decomposition-crossref-prose.test.js`\n\n## Gotchas\n\n- Stop-word and token normalization decide everything (memory: similarity scores are normalization-sensitive); ship the tokenizer with fixtures, and treat a score as a screen, never a merge decision.\n- The snapshot may be stale within a session (`record-snapshot-ttl`); invalidate per `_shared/record-queue-fetch.md` before the check in the drain, which already invalidates between records.\n- Reconcile-filed residue records share titles by construction (`reconcile: structurally-stuck on …`); exclude records whose title starts with `reconcile:` (the auto-filed residue carries no origin label, only `bug`) from title similarity, or the drain would flag every one against every other.\n- `docs/plugin-structure.md` lists `bin/lib/issues/` modules; add the new module's line.\n\n## Original request\n\nDefer-reason: tangential\n\n**Related:** #1821, #1224\n\nContext: #1821 and #1224 independently built the identical dispatch fix in parallel branches; #1224's own already-open, review-passed PR (#1852) wasn't discovered until #1821's review, after both were built.\n\nScope: A specify/dispatch-time check for near-duplicate existing issues (title/body similarity, or overlapping Key Files) before a build starts, to catch this class of duplication earlier than review.\n",
         "createdAt": "2026-09-05T21:49:53Z",
         "labels": [
@@ -2041,20 +1961,20 @@
     ],
     [
       {
-        "body": "Surface: infra\n\n## Current State\n\n`categoriseReproduction(agentAFindings, agentBFindings)` in `plugin/bin/lib/coordination.js` walks agent A's findings and, for each, takes the first unmatched agent-B finding for which `sameLocation` holds (same `path`, `|line difference| <= LINE_TOLERANCE_REPRODUCTION`, 2); the pair becomes one `confirmed` entry via `reconcileSeverity` (lower severity wins, `severityContested: true` when buckets straddle, #733); everything unmatched lands in `unconfirmed` with `source: 'A'|'B'`. No field other than `path`/`line` is consulted: `normalizeFinding` normalizes `path`/`line`/`severity` only, and the finding text (`text` in the test fixtures, the `Finding` column in the lens agents' Template A output that `review-coordination.js categorise-reproduction` reads from JSON) is never compared. Two unrelated findings within two lines are therefore merged and the B-side one vanishes from both arrays. `findingsMatch` (a sibling used elsewhere) still requires equal severity buckets, so the two matchers disagree about what \"match\" means.\n\n`tests/multi-agent-coordination.test.js` pins the #733 straddle case (same location, same `text`, straddled buckets → confirmed, contested), the ±2 / ±3 line tolerance, and \"genuine location disagreement\" across different paths; no case has same location with different substance. `review/step3-lens-dispatch.md` consumes the CLI's `confirmed`/`unconfirmed` arrays when merging lens findings into the routing table.\n\n## Deliverables\n\n- [ ] **Normalize substance.** `normalizeFinding` gains a `text` field taken from the first present of `text`, `finding`, `Finding`, `summary`, `Summary` (string, trimmed); absent → `null`.\n- [ ] **Location plus substance decides a pair.** A new `sameSubstance(na, nb)` returns `true` when both texts are non-null and their token Jaccard (lowercased words, stop words and punctuation stripped, `path:line` fragments removed) is at or above `SUBSTANCE_SIMILARITY_MIN = 0.4`, or when one text is a prefix/suffix of the other after normalization; `null` when either text is missing (unknown, not false). `categoriseReproduction` pairs a B finding with an A finding when `sameLocation` holds and `sameSubstance` is `true` or `null`; a same-location pair whose `sameSubstance` is `false` is **not** paired: both findings go to `unconfirmed` with an extra `nearLocation: { source, path, line }` field naming the other, so a consumer can see the coincidence. The #733 behavior is unchanged for pairs that agree on substance (the straddle test's fixtures share `text`).\n- [ ] **Prefer the best B candidate.** When several unmatched B findings share A's location, pick the one with the highest substance similarity rather than the first in array order, so a same-substance pair is never lost to an earlier unrelated neighbour.\n- [ ] **Consumers surface the coincidence.** `review/step3-lens-dispatch.md`'s reproduction rules (the three bullets after the `categorise-reproduction` command: same bucket → confirmed, straddled bucket → confirmed contested, one side only → unconfirmed) gain a fourth: same location, different substance → both unconfirmed, each carrying `nearLocation`, logged as `STAGED … — Reproduction: lens \"{lens}\" findings {path}:{lineA} / {path}:{lineB} share a location but not substance; both staged`. An `unconfirmed` entry carrying `nearLocation` renders one extra clause in its routing-table row (\"same location as {source} finding at {path}:{line}, different substance\") so the reviewer sees both; `docs/plugin-structure.md`'s `review-coordination.js` line notes the field. `findingsMatch` is aligned to call `sameSubstance` too, keeping its severity-bucket requirement (its own callers pin that).\n- [ ] **Tests.** `tests/multi-agent-coordination.test.js`: same location, different substance (a low nit at line 100 vs a critical bug at line 101) → two `unconfirmed` entries, each with `nearLocation`, nothing dropped; same location, same substance, straddled buckets → the #733 case unchanged; same location, one side missing `text` → paired (unknown substance never discards); three B findings at one location where the second matches A's text → that one is paired and the other two stay unconfirmed; the existing tolerance and disagreement tests pass unchanged. A prose pin for the lens-dispatch clause.\n\n## Acceptance Criteria\n\n1. `categoriseReproduction([{path,line:100,severity:'low',text:'trailing comma'}],[{path,line:101,severity:'critical',text:'null deref on empty list'}])` returns `confirmed: []` and two `unconfirmed` entries, both carrying `nearLocation`.\n2. The #733 straddle test and every existing case in `tests/multi-agent-coordination.test.js` pass unchanged.\n3. Missing `text` on either side falls back to location-only pairing (today's behavior), pinned by a test.\n4. With several same-location B candidates, the highest-similarity one is paired, pinned by a test.\n5. `step3-lens-dispatch.md` states the `nearLocation` clause; `docs/plugin-structure.md` names the field.\n6. `npm test` green.\n\n## Technical Approach\n\nAdd substance as a second signal rather than replacing location, and make \"unknown substance\" behave like today so agents that omit the text column lose nothing. Never discard: the only new outcome is \"two unconfirmed entries that point at each other\", which the reviewer can still merge by hand. The tokenizer can be the one `#1944`'s near-duplicate module introduces if that lands first; otherwise keep it local to `coordination.js` and pin it with fixtures (similarity scores are normalization-sensitive).\n\n### Key Files\n\n- `plugin/bin/lib/coordination.js` — `normalizeFinding` `text`; `sameSubstance`; best-candidate selection; `nearLocation` on unmatched pairs; `findingsMatch` alignment\n- `plugin/skills/review/step3-lens-dispatch.md` — `nearLocation` clause in the merge step\n- `docs/plugin-structure.md` — `review-coordination.js` field note\n- `tests/multi-agent-coordination.test.js` — new cases; existing ones unchanged\n\n## Gotchas\n\n- `sameLocation` deliberately returns `false` for unlocated findings (the `undefined !== undefined` trap in its comment); `sameSubstance` must return `null`, not `false`, for missing text, or unlocated-and-untexted pairs change behavior.\n- Keep `LINE_TOLERANCE_REPRODUCTION` at 2; the fix is a second signal, not a tighter window.\n- `reconcileSeverity` spreads `fa` into the confirmed entry; the `nearLocation` field must only ever be set on `unconfirmed` entries, never leak into `confirmed`.\n- The lens agents' JSON column is `Finding`; a fixture using `text` and a fixture using `Finding` must both parse, pinned by a test.\n\n## Original request\n\n## Current State\n`categoriseReproduction` in `plugin/bin/lib/coordination.js` matches a reproduction pair on `sameLocation` alone (location within `LINE_TOLERANCE_REPRODUCTION`, 2 lines) — it no longer requires matching severity buckets (that requirement was deliberately dropped by #733, to stop a same-substance pair straddling a severity-bucket boundary from being wrongly treated as unconfirmed). But `sameLocation` alone is also the ONLY signal used to decide two findings are \"the same issue\" — there is no substance/text check. Two agents reporting genuinely UNRELATED findings within 2 lines of each other (e.g. an unrelated critical bug at line 101 when agent A already reported a low-severity nit at line 100) are merged via `reconcileSeverity`, and the second, distinct finding is silently discarded — it appears in neither `confirmed` nor `unconfirmed`.\n\n`tests/multi-agent-coordination.test.js`'s \"genuine location disagreement\" test only exercises different paths, never a same-location-different-substance pair, so this gap is untested.\n\n## Deliverables\nA design that keeps #733's fix (a same-substance pair straddling a severity bucket must still be reproduced) while no longer silently discarding a same-location pair that is NOT the same underlying issue — e.g. requiring some text/summary similarity signal alongside location proximity before treating two findings as a reproduction pair, or surfacing an ambiguous same-location pair distinctly rather than always collapsing it into one `confirmed` entry.\n\n## Acceptance Criteria\n- [ ] A new test pins that two same-location, substantively-different findings from agent A and agent B are NOT silently discarded — both surface somewhere in the output.\n- [ ] The existing #733 regression test (severity-bucket straddle on the SAME substance is still reproduced) continues to pass unchanged.\n- [ ] Full `npm test` passes.\n\nDefer-reason: genuinely-larger — requires a design decision on how to distinguish \"same issue\" from \"same location\" without reintroducing #733's false-negative; found by the pre-v6.117.0 whole-branch review.\n",
-        "createdAt": "2026-09-06T08:53:04Z",
+        "body": "Surface: infra\n\n## Current State\n\nThree skills touch the same fact, \"does the doc a `by:docs-health` record names still exist\", at three different times, and only one of them acts on it:\n\n- `/claude-tweaks:docs-health` files a record from a scan of the doc as it exists at scan time; `bin/lib/docs-health/issue-payload.js` renders the doc id in the `Doc:` header (a repo-relative path once #1851 lands). Re-verifying at filing time cannot help here: in the observed case the deletion happened *after* filing and *before* dispatch.\n- `/claude-tweaks:tidy` proposes deleting orphaned `docs/plans/*-ledger.md` files (`scan-procedures.md`'s ledger glob) with a \"quick judgment read\" that no open record references the ledger's filename or slug, and its GitHub issue scan separately proposes closing a `by:docs-health` record whose flagged doc is gone (this sweep staged exactly that: `staged/tidy-close-issue-1.md` for #1878, deleted in #1969, and `staged/tidy-close-issue-2.md` for #1776, deleted in #1819). Both are judgment reads and both wait for `tidy --approve`.\n- `/claude-tweaks:dispatch`'s queue pull (`queue-pull-script.md`) excludes blocked, oversized, and open-linked-PR records (#1224) but never checks whether a record's named target exists at the integration tip; `flow/materialize.md`'s Named-location drift note (#315) leaves that to the builder, inside the build.\n\nObserved 2026-09-05/06: #1776, #1804, and #1818 each burned a build attempt against the retry ceiling and stopped at the HARD-GATE because tidy PR #1819 had deleted their target ledgers; every failure was handled correctly and every build was wasted. #1984 (sibling, shaped alongside this record) covers the neighbouring case, a record whose deliverables are already shipped on `main`, at the same pre-flight site.\n\n## Deliverables\n\n- [ ] **Named-target extraction, once.** `plugin/bin/lib/issues/named-target.js` exporting `namedTarget(record) → { path } | null`: for `by:docs-health` records, the `Doc:` header value when it is a repo-relative path, else `docs/{id}.md` derived from the pre-#1851 id form; for other origins `null` (this record does not guess targets from prose; #1769's marker and #1829's `Premise-check:` line cover authored claims).\n- [ ] **Dispatch excludes a record whose target is gone.** `dispatch/queue-pull-script.md`: after the open-linked-PR exclusion, for every eligible record with a non-null `namedTarget`, test existence at the integration tip (`git cat-file -e {ref}:{path}`, one spawn per such record, never a checkout read); a missing path excludes the record into `dispatch-target-missing-excluded.json`, logs `AUTO … — dispatch: #N excluded, named target {path} absent at {ref}`, and stages one Close proposal per excluded record in the run's `staged/` using tidy's `Close (GitHub)` proposal shape (`Finding`/`Proposed`/`Rows`/`Commands`), so the next `tidy --approve` closes it and no build is minted. The record keeps its labels; nothing is written to GitHub by dispatch.\n- [ ] **Tidy's delete proposal bundles the closes.** `tidy/scan-procedures.md`'s ledger Delete recommendation replaces the \"quick judgment read\" with a mechanical pass over the session record snapshot: every open record whose `namedTarget` (or body text) names the ledger's path or slug is listed in the same staged Delete proposal as a Close row, so approval deletes the file and closes its records in one action; no ledger is deleted while a referencing record stays open and unproposed.\n- [ ] **Tests.** `tests/bin-lib/issues/named-target.test.js` (both header forms, non-docs-health → `null`). A prose pin (sized like `tests/dispatch-*` conformance tests) asserting the queue-pull exclusion step, its log line, the staged-close shape, and `scan-procedures.md`'s mechanical Close-row rule; `docs/plugin-structure.md` lists the module.\n\n## Acceptance Criteria\n\n1. `namedTarget` returns `docs/plans/x-ledger.md` for a `by:docs-health` record in either header form and `null` for a `by:capture` record.\n2. In a fixture queue where a `by:docs-health` record's target is absent at the integration tip, the queue pull writes the record to `dispatch-target-missing-excluded.json`, logs the line, stages a Close proposal, mints no run directory for it, and selects the remaining records exactly as before.\n3. A tidy run whose ledger Delete proposal targets a file named by an open record renders that record as a Close row inside the same proposal.\n4. Replaying #1776/#1804/#1818 against a tip where #1819 has merged yields three exclusions and three staged closes and zero build attempts; quoted in the PR description.\n5. `npm test` green; existing dispatch and tidy conformance tests pass with only additive assertions.\n\n## Technical Approach\n\nPut the check where the wasted work starts (dispatch), reuse the proposal shape tidy already uses so approval stays one surface, and make tidy's own delete step carry its consequences instead of relying on a judgment read. Reject (a): re-verifying at filing time cannot see a later deletion. Keep the target extraction narrow (docs-health only) so this record never guesses at authored prose; the sibling #1984 adds the \"already shipped\" heuristic at the same pre-flight site with its own false-positive posture.\n\n### Key Files\n\n- `plugin/bin/lib/issues/named-target.js` — new: `namedTarget(record)`\n- `plugin/skills/dispatch/queue-pull-script.md` — target-existence exclusion, log line, staged Close proposal\n- `plugin/skills/tidy/scan-procedures.md` — ledger Delete proposal bundles Close rows mechanically\n- `tests/bin-lib/issues/named-target.test.js`, a dispatch/tidy prose-pin sibling — new cases\n- `docs/plugin-structure.md` — module line\n\n## Gotchas\n\n- Existence is checked at the integration tip, not the working tree: a worktree session's tree may lag, and a dirty tree must not hide a deletion.\n- The queue-order cache (#1571) persists groups/excluded; the new exclusion must be part of the persisted `excluded` so a cache hit does not resurrect the record.\n- `tidy --approve` applies staged proposals; dispatch writing into `staged/` under its own run dir is the same shape sweep uses (attention's Tidy row globs `*-sweep-standalone*`; add the dispatch run-dir glob there only if the row must surface these too, and say so in the record if it does).\n- Never close on GitHub from dispatch; the staged proposal is the write path and stays human-approved.\n\n## Original request\n\nSurface: infra\n\n## Current State\n\nDuring a `/claude-tweaks:dispatch --budget all` drain (2026-09-05/06), three separate docs-health-filed records (#1776, #1804, #1818) all hit an identical build-time HARD-GATE: their target `docs/plans/*-ledger.md` file had already been deleted by an unrelated tidy sweep (PR #1819, \"Tidy: delete 2 completed execution plans + 8 orphaned pipeline ledgers\") before the dispatch drain ever reached them. Each record's own Acceptance Criteria was unsatisfiable -- there was nothing left to edit. All three were caught cleanly by the build gate and Settle's failure-classification path (no code lost, no false auto-merge, no auto:build stripped prematurely), but three separate build attempts were wasted on a coordination gap between two of this plugin's own health-sweep/hygiene skills.\n\n## Deliverables\n\n- [ ] Decide and implement one of: (a) docs-health's own filing step re-verifies the target file/row still exists immediately before creating a record (a live check, not just at scan time), or (b) tidy's cleanup sweep checks for an open issue referencing a ledger file before deleting it, or (c) some combination of both\n- [ ] Add regression coverage for whichever mechanism is chosen\n\n## Acceptance Criteria\n\n1. A docs-health-filed record whose target was deleted between filing and dispatch either never gets `auto:build` in the first place, or dispatch recognizes the mismatch and skips/closes it without burning a build attempt against the retry ceiling\n2. Existing docs-health and tidy test suites still pass\n\n## Technical Approach\n\nTwo independent skills currently operate with no shared state about \"in-flight backlog records reference this file\" -- docs-health's scan-and-file step and tidy's own cleanup sweep. The cheapest fix is likely (a): a live existence check right before the record-creation write in docs-health's own filing path, at negligible cost since it's already reading the file to compute the finding. (b) is more invasive (tidy would need to grep open issues for a path reference before every delete) but closes the gap from the other direction too.\n\n### Key Files\n\n- `plugin/skills/docs-health/SKILL.md` (or its filing sub-file) -- filing step\n- `plugin/skills/tidy/SKILL.md` / `step-6-auto.md` -- the cleanup sweep that deleted the ledgers in PR #1819\n\n## Gotchas\n\n- Whichever fix is chosen must not slow down docs-health's or tidy's own sweep meaningfully -- both already run against a large repo tree.\n\n## Decision Rationale\n\nFiled per this project's no-implicit-deferrals rule -- discovered live during a `/claude-tweaks:dispatch` drain (three independent instances, same root cause), real and reproducible, but out of scope for that drain's own per-record diffs.\n\nDefer-reason: genuinely-larger\n\n",
+        "createdAt": "2026-09-06T09:40:31Z",
         "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACq41dsw",
-            "name": "backlog:category-technical",
-            "description": "technical-category backlog item",
-            "color": "F9D0C4"
-          },
           {
             "id": "LA_kwDORUwzVM8AAAACruyqXw",
             "name": "ready",
             "description": "Stage: ready for dispatch",
             "color": "0e8a16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
           },
           {
             "id": "LA_kwDORUwzVM8AAAACruzLxQ",
@@ -2081,12 +2001,6 @@
             "color": "0052CC"
           },
           {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
             "id": "LA_kwDORUwzVM8AAAACszEEfQ",
             "name": "ceremony:standard",
             "description": "Ceremony: standard review",
@@ -2099,13 +2013,13 @@
             "color": "ededed"
           }
         ],
-        "number": 1980,
+        "number": 1983,
         "state": "OPEN",
-        "title": "coordination.js: categoriseReproduction's location-only match can silently merge two distinct findings",
-        "updatedAt": "2026-09-12T04:50:50Z",
+        "title": "docs-health filings and tidy's cleanup sweep aren't coordinated -- a docs-health-filed ledger correction can target a file tidy is about to delete",
+        "updatedAt": "2026-09-12T04:50:53Z",
         "facets": {
           "origin": null,
-          "risk": "medium",
+          "risk": "low",
           "size": "medium",
           "ceremony": "standard",
           "solutionUnjustified": false,
@@ -2115,98 +2029,6 @@
           "grants": {
             "build": true,
             "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`plugin/bin/build-review-context.js` documents itself as printing \"a one-line JSON result on stdout (`{dir}` for mint; `{dir, contextPath, bytes, files, …}` for build)\" and its `mint` branch writes `JSON.stringify({ dir }) + '\\n'`. `plugin/skills/review/review-effort-derivation.md` Step 2 (the `github-issues` branch) says the command \"prints `{dir}` once and the same `{ctx-dir}` is reused by Step 3's `build --dir {ctx-dir}` call\", then uses `{ctx-dir}` as a bare path in `gh issue view {n} --json labels > {ctx-dir}/record-{n}.json` and in the `node -e` facet read. `step3-lens-dispatch.md`'s dispatch block spells out `build`'s JSON result fields but inherits the same `{ctx-dir}` placeholder for `--dir`. The placeholder notation `{dir}` is the CLI comment's shorthand for \"a JSON object with a `dir` field\", and the skill prose reuses it as if it were the path itself.\n\nObserved on plugin 6.114.1: a review run set `CTX=$(node … mint --run \"$PIPELINE_RUN_DIR\")`, got `{\"dir\":\"…/review-ctx\"}`, and the documented redirect failed with `no such file or directory: {\"dir\":\"…\"}/record-{n}.json` while `build --dir '{\"dir\":\"…\"}'` created a nested directory literally named `{\"dir\":\"` under the worktree, surfacing later as untracked junk at commit time.\n\nTests: `tests/bin-lib/review-context/exit-code.test.js` and `build.test.js` pin the CLI's exit codes and build output, including \"mint with no --run exits 0 and prints a JSON line with a dir key\"; no test pins the prose's use of that output.\n\n## Deliverables\n\n- [ ] **Plain-path output mode on `mint`.** `build-review-context.js mint --print-dir` prints the bare directory path followed by a newline and nothing else (the JSON line stays the default, so every existing consumer of `mint` is untouched). The usage line and the header comment name both shapes.\n- [ ] **Prose names the shape and uses the flag.** `review-effort-derivation.md` Step 2: state that `mint` prints `{\"dir\": …}` by default, and switch the Step 2 command to `CTX_DIR=$(node \"${CLAUDE_PLUGIN_ROOT}/bin/build-review-context.js\" mint --print-dir --run \"$PIPELINE_RUN_DIR\")` so the redirect and the facet read take a path; show the `node -e` `.dir` extraction once as the fallback for a build that predates the flag. `step3-lens-dispatch.md`: the `--dir {ctx-dir}` reuse sentence says `{ctx-dir}` is the path printed by `mint --print-dir` (or the `.dir` field of the default JSON), so the placeholder is defined where it is first used.\n- [ ] **Tests.** `exit-code.test.js` or a sibling: `mint --print-dir` prints exactly the path and a newline; `mint` without the flag still prints the JSON line; `--print-dir` on `build` is rejected with the usage error (the flag is `mint`-only). A prose pin asserting `review-effort-derivation.md` names the JSON shape and the `--print-dir` form, and that no `{ctx-dir}` placeholder is used before it is defined.\n- [ ] `docs/plugin-structure.md`'s command-reference line for `build-review-context.js` gains the flag.\n\n## Acceptance Criteria\n\n1. `node bin/build-review-context.js mint --print-dir --run {run}` prints `{run}/review-ctx` (or the resolved scratch path) and nothing else; without `--print-dir` the output is unchanged JSON.\n2. Following `review-effort-derivation.md` Step 2 literally with the new command produces a working redirect into `{ctx-dir}/record-{n}.json` and a `build --dir` call that creates no stray directory; demonstrated once in the PR description on a fixture run.\n3. `step3-lens-dispatch.md` defines `{ctx-dir}` at first use.\n4. `npm test` green; the existing review-context tests pass unchanged.\n\n## Technical Approach\n\nAdd the smallest CLI affordance that makes the documented one-liner correct, and make the prose stop implying a shape the CLI never had. Keep JSON as the default so `build`'s and `mint`'s output conventions stay consistent for programmatic callers; `--print-dir` is the shell-substitution convenience, named in the prose that uses it.\n\n### Key Files\n\n- `plugin/bin/build-review-context.js` — `--print-dir` on `mint`; usage line; header comment\n- `plugin/skills/review/review-effort-derivation.md` — Step 2 command and shape sentence; `.dir` fallback\n- `plugin/skills/review/step3-lens-dispatch.md` — `{ctx-dir}` definition at first use\n- `tests/bin-lib/review-context/exit-code.test.js` — flag cases; prose pin (or a sibling test file)\n- `docs/plugin-structure.md` — command-reference flag\n\n## Gotchas\n\n- `build-review-context.js` had a compute-then-exit truncation fix (`cc302658d`); keep the `deps.stdout` write path and do not add a `process.exit` after the plain print.\n- The prose's `node -e` facet read takes the path as `process.argv[1]`; with the flag it receives the same path it did in the author's intent, so no change to that snippet beyond the variable name.\n- A review run on a build older than this change still gets the JSON line; that is why the `.dir` extraction stays documented as the fallback rather than deleted.\n\n## Original request\n\n**Summary:** `review-effort-derivation.md` Step 2 says `bin/build-review-context.js mint` \"prints `{dir}` once and the same `{ctx-dir}` is reused by Step 3's `build --dir {ctx-dir}` call\"; the CLI actually prints a one-line JSON object `{\"dir\":\"…\"}`. A literal reader substitutes the whole JSON line as the path, so `gh issue view … > {ctx-dir}/record-{n}.json` fails and `build --dir '{\"dir\":\"…\"}'` creates a stray directory literally named `{\"dir\":\"` inside the run's worktree.\n\n**Kind:** Defect\n\n**Affected component:** `skills/review/review-effort-derivation.md` (Step 2, github-issues branch) and `skills/review/step3-lens-dispatch.md` (the `--dir {ctx-dir}` reuse sentence); CLI `bin/build-review-context.js mint`\n\n**Repro steps:**\n1. In a `/claude-tweaks:review` run on a record with `risk:*`/`size:*` labels, follow `review-effort-derivation.md` Step 2 literally: `CTX=$(node bin/build-review-context.js mint --run \"$PIPELINE_RUN_DIR\")`.\n2. Observe `CTX` is `{\"dir\":\"/…/review-ctx\"}`, not a path.\n3. Run the documented `gh issue view {n} --json labels > {ctx-dir}/record-{n}.json` and `build --dir {ctx-dir}` with that value.\n4. Observe the redirect fails (`no such file or directory: {\"dir\":\"…\"}/record-{n}.json`) and `build` creates `./{\"dir\":\"/` … as a nested directory tree under the worktree (which then shows up as untracked junk at commit time).\n\n**Expected vs. actual:**\nExpected: the prose says the CLI prints a JSON line and tells the reader to take its `.dir` field (e.g. `CTX=$(… mint … | node -e 'process.stdin…')` or a `--print-dir`/plain-output flag on `mint` that emits just the path, matching how `build`'s own output shape is already spelled out in `step3-lens-dispatch.md`).\nActual: `mint`'s output shape is only implied by `{dir}` placeholder notation, and a run that takes it literally pollutes the worktree.\n\n**Definition:** Clear — either fix the prose to name the JSON shape and the `.dir` extraction, or add a plain-path output mode to `mint`; both are small and either resolves it.\n\n**Plugin version:** 6.114.1\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-c974237a -->\n\n",
-        "createdAt": "2026-09-05T10:20:44Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-DQ",
-            "name": "bug",
-            "description": "Something isn't working",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: defect in existing behavior",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1893,
-        "state": "OPEN",
-        "title": "review/review-effort-derivation.md: `build-review-context.js mint` prints a JSON line, but the prose reads as if it prints a bare directory path",
-        "updatedAt": "2026-09-12T04:50:37Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
           },
           "bot": {
             "inProgress": false,
