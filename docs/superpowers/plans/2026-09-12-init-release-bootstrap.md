@@ -388,7 +388,7 @@ Claude-Session: https://claude.ai/code/session_018rz67jb18j1RLSqhjEdYWH"
 ### Task 2: `bootstrapRelease` and the CLI `plugin/bin/release-bootstrap.js`
 
 **Files:**
-- Modify: `plugin/bin/lib/init/release-bootstrap.js` (append `bootstrapRelease` + export)
+- Extend: `plugin/bin/lib/init/release-bootstrap.js` — the file Task 1 created; append `bootstrapRelease` (+ `defaultListTags`) and export them. Never recreate the file.
 - Create: `plugin/bin/release-bootstrap.js`
 - Test: `tests/bin-lib/init/release-bootstrap.test.js` (append), `tests/bin-lib/init/release-bootstrap-cli.test.js` (new)
 
@@ -706,8 +706,8 @@ test('release-hook and release-train are registered as non-core scaffolding keys
 
 - [ ] **Step 2: Run the file to verify the new test fails**
 
-Run: `node --test tests/policy-schema-metadata.test.js`
-Expected: FAIL — `release-hook missing from POLICY_KEYS`. Every pre-existing test passes.
+Run: `node -e "const { POLICY_KEYS } = require('./plugin/bin/lib/policy-schema'); const keys = POLICY_KEYS.map((r) => r.key); process.exit(keys.includes('release-hook') && keys.includes('release-train') ? 0 : 1)"`
+Expected: FAIL — exit 1 (neither key is registered yet). Then `node --test tests/policy-schema-metadata.test.js` — Expected: the new test fails with `release-hook missing from POLICY_KEYS` and every pre-existing test passes.
 
 - [ ] **Step 3: Add the schema rows and the prose rows**
 
