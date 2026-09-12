@@ -186,8 +186,12 @@ function run(argv, deps) {
         `Do NOT re-run release-local (it would bump again). Recover: git tag -a v${version} -m v${version}${hasOrigin ? ` && git push origin ${branch} v${version}` : ''}${hook ? `, then run the hook: ${hook}` : ''}\n`);
       return 1;
     }
+    // The rebase rewrites the chore(release) commit, so the annotated tag would keep
+    // pointing at the pre-rebase object and publish an orphan — re-tag after the
+    // rebase and force-publish the tag (never `git pull --rebase` + a plain push).
     deps.stderr(`partial: v${version} is committed and tagged locally but NOT pushed (${message}). ` +
-      `Do NOT re-run release-local (it would bump again). Recover: git pull --rebase origin ${branch} && git push origin ${branch} v${version}${hook ? `, then run the hook: ${hook}` : ''}\n`);
+      `Do NOT re-run release-local (it would bump again). Recover: git fetch origin ${branch} && git rebase origin/${branch} && ` +
+      `git tag -f -a v${version} -m v${version} && git push origin ${branch} && git push --force origin v${version}${hook ? `, then run the hook: ${hook}` : ''}\n`);
     return 1;
   }
 }

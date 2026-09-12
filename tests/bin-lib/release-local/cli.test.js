@@ -138,7 +138,10 @@ test('exit 1 (named partial state): the push fails after the commit and tag land
   assert.strictEqual(run([], deps), 1);
   assert.match(state.err, /partial: v1\.3\.0 is committed and tagged locally but NOT pushed/);
   assert.match(state.err, /do NOT re-run/i);
-  assert.match(state.err, /git push origin main v1\.3\.0/);
+  // `git pull --rebase` rewrites the chore(release) commit and strands the annotated tag on the
+  // pre-rebase object — the recovery must re-tag after the rebase and force-publish the tag.
+  assert.match(state.err, /git tag -f -a v1\.3\.0 -m v1\.3\.0 && git push origin main && git push --force origin v1\.3\.0/);
+  assert.ok(!state.err.includes('git pull --rebase'), state.err);
   assert.deepStrictEqual(state.hooks, []);
 });
 
