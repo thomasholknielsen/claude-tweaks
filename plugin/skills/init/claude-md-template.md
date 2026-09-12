@@ -80,7 +80,7 @@ How to execute any task here. These apply project-wide unless a more specific ru
 
 ## Releasing
 
-{Engine in use — release-please via `.github/workflows/release-please.yml` under `pr-first`, or the local engine (`node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js"`) under `local-merge`; where the publish/deploy hook lives — the `release: published` workflow, or the `release-hook` policy command.}
+{Engine in use — release-please via `.github/workflows/release-please.yml` under `pr-first`, or the local engine under `local-merge`; where the publish/deploy hook lives — the `release: published` workflow (PAT required), or the `release-hook` policy command. The local engine (`bin/release-local.js`) and the `/claude-tweaks:release` skill land with later units of the release family (#2250); until they ship, this section names the files the bootstrap wrote.}
 
 Cut a release: `/claude-tweaks:release`
 

@@ -6,7 +6,7 @@ Gives `detection-tables.md`'s release-process row (Step 2e) a destination (#2253
 
 **Gate — Step 20's output.** This step routes on `integration-model` (`_shared/integration-model.md`): `pr-first` → release-please workflow + config, `local-merge` → config only (the local engine reads the same files). Resolve the value the way every consumer does — `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --values integration-model`. When Step 20 did not run or the value resolves empty/ambiguous, **skip this step entirely** and record `release: skipped — integration-model unresolved` in the init summary — never guess an engine.
 
-**Branch.** Resolve the integration branch via `_shared/integration-branch.md`'s canonical ladder (the `integration-branch` policy value when set, else the remote's default branch — `gh repo view --json defaultBranchRef -q .defaultBranchRef.name` — else `main`); it is the branch the workflow triggers on.
+**Branch.** Resolve the integration branch per `_shared/integration-branch.md`'s canonical ladder (never a local paraphrase of it) and pass the result as `--branch`; it is the branch the workflow triggers on and targets.
 
 **Detect and write — one CLI call.** The whole decision is the code twin `bin/lib/init/release-bootstrap.js`, fronted by:
 
@@ -14,20 +14,22 @@ Gives `detection-tables.md`'s release-process row (Step 2e) a destination (#2253
 node "${CLAUDE_PLUGIN_ROOT}/bin/release-bootstrap.js" --integration-model {pr-first|local-merge} --branch {branch}
 ```
 
-It prints one JSON line — `{verdict, tool?, evidence?, releaseType?, version?, written[], policyRows[]}` — and exits 0 on every verdict (2 on usage, 1 on an unexpected error). Read `verdict`:
+It prints one JSON line — `{verdict, tool?, evidence?, reason?, releaseType?, version?, written[], policyRows[]}` — and exits 0 on every verdict (2 on usage, 1 on an unexpected error). Read `verdict`:
 
 | Verdict | What the CLI did | Init summary line |
 |---|---|---|
-| `fresh` | Wrote `release-please-config.json` (`release-type` from the stack table below), `.release-please-manifest.json` (seeded from the newest `v*` tag by semver precedence, else the stack manifest's version, else `0.1.0`), and — `pr-first` only — `.github/workflows/release-please.yml` (`googleapis/release-please-action@v4`, `contents: write` + `pull-requests: write`) | `release: bootstrapped — {releaseType}, manifest {version}` |
+| `fresh` | Wrote `release-please-config.json` (`release-type` from the stack table below), `.release-please-manifest.json` (seeded from the newest `v*` tag by semver precedence — a pre-release/build-metadata tag such as `v2.0.0-rc.1` is ignored by the seed — else the stack manifest's version, else `0.1.0`), and — `pr-first` only — `.github/workflows/release-please.yml` (`googleapis/release-please-action@v4`, `contents: write` + `pull-requests: write`, with a commented `token:` input — see the file's own comment on why a PAT is needed for a `release: published` hook). `simple` makes release-please create a root `version.txt` on its first release | `release: bootstrapped — {releaseType}, manifest {version}` |
 | `already-bootstrapped` | Nothing — the config already carries this step's own shape; an idempotent no-op that never re-writes or clobbers | `release: already configured` |
 | `conflict` | Nothing — a competing tool was found: `.releaserc*` / `release.config.*` (semantic-release), `.changeset/` (changesets), `.goreleaser.*` (goreleaser), or a foreign `release-please-config.json` | `release: conflict — {tool}` (name the `evidence` path). Removing the tool clears it on the next `/init` run |
 
 `v*` tags are not conflict evidence — a project that already tags releases by hand is exactly the onboarding case; tags feed only the manifest seed. Detection is this step's own presence check, deliberately not `_shared/existing-convention-detection.md`'s genre-grammar procedure (its ≥3-file floor and grammar parse answer a different question); only the three-way verdict vocabulary is shared.
 
+Under `local-merge`, the config and manifest are inert until the local engine (unit 4 of #2250) ships — they are written now so both integration models converge on one file shape.
+
 **Policy rows (`fresh` only) — deferred write.** The CLI returns `policyRows`, two commented-out lines:
 
 ```
-# release-hook: <command run after the local engine tags a release — local-merge only; under pr-first the release: published workflow is the hook>
+# release-hook: <command run after the local engine tags a release — local-merge only; under pr-first the release: published workflow is the hook — it needs a PAT, GITHUB_TOKEN-created releases do not trigger it>
 # release-train: false
 ```
 
@@ -48,7 +50,7 @@ The canonical stack → `release-type` mapping (code twin: `RELEASE_STACK_TABLE`
 | `php` | `composer.json` |
 | `dotnet` | `*.csproj`, `*.sln` |
 
-Under `simple`, `extra-files` names the first version-bearing JSON manifest found — `.claude-plugin/plugin.json`, `plugin/.claude-plugin/plugin.json`, then root `*.json` files with a top-level `version` — as `{type: json, path, jsonpath: $.version}` (this repo: `plugin/.claude-plugin/plugin.json`); none found → no `extra-files` key.
+Under `simple`, `extra-files` names the first version-bearing JSON manifest found — `.claude-plugin/plugin.json`, `plugin/.claude-plugin/plugin.json`, then root `*.json` files with a top-level `version` — as `{type: json, path, jsonpath: $.version}` (a repo whose only manifest is a Claude plugin manifest lands here; a repo that also carries a root `package.json` resolves `node` — this plugin's own migration, unit 8 of #2250, needs an explicit override, tracked in the run ledger); none found → no `extra-files` key.
 
 **Idempotent:** re-running `/init` on a repo this step already bootstrapped reports `already configured` and writes nothing; declining is not a state this step records — it is offered again next run.
 
