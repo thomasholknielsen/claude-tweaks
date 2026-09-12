@@ -219,7 +219,7 @@ Empty fallback — Approve and Yours both empty (the fixed block, unchanged from
 **`/claude-tweaks:help`** — full pipeline status with refreshed counts after the cleanup (recommended)
 `/claude-tweaks:build {N}` — build the highest-priority ready spec surfaced by the tidy report
 `/claude-tweaks:specify {topic}` — specify an unspecified design doc surfaced by the audit
-`/claude-tweaks:backlog refine` — authorize any ready-but-unscored or bot:blocked records the audit surfaced
+`/claude-tweaks:backlog refine` — authorize any ready-but-unscored or bot:blocked records the audit surfaced; a bot:parked record needs its PR checked instead, not re-authorization
 
 ## Component-Skill Contract
 
