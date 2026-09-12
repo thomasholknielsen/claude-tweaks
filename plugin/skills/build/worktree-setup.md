@@ -156,6 +156,75 @@ re-derived regexes.
    failed push or a `gh`-absent environment — lives in `_shared/pr-early-run-lifecycle.md`; this
    step cites it rather than restating it.
 
+## Cherry-pick source-branch PR check (#1957)
+
+Unlike Steps 1.5/1.6 above, this check does not run during worktree creation — it needs commits
+that don't exist yet at that point. It runs later, in Common Step 2 (Execute the Plan)'s
+per-task/per-commit loop: **after each commit lands in this worktree**, before moving to the next
+task. Extends Step 1.6's collision detection to a second shape it doesn't cover: Step 1.6 guards
+this record's own deterministically-named branch; this check guards against a build session
+reusing *another* record's code via `git cherry-pick` without checking whether that record's
+branch already backs an open PR. #1821 is the concrete incident this closes: a build
+cherry-picked commit `1893db5b7` from `origin/worktree-record-1224` believing it abandoned — but
+that branch backed PR #1852, still open and review-passed — producing two open PRs with
+byte-identical implementation, caught only by an off-lens manual review cross-reference.
+
+**Trigger condition — deliberately narrow.** `git cherry-pick -x <sha>` appends a
+`(cherry picked from commit <sha>)` trailer to the resulting commit message; `git cherry-pick`
+without `-x` appends no such trailer. This check scans only for that trailer — a git-native,
+zero-false-positive signal. **Stated limitation, not an oversight:** a manual port of code (hand
+copy-pasted, or cherry-picked without `-x`) leaves no such trailer and is not caught by this
+check — the same class of accepted gap Step 1.6 itself carries for its own remote-lookup failure
+case. Do not imply broader coverage than this mechanism actually provides.
+
+**Procedure**, using `plugin/bin/lib/worktree/cherry-pick-provenance.js`'s
+`checkCherryPickProvenance({ message, ownBranch, repo })` (unit-tested — see
+`tests/bin-lib/worktree/cherry-pick-provenance.test.js`):
+
+1. Scan the new commit's message for the trailer. **No trailer — nothing to do, proceed to the
+   next task** (an ordinary authored commit is never scanned further than this: no added overhead
+   on the common case).
+2. Trailer found — resolve which remote branches contain `{sha}` (`git branch -r --contains
+   {sha}`), excluding this record's own branch. `git branch -r --contains` can return multiple
+   branches (a shared ancestor commit, or the source branch merged into others) — check every
+   returned branch, not just the first.
+3. **This lookup fails** (no network, no `origin` access) — fail open, mirroring Step 1.6's own
+   posture for the same class of failure: log the degrade distinctly and proceed, rather than
+   treating an unreachable check as "no other branch found."
+4. **No other branch contains `{sha}`** — nothing to do, proceed to the next task.
+5. For each such branch, check for an open PR: `gh pr list --repo {owner}/{repo} --head "{branch}"
+   --state open --json number,url,isDraft`. A lookup failure here degrades that branch's result
+   distinctly from "confirmed no open PR" — never silently collapsed into "no PR found."
+6. **No open PR found on any containing branch** — nothing to do, proceed to the next task.
+7. **An open PR is found** — render a stop card naming the cherry-picked commit, its source
+   branch(es), and the found PR's number/URL (`formatStopCard`):
+
+   ```markdown
+   ## Build: Cherry-picked commit reused from another record's open-PR branch
+
+   Commit `{sha}` carries a `(cherry picked from commit {sha})` trailer. Its source commit is
+   also reachable from: `{branch}` (open PR #{number} — {url}).
+
+   Options: (1) stop and route to the existing PR (reuse/resume that prior work instead of
+   duplicating it), (2) proceed anyway, explicitly choosing to duplicate the implementation
+   (record this choice in `decisions.md`).
+   ```
+
+   **Interactive mode:** call `AskUserQuestion` with these two options, recommending (1).
+   **Auto mode:** same posture as Step 1.6 — this is **not** a lever
+   `_shared/auto-mode-contract.md` lists as silenceable. There is no safe default to auto-pick: a
+   build session cannot know whether the existing PR's author intends to keep working it or has
+   abandoned it, and proceeding silently would reproduce #1821 by machine instead of by human
+   oversight. Render the card above and **stop the build** before proceeding past this commit —
+   the same HARD-GATE posture `flow/claim-targets.md` already uses for a claim contest, and Step
+   1.6 above uses for its own remote-only collision.
+
+**Out of scope:** a review-time Cherry-Pick Provenance Check (no such check exists in
+`plugin/skills/review/` today — this build-time guard is the earliest of the (at most two) points
+that could catch this) and #1944's specify/dispatch-time near-duplicate *record* detection (a
+different, earlier pipeline stage catching duplicate *issue content*, not duplicate *code* reused
+via cherry-pick). Neither is touched by this check.
+
 ## Consent prompt (v5.1.0+)
 
 `/superpowers:using-git-worktrees` now asks the user before creating a worktree (fixes superpowers #991). In `auto` mode, the consent is **pre-authorized** — the user passed `worktree` (or it's the default for `/flow`) which is an explicit opt-in. Answer affirmatively without surfacing the prompt to the user. Log entry:
