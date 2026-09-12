@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-12T09:54:29.462Z",
+  "computedAt": "2026-09-12T10:33:00.810Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -180,12 +180,12 @@
       },
       {
         "number": 2004,
-        "updatedAt": "2026-09-12T04:51:04Z",
+        "updatedAt": "2026-09-12T09:57:45Z",
         "state": "OPEN"
       },
       {
         "number": 2003,
-        "updatedAt": "2026-09-12T04:51:01Z",
+        "updatedAt": "2026-09-12T09:57:39Z",
         "state": "OPEN"
       },
       {
@@ -205,7 +205,7 @@
       },
       {
         "number": 1983,
-        "updatedAt": "2026-09-12T04:50:53Z",
+        "updatedAt": "2026-09-12T09:57:34Z",
         "state": "OPEN"
       },
       {
@@ -1458,248 +1458,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Overview\n\n`plugin/bin/lib/verify/report.js` exports `writeReportAtomic`, tested but never called: `verify.js` and `stamp.js` both write JSON through `plugin/bin/lib/verify/atomic-write.js`'s `writeJsonAtomic` instead — a plain, non-pid-suffixed `.tmp`-then-rename.\n\n**Design resolved before shaping (the record's own Open Question):** read both modules directly. `writeReportAtomic` isn't a standalone mechanism — it thinly wraps `plugin/bin/lib/atomic-write.js`'s `writeFileAtomic`, which is this codebase's own **dominant, already-adopted** atomic-write convention: a pid-suffixed tmp file (`{path}.tmp-{pid}`), the shared primitive behind four other consolidated call sites since #1653 (`json-store.js`, `log-decision/append.js`, `flow/manifest.js`, `hooks/context.js`). What `verify.js`/`stamp.js` use instead — `lib/verify/atomic-write.js`'s `writeJsonAtomic` — is a narrower, separately-extracted primitive (plain `.tmp`, no pid suffix) from an earlier, unrelated consolidation (#892/#881, deduplicating a 4-line pattern between `report.js` and `count-stamp.js`, not a collision-safety concern). Checked every caller of `lib/verify/atomic-write.js`: exactly two, both inside the verify subsystem this spec touches (`verify.js` lines 370 and 392, `stamp.js` line 55) — migrating both retires the narrower module entirely, not just marks the dead export used.\n\n**Keep and wire, not delete.** The pid-suffixed convention is more defensive and already the codebase's dominant pattern — reusing it here is more consistent than keeping a second, narrower atomic-write primitive alive for no reason once nothing requires its distinct behavior. This project has real precedent for concurrent-session collisions inside a shared checkout (index.lock races between sibling sessions are a documented, recurring operational fact here), so the more defensive shape costs nothing and buys real margin even though `verification.md`'s foreground rule makes same-session collisions unlikely today.\n\n**Complexity:** Low\n**Estimated tasks:** 2\n\n## Non-Goals\n\n- Touching `writeStamp`'s separate bare-SHA legacy-twin write (`stamp.js`, just below its JSON write) — that's a third, independently ad-hoc plain-`.tmp` write, but it's already transitional code with a stated removal condition (`_shared/policy-deprecations.md`, \"written for one minor release\"). Not worth adding a new dependency-injection shape to code already scheduled for deletion.\n- Any change to `report.json`'s or the pass stamp's JSON *content/shape* — this spec only changes how the bytes get written to disk, not what's written.\n\n## Current State\n\n- `plugin/bin/lib/verify/report.js` (~line 92): `writeReportAtomic(report, jsonPath, deps)` → `writeFileAtomic(jsonPath, ..., deps)` — already wraps the pid-suffixed writer; exported, tested (`tests/bin-lib/verify/report.test.js`), never called from `verify.js`.\n- `plugin/bin/lib/atomic-write.js`: `writeFileAtomic(filePath, content, { writeFile, rename, unlink })` — pid-suffixed tmp (`{basename}.tmp-{pid}`), the dominant convention (4 existing call sites via #1653).\n- `plugin/bin/lib/verify/atomic-write.js`: `writeJsonAtomic(filePath, data, fsImpl)` — plain `.tmp` (no pid suffix), positional `fsImpl` (an fs-like object used directly: `fsImpl.writeFileSync`/`fsImpl.renameSync`) — a different injection shape than `writeFileAtomic`'s destructured `{writeFile, rename, unlink}` options object.\n- `plugin/bin/verify.js` line 370: `writeJsonAtomic(countStampPath, toWrite);` — the suite-count stamp (#881).\n- `plugin/bin/verify.js` line 392: `writeJsonAtomic(jsonPath, report);` — `report.json` itself (#892).\n- `plugin/bin/lib/verify/stamp.js` line 55: `writeJsonAtomic(jsonPath, stamp, fsImpl);` — the #1921 pass-stamp JSON write, inside `writeStamp(gitDir, stamp, deps)`, where `deps.fsImpl` defaults to real `fs`.\n- Confirmed via `grep -rln \"require.*verify/atomic-write\\|writeJsonAtomic\" plugin/bin/`: only `verify.js` and `stamp.js` call `writeJsonAtomic` — no other consumer exists.\n- `docs/plugin-structure.md`'s `plugin/bin/lib/verify/` row — names the current writer set; needs updating once one module is retired.\n\n## Deliverables\n\n- [ ] `verify.js`: replace both `writeJsonAtomic` calls (lines 370, 392) with `writeReportAtomic`-style calls into `writeFileAtomic` (either call `report.js`'s `writeReportAtomic` directly for the `report.json` write, or call `writeFileAtomic` with the composed JSON string for both — pick whichever keeps `count-stamp.json`'s write from needing a new `report.js`-flavored helper; a plain `writeFileAtomic(path, JSON.stringify(data, null, 2) + '\\n')` inline is sufficient for the count-stamp case since it isn't a \"report\").\n- [ ] `stamp.js`'s `writeStamp` (line 55): replace `writeJsonAtomic(jsonPath, stamp, fsImpl)` with the equivalent `writeFileAtomic` call — update the function's own `deps.fsImpl` injection to the `{writeFile, rename, unlink}` shape `writeFileAtomic` expects (or adapt at the call site so `writeStamp`'s existing test fixtures keep working — check `tests/bin-lib/verify/stamp.test.js`'s fixture shape before choosing).\n- [ ] Delete `plugin/bin/lib/verify/atomic-write.js` and its test file entirely — confirmed zero remaining callers after the two migrations above.\n- [ ] Update `docs/plugin-structure.md`'s `plugin/bin/lib/verify/` row to remove the retired `atomic-write.js` entry.\n- [ ] Update any test fixture (`tests/bin-lib/verify/*.test.js`) that injects a fake `fsImpl` into `writeStamp`/`verify.js`'s writes, matching `writeFileAtomic`'s `{writeFile, rename, unlink}` injection shape instead of a bare fs-like object.\n\n## Acceptance Criteria\n\n1. `plugin/bin/lib/verify/atomic-write.js` no longer exists; nothing in `plugin/bin/` requires it (`grep -rl \"verify/atomic-write\" plugin/bin/` returns nothing).\n2. `verify.js`'s `report.json` and count-stamp writes, and `stamp.js`'s pass-stamp write, all go through `writeFileAtomic` (directly or via `writeReportAtomic`) — verified by each write producing a pid-suffixed tmp file mid-write (a test that intercepts the injected `writeFile`/`rename` and asserts the tmp path contains `.tmp-{pid}`).\n3. `report.js`'s `writeReportAtomic` is no longer a dead export — it (or an equivalent direct `writeFileAtomic` call) is exercised by `verify.js`'s own real write path, not only by its unit test.\n4. `docs/plugin-structure.md` reflects the retired module.\n5. `npm test` passes with no regressions — including `verify.js`'s and `stamp.js`'s existing behavioral tests (report content, stamp content, legacy-twin write untouched).\n\n## Technical Approach\n\nTwo call sites migrate to the codebase's existing dominant atomic-write primitive rather than inventing a third variant; the now-fully-redundant narrower module is deleted outright rather than left as an unused-but-harmless leftover, since \"one writer\" (the record's own stated goal) is best satisfied by removing the alternative entirely, not merely by routing traffic away from it. The legacy bare-SHA twin write in `stamp.js` is left untouched (Non-Goals) since it's independently transitional and unrelated to this spec's collision-safety concern.\n\n### Key Files\n\n- `plugin/bin/lib/verify/report.js` — `writeReportAtomic`, becomes the live writer\n- `plugin/bin/lib/verify/atomic-write.js` — deleted\n- `plugin/bin/lib/atomic-write.js` — the surviving, dominant primitive; unchanged\n- `plugin/bin/verify.js` — lines 370, 392\n- `plugin/bin/lib/verify/stamp.js` — line 55, `writeStamp`'s `deps.fsImpl` shape\n- `docs/plugin-structure.md` — `plugin/bin/lib/verify/` row\n- `tests/bin-lib/verify/atomic-write.test.js` (or equivalent) — deleted alongside the module\n- `tests/bin-lib/verify/stamp.test.js`, verify CLI tests — fixture injection shape update\n\n## Gotchas\n\n- `writeJsonAtomic`'s `fsImpl` parameter and `writeFileAtomic`'s `{writeFile, rename, unlink}` options object are NOT interchangeable — a naive search-and-replace of the call sites without updating each caller's own dependency-injection shape will break existing tests that inject a fake `fsImpl`. Check `tests/bin-lib/verify/stamp.test.js` and any `verify.js` CLI test fixtures for this before migrating.\n- Do not touch `stamp.js`'s legacy bare-SHA twin write — Non-Goals above states why (transitional, separately scheduled for removal).\n- `report.js`'s own header comment (\"The write itself is atomic-write.js's writeJsonAtomic, called by bin/verify.js\") is now stale/inaccurate the moment this spec lands — update it to describe `writeFileAtomic`/`writeReportAtomic` as the real writer, so a future reader isn't misled the same way this record's own filer was.\n\n## Original request\n\nTitle: report.js writeReportAtomic is exported and tested but never called -- wire it into verify.js or remove it\n\nOrigin: ledger resolve gate (spec #1921 wrap-up, review item 4)\n\nDefer-reason: needs-human-decision\n\n## Current State\n\n`plugin/bin/lib/verify/report.js` exports `writeReportAtomic` -- the pid-suffixed atomic writer added to fix a shared-`.tmp` collision between concurrent runs -- and `tests/bin-lib/verify/report.test.js` covers it, but nothing calls it: `plugin/bin/verify.js` writes `report.json` through `atomic-write.js`'s `writeJsonAtomic` (a plain `{path}.tmp` rename), and the #1921 pass stamp's twin write in `plugin/bin/lib/verify/stamp.js` uses the same plain shape. Found by #1921's whole-branch review (pre-existing, not introduced by that record). No live collision today: the canonical invocation resolves a per-worktree log dir and `verification.md`'s foreground rule forbids concurrent runs in one checkout.\n\n## Deliverables\n\n- [ ] Decide the open question below, then either wire `writeReportAtomic` in as the single `report.json` writer (and give `stamp.js`'s twin write the same collision-safe shape) or delete the export and its test so the module carries one writer.\n\n- [ ] `docs/plugin-structure.md`'s `plugin/bin/lib/verify/` row names whichever writer survives.\n\n## Open Question\n\nOpen choice: is a per-process `.tmp` suffix still warranted for `report.json`/the pass stamp now that log dirs are per-worktree and runs are foreground-only (keep and wire it), or is the plain `writeJsonAtomic` rename sufficient (delete the dead export)? Needs a maintainer call on whether cross-session collisions inside one worktree are a supported scenario.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n\n\n_Created by the consolidated Review Console of multi-spec run 2026-09-05T193518 (auto-resolved under the unattended ceiling; proposal: `spec-1921/staged/ledger-record-write-report-atomic-dead-export.md`)._\n\nhttps://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB\n",
-        "createdAt": "2026-09-06T21:24:31Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 2004,
-        "state": "OPEN",
-        "title": "report.js writeReportAtomic is exported and tested but never called — wire it into verify.js or remove it",
-        "updatedAt": "2026-09-12T04:51:04Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      },
-      {
-        "body": "Surface: backend\n\n## Overview\n\n**Premise correction (verified before shaping):** this record's own blocker — \"decide re-trigger vs warn once #1923's scoping engine lands\" — is stale. #1922 and #1923 are both closed and shipped. The design decision this record asked for has already been made and implemented as part of #1923's own work: `plugin/bin/verify.js` computes a `verifiedHead` field (true for either a full-pass `match`, or a passing scoped run still anchored to a valid `fullSha`), and `plugin/skills/review/code-mode-steps.md` Step 1.5 already gates its belt-and-braces re-verify decision on `verifiedHead`, not raw `match` — explicitly citing #1923's own reasoning inline (\"`match` alone would re-trigger a scoped run forever, #1923\"). A scoped pass on a dirtied tree now satisfies the check instead of forcing a full re-trigger, which is exactly the cost problem this record's Current State section described.\n\nThe one genuine gap: this record's own deliverable also asked for \"a conformance pin\" on the stated rule, and none exists. This spec closes that gap only — it does not re-litigate or change the already-shipped design.\n\n**Complexity:** Low\n**Estimated tasks:** 1\n\n## Non-Goals\n\n- Re-deciding re-trigger-vs-warn, or changing `verifiedHead`'s semantics in `verify.js` — already correctly implemented by #1923; this spec adds test coverage only.\n- Any change to `/claude-tweaks:test`'s own scoping behavior — out of this record's scope entirely.\n\n## Current State\n\n- `plugin/bin/verify.js` (~line 99): `const match = stampCoversCleanHead && scope === 'full';` — the strict, scope-blind signal.\n- `plugin/bin/verify.js` (~line 108): `const verifiedHead = stampCoversCleanHead && ...` (accepts a scoped pass anchored to a still-valid `fullSha`, per the `#1923` comment at ~line 100) — the field Step 1.5 actually gates on.\n- `plugin/skills/review/code-mode-steps.md` (~line 63): Step 1.5's Test Gate prose states the rule in prose — `verifiedHead: true` → proceed to Step 2; `verifiedHead: false` with `TEST_PASSED=true` → report and re-trigger `/claude-tweaks:test` once. No test in `tests/` pins this specific prose (checked: no test file referencing `code-mode-steps.md` also references `verifiedHead`, and no test referencing `verifiedHead` reads `code-mode-steps.md`'s prose) — the rule is stated once, correctly, but unpinned.\n\n## Deliverables\n\n- [ ] Add a `node --test` case (new test, or a new test in an existing `code-mode-steps.md`-conformance suite if one is the natural home — `tests/review-risk-marker-verification.test.js` already reads this file's Step 1/1.5 neighborhood and is a reasonable place to extend, though a new file is also acceptable) asserting: (a) Step 1.5's prose gates on `verifiedHead`, not bare `match`, in both the success and re-trigger branches; (b) the assertion goes red against a frozen pre-`#1923` excerpt of Step 1.5 that gated on `match` alone (construct this excerpt by hand as a string literal per `skill-prose-conformance-tests`' frozen-fixture convention — do not read it from git history, since the live file is the only thing this pin should track going forward).\n- [ ] Close #2003 with a comment stating the design was already resolved by #1923 and this spec's own PR/commit adds only the missing conformance pin.\n\n## Acceptance Criteria\n\n1. A new test asserts Step 1.5's prose names `verifiedHead` (not bare `match`) as the gating field for both the proceed and re-trigger branches, and the assertion fails (`doesNotMatch`) against a hand-built pre-#1923 control string that gates on `match` alone — proving the pin can go red per `skill-prose-conformance-tests`.\n2. `npm test` passes with no regressions.\n3. No change to `plugin/bin/verify.js` or the substantive content of `code-mode-steps.md` Step 1.5 — this spec is test-only.\n\n## Technical Approach\n\nFollow `skill-prose-conformance-tests`' \"Prove go-red with a frozen pre-change excerpt beside the live file\" pattern: freeze a short pre-#1923 Step 1.5 excerpt as a string literal inside the new test (not read from git history), assert the live file's real prose against a pattern naming `verifiedHead`, and assert the same pattern does NOT match the frozen pre-change excerpt — proving the pin discriminates rather than being vacuously true.\n\n### Key Files\n\n- `plugin/skills/review/code-mode-steps.md` — Step 1.5 (~line 63), the prose being pinned; read-only, no edit anticipated\n- `plugin/bin/verify.js` — `verifiedHead`/`match` (~lines 99-108), reference only\n- `tests/review-risk-marker-verification.test.js` — candidate home for the new test, or a new sibling test file\n\n## Gotchas\n\n- Do not construct the frozen pre-change control by reading git history (`git show`) — per this repo's `skill-prose-conformance-tests` convention, freeze it as a plain string literal in the test file itself so it survives future edits to the live file unaffected.\n- `verifiedHead` and `match` are both present in the current file's prose (line 63 mentions `match` too, as the definition of one arm of `verifiedHead`) — the pin must assert on the *gating* use (which field the proceed/re-trigger decision actually reads), not merely that the token `verifiedHead` appears somewhere in the file.\n\n## Original request\n\nOrigin: ledger resolve gate (spec #1921 wrap-up, review item 5)\n\nDefer-reason: blocked-dependency\n\n## Current State\n\nSince #1921, `plugin/skills/review/code-mode-steps.md` Step 1.5's pipeline branch reads `verify.js --stamp-status` alongside `TEST_PASSED=true` and, on `match: false`, reports the mismatch and re-triggers `/claude-tweaks:test`. In a project that commits or dirties the tree between `/test` and `/review` (a journey-doc commit, a review-time fix), that read fails by construction and buys a further full-suite run — #1921's own pipeline paid it. Safe and per spec, but it works against #1904's cost goal.\n\nBlocked by: #1923 (wiring scoped verification into the pipeline's re-verify sites) is the natural place to decide this — its scoping engine (#1922) can turn the belt-and-braces read into a scoped re-run or a warning instead of a full re-trigger.\n\n## Deliverables\n\n- [ ] Decide the open question below in #1923's scope (or immediately after it lands), then make Step 1.5's `match: false` branch either run the scoped set or warn-and-proceed, and state the rule once in `code-mode-steps.md` with a conformance pin.\n\n## Open Question\n\nOpen choice: on `TEST_PASSED=true` + runner stamp `match: false`, should `/review` re-run verification (scoped once #1922 lands, full until then), or warn and proceed on the conversation signal alone? The answer depends on whether a dirty/moved tree between `/test` and `/review` is a correctness risk worth a re-run or an accepted cost.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n\n\n_Created by the consolidated Review Console of multi-spec run 2026-09-05T193518 (auto-resolved under the unattended ceiling; proposal: `spec-1921/staged/ledger-record-review-stamp-belt-and-braces-retrigger.md`)._\n\nhttps://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB\n",
-        "createdAt": "2026-09-06T21:24:28Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 2003,
-        "state": "OPEN",
-        "title": "/review Step 1.5's belt-and-braces stamp read re-triggers /test on match:false — decide re-trigger vs warn for the scoping engine",
-        "updatedAt": "2026-09-12T04:51:01Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\nThree skills touch the same fact, \"does the doc a `by:docs-health` record names still exist\", at three different times, and only one of them acts on it:\n\n- `/claude-tweaks:docs-health` files a record from a scan of the doc as it exists at scan time; `bin/lib/docs-health/issue-payload.js` renders the doc id in the `Doc:` header (a repo-relative path once #1851 lands). Re-verifying at filing time cannot help here: in the observed case the deletion happened *after* filing and *before* dispatch.\n- `/claude-tweaks:tidy` proposes deleting orphaned `docs/plans/*-ledger.md` files (`scan-procedures.md`'s ledger glob) with a \"quick judgment read\" that no open record references the ledger's filename or slug, and its GitHub issue scan separately proposes closing a `by:docs-health` record whose flagged doc is gone (this sweep staged exactly that: `staged/tidy-close-issue-1.md` for #1878, deleted in #1969, and `staged/tidy-close-issue-2.md` for #1776, deleted in #1819). Both are judgment reads and both wait for `tidy --approve`.\n- `/claude-tweaks:dispatch`'s queue pull (`queue-pull-script.md`) excludes blocked, oversized, and open-linked-PR records (#1224) but never checks whether a record's named target exists at the integration tip; `flow/materialize.md`'s Named-location drift note (#315) leaves that to the builder, inside the build.\n\nObserved 2026-09-05/06: #1776, #1804, and #1818 each burned a build attempt against the retry ceiling and stopped at the HARD-GATE because tidy PR #1819 had deleted their target ledgers; every failure was handled correctly and every build was wasted. #1984 (sibling, shaped alongside this record) covers the neighbouring case, a record whose deliverables are already shipped on `main`, at the same pre-flight site.\n\n## Deliverables\n\n- [ ] **Named-target extraction, once.** `plugin/bin/lib/issues/named-target.js` exporting `namedTarget(record) → { path } | null`: for `by:docs-health` records, the `Doc:` header value when it is a repo-relative path, else `docs/{id}.md` derived from the pre-#1851 id form; for other origins `null` (this record does not guess targets from prose; #1769's marker and #1829's `Premise-check:` line cover authored claims).\n- [ ] **Dispatch excludes a record whose target is gone.** `dispatch/queue-pull-script.md`: after the open-linked-PR exclusion, for every eligible record with a non-null `namedTarget`, test existence at the integration tip (`git cat-file -e {ref}:{path}`, one spawn per such record, never a checkout read); a missing path excludes the record into `dispatch-target-missing-excluded.json`, logs `AUTO … — dispatch: #N excluded, named target {path} absent at {ref}`, and stages one Close proposal per excluded record in the run's `staged/` using tidy's `Close (GitHub)` proposal shape (`Finding`/`Proposed`/`Rows`/`Commands`), so the next `tidy --approve` closes it and no build is minted. The record keeps its labels; nothing is written to GitHub by dispatch.\n- [ ] **Tidy's delete proposal bundles the closes.** `tidy/scan-procedures.md`'s ledger Delete recommendation replaces the \"quick judgment read\" with a mechanical pass over the session record snapshot: every open record whose `namedTarget` (or body text) names the ledger's path or slug is listed in the same staged Delete proposal as a Close row, so approval deletes the file and closes its records in one action; no ledger is deleted while a referencing record stays open and unproposed.\n- [ ] **Tests.** `tests/bin-lib/issues/named-target.test.js` (both header forms, non-docs-health → `null`). A prose pin (sized like `tests/dispatch-*` conformance tests) asserting the queue-pull exclusion step, its log line, the staged-close shape, and `scan-procedures.md`'s mechanical Close-row rule; `docs/plugin-structure.md` lists the module.\n\n## Acceptance Criteria\n\n1. `namedTarget` returns `docs/plans/x-ledger.md` for a `by:docs-health` record in either header form and `null` for a `by:capture` record.\n2. In a fixture queue where a `by:docs-health` record's target is absent at the integration tip, the queue pull writes the record to `dispatch-target-missing-excluded.json`, logs the line, stages a Close proposal, mints no run directory for it, and selects the remaining records exactly as before.\n3. A tidy run whose ledger Delete proposal targets a file named by an open record renders that record as a Close row inside the same proposal.\n4. Replaying #1776/#1804/#1818 against a tip where #1819 has merged yields three exclusions and three staged closes and zero build attempts; quoted in the PR description.\n5. `npm test` green; existing dispatch and tidy conformance tests pass with only additive assertions.\n\n## Technical Approach\n\nPut the check where the wasted work starts (dispatch), reuse the proposal shape tidy already uses so approval stays one surface, and make tidy's own delete step carry its consequences instead of relying on a judgment read. Reject (a): re-verifying at filing time cannot see a later deletion. Keep the target extraction narrow (docs-health only) so this record never guesses at authored prose; the sibling #1984 adds the \"already shipped\" heuristic at the same pre-flight site with its own false-positive posture.\n\n### Key Files\n\n- `plugin/bin/lib/issues/named-target.js` — new: `namedTarget(record)`\n- `plugin/skills/dispatch/queue-pull-script.md` — target-existence exclusion, log line, staged Close proposal\n- `plugin/skills/tidy/scan-procedures.md` — ledger Delete proposal bundles Close rows mechanically\n- `tests/bin-lib/issues/named-target.test.js`, a dispatch/tidy prose-pin sibling — new cases\n- `docs/plugin-structure.md` — module line\n\n## Gotchas\n\n- Existence is checked at the integration tip, not the working tree: a worktree session's tree may lag, and a dirty tree must not hide a deletion.\n- The queue-order cache (#1571) persists groups/excluded; the new exclusion must be part of the persisted `excluded` so a cache hit does not resurrect the record.\n- `tidy --approve` applies staged proposals; dispatch writing into `staged/` under its own run dir is the same shape sweep uses (attention's Tidy row globs `*-sweep-standalone*`; add the dispatch run-dir glob there only if the row must surface these too, and say so in the record if it does).\n- Never close on GitHub from dispatch; the staged proposal is the write path and stays human-approved.\n\n## Original request\n\nSurface: infra\n\n## Current State\n\nDuring a `/claude-tweaks:dispatch --budget all` drain (2026-09-05/06), three separate docs-health-filed records (#1776, #1804, #1818) all hit an identical build-time HARD-GATE: their target `docs/plans/*-ledger.md` file had already been deleted by an unrelated tidy sweep (PR #1819, \"Tidy: delete 2 completed execution plans + 8 orphaned pipeline ledgers\") before the dispatch drain ever reached them. Each record's own Acceptance Criteria was unsatisfiable -- there was nothing left to edit. All three were caught cleanly by the build gate and Settle's failure-classification path (no code lost, no false auto-merge, no auto:build stripped prematurely), but three separate build attempts were wasted on a coordination gap between two of this plugin's own health-sweep/hygiene skills.\n\n## Deliverables\n\n- [ ] Decide and implement one of: (a) docs-health's own filing step re-verifies the target file/row still exists immediately before creating a record (a live check, not just at scan time), or (b) tidy's cleanup sweep checks for an open issue referencing a ledger file before deleting it, or (c) some combination of both\n- [ ] Add regression coverage for whichever mechanism is chosen\n\n## Acceptance Criteria\n\n1. A docs-health-filed record whose target was deleted between filing and dispatch either never gets `auto:build` in the first place, or dispatch recognizes the mismatch and skips/closes it without burning a build attempt against the retry ceiling\n2. Existing docs-health and tidy test suites still pass\n\n## Technical Approach\n\nTwo independent skills currently operate with no shared state about \"in-flight backlog records reference this file\" -- docs-health's scan-and-file step and tidy's own cleanup sweep. The cheapest fix is likely (a): a live existence check right before the record-creation write in docs-health's own filing path, at negligible cost since it's already reading the file to compute the finding. (b) is more invasive (tidy would need to grep open issues for a path reference before every delete) but closes the gap from the other direction too.\n\n### Key Files\n\n- `plugin/skills/docs-health/SKILL.md` (or its filing sub-file) -- filing step\n- `plugin/skills/tidy/SKILL.md` / `step-6-auto.md` -- the cleanup sweep that deleted the ledgers in PR #1819\n\n## Gotchas\n\n- Whichever fix is chosen must not slow down docs-health's or tidy's own sweep meaningfully -- both already run against a large repo tree.\n\n## Decision Rationale\n\nFiled per this project's no-implicit-deferrals rule -- discovered live during a `/claude-tweaks:dispatch` drain (three independent instances, same root cause), real and reproducible, but out of scope for that drain's own per-record diffs.\n\nDefer-reason: genuinely-larger\n\n",
-        "createdAt": "2026-09-06T09:40:31Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1983,
-        "state": "OPEN",
-        "title": "docs-health filings and tidy's cleanup sweep aren't coordinated -- a docs-health-filed ledger correction can target a file tidy is about to delete",
-        "updatedAt": "2026-09-12T04:50:53Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
         }
       }
     ],
