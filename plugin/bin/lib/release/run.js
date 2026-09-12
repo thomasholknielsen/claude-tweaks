@@ -4,12 +4,29 @@ const { unnamedRecordsGate } = require('./unnamed-records.js');
 const { bumpManifest, stubChangelogEntry, RELEASE_FILES } = require('./compose.js');
 const { mirrorRelease } = require('./mirror.js');
 
-function runRelease(deps, { part, summary, date, dryRun, log, allowUnnamed = [] }) {
-  const branch = deps.git(['branch', '--show-current']).trim();
-  if (branch !== 'main') throw new Error(`releases run from main; current branch is "${branch}"`);
+// Reused by bin/release-local.js (#2254): the branch/clean-tree guard, and the
+// fetch → ancestry re-check → push ordering. `onDiverged` is the caller's own
+// partial-state message (the commit/tag already exist locally — do NOT re-run).
+function guardReleasableTree(deps, { branch = 'main' } = {}) {
+  const current = deps.git(['branch', '--show-current']).trim();
+  if (current !== branch) throw new Error(`releases run from ${branch}; current branch is "${current}"`);
   if (deps.git(['status', '--porcelain', '--untracked-files=no']).trim() !== '') {
     throw new Error('working tree has tracked modifications — commit or restore them first');
   }
+}
+
+function pushAfterAncestryCheck(deps, { branch = 'main', refs = [branch], onDiverged }) {
+  deps.git(['fetch', 'origin', branch]);
+  try {
+    deps.git(['merge-base', '--is-ancestor', `origin/${branch}`, 'HEAD']);
+  } catch {
+    throw new Error(onDiverged);
+  }
+  deps.git(['push', 'origin', ...refs]);
+}
+
+function runRelease(deps, { part, summary, date, dryRun, log, allowUnnamed = [] }) {
+  guardReleasableTree(deps, { branch: 'main' });
 
   const { candidate: version, result } = precheck(deps, part);
   if (!result.ok) {
@@ -64,15 +81,12 @@ function runRelease(deps, { part, summary, date, dryRun, log, allowUnnamed = [] 
   // and this keeps the value available even if the ancestry check aborts below.
   const releaseSha = deps.git(['rev-parse', 'HEAD']).trim();
 
-  deps.git(['fetch', 'origin', 'main']);
-  try {
-    deps.git(['merge-base', '--is-ancestor', 'origin/main', 'HEAD']);
-  } catch {
-    throw new Error('origin/main moved between pre-check and push. The release commit already exists locally — ' +
+  pushAfterAncestryCheck(deps, {
+    branch: 'main',
+    onDiverged: 'origin/main moved between pre-check and push. The release commit already exists locally — ' +
       'do NOT re-run the full release (it would bump a second time). Recover manually: ' +
-      'git pull --rebase origin main, then git push origin main, then retry the marketplace mirror alone.');
-  }
-  deps.git(['push', 'origin', 'main']);
+      'git pull --rebase origin main, then git push origin main, then retry the marketplace mirror alone.',
+  });
   log(`pushed v${version} to origin/main`);
 
   const description = JSON.parse(newManifest).description;
@@ -87,4 +101,4 @@ function runRelease(deps, { part, summary, date, dryRun, log, allowUnnamed = [] 
   return { version, pushed: true, mirrored: changed };
 }
 
-module.exports = { runRelease };
+module.exports = { runRelease, guardReleasableTree, pushAfterAncestryCheck };
