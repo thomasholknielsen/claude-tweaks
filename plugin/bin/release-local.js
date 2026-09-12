@@ -140,10 +140,12 @@ function run(argv, deps) {
     if (opts.dryRun) { deps.stdout(`[dry-run] v${version} — no changes written\n`); return 0; }
 
     stage = 'editing';
-    const written = manifest.applyVersion(targets, current, version, deps.readFile, deps.writeFile);
-    editedPaths = written.map((w) => w.path);
-    deps.writeFile('CHANGELOG.md', prependSection(deps.readFile('CHANGELOG.md'), section));
-    editedPaths.push('CHANGELOG.md');
+    // Every write is recorded as it lands, so a throw part-way through
+    // applyVersion still leaves editedPaths naming exactly what is on disk
+    // (ruling 11: the recovery command must list the real partial state).
+    const trackedWrite = (p, text) => { deps.writeFile(p, text); editedPaths.push(p); };
+    manifest.applyVersion(targets, current, version, deps.readFile, trackedWrite);
+    trackedWrite('CHANGELOG.md', prependSection(deps.readFile('CHANGELOG.md'), section));
     deps.git(['add', ...editedPaths]);
     deps.git(['commit', '-m', `chore(release): v${version}`]);
     stage = 'committed';
@@ -168,9 +170,16 @@ function run(argv, deps) {
     if (err instanceof UsageError) { deps.stderr(`${message}\n${USAGE}\n`); return 2; }
     if (stage === 'planning') { deps.stderr(`release-local: ${message} — nothing written\n`); return 1; }
     if (stage === 'editing') {
-      deps.stderr(`partial: manifest and CHANGELOG edits are on disk but NOT committed (${message}). ` +
+      if (editedPaths.length === 0) { deps.stderr(`release-local: ${message} — nothing written\n`); return 1; }
+      deps.stderr(`partial: ${editedPaths.join(', ')} edited on disk but NOT committed (${message}). ` +
         `Do NOT re-run release-local. Recover: git checkout -- ${editedPaths.join(' ')}\n`);
       return 1;
+    }
+    if (stage === 'pushed' || (stage === 'tagged' && !hasOrigin)) {
+      // Only deps.runHook can throw here — the tag (and push) are final.
+      deps.stderr(`partial: v${version} is committed, tagged${hasOrigin ? ' and pushed' : ''}; the release-hook threw (${message}). ` +
+        `Do NOT re-run release-local (the tag is final). Recover: re-run the hook alone: ${hook}\n`);
+      return 5;
     }
     if (stage === 'committed') {
       deps.stderr(`partial: the chore(release): v${version} commit landed but the tag did NOT (${message}). ` +

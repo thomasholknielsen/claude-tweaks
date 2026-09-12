@@ -145,8 +145,39 @@ test('exit 1 (named partial state): the push fails after the commit and tag land
 test('exit 1 (named partial state): a commit failure after the files were edited', () => {
   const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('commit ') });
   assert.strictEqual(run([], deps), 1);
-  assert.match(state.err, /partial: manifest and CHANGELOG edits are on disk but NOT committed/);
+  assert.match(state.err, /partial: \.release-please-manifest\.json, package\.json, CHANGELOG\.md edited on disk but NOT committed/);
   assert.match(state.err, /git checkout -- \.release-please-manifest\.json package\.json CHANGELOG\.md/);
+});
+
+test('exit 1 (named partial state): applyVersion throws part-way — the recovery lists exactly what landed', () => {
+  // the manifest file carries the version (so planning succeeds) but package.json has no token: the manifest is written, then package.json throws
+  const { deps, state } = makeDeps({ files: { 'package.json': '{\n  "name": "x"\n}\n' } });
+  assert.strictEqual(run([], deps), 1);
+  assert.deepStrictEqual(state.writes, ['.release-please-manifest.json']);
+  assert.match(state.err, /partial: \.release-please-manifest\.json edited on disk but NOT committed \(package\.json carries no version token/);
+  assert.match(state.err, /git checkout -- \.release-please-manifest\.json$/m);
+  assert.ok(!state.git.some((c) => /^(add|commit|tag -a)/.test(c)));
+});
+
+test('exit 1 (named partial state): the tag fails after the commit landed', () => {
+  const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('tag -a') });
+  assert.strictEqual(run([], deps), 1);
+  assert.match(state.err, /partial: the chore\(release\): v1\.3\.0 commit landed but the tag did NOT/);
+  assert.match(state.err, /git tag -a v1\.3\.0 -m v1\.3\.0 && git push origin main v1\.3\.0/);
+});
+
+test('exit 5: a hook that THROWS after the push is a hook failure, never reported as "not pushed"', () => {
+  const { deps, state } = makeDeps({ files: { '.claude-tweaks/policy.yml': 'release-hook: ./publish.sh\n' } });
+  deps.runHook = () => { throw new Error('spawn ENOENT'); };
+  assert.strictEqual(run([], deps), 5);
+  assert.match(state.err, /partial: v1\.3\.0 is committed, tagged and pushed; the release-hook threw \(spawn ENOENT\)/);
+  assert.match(state.err, /re-run the hook alone: \.\/publish\.sh/);
+  assert.ok(!/NOT pushed/.test(state.err));
+  const local = makeDeps({ noOrigin: true, files: { '.claude-tweaks/policy.yml': 'release-hook: ./publish.sh\n' } });
+  local.deps.runHook = () => { throw new Error('boom'); };
+  assert.strictEqual(run([], local.deps), 5);
+  assert.match(local.state.err, /is committed, tagged; the release-hook threw \(boom\)/);
+  assert.ok(!/git push/.test(local.state.err));
 });
 
 test('exit 5: the release-hook fails after the tag and push landed; the tag is final', () => {
