@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-12T06:40:01.074Z",
+  "computedAt": "2026-09-12T07:15:45.949Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -115,7 +115,7 @@
       },
       {
         "number": 2050,
-        "updatedAt": "2026-09-12T04:51:15Z",
+        "updatedAt": "2026-09-12T06:45:21Z",
         "state": "OPEN"
       },
       {
@@ -1043,76 +1043,6 @@
           "solutionUnjustified": false,
           "needsDefinition": false,
           "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "# Reflect — staged finding 1\n\n**Category:** tangential\n\nOrigin: reflect full mode from #1875\nDefer-reason: tangential\n\n## Current State\n\n`dispatch/task-prompt.md`'s two-call contract assumes the dispatching session enters a group's\nworktree once and both Task calls transparently inherit that cwd. In this remote/cloud harness\nthat assumption failed on this very run: the first Task call was launched with `isolation:\n\"worktree\"`, which creates its own new worktree rather than having the dispatching session enter\none first (there is no Agent-tool parameter to pin a subagent's Bash sandbox to an\nalready-existing worktree path). The second Task call was then launched plainly and instructed to\ncall `EnterWorktree(path: ...)` to switch into the first call's worktree before starting work;\n`EnterWorktree` reported success and updated the agent's logical cwd, but every subsequent Bash\ncall in that agent was refused by the worktree-isolation guard because its underlying execution\nsandbox stayed hard-pinned to the dispatching session's own worktree — a lower-level restriction\n`EnterWorktree`'s path-switch does not propagate through for a pinned subagent. The second call\nreported `BLOCKED: worktree-inaccessible` and could do no work. The dispatching session had to\nadapt by entering the target worktree itself and running `/claude-tweaks:flow #1875\nreview,polish,wrap-up` directly in its own thread instead of via a second Task call — which\nforfeits the two-call contract's whole reason for existing (conversational isolation between\nbuild and review, so review re-derives its verdict from artifacts rather than trusting the\nbuild's own claims).\n\n## Deliverables\n\n- [ ] Confirm whether this is specific to the current Claude Code Remote / cloud-session\n      execution model, or reproducible in other harnesses this plugin targets.\n- [ ] If reproducible broadly: document the constraint in `dispatch/sequential-execution.md` or\n      `task-prompt.md`, and decide on a supported adaptation — e.g. always running the second\n      call inline in the dispatching session's own thread on this harness class, with an explicit\n      note about the conversational-isolation cost this reintroduces — rather than leaving each\n      dispatching session to rediscover and improvise the same workaround.\n- [ ] If narrow (a specific harness quirk): file it as a known limitation with a detection\n      signal dispatch can check before attempting the second Task call, so a future firing fails\n      fast with a clear message instead of burning a full Task-call round-trip to discover it.\n\n## Acceptance Criteria\n\n1. A future dispatch firing on this harness class either avoids the failed pattern by\n   construction, or fails with a clear, actionable message on the first attempt rather than a\n   generic `BLOCKED: worktree-inaccessible` report.\n\n_Filed by `reflect` via specShapedBody._\n",
-        "createdAt": "2026-09-08T03:10:06Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: defect in existing behavior",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
-            "name": "priority:high",
-            "description": "Priority: dispatch picks this band first",
-            "color": "FBCA04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          }
-        ],
-        "number": 2050,
-        "state": "OPEN",
-        "title": "Task-tool subagents can't be redirected to a pre-existing worktree via EnterWorktree(path=) in this harness",
-        "updatedAt": "2026-09-12T04:51:15Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
           "stage": "ready",
           "grants": {
             "build": true,
