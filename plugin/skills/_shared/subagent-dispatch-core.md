@@ -124,7 +124,7 @@ In a Form B blockquote:
 
 ```
 > **Parallel execution:** Dispatch {scope} as parallel Task agents — each runs independently and returns findings in Template A format. Assemble results after all agents complete.
-> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as its first line, nothing before it (WRONG: "Based on my review, DONE"), then Template A. Pick the cheapest work profile that fits ({Fast | Standard | Capable} — Frontier never rides a fan-out; singleton slots only, §Model Selection) and resolve it per §Model Selection. Inline the template literally; reject and re-prompt on format violations.
+> **Contract:** Each agent follows the Subagent Contract — minimal input (scope + path + output template, no conversation), Template A, then one of {DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED} as a labeled trailing line — `STATUS: {WORD}`, the reply's last non-empty line, after the output template (WRONG: "Based on my review, DONE" as the first line). Pick the cheapest work profile that fits ({Fast | Standard | Capable} — Frontier never rides a fan-out; singleton slots only, §Model Selection) and resolve it per §Model Selection. Inline the template literally; reject and re-prompt on format violations.
 ```
 
 In the actual `Task()` call, the prompt body must contain the literal template — not a reference to it. Concrete example:
@@ -132,7 +132,7 @@ In the actual `Task()` call, the prompt body must contain the literal template �
 ```
 Task scope: Review src/auth.ts and src/api.ts for security issues.
 
-Status line (required): First line of your reply must be exactly one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED, nothing before it. WRONG: "Based on my review, DONE".
+Status line (required): after the output format below, on its own trailing line — the reply's last non-empty line — write exactly `STATUS: {WORD}`, where {WORD} is one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED. WRONG: putting the status word first, before the table.
 
 OUTPUT FORMAT (required):
 Return ONLY a markdown table, no preamble:

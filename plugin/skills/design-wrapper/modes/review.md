@@ -219,8 +219,6 @@ this mode's other findings, never a path *to* the critic skill in place of its t
 5. The status-line protocol and the findings template — this literal block:
 
 ```
-Status line (required): First line of your reply must be one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
-
 OUTPUT FORMAT (required):
 Return ONLY a markdown table, no preamble:
 
@@ -234,6 +232,9 @@ Severity scale: critical / high / medium / low / info
 If no findings: return literal text "No findings."
 Return at most 15 rows, highest severity first; if more were found, append a final row reading "+N more" with the count in place of N — never omit this row when findings exceed the cap.
 Do not add narration, headers, or summaries before or after the table.
+
+After the table, on its own trailing line — the last non-empty line of your reply — write exactly
+one of: DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED.
 
 [Use: Standard]
 ```

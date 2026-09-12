@@ -12,6 +12,7 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const SKILL_DIR = path.join(ROOT, 'plugin', 'skills', 'backlog');
+const { CEILING_BYTES } = require(path.join(ROOT, 'plugin', 'bin', 'lib', 'skill-audit', 'context-cost'));
 
 function read(...segments) {
   return fs.readFileSync(path.join(...segments), 'utf8');
@@ -131,11 +132,11 @@ test('refine-closing-summary.md: filter/posture exclusion lines name the #N-filt
   );
 });
 
-// --- (7) refine-mode.md stays under the 40,960-byte per-file lazy-load ceiling ---
+// --- (7) refine-mode.md stays under the per-file lazy-load ceiling ---
 
-test('refine-mode.md stays under the 40,960-byte per-file ceiling after the #1887 additions', () => {
+test('refine-mode.md stays under the per-file ceiling after the #1887 additions', () => {
   const bytes = fs.statSync(path.join(SKILL_DIR, 'refine-mode.md')).size;
-  assert.ok(bytes < 40960, `refine-mode.md is ${bytes} bytes — must stay under the 40,960-byte ceiling`);
+  assert.ok(bytes < CEILING_BYTES, `refine-mode.md is ${bytes} bytes — must stay under the ${CEILING_BYTES}-byte ceiling`);
 });
 
 // --- (8) attention-mode.md's shaped:headless clause updated to say the filtered

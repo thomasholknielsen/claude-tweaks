@@ -23,7 +23,7 @@ test('steps-and-gates.md calls flow-preflight.js --run exactly once in the adopt
   assert.match(after, /stop/i);
   assert.match(t, /inventory\.value\.status === 'MISMATCH'/);
   assert.match(t, /adoption\.value\.note/);
-  assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING_BYTES);
 });
 
 // #1931 I1: the CLI exits 3 (nothing written) for a missing/unanchored --run, so
@@ -63,7 +63,7 @@ test('manifesto.md renders the auto FYI table from preflight.levers and lists th
   // #1931 C1: only case 1 has a config.yml to read — cases 2/3/5 compute the
   // levers fresh, so the do-not-re-resolve rule must not fire on them.
   assert.match(t, /adoption\.value\.case === 1/);
-  assert.ok(Buffer.byteLength(t, 'utf8') <= 40960);
+  assert.ok(Buffer.byteLength(t, 'utf8') <= CEILING_BYTES);
 });
 
 test('flow/SKILL.md names the pack in Step 3 and stays under the per-file ceiling (#1931 AC6)', () => {

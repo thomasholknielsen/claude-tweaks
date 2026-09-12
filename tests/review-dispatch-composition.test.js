@@ -4,7 +4,7 @@
 // together must actually produce every section review/step3-lens-dispatch.md,
 // step3-routing.md, and step3-debate-and-refutation.md cite (Working Directory Discipline,
 // Model Selection, Template A, Failed-agent retrieval, the fan-out section, Resolution order,
-// Bash snippet), and the composed result must stay under the 40 KB ceiling with no
+// Bash snippet), and the composed result must stay under the shared byte ceiling with no
 // COMPOSED_STEP_EXCEPTIONS entry — the reason this record split the two sources in the first
 // place. Neither source carries `when:` markers, so there is no mode-branch to pin the way
 // flow-manifesto-composition.test.js does; the composed-behavior surface here is instead
