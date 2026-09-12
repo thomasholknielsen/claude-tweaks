@@ -96,7 +96,7 @@ $RUN_ROOT/.claude-tweaks/pipelines/2026-05-15T143207-meal-planning/
 
 **Why unique:** multiple parallel agents (different worktrees, different terminals, even just same-second invocations on the same checkout) never collide. Each run's artifacts live together and clean up atomically.
 
-**How downstream skills find the active run:** the entrypoint skill (`/flow`, or first standalone skill in a chain) creates the directory and a marker file. The ordered resolution algorithm itself is **owned by `_shared/pipeline-run-dir.md`'s "Resolution order" section** — read it there.
+**How downstream skills find the active run:** the entrypoint skill (`/flow`, or first standalone skill in a chain) creates the directory and a marker file. The ordered resolution algorithm itself is **owned by `_shared/run-dir-resolution.md`'s "Resolution order" section** — read it there.
 
 It is deliberately not restated here. That file's list is the complete one: it includes the record-mode materialization exception for standalone `/claude-tweaks:build #{n}`, which a summary in this section previously omitted, so a skill following the summary got the wrong answer for that invocation. Every consumer that cites a resolution step by number — `/capture`, `/tidy`'s `scan-procedures.md`, `flow/materialize.md`, `_shared/auto-decision-log.md` — cites that file's numbering.
 

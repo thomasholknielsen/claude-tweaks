@@ -49,7 +49,7 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
   this run's `{run-id}`; hard-stop this update on a mismatch rather than push a wrong body:
 
   ```bash
-  gh pr edit {number} --repo {owner}/{repo} --body-file /tmp/pr-checklist-{run-id}-{n}.md
+  gh pr edit {number} --repo {host}/{owner}/{repo} --body-file /tmp/pr-checklist-{run-id}-{n}.md
   ```
 
 <!-- when: transport=mcp -->
@@ -117,7 +117,7 @@ above), not necessarily every phase this run actually completed.
 <!-- /when -->
 4. Read the record's current title (`gh issue view {n} --json title -q .title` for the
    lowest-numbered record). If it no longer matches the PR's own title (the record was retitled
-   after PR creation), refresh it: `gh pr edit {pr-number} --repo {owner}/{repo} --title "{current record title} (#{n})"`.
+   after PR creation), refresh it: `gh pr edit {pr-number} --repo {host}/{owner}/{repo} --title "{current record title} (#{n})"`.
 5. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
 
 Best-effort, like the phase-checklist update it extends — a failed `gh pr edit` at any step above

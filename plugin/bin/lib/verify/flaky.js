@@ -7,10 +7,12 @@
 // for a retried pass lives here so verify.js renders one shape.
 'use strict';
 
+const { globToRegExp } = require('../issues/blast-radius');
+
 function planRetry({ failingFiles, flaky, retry, suite }) {
   if (!Array.isArray(failingFiles) || failingFiles.length === 0) return { retry: false, reason: 'no-parse' };
-  const listed = new Set((flaky && flaky.files) || []);
-  const unlisted = failingFiles.filter((f) => !listed.has(f));
+  const patterns = (flaky && flaky.files) || [];
+  const unlisted = failingFiles.filter((f) => !patterns.some((entry) => globToRegExp(entry).test(f)));
   if (unlisted.length) return { retry: false, reason: `unlisted: [${unlisted.join(', ')}]`, unlisted };
   const template = retry && retry[suite];
   if (typeof template !== 'string') return { retry: false, reason: 'no-template' };

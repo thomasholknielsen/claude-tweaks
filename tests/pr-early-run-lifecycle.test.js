@@ -55,10 +55,20 @@ test('the push at run start is its own Bash call, never chained', () => {
 test('run start checks for an existing PR by state before creating one, and distinguishes open from closed/merged', () => {
   assert.match(
     LIFECYCLE,
-    /gh pr list --repo \{owner\}\/\{repo\} --head \{branch\} --state all --json number,url,state,isDraft/,
+    /gh pr list --repo \{host\}\/\{owner\}\/\{repo\} --head \{branch\} --state all --json number,url,state,isDraft/,
     'a resumed or retried run must not duplicate a PR — state:all is required to see the closed/merged case and fall through to creation rather than misreading it as a live match',
   );
   assert.match(LIFECYCLE, /Never flip an already-non-draft open PR back to draft/);
+});
+
+test('identity resolution is host-qualified, so every --repo in this file works on GitHub Enterprise (#2021)', () => {
+  assert.match(LIFECYCLE, /Resolve `\{host\}\/\{owner\}\/\{repo\}` once: `gh repo view --json nameWithOwner,url`/);
+  assert.match(LIFECYCLE, /gh pr create --repo \{host\}\/\{owner\}\/\{repo\} --draft --base \{integration-branch\}/);
+  assert.doesNotMatch(
+    LIFECYCLE,
+    /--repo \{owner\}\/\{repo\}/,
+    'no --repo in this file should still be the bare (non-host-qualified) form',
+  );
 });
 
 test('the phase checklist is delimited by HTML-comment markers for reliable re-composition', () => {
@@ -78,7 +88,7 @@ test('Fixes lines are safe because the PR stays draft until gates pass, not beca
 test('the resume path re-verifies a recorded PR against GitHub before trusting it', () => {
   assert.match(
     LIFECYCLE,
-    /gh pr view \{recorded-number\} --repo \{owner\}\/\{repo\} --json state,isDraft,url/,
+    /gh pr view \{recorded-number\} --repo \{host\}\/\{owner\}\/\{repo\} --json state,isDraft,url/,
     'the branch could have been force-pushed or the PR closed since an earlier phase recorded it — trusting run-state.json blindly would silently skip the checklist update',
   );
 });

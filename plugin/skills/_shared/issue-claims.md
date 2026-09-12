@@ -341,7 +341,7 @@ keyed to the group's representative record — see `dispatch/SKILL.md` Step 4) a
 both of that group's Task calls as `PIPELINE_RUN_DIR`. One identity either way: the directory
 the claim was written under is always the same directory the pipeline itself resolves as
 `$PIPELINE_RUN_DIR`, so no separate variable threads the two together. Dispatch's own
-firing-level standalone-auto run dir (`_shared/pipeline-run-dir.md`, e.g.
+firing-level standalone-auto run dir (`_shared/run-dir-resolution.md`, e.g.
 `{ISO-timestamp}-dispatch-standalone`) is a different thing entirely — it holds that firing's
 own `decisions.md` (queue pull, selection, per-group minting log), never a claim's `runId`.
 `sessionId` is `CLAUDE_CODE_SESSION_ID` — the same
