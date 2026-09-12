@@ -1,0 +1,182 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { run, parseArgs } = require('../../../plugin/bin/release-local.js');
+
+const SHA = 'f'.repeat(40);
+const CONFIG = JSON.stringify({ packages: { '.': { 'release-type': 'node' } } });
+const LOG = (subjects) => subjects.map((s, i) => `${String(i).repeat(40)}\x1f${s}\x1f\x1e\n`).join('');
+
+function makeDeps(o = {}) {
+  const state = {
+    files: { 'release-please-config.json': CONFIG, '.release-please-manifest.json': '{\n  ".": "1.2.0"\n}\n', 'package.json': '{\n  "name": "x",\n  "version": "1.2.0"\n}\n', 'CHANGELOG.md': '# Changelog\n', ...(o.files || {}) },
+    git: [], writes: [], out: '', err: '', hooks: [],
+  };
+  const deps = {
+    git: (args) => {
+      const key = args.join(' ');
+      state.git.push(key);
+      if (o.gitFail && o.gitFail(key)) throw new Error(`fatal: ${key} failed`);
+      if (key === 'branch --show-current') return `${o.branch || 'main'}\n`;
+      if (key === 'status --porcelain --untracked-files=no') return o.dirty || '';
+      if (key === 'remote get-url origin') { if (o.noOrigin) throw new Error('fatal: No such remote'); return 'git@github.com:o/r.git\n'; }
+      if (key.startsWith('describe')) { if (o.noTag) throw new Error('fatal: No names found, cannot describe anything.'); return 'v1.2.0\n'; }
+      if (key.startsWith('log --first-parent')) return LOG(o.subjects || ['fix: a', 'feat: b', 'fix: c']);
+      if (key.startsWith('fetch')) return '';
+      if (key.startsWith('show ')) { const p = key.slice(key.indexOf(':') + 1); if (p in state.files) return state.files[p]; throw new Error(`fatal: path '${p}' does not exist`); }
+      if (key === 'worktree list --porcelain') return o.worktrees || 'worktree /repo\nbranch refs/heads/main\n';
+      if (key === 'tag -l v*') return o.tags === undefined ? 'v1.2.0\n' : o.tags;
+      if (key.startsWith('add ') || key.startsWith('commit ') || key.startsWith('tag -a') || key.startsWith('push ') || key.startsWith('merge-base')) return '';
+      throw new Error(`unexpected git: ${key}`);
+    },
+    readFile: (p) => (p in state.files ? state.files[p] : null),
+    writeFile: (p, text) => { state.writes.push(p); state.files[p] = text; },
+    listPlanFiles: () => o.plans || [],
+    runHook: (cmd) => { state.hooks.push(cmd); return o.hookExit === undefined ? 0 : o.hookExit; },
+    today: () => '2026-09-12',
+    stdout: (t) => { state.out += t; },
+    stderr: (t) => { state.err += t; },
+  };
+  return { deps, state };
+}
+
+test('parseArgs: flags, unknown argument, --root without value', () => {
+  assert.deepStrictEqual(parseArgs(['--dry-run', '--branch', 'develop']), { dryRun: false || true, branch: 'develop', root: null, help: false });
+  assert.match(parseArgs(['--bogus']).error, /unknown argument/);
+  assert.match(parseArgs(['--root']).error, /requires a value/);
+});
+
+test('exit 2: unknown flag, and a repo with no release-please-config.json (bootstrap first)', () => {
+  const a = makeDeps();
+  assert.strictEqual(run(['--bogus'], a.deps), 2);
+  assert.match(a.state.err, /usage/);
+  const b = makeDeps({ files: { 'release-please-config.json': null } });
+  delete b.state.files['release-please-config.json'];
+  assert.strictEqual(run([], b.deps), 2);
+  assert.match(b.state.err, /release-please-config\.json/);
+  assert.deepStrictEqual(b.state.writes, []);
+});
+
+test('AC 1: --dry-run reports 1.3.0, three bullets, no hook, and writes nothing', () => {
+  const { deps, state } = makeDeps();
+  assert.strictEqual(run(['--dry-run'], deps), 0);
+  assert.match(state.out, /v1\.3\.0 \(minor\) from v1\.2\.0/);
+  assert.strictEqual((state.out.match(/^\* /gm) || []).length, 3);
+  assert.match(state.out, /no hook configured/);
+  assert.deepStrictEqual(state.writes, []);
+  assert.ok(!state.git.some((c) => /^(add|commit|tag -a|push)/.test(c)));
+});
+
+test('AC 2 (fake runner): the live run edits both manifests and the CHANGELOG, commits, tags, pushes branch + tag, exit 0', () => {
+  const { deps, state } = makeDeps();
+  assert.strictEqual(run([], deps), 0);
+  assert.deepStrictEqual(state.writes, ['.release-please-manifest.json', 'package.json', 'CHANGELOG.md']);
+  assert.strictEqual(state.files['package.json'], '{\n  "name": "x",\n  "version": "1.3.0"\n}\n');
+  assert.match(state.files['CHANGELOG.md'], /^# Changelog\n\n## \[1\.3\.0\]\(https:\/\/github\.com\/o\/r\/compare\/v1\.2\.0\.\.\.v1\.3\.0\) \(2026-09-12\)\n\n\n### Features\n\n\* b \(\[1111111\]/);
+  const i = (p) => state.git.findIndex((c) => c.startsWith(p));
+  // precheck fetches once before the plan; the push path fetches again — the ordering that matters is the LAST fetch
+  const li = (p) => state.git.length - 1 - [...state.git].reverse().findIndex((c) => c.startsWith(p));
+  assert.ok(i('fetch origin main') < i('add '), 'precheck fetch precedes any write');
+  assert.ok(i('add ') < i('commit -m chore(release): v1.3.0') && i('commit') < i('tag -a v1.3.0 -m v1.3.0') && i('tag -a') < li('fetch origin main') && li('fetch origin main') < i('merge-base') && i('merge-base') < i('push origin main v1.3.0'));
+  assert.match(state.out, /released v1\.3\.0/);
+});
+
+test('AC 3: only chore commits → exit 3, nothing written', () => {
+  const { deps, state } = makeDeps({ subjects: ['chore: x', 'docs: y'] });
+  assert.strictEqual(run([], deps), 3);
+  assert.match(state.out, /nothing to release/);
+  assert.deepStrictEqual(state.writes, []);
+});
+
+test('AC 5: feat! or a BREAKING CHANGE footer computes a major even among fix/chore', () => {
+  const { deps, state } = makeDeps({ subjects: ['fix: a', 'feat!: b', 'chore: c'] });
+  assert.strictEqual(run(['--dry-run'], deps), 0);
+  assert.match(state.out, /v2\.0\.0 \(major\)/);
+  assert.match(state.out, /BREAKING CHANGES/);
+});
+
+test('AC 7: no prior tag → the full history, base from the manifest, 0.1.0 + feat → 0.2.0', () => {
+  const { deps, state } = makeDeps({ noTag: true, tags: '', subjects: ['feat: first'], files: { '.release-please-manifest.json': '{".": "0.1.0"}', 'package.json': '{"version": "0.1.0"}' } });
+  assert.strictEqual(run(['--dry-run'], deps), 0);
+  assert.match(state.out, /v0\.2\.0 \(minor\) from no prior tag/);
+  assert.ok(state.git.some((c) => c.startsWith('log --first-parent') && c.endsWith(' HEAD')));
+});
+
+test('unconventional subjects are listed in the plan, never dropped', () => {
+  const { deps, state } = makeDeps({ subjects: ['fix: a', 'Merge branch feature'] });
+  assert.strictEqual(run(['--dry-run'], deps), 0);
+  assert.match(state.out, /unconventional \(1\):\n {2}[0-9a-f]{7} Merge branch feature/);
+});
+
+test('exit 4: a sibling worktree already claims 1.3.0', () => {
+  const { deps, state } = makeDeps({ worktrees: 'worktree /repo\nbranch refs/heads/main\n\nworktree /w\nbranch refs/heads/wt\n', files: {} });
+  deps.git = ((orig) => (args) => (args.join(' ') === 'show wt:.release-please-manifest.json' ? '{".": "1.3.0"}' : orig(args)))(deps.git);
+  assert.strictEqual(run([], deps), 4);
+  assert.match(state.err, /collision on v1\.3\.0/);
+  assert.match(state.err, /wt claims v1\.3\.0/);
+  assert.deepStrictEqual(state.writes, []);
+});
+
+test('exit 4: a plan document claiming the candidate number (plan claims are read through deps.listPlanFiles)', () => {
+  const { deps, state } = makeDeps({ plans: ['docs/superpowers/plans/x.md'], files: { 'docs/superpowers/plans/x.md': 'ships as v1.3.0' } });
+  assert.strictEqual(run([], deps), 4);
+  assert.match(state.err, /plan-claim: docs\/superpowers\/plans\/x\.md claims v1\.3\.0/);
+});
+
+test('exit 1 (nothing written): a dirty tree, or a wrong branch', () => {
+  const dirty = makeDeps({ dirty: ' M x.js\n' });
+  assert.strictEqual(run([], dirty.deps), 1);
+  assert.match(dirty.state.err, /tracked modifications/);
+  assert.deepStrictEqual(dirty.state.writes, []);
+  const branch = makeDeps({ branch: 'feature' });
+  assert.strictEqual(run([], branch.deps), 1);
+  assert.match(branch.state.err, /releases run from main; current branch is "feature"/);
+});
+
+test('exit 1 (named partial state): the push fails after the commit and tag landed', () => {
+  const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('push ') });
+  assert.strictEqual(run([], deps), 1);
+  assert.match(state.err, /partial: v1\.3\.0 is committed and tagged locally but NOT pushed/);
+  assert.match(state.err, /do NOT re-run/i);
+  assert.match(state.err, /git push origin main v1\.3\.0/);
+  assert.deepStrictEqual(state.hooks, []);
+});
+
+test('exit 1 (named partial state): a commit failure after the files were edited', () => {
+  const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('commit ') });
+  assert.strictEqual(run([], deps), 1);
+  assert.match(state.err, /partial: manifest and CHANGELOG edits are on disk but NOT committed/);
+  assert.match(state.err, /git checkout -- \.release-please-manifest\.json package\.json CHANGELOG\.md/);
+});
+
+test('exit 5: the release-hook fails after the tag and push landed; the tag is final', () => {
+  const { deps, state } = makeDeps({ files: { '.claude-tweaks/policy.yml': 'release-hook: "npm run deploy"\n' }, hookExit: 7 });
+  assert.strictEqual(run([], deps), 5);
+  assert.deepStrictEqual(state.hooks, ['npm run deploy']);
+  assert.match(state.err, /partial: v1\.3\.0 is committed, tagged and pushed; the release-hook exited 7/);
+  assert.match(state.err, /re-run the hook alone: npm run deploy/);
+  assert.ok(state.git.some((c) => c.startsWith('push ')));
+});
+
+test('a configured hook that succeeds is run after the push and reported', () => {
+  const { deps, state } = makeDeps({ files: { '.claude-tweaks/policy.yml': 'release-hook: ./publish.sh\n' } });
+  assert.strictEqual(run([], deps), 0);
+  assert.deepStrictEqual(state.hooks, ['./publish.sh']);
+  assert.match(state.out, /hook: \.\/publish\.sh/);
+});
+
+test('no origin: no fetch, no push, unlinked CHANGELOG heading, still exit 0', () => {
+  const { deps, state } = makeDeps({ noOrigin: true });
+  assert.strictEqual(run([], deps), 0);
+  assert.ok(!state.git.some((c) => /^(fetch|push|merge-base)/.test(c)));
+  assert.match(state.files['CHANGELOG.md'], /^# Changelog\n\n## 1\.3\.0 \(2026-09-12\)\n/);
+});
+
+test('integration-branch policy selects the branch; --branch overrides it', () => {
+  const a = makeDeps({ branch: 'develop', files: { '.claude-tweaks/policy.yml': 'integration-branch: develop\n' } });
+  assert.strictEqual(run(['--dry-run'], a.deps), 0);
+  const b = makeDeps({ branch: 'develop' });
+  assert.strictEqual(run(['--dry-run', '--branch', 'develop'], b.deps), 0);
+  const c = makeDeps({ branch: 'develop' });
+  assert.strictEqual(run(['--dry-run'], c.deps), 1);
+});
