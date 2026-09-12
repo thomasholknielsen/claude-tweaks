@@ -168,6 +168,29 @@ function normalizeVersionForCompare(v) {
   return typeof v === 'string' && (v[0] === 'v' || v[0] === 'V') ? v.slice(1) : v;
 }
 
+// Only used under `version-mode: floor` — compares two dot-separated
+// numeric version strings component-wise (3.6.0 vs 3.10.0: 10 > 6, not the
+// lexical '1' < '6'). Returns -1/0/1. A component that isn't a plain
+// non-negative integer (a pre-release suffix, a malformed string) falls
+// back to a lexical whole-string compare — a conservative degrade, never a
+// thrown error, since `pinned`/the probed version are manifest- and
+// environment-supplied strings this check must not crash on.
+function compareVersions(a, b) {
+  const partsA = String(a).split('.');
+  const partsB = String(b).split('.');
+  const isPlainInt = (s) => /^\d+$/.test(s);
+  if (partsA.every(isPlainInt) && partsB.every(isPlainInt)) {
+    const len = Math.max(partsA.length, partsB.length);
+    for (let i = 0; i < len; i++) {
+      const na = Number(partsA[i] || 0);
+      const nb = Number(partsB[i] || 0);
+      if (na !== nb) return na < nb ? -1 : 1;
+    }
+    return 0;
+  }
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 // `installed` is always an array: a plugin-cache-glob probe can legitimately
 // resolve several installed versions side by side (two cached copies on one
 // machine is a real, observed state), so this never collapses to a single
@@ -200,7 +223,10 @@ function checkVersion(entry, options = {}) {
 
   const base = { check: 'version', name, installed, pinned, malformed, inspectionFailures };
   const normalizedPinned = normalizeVersionForCompare(pinned);
-  const matched = installed.some((v) => normalizeVersionForCompare(v) === normalizedPinned);
+  const floor = entry['version-mode'] === 'floor';
+  const matched = floor
+    ? installed.some((v) => compareVersions(normalizeVersionForCompare(v), normalizedPinned) >= 0)
+    : installed.some((v) => normalizeVersionForCompare(v) === normalizedPinned);
 
   if (installed.length === 0) {
     const notes = [];
@@ -211,9 +237,13 @@ function checkVersion(entry, options = {}) {
   }
   const found = `installed version(s) [${installed.join(', ')}]`;
   if (matched) {
-    return { ...base, status: 'ok', detail: `${name}: ${found} include pinned ${pinned}` };
+    const detail = floor ? `${name}: ${found} meet the minimum ${pinned}` : `${name}: ${found} include pinned ${pinned}`;
+    return { ...base, status: 'ok', detail };
   }
-  return { ...base, status: 'breach', detail: `${name}: ${found} do not include pinned ${pinned}` };
+  const detail = floor
+    ? `${name}: ${found} do not meet the minimum ${pinned}`
+    : `${name}: ${found} do not include pinned ${pinned}`;
+  return { ...base, status: 'breach', detail };
 }
 
 // ─── checkAssertions ────────────────────────────────────────────────────────

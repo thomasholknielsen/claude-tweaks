@@ -58,13 +58,13 @@ test('impeccable-cli.md pins the same version the drift manifest does', () => {
 });
 
 test('the installed CLI matches the pinned version', { skip }, () => {
-  assert.strictEqual(
-    versionCheck.status,
-    'ok',
-    `${versionCheck.detail}. Every assertion below describes the pinned version's behaviour, so they prove ` +
+  const suggestion = ENTRY['version-mode'] === 'floor'
+    ? 'Every assertion below describes the pinned floor version\'s (or a newer) behaviour, so they prove ' +
+      'nothing about this older install. Run `npm install -g impeccable@' + PINNED + '` or newer.'
+    : 'Every assertion below describes the pinned version\'s behaviour, so they prove ' +
       'nothing about this one. Run `npm install -g impeccable@' + PINNED + '`, or ' +
-      're-pin deliberately by re-recording the fixtures against the new version.'
-  );
+      're-pin deliberately by re-recording the fixtures against the new version.';
+  assert.strictEqual(versionCheck.status, 'ok', `${versionCheck.detail}. ${suggestion}`);
 });
 
 test('a warning finding exits 2 with JSON on stdout and nothing on stderr', { skip }, () => {
