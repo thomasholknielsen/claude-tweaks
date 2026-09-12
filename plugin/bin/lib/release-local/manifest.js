@@ -160,7 +160,10 @@ function spliceToml(text, sections, to, { unquoted = false } = {}) {
     if (!header) continue;
     const bodyStart = header.index + header[0].length;
     const rest = text.slice(bodyStart);
-    const next = /^\[/m.exec(rest);
+    // A real TOML table header line only — any column-0 `[` (a multi-line
+    // array's own continuation, e.g. a nested-array element) is not a section
+    // boundary; a header both opens and closes its brackets on one line.
+    const next = /^\[[^\]\n]*\][ \t]*$/m.exec(rest);
     const body = next ? rest.slice(0, next.index) : rest;
     const vm = new RegExp(`^([ \\t]*version[ \\t]*=[ \\t]*(${quote}))(${SEMVER})\\2`, 'm').exec(body);
     if (!vm) continue;
@@ -183,7 +186,12 @@ function spliceVersion(kind, text, to, opts = {}) {
     case 'py-assign': return spliceMatch(text, new RegExp(`((?<![\\w.])version\\s*=\\s*['"])(${SEMVER})(['"])`), to, 2);
     case 'text': {
       if (text === null || text === undefined) return { text: to, found: false, previous: null };
-      return spliceMatch(text, new RegExp(`()(${SEMVER})`), to, 2);
+      // A single bare token, never a captured surrounding group — spliceMatch's
+      // artificial empty group existed only to reuse its group-indexed API; a
+      // direct exec + slice says the same thing without it.
+      const m = new RegExp(SEMVER).exec(text);
+      if (!m) return { text, found: false, previous: null };
+      return { text: text.slice(0, m.index) + to + text.slice(m.index + m[0].length), found: true, previous: m[0] };
     }
     case 'generic': {
       // release-please's generic updater rewrites the version token on EVERY

@@ -70,11 +70,11 @@ function collectClaims(deps, opts = {}) {
     if (version !== null && version !== localMain) worktreeBranches.push({ branch: m[1], version });
   }
 
-  const tags = keySource === 'tags' ? highestTag(deps) : null;
-  const tsv = keySource === 'tsv' ? tsvTip(deps) : null;
+  const highestTagVersion = keySource === 'tags' ? highestTag(deps) : null;
+  const shippedTsvTip = keySource === 'tsv' ? tsvTip(deps) : null;
   // Same-major only: a plan naming v20.12.0 in a repo at 6.x is citing a
   // dependency's version, not claiming a future plugin number.
-  const reference = originMain || localMain || tags || '0.0.0';
+  const reference = originMain || localMain || highestTagVersion || '0.0.0';
   const planClaims = [];
   const referenceMajor = reference.split('.')[0];
   for (const file of deps.listPlanFiles()) {
@@ -86,7 +86,7 @@ function collectClaims(deps, opts = {}) {
     }
   }
 
-  return { originMain, localMain, worktreeBranches, planClaims, tsvTip: tsv, tagTip: tags };
+  return { originMain, localMain, worktreeBranches, planClaims, tsvTip: shippedTsvTip, tagTip: highestTagVersion };
 }
 
 function checkCollisions(candidate, claims, part) {

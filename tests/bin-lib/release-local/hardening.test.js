@@ -132,3 +132,37 @@ test('W5: release-local reads .claude-tweaks/policy.yml exactly once per run, an
   assert.strictEqual(policyReads, 1);
   assert.deepStrictEqual(state.hooks, ['npm run deploy']);
 });
+
+// W6 (row 53): spliceToml's next-section boundary matches a real TOML table
+// header (`^[...]` closed on the same line), not any column-0 `[` — a
+// multi-line array continuation that itself starts a line with `[` (a
+// nested-array element) no longer truncates the section early.
+test("W6: spliceToml — a classifiers = [ array whose continuation lines start at column 0 with '[' does not end the section before version", () => {
+  const text = [
+    '[project]',
+    'name = "x"',
+    'classifiers = [',
+    '[',
+    '"Foo",',
+    '],',
+    ']',
+    'version = "1.2.0"',
+    '',
+  ].join('\n');
+  const out = M.spliceVersion('toml', text, '1.3.0', { sections: ['project'] });
+  assert.strictEqual(out.found, true);
+  assert.strictEqual(out.previous, '1.2.0');
+  assert.match(out.text, /version = "1\.3\.0"\n$/);
+  // a real next-section header still ends the section where it should
+  const withNextSection = `${text}[tool.poetry]\nversion = "9.9.9"\n`;
+  const out2 = M.spliceVersion('toml', withNextSection, '1.3.0', { sections: ['project'] });
+  assert.strictEqual(out2.found, true);
+  assert.strictEqual(out2.previous, '1.2.0');
+});
+
+// W6: the `text` kind no longer routes through spliceMatch's artificial
+// empty-group call — same behavior via a direct regex exec + slice.
+test('W6: spliceVersion text — direct-regex path preserves existing bump/no-token/absent behavior', () => {
+  assert.deepStrictEqual(M.spliceVersion('text', '1.2.0\n', '1.3.0'), { text: '1.3.0\n', found: true, previous: '1.2.0' });
+  assert.deepStrictEqual(M.spliceVersion('text', 'unreleased\n', '1.3.0'), { text: 'unreleased\n', found: false, previous: null });
+});
