@@ -172,7 +172,7 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
      `tombstoneInFlightPr` uses), read that PR's state via `mcp__github__pull_request_read`
      (`get` method) — the one documented PR-read exception to `_shared/github-write-transport.md`'s
      "Pull requests are not covered by this mapping" note, already used the same way by
-     `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A still-`OPEN` state
+     `_shared/pr-checklist-refresh.md`'s Phase-checklist update section. A still-`OPEN` state
      means a build for this issue already exists and reclaiming would race it — stop here, do not
      write, and report it the same way `flow/claim-targets.md`'s in-flight card does. Any other
      state (closed, merged) or a failed read falls through to the write below unchanged. Otherwise,
@@ -341,7 +341,7 @@ keyed to the group's representative record — see `dispatch/SKILL.md` Step 4) a
 both of that group's Task calls as `PIPELINE_RUN_DIR`. One identity either way: the directory
 the claim was written under is always the same directory the pipeline itself resolves as
 `$PIPELINE_RUN_DIR`, so no separate variable threads the two together. Dispatch's own
-firing-level standalone-auto run dir (`_shared/pipeline-run-dir.md`, e.g.
+firing-level standalone-auto run dir (`_shared/run-dir-resolution.md`, e.g.
 `{ISO-timestamp}-dispatch-standalone`) is a different thing entirely — it holds that firing's
 own `decisions.md` (queue pull, selection, per-group minting log), never a claim's `runId`.
 `sessionId` is `CLAUDE_CODE_SESSION_ID` — the same

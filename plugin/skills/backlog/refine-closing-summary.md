@@ -11,7 +11,7 @@ inline (#1512; #1488's own Task 7 already split the `RECOMMEND_BUILD: false` bra
 Check each write's own result before logging it — a non-zero exit from any `gh`/`writeRecord` call
 above is a failure, not a success, regardless of which lane produced it (a reverify fetch above
 is not itself a write; it follows its own skip rule instead). Log every action to this
-run's `decisions.md` (standalone-auto run dir per `_shared/pipeline-run-dir.md`) via the matching
+run's `decisions.md` (standalone-auto run dir per `_shared/run-dir-resolution.md`) via the matching
 template below, success, failure, or skipped-before-write:
 
 ```

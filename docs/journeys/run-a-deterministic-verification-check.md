@@ -6,7 +6,7 @@ files:
   - plugin/bin/lib/verify/extract.js
   - plugin/bin/lib/verify/report.js
   - plugin/bin/lib/verify/count-stamp.js
-  - plugin/bin/lib/verify/atomic-write.js
+  - plugin/bin/lib/atomic-write.js
   - plugin/bin/lib/verify/stamp.js
   - plugin/bin/lib/verify/declaration.js
   - plugin/bin/lib/verify/changed-files.js
