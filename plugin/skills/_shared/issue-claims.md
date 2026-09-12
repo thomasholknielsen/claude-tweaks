@@ -172,7 +172,7 @@ node -e "const c=require('${CLAUDE_PLUGIN_ROOT}/bin/lib/issues/claims.js');
      `tombstoneInFlightPr` uses), read that PR's state via `mcp__github__pull_request_read`
      (`get` method) — the one documented PR-read exception to `_shared/github-write-transport.md`'s
      "Pull requests are not covered by this mapping" note, already used the same way by
-     `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A still-`OPEN` state
+     `_shared/pr-checklist-refresh.md`'s Phase-checklist update section. A still-`OPEN` state
      means a build for this issue already exists and reclaiming would race it — stop here, do not
      write, and report it the same way `flow/claim-targets.md`'s in-flight card does. Any other
      state (closed, merged) or a failed read falls through to the write below unchanged. Otherwise,

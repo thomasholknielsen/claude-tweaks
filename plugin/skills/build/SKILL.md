@@ -287,7 +287,7 @@ If `docs/REGISTRY.md` exists, read `docs-sync.md` in this skill's directory for 
 
 After successful build, read `handoff-template.md` in this skill's directory and render the handoff using that template. The template covers verification status, what was built, simplification summary, journeys, documentation changes, blocked items, manual steps, and the Actions Performed table.
 
-**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode. **On skip**, write a `SKIP` entry — see `_shared/git-discipline.md`'s Phase-exit push section for the exact command.
+**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-checklist-refresh.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode. **On skip**, write a `SKIP` entry — see `_shared/git-discipline.md`'s Phase-exit push section for the exact command.
 
 ## Git Strategy
 

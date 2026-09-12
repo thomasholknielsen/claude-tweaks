@@ -448,7 +448,9 @@ test('the release probe is gone — pre-merge it is a constant and its consumer 
 // pack-fed value would be exactly the stale prediction that step forbids.
 test('the mergeSize probe is gone — its consumer must measure after its own fetch (#1930 fix round 4)', () => {
   assert.ok(!PROBE_NAMES.includes('mergeSize'));
-  const lifecycle = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'plugin', 'skills', '_shared', 'pr-early-run-lifecycle.md'), 'utf8');
+  // #2002 moved the pre-merge step (which runs this probe) from pr-early-run-lifecycle.md into
+  // the new pr-checklist-refresh.md.
+  const lifecycle = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'plugin', 'skills', '_shared', 'pr-checklist-refresh.md'), 'utf8');
   assert.ok(!lifecycle.includes('pack.mergeSize'), 'the pre-merge step no longer reads a pack-fed merge size');
   assert.ok(lifecycle.includes('bin/merge-size-probe.js'), 'it still runs the probe CLI itself');
 });
