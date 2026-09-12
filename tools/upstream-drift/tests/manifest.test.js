@@ -469,9 +469,19 @@ test('a content-pinned entry with an empty consumed list produces a validation e
 });
 
 test('probe-machinery keys on a content-pinned entry each produce a validation error — silently-dead config fails loudly', () => {
-  for (const key of ['installed-probe', 'pinned', 'version-mode', 'contract-paths', 'assertions', 'fixtures']) {
+  // A plausible value per key — the error must come from the key being
+  // present on this entry class at all, never from the value being junk.
+  const probeMachineryKeys = {
+    'installed-probe': { type: 'command', run: 'x' },
+    pinned: '1.0.0',
+    'version-mode': 'floor',
+    'contract-paths': [],
+    assertions: [],
+    fixtures: [],
+  };
+  for (const [key, value] of Object.entries(probeMachineryKeys)) {
     const dep = validContentPinnedDependency();
-    dep[key] = key === 'pinned' ? '1.0.0' : key === 'version-mode' ? 'floor' : key === 'installed-probe' ? { type: 'command', run: 'x' } : [];
+    dep[key] = value;
     const errors = validateManifest({ dependencies: [dep] });
     assert.ok(
       errors.some((e) => e.includes(`'${key}'`) && e.includes('versioning: none')),

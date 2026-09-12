@@ -58,10 +58,13 @@ test('impeccable-cli.md pins the same version the drift manifest does', () => {
 });
 
 test('the installed CLI matches the pinned version', { skip }, () => {
+  // Under `floor` only an OLDER install can land here, so the remedy is
+  // "upgrade to at least the pin"; under `exact` either direction can, so the
+  // remedy includes deliberately re-pinning.
   const suggestion = ENTRY['version-mode'] === 'floor'
-    ? 'Every assertion below describes the pinned floor version\'s (or a newer) behaviour, so they prove ' +
+    ? "Every assertion below describes the pinned floor version's (or a newer) behaviour, so they prove " +
       'nothing about this older install. Run `npm install -g impeccable@' + PINNED + '` or newer.'
-    : 'Every assertion below describes the pinned version\'s behaviour, so they prove ' +
+    : "Every assertion below describes the pinned version's behaviour, so they prove " +
       'nothing about this one. Run `npm install -g impeccable@' + PINNED + '`, or ' +
       're-pin deliberately by re-recording the fixtures against the new version.';
   assert.strictEqual(versionCheck.status, 'ok', `${versionCheck.detail}. ${suggestion}`);

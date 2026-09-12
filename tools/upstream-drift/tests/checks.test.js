@@ -360,71 +360,49 @@ test('C2: a genuinely different version (beyond the leading v/V) still breaches'
 
 // ─── #2277: version-mode: floor ────────────────────────────────────────────
 
-test('floor: an installed version newer than pinned is ok, not a breach', () => {
+// Every case below probes the same entry against the same pin; only the
+// version-mode (omitted entirely for the default-mode case) and the version
+// the probe reports vary.
+function versionModeEntry(versionMode) {
   const entry = {
     name: 'impeccable-cli',
     pinned: '3.6.0',
-    'version-mode': 'floor',
     'installed-probe': { type: 'command', run: 'irrelevant --version' },
   };
-  const result = checkVersion(entry, { runCommand: () => '4.1.0' });
+  if (versionMode) entry['version-mode'] = versionMode;
+  return entry;
+}
+
+test('floor: an installed version newer than pinned is ok, not a breach', () => {
+  const result = checkVersion(versionModeEntry('floor'), { runCommand: () => '4.1.0' });
   assert.strictEqual(result.status, 'ok');
   assert.ok(result.detail.includes('minimum'), `detail should describe a minimum, got: ${result.detail}`);
 });
 
 test('floor: an installed version equal to pinned is ok', () => {
-  const entry = {
-    name: 'impeccable-cli',
-    pinned: '3.6.0',
-    'version-mode': 'floor',
-    'installed-probe': { type: 'command', run: 'irrelevant --version' },
-  };
-  const result = checkVersion(entry, { runCommand: () => '3.6.0' });
+  const result = checkVersion(versionModeEntry('floor'), { runCommand: () => '3.6.0' });
   assert.strictEqual(result.status, 'ok');
 });
 
 test('floor: an installed version OLDER than pinned still breaches', () => {
-  const entry = {
-    name: 'impeccable-cli',
-    pinned: '3.6.0',
-    'version-mode': 'floor',
-    'installed-probe': { type: 'command', run: 'irrelevant --version' },
-  };
-  const result = checkVersion(entry, { runCommand: () => '3.5.0' });
+  const result = checkVersion(versionModeEntry('floor'), { runCommand: () => '3.5.0' });
   assert.strictEqual(result.status, 'breach');
   assert.ok(result.detail.includes('minimum'), `detail should describe a minimum, got: ${result.detail}`);
 });
 
 test('floor: numeric component comparison, not lexical (3.10.0 beats 3.6.0)', () => {
-  const entry = {
-    name: 'impeccable-cli',
-    pinned: '3.6.0',
-    'version-mode': 'floor',
-    'installed-probe': { type: 'command', run: 'irrelevant --version' },
-  };
-  const result = checkVersion(entry, { runCommand: () => '3.10.0' });
+  const result = checkVersion(versionModeEntry('floor'), { runCommand: () => '3.10.0' });
   assert.strictEqual(result.status, 'ok', 'a lexical compare would wrongly treat "3.10.0" as older than "3.6.0"');
 });
 
 test('floor: a leading v/V is still normalized away before comparing', () => {
-  const entry = {
-    name: 'impeccable-cli',
-    pinned: '3.6.0',
-    'version-mode': 'floor',
-    'installed-probe': { type: 'command', run: 'irrelevant --version' },
-  };
-  const result = checkVersion(entry, { runCommand: () => 'v4.1.0' });
+  const result = checkVersion(versionModeEntry('floor'), { runCommand: () => 'v4.1.0' });
   assert.strictEqual(result.status, 'ok');
   assert.deepStrictEqual(result.installed, ['v4.1.0'], 'the original, un-normalized string is preserved');
 });
 
 test('an entry with no version-mode key defaults to exact — unaffected by floor logic', () => {
-  const entry = {
-    name: 'impeccable-cli',
-    pinned: '3.6.0',
-    'installed-probe': { type: 'command', run: 'irrelevant --version' },
-  };
-  const result = checkVersion(entry, { runCommand: () => '4.1.0' });
+  const result = checkVersion(versionModeEntry(), { runCommand: () => '4.1.0' });
   assert.strictEqual(result.status, 'breach', 'default mode is still an exact match');
 });
 

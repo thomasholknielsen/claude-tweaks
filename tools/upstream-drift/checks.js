@@ -188,7 +188,9 @@ function compareVersions(a, b) {
     }
     return 0;
   }
-  return a < b ? -1 : a > b ? 1 : 0;
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
 }
 
 // `installed` is always an array: a plugin-cache-glob probe can legitimately
@@ -224,9 +226,10 @@ function checkVersion(entry, options = {}) {
   const base = { check: 'version', name, installed, pinned, malformed, inspectionFailures };
   const normalizedPinned = normalizeVersionForCompare(pinned);
   const floor = entry['version-mode'] === 'floor';
-  const matched = floor
-    ? installed.some((v) => compareVersions(normalizeVersionForCompare(v), normalizedPinned) >= 0)
-    : installed.some((v) => normalizeVersionForCompare(v) === normalizedPinned);
+  const satisfies = floor
+    ? (v) => compareVersions(v, normalizedPinned) >= 0
+    : (v) => v === normalizedPinned;
+  const matched = installed.some((v) => satisfies(normalizeVersionForCompare(v)));
 
   if (installed.length === 0) {
     const notes = [];
@@ -236,14 +239,11 @@ function checkVersion(entry, options = {}) {
     return { ...base, status: 'absent', detail: `${name}: not installed — probe found no artifact${suffix}` };
   }
   const found = `installed version(s) [${installed.join(', ')}]`;
+  const expectation = floor ? `meet the minimum ${pinned}` : `include pinned ${pinned}`;
   if (matched) {
-    const detail = floor ? `${name}: ${found} meet the minimum ${pinned}` : `${name}: ${found} include pinned ${pinned}`;
-    return { ...base, status: 'ok', detail };
+    return { ...base, status: 'ok', detail: `${name}: ${found} ${expectation}` };
   }
-  const detail = floor
-    ? `${name}: ${found} do not meet the minimum ${pinned}`
-    : `${name}: ${found} do not include pinned ${pinned}`;
-  return { ...base, status: 'breach', detail };
+  return { ...base, status: 'breach', detail: `${name}: ${found} do not ${expectation}` };
 }
 
 // ─── checkAssertions ────────────────────────────────────────────────────────
