@@ -26,7 +26,9 @@ function parseCommit({ sha, subject, body = '' }) {
   const m = HEADER_RE.exec(subject);
   const footer = BREAKING_FOOTER_RE.exec(body);
   if (!m) {
-    return { sha, subject, type: null, scope: null, breaking: footer !== null, breakingNote: footer ? footer[1].trim() : null, description: subject, unconventional: true };
+    // An empty `BREAKING CHANGE:` footer (no description of its own) falls back to
+    // the subject, exactly as the conventional path does for its header form (m[4]).
+    return { sha, subject, type: null, scope: null, breaking: footer !== null, breakingNote: footer ? (footer[1].trim() || subject) : null, description: subject, unconventional: true };
   }
   const breaking = m[3] === '!' || footer !== null;
   const breakingNote = footer ? (footer[1].trim() || m[4]) : (breaking ? m[4] : null);
