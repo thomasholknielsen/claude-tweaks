@@ -77,3 +77,45 @@ test('isSquashMerged: git failure (unknown integration or branch ref) -> false, 
   assert.strictEqual(isSquashMerged(dir, 'no-such-branch', 'build/two', merged(squash)), false);
   assert.strictEqual(isSquashMerged(dir, 'main', 'no-such-branch', merged(squash)), false);
 });
+
+// #2252 review F1: the oid-on-first-parent-history check alone only proves a
+// merge once happened — it says nothing about commits pushed to the branch
+// AFTER that merge. The third condition (tree equality via a recreated
+// merge) is what ties the proof to the branch's CURRENT tip.
+function git(cwd, ...args) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+}
+
+test('isSquashMerged: main moved (non-conflicting change) between fork and merge, then squash -> still true', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'squash-provenance-moved-'));
+  git(dir, 'init', '-b', 'main');
+  git(dir, 'config', 'user.email', 't@t');
+  git(dir, 'config', 'user.name', 't');
+  fs.writeFileSync(path.join(dir, 'a.txt'), 'a\n');
+  git(dir, 'add', 'a.txt');
+  git(dir, 'commit', '-m', 'init');
+  git(dir, 'checkout', '-b', 'build/two');
+  fs.writeFileSync(path.join(dir, 'b.txt'), 'b\n');
+  git(dir, 'add', 'b.txt');
+  git(dir, 'commit', '-m', 'first');
+  fs.writeFileSync(path.join(dir, 'c.txt'), 'c\n');
+  git(dir, 'add', 'c.txt');
+  git(dir, 'commit', '-m', 'second');
+  git(dir, 'checkout', 'main');
+  fs.writeFileSync(path.join(dir, 'd.txt'), 'd\n'); // unrelated file — main moved, no conflict
+  git(dir, 'add', 'd.txt');
+  git(dir, 'commit', '-m', 'main moved');
+  git(dir, 'merge', '--squash', 'build/two');
+  git(dir, 'commit', '-m', 'feat: two things (#2251)');
+  const squash = git(dir, 'rev-parse', 'HEAD');
+  assert.strictEqual(isSquashMerged(dir, 'main', 'build/two', merged(squash)), true);
+});
+
+test('isSquashMerged: branch gains a commit AFTER the squash merge -> false, even though the mergeCommit oid is still on the tip', () => {
+  const { dir, squash } = makeSquashFixture();
+  git(dir, 'checkout', 'build/two');
+  fs.writeFileSync(path.join(dir, 'd.txt'), 'd\n');
+  git(dir, 'add', 'd.txt');
+  git(dir, 'commit', '-m', 'third, pushed after the squash merge');
+  assert.strictEqual(isSquashMerged(dir, 'main', 'build/two', merged(squash)), false);
+});

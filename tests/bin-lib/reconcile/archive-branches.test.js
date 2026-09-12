@@ -53,6 +53,16 @@ test('decideArchive: squash-merged (not cherry-equivalent) + merged PR -> delete
   assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, squashMerged: true, prState: { number: 3, state: 'OPEN' } }).action, 'skip');
   assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 30, cherryEquivalent: false, squashMerged: false, prState: { number: 3, state: 'MERGED' } }).reason, 'merged-pr-without-cherry-equivalence');
 });
+// #2252 review F4: squashMerged: true with a null/CLOSED prState is not a
+// real proof — isSquashMerged already requires prState.state === 'MERGED'
+// to ever return true, so `{ squashMerged: true, prState: null }` can only
+// happen via a stale/malformed caller, exactly the shape the age rules exist
+// to guard. The squash clause must sit BELOW nothingLanded so a young branch
+// still reads too-young rather than deleting on an unproven squashMerged flag.
+test('decideArchive: squashMerged:true with a null or CLOSED prState still takes the age rules (guard parity with cherryEquivalent)', () => {
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 2, cherryEquivalent: false, squashMerged: true, prState: null }).reason, 'too-young');
+  assert.strictEqual(decideArchive({ branch: 'build/x', tipAgeDays: 2, cherryEquivalent: false, squashMerged: true, prState: { number: 3, state: 'CLOSED' } }).reason, 'too-young');
+});
 
 // AC4 scope guard: namespaces + worktree attachment
 test('inScope: only build/*, worktree-*, demo/* namespaces', () => {
@@ -227,6 +237,46 @@ test('archiveBranches: squash shape whose mergeCommit is no longer on the rewrit
   assert.strictEqual(entry.action, 'skip');
   assert.strictEqual(entry.reason, 'merged-pr-without-cherry-equivalence');
   assert.match(git(dir, 'branch', '--list', 'build/squashed'), /build\/squashed/);
+});
+
+// #2252 review F1: same shape as prune-remote's parity test — the squash
+// path ignores age, so this is deliberately NOT aged. A commit landed on the
+// local branch AFTER the squash merge still confirms MERGED with the squash
+// oid on the tip (cherry false, oid-on-tip true), but the branch's current
+// content no longer matches what got squashed — the tree-equality condition
+// is what catches it.
+test('archiveBranches: squash-merged branch that gained a commit AFTER the merge -> skip merged-pr-without-cherry-equivalence, branch kept — F1', () => {
+  const { dir, squash } = makeSquashMergedRepo();
+  git(dir, 'checkout', 'build/squashed');
+  fs.writeFileSync(path.join(dir, 's3.txt'), 's3\n');
+  git(dir, 'add', 's3.txt');
+  git(dir, 'commit', '-m', 'third, added after the squash merge');
+  git(dir, 'checkout', 'main');
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, resolvePr: confirmMergedVia(squash), resolvePrBulk: screenMerged });
+  const entry = r.entries.find((e) => e.name === 'build/squashed');
+  assert.strictEqual(entry.action, 'skip');
+  assert.strictEqual(entry.reason, 'merged-pr-without-cherry-equivalence');
+  assert.match(git(dir, 'branch', '--list', 'build/squashed'), /build\/squashed/); // kept
+});
+
+// #2252 review F2: after `gh pr merge --delete-branch`, the remote branch is
+// gone; the bulk screen's `ref()` returns null for it (pr-state.js's
+// documented blind spot). A screen-null, AGED, squash-merged local branch
+// reaches the confirm via the age-driven `tag-and-delete` provisional (never
+// via `squashCandidate`, which is false when the screen returned null) — the
+// bug was computing squashMerged only when `squashCandidate` held, hardcoding
+// it false here and losing the confirm's own MERGED-with-mergeCommit verdict.
+test('archiveBranches: aged squash-merged branch screened null (deleted-ref blind spot) still deletes via squash provenance, no tag — F2', () => {
+  const { dir, squash } = makeSquashMergedRepo();
+  const resolvePrBulk = () => new Map([['build/squashed', null]]); // screen blind spot
+  const resolvePr = confirmMergedVia(squash); // confirm still carries mergeCommit
+  const thirtyDaysLater = Date.now() + 30 * DAY; // ages the tip past BRANCH_AGE_DAYS without touching commit dates
+  const r = archiveBranches({ cwd: dir, integration: 'main', dryRun: false, now: thirtyDaysLater, resolvePr, resolvePrBulk });
+  const entry = r.entries.find((e) => e.name === 'build/squashed');
+  assert.strictEqual(entry.action, 'delete');
+  assert.strictEqual(entry.reason, 'squash-merged');
+  assert.strictEqual(git(dir, 'branch', '--list', 'build/squashed').trim(), ''); // really gone
+  assert.strictEqual(git(dir, 'tag', '--list', 'archive/*').trim(), ''); // no archive tag for a proven merge
 });
 
 test('archiveBranches: unmerged aged branch gets archive tag then delete; young branch skipped', () => {

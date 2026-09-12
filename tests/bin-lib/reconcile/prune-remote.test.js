@@ -234,6 +234,35 @@ test('pruneRemote: MERGED PR whose mergeCommit is no longer on the rewritten tip
   assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/squashed'), /build\/squashed/);
 });
 
+// #2252 review F1: a squash merge only proves the PR's own mergeCommit sat
+// on the integration branch at some point — it says nothing about commits
+// pushed to the branch AFTER that merge. Same shape as the "refreshes origin
+// before judging" test above (a second clone pushes work this checkout
+// never saw), but here the branch is ALREADY proven merged via squash
+// provenance and gains a commit afterward — the fetch pulls that commit in,
+// and the third (tree-equality) condition is what catches it.
+test('pruneRemote: branch advanced after its squash merge (another clone pushed a commit; PR still MERGED with the squash oid) -> skip not-proven-merged, remote ref survives — F1', () => {
+  const { dir, squash } = buildSquashMergedFixture();
+  const originUrl = git(dir, 'remote', 'get-url', 'origin').trim();
+
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'prune-remote-clone3-'));
+  git(other, 'clone', originUrl, 'c');
+  const clone = path.join(other, 'c');
+  git(clone, 'config', 'user.email', 't@t');
+  git(clone, 'config', 'user.name', 't');
+  git(clone, 'checkout', 'build/squashed');
+  fs.writeFileSync(path.join(clone, 's3.txt'), 's3\n');
+  git(clone, 'add', 's3.txt');
+  git(clone, 'commit', '-m', 'third, pushed after the squash merge');
+  git(clone, 'push', 'origin', 'build/squashed');
+
+  const r = pruneRemote({ cwd: dir, integration: 'main', dryRun: false, resolvePr: () => mergedVia(squash), resolvePrBulk: permissiveScreen });
+  const entry = r.entries.find((e) => e.name === 'build/squashed');
+  assert.strictEqual(entry.action, 'skip');
+  assert.strictEqual(entry.reason, 'not-proven-merged');
+  assert.match(git(dir, 'ls-remote', 'origin', 'refs/heads/build/squashed'), /build\/squashed/); // survives
+});
+
 test('pruneRemote: integration branch is excluded even when it sits inside the plugin namespace', () => {
   // Namespaced (build/*), trivially cherry-equivalent against itself, and
   // NOT the branch currently checked out in this worktree (so the

@@ -75,10 +75,13 @@ function decideArchive({ branch, tipAgeDays, cherryEquivalent, squashMerged = fa
   if (cherryEquivalent) {
     return { action: 'delete', reason: 'cherry-equivalent' }; // merged in substance — no tag needed
   }
-  if (squashMerged) {
-    return { action: 'delete', reason: 'squash-merged' }; // merged in substance via the confirmed PR's own squash commit
-  }
-  // No PR at all, or a PR closed without merging: nothing landed, so age alone decides.
+  // No PR at all, or a PR closed without merging: nothing landed, so age
+  // alone decides. #2252 review F4: this sits ABOVE the squashMerged clause
+  // (moved from above it) — isSquashMerged only ever returns true alongside
+  // a confirmed prState.state === 'MERGED', so `squashMerged: true` paired
+  // with a null/CLOSED prState is not a real proof (a stale or malformed
+  // caller), exactly the shape the age rules exist to guard; a young branch
+  // must still read too-young rather than deleting on that unproven flag.
   const nothingLanded = prState === null || (prState && prState.state === 'CLOSED');
   if (nothingLanded) {
     if (tipAgeDays > BRANCH_AGE_DAYS) {
@@ -86,9 +89,13 @@ function decideArchive({ branch, tipAgeDays, cherryEquivalent, squashMerged = fa
     }
     return { action: 'skip', reason: 'too-young' };
   }
-  // Exhaustive: only a MERGED PR reaches here (gh-absent/network-failure, OPEN,
-  // and the no-PR/closed-unmerged pair all returned above), and neither proof
-  // holds — not patch-equivalent, and no squash commit of its own on the tip.
+  if (squashMerged) {
+    return { action: 'delete', reason: 'squash-merged' }; // merged in substance via the confirmed PR's own squash commit
+  }
+  // Exhaustive (order: gh-absent/network-failure -> OPEN -> cherry-equivalent
+  // -> nothingLanded/age -> squashMerged -> here): only a MERGED PR reaches
+  // this line, and neither proof holds — not patch-equivalent, and no squash
+  // commit of its own on the tip.
   return { action: 'skip', reason: 'merged-pr-without-cherry-equivalence' }; // rebased remnant — human territory
 }
 
@@ -201,7 +208,15 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr, resolvePrBu
       // #2252: a MERGED-screened branch cherry could not prove is the
       // squash-merge shape. Its verdict is not final on screen evidence —
       // mergeCommit rides only on the per-branch confirm — so it joins the
-      // destructive candidates below instead of skipping here.
+      // destructive candidates below instead of skipping here. ROUTING only
+      // (#2252 review F2): squashCandidate decides whether a provisional
+      // skip proceeds to the confirm — it does NOT gate whether squashMerged
+      // gets computed below. A screen-null branch (the deleted-ref blind
+      // spot, e.g. after `gh pr merge --delete-branch`) already reaches the
+      // confirm via the age-driven tag-and-delete provisional with
+      // squashCandidate false; hardcoding squashMerged to false in that case
+      // would discard the confirm's own MERGED-with-mergeCommit verdict and
+      // skip the branch forever.
       const squashCandidate = !cherryEquivalent && Boolean(screenPr) && screenPr.state === 'MERGED';
       if (provisional.action === 'skip' && !squashCandidate) {
         entries.push({ name: branch, kind: 'branch', action: 'skip', reason: provisional.reason });
@@ -212,9 +227,11 @@ function archiveBranches({ cwd, integration, dryRun, now, resolvePr, resolvePrBu
       // re-read PR state per-branch — today's exact evidence — and re-decide.
       // Cherry is reused, not recomputed: same pass, same local refs,
       // deterministically identical. Runs under dryRun too, so dry-run
-      // reasons are confirmed reasons.
+      // reasons are confirmed reasons. squashMerged is computed unconditionally
+      // off the confirm's own prState (#2252 review F2, matching
+      // prune-remote.js) — never gated on squashCandidate, which only routes.
       const prState = resolve(root, branch);
-      const squashMerged = squashCandidate ? isSquashMerged(root, integration, branch, prState) : false;
+      const squashMerged = cherryEquivalent ? false : isSquashMerged(root, integration, branch, prState);
       const decision = decideArchive({ branch, tipAgeDays, cherryEquivalent, squashMerged, prState });
       if (decision.action === 'skip' || dryRun) {
         entries.push({ name: branch, kind: 'branch', action: decision.action, reason: decision.reason });
