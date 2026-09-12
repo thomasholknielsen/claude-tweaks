@@ -6,6 +6,7 @@ files:
   - plugin/bin/lib/timing/derive.js
   - plugin/bin/phase-timing.js
   - plugin/bin/lib/hooks/subagent-stop.js
+  - plugin/bin/friction-events.js
   - plugin/skills/flow/summary-template.md
   - plugin/skills/wrap-up/summary-template.md
   - plugin/skills/_shared/pr-run-comments.md
@@ -48,8 +49,12 @@ files:
 - **Red flags:** An unfamiliar phase name in the table — an un-mapped `claude-tweaks:*` skill was invoked inside review or wrap-up and opened its own top-level span; add it to the nested parent map in `derive.js` if it belongs to the enclosing phase.
 
 ### 4. Trust the contract-violation count again
-- **URL:** `events.jsonl`, `type: "contract-violation"`
+- **URL:** `node "${CLAUDE_PLUGIN_ROOT}/bin/friction-events.js" --run "$PIPELINE_RUN_DIR"` (the Friction Lens's own read path — not raw `events.jsonl`)
 - **Action:** Read the count after a run that dispatched subagents.
-- **Should feel:** Only real subagent replies are graded; an orchestrator's own narration turns no longer show up.
-- **Should understand:** The SubagentStop hook grades `agent_transcript_path` only; when the harness omits it, the hook does nothing rather than falling back to the parent session's transcript.
-- **Red flags:** Zero violations on a run where an agent clearly replied without a status line — the harness stopped sending `agent_transcript_path`, and the check is silently off.
+- **Should feel:** Only real subagent replies are graded; an orchestrator's own narration turns no longer show up — and a dispatch that waited on nested background work across several turns reports at most one contract-violation for that dispatch, not one per "still waiting" turn.
+- **Should understand:** The SubagentStop hook grades `agent_transcript_path` only and still logs every firing to `events.jsonl` unchanged; `friction-events.js` groups logged `contract-violation` events by the `transcriptPath` each was read from and re-checks that transcript's *current* last-assistant text at read time — a group whose dispatch has since replied compliantly is dropped entirely, a group still non-compliant collapses to one event. When the harness omits `agent_transcript_path`, the hook does nothing rather than falling back to the parent session's transcript, and an event logged before this field existed passes through `friction-events.js` unchanged.
+- **Red flags:** Zero violations on a run where an agent clearly replied without a status line — the harness stopped sending `agent_transcript_path`, and the check is silently off. Multiple violations surviving for what was actually one dispatch's narration — the transcript became unreadable (deleted/moved) by read time, which fails open and keeps every event in that group rather than guessing.
+
+## Origin
+- Created during build of #1928 (pipeline phase-timing table)
+- Updated for #2041 (contract-violation dedup: `friction-events.js` re-checks each transcript's current reply at read time, so a multi-turn async-wait dispatch no longer over-reports one violation per intermediate narration turn)
