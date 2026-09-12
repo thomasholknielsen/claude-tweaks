@@ -52,10 +52,10 @@ AUTO {HH:MM:SS} — Step 5: dry-run — no merge, no tag. Effective version v{ga
 **local-merge — run the engine's own dry run and render it.** The engine prints what only it knows: which manifest paths it would splice, the `release-hook` command it would run, a `manifest-drift:` warning when the manifest and the last tag disagree, and the full CHANGELOG section it would prepend. None of that is on Step 4's console, and a dry run that withholds it tells the operator less than the real run would:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" --dry-run
+node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" --root "$RUN_ROOT" --dry-run
 ```
 
-Render its stdout verbatim below the console, then skip Steps 6 and 7 and go to Step 8 with the outcome `dry-run`. A non-zero exit here is classified by the same table as a live run (below) — a dry run that cannot even plan is a real finding, not a formality.
+Render its stdout verbatim below the console, then skip Steps 6 and 7 and go to Step 8 with the outcome `dry-run`. A non-zero exit here is classified by the same table as a live run (below), though only its `nothing written`, `2`, `3` and `4` rows are reachable — the engine returns before any write under `--dry-run` — and a dry run that cannot even plan is a real finding, not a formality.
 
 ### pr-first
 
@@ -147,7 +147,7 @@ A `--release-as` flag on the local engine is an open follow-up, recorded as ledg
 **Invoke the engine.** One call, no flags the CLI does not define — its own are `--dry-run`, `--root <dir>` and `--branch <name>`:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js"
+node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" --root "$RUN_ROOT"
 ```
 
 Map its exit code, which is the whole verdict — do not re-derive state from the repository:
@@ -180,10 +180,10 @@ The outcome is `released` only when all three probes that apply to this engine l
 **1. Tag on origin.** release-please tags on the merge, so this is a poll, not a single read:
 
 ```bash
-git ls-remote --tags origin "v{version}"
+git ls-remote --tags origin "v{version}*"
 ```
 
-Non-empty output → `tag found`. **Keep the output** — probe 3 reads the commit sha from it: an annotated tag prints two lines, and the sha probe 3 needs is the one on the peeled `refs/tags/v{version}^{}` line (the plain `refs/tags/v{version}` line names the tag object, not the commit); a lightweight tag prints only the plain line and that sha is the commit. Do not reach for `git rev-list -n 1 "v{version}"` here — under pr-first the tag was created on origin and no local tag exists unless `git fetch --tags origin` has been run.
+Keep only the lines whose ref is exactly `refs/tags/v{version}` or `refs/tags/v{version}^{}` — the glob also matches `v{version}0`-style neighbours, which are not this tag. A surviving line → `tag found`. **Keep the output** — probe 3 reads the commit sha from it: the `*` glob is what makes an annotated tag print two lines (an exact pattern suppresses the peeled ref), so an annotated tag prints two lines, and the sha probe 3 needs is the one on the peeled `refs/tags/v{version}^{}` line (the plain `refs/tags/v{version}` line names the tag object, not the commit); a lightweight tag prints only the plain line and that sha is the commit. Do not reach for `git rev-list -n 1 "v{version}"` here — under pr-first the tag was created on origin and no local tag exists unless `git fetch --tags origin` has been run.
 
 Empty after the bound:
 
@@ -236,7 +236,7 @@ The engine's own exit code is the verdict for the hook; the tag is still checked
 - **Tag.** Immediate, not polled — the engine committed, tagged and pushed synchronously before returning. Probe origin when there is a remote, and locally when there is not; key the choice on `git -C "$RUN_ROOT" remote get-url origin` failing, not on the engine's stdout (the engine prints its no-origin line only when a remote exists but the branch is not on it yet, so a repository with no remote at all prints nothing to read):
 
   ```bash
-  git -C "$RUN_ROOT" remote get-url origin   # succeeds → git ls-remote --tags origin "v{version}"
+  git -C "$RUN_ROOT" remote get-url origin   # succeeds → git ls-remote --tags origin "v{version}*"
                                              # fails    → git -C "$RUN_ROOT" tag --list "v{version}"
   ```
 

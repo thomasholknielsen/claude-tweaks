@@ -186,7 +186,7 @@ The five outcomes are distinct and never folded together:
 - **`dry-run`** — Step 5 was a no-op by request. `{version}` is the version that *would* have been cut.
 - **`HELD`** — a `--train` HARD-GATE fired **before** Step 5. Nothing was merged, nothing was tagged; `release-held.md` is staged in the run directory.
 - **`PARTIAL`** — Step 5 landed and Step 6 found a miss. The release exists; something after it did not complete. Never reported as `HELD` (which means nothing landed) and never as `released`.
-- **`failed`** — Step 5 was attempted and landed nothing, and no HARD-GATE fired: the engine exited `1` with nothing written or `4` on a tag collision, the forge refused the merge, or the `Release-As:` re-render never arrived within its bound. Nothing exists to verify or book; the error line is the engine's or forge's own, quoted verbatim. Never reported as `HELD` (no gate fired) and never as `PARTIAL` (nothing landed).
+- **`failed`** — Step 5 was attempted and landed nothing, and no HARD-GATE fired: the engine exited `1` with nothing written or `4` on a tag collision; the release PR's own checks were red, still pending past the bound, unreadable, or the PR was closed; the forge refused the merge; the `Release-As:` push was rejected or its re-render never arrived within its bound; or the shipped version was not the `--as` value. Nothing exists to verify or book; the error line is the engine's or forge's own, quoted verbatim. Never reported as `HELD` (no gate fired) and never as `PARTIAL` (nothing landed).
 
 Then render the `## Next Actions` block below — unless this run was invoked by a parent (see `## Component-Skill Contract`), in which case omit it.
 
