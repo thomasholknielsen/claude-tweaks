@@ -73,3 +73,10 @@ test('CLI: --integration-model only accepts pr-first, local-merge, or unresolved
   assert.equal(unresolved.status, 0);
   assert.equal(JSON.parse(unresolved.stdout).verdict, 'skipped');
 });
+
+test('CLI: --branch must be a valid git branch name — usage exit 2 naming the flag; the default main is unaffected (ledger row 34)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rb-cli-'));
+  const r = run(['--root', root, '--integration-model', 'pr-first', '--branch', 'a b']);
+  assert.equal(r.status, 2);
+  assert.match(r.stderr, /--branch/);
+});

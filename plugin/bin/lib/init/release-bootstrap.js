@@ -179,8 +179,24 @@ function seedManifestVersion({ tags, manifestVersion } = {}) {
   return '0.1.0';
 }
 
+// The practical subset of `git check-ref-format --branch`: a non-empty
+// string, no whitespace or control characters, none of the ref-forbidding
+// characters, no "..", no leading "-", no trailing "/" or ".lock", no "//".
+const INVALID_BRANCH_CHARS_RE = /[~^:?*[\\]/;
+function isValidBranchName(name) {
+  if (typeof name !== 'string' || name.length === 0) return false;
+  if (/[\s\x00-\x1f\x7f]/.test(name)) return false;
+  if (INVALID_BRANCH_CHARS_RE.test(name)) return false;
+  if (name.includes('..')) return false;
+  if (name.includes('//')) return false;
+  if (name.startsWith('-')) return false;
+  if (name.endsWith('/') || name.endsWith('.lock')) return false;
+  return true;
+}
+
 function renderWorkflowYaml({ branch } = {}) {
-  const b = branch || 'main';
+  if (!isValidBranchName(branch)) throw new Error(`invalid branch name: ${JSON.stringify(branch)}`);
+  const b = branch;
   return [
     'name: release-please',
     '',
@@ -262,6 +278,12 @@ function bootstrapRelease({ root, integrationModel, branch, dryRun = false, list
   if (integrationModel !== 'pr-first' && integrationModel !== 'local-merge') {
     return { verdict: 'skipped', reason: 'integration-model unresolved', ...empty };
   }
+  // local-merge never writes the workflow file, so an invalid branch there
+  // is inert — only pr-first needs the check, and it needs it before any
+  // detection work, not just before the eventual render call.
+  if (integrationModel === 'pr-first' && !isValidBranchName(branch)) {
+    throw new Error(`invalid branch name: ${JSON.stringify(branch)}`);
+  }
   const detected = detectReleaseProcess(root);
   if (detected.verdict !== 'fresh') return { ...detected, ...empty };
   const { releaseType, extraFiles } = resolveReleaseType(root);
@@ -293,6 +315,6 @@ function bootstrapRelease({ root, integrationModel, branch, dryRun = false, list
 module.exports = {
   RELEASE_STACK_TABLE, CONFLICT_MARKERS, CONFIG_FILE, MANIFEST_FILE, WORKFLOW_FILE,
   isBootstrapShaped, detectReleaseProcess, resolveReleaseType, readStackManifestVersion, seedManifestVersion,
-  renderWorkflowYaml, renderConfig, renderManifest, renderPolicyRows,
+  isValidBranchName, renderWorkflowYaml, renderConfig, renderManifest, renderPolicyRows,
   defaultListTags, bootstrapRelease,
 };

@@ -1,11 +1,11 @@
 ---
 files:
-  - skills/_shared/local-merge-auto-finish.md
+  - plugin/skills/_shared/local-merge-auto-finish.md
   - plugin/bin/compose-subject.js
-  - skills/wrap-up/cleanup-procedures-execution.md
-  - skills/wrap-up/review-console.md
-  - skills/_shared/integration-model.md
-  - skills/_shared/integration-branch.md
+  - plugin/skills/wrap-up/cleanup-procedures-execution.md
+  - plugin/skills/wrap-up/review-console.md
+  - plugin/skills/_shared/integration-model.md
+  - plugin/skills/_shared/integration-branch.md
 ---
 
 # Finish a `local-merge` Run Without a Human

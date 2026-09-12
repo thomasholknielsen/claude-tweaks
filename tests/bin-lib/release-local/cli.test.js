@@ -1,7 +1,27 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { run, parseArgs, defaultDeps } = require('../../../plugin/bin/release-local.js');
+const { run, parseArgs, defaultDeps, writeInsideRoot } = require('../../../plugin/bin/release-local.js');
+
+test('writeInsideRoot: refuses a symlinked leaf and a directory whose real location is outside the root; writes a plain file', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-local-root-'));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'release-local-outside-'));
+  fs.writeFileSync(path.join(outside, 'victim.json'), '{"version": "1.2.0"}');
+  fs.symlinkSync(path.join(outside, 'victim.json'), path.join(root, 'linked.json'));
+  assert.throws(() => writeInsideRoot(root, 'linked.json', '{"version": "1.3.0"}'), /refusing to write linked\.json: it is a symlink/);
+  assert.strictEqual(fs.readFileSync(path.join(outside, 'victim.json'), 'utf8'), '{"version": "1.2.0"}');
+  fs.symlinkSync(outside, path.join(root, 'escape'));
+  assert.throws(() => writeInsideRoot(root, 'escape/new.json', 'x'), /outside the repo root/);
+  assert.ok(!fs.existsSync(path.join(outside, 'new.json')));
+  assert.throws(() => writeInsideRoot(root, 'missing-dir/x.json', 'x'), /its directory does not exist/);
+  writeInsideRoot(root, 'plain.json', '{"version": "1.3.0"}');
+  assert.strictEqual(fs.readFileSync(path.join(root, 'plain.json'), 'utf8'), '{"version": "1.3.0"}');
+  writeInsideRoot(root, 'plain.json', 'overwritten');
+  assert.strictEqual(fs.readFileSync(path.join(root, 'plain.json'), 'utf8'), 'overwritten');
+});
 
 test('defaultDeps.listPlanFiles: a missing plans directory is "no plan claims"; a present one lists its .md files', () => {
   const fs = require('fs');
@@ -210,12 +230,22 @@ test('exit 1 (named partial state): a file the run CREATED is removed, not resto
   assert.match(state.err, /Recover: git restore --staged --worktree -- \.release-please-manifest\.json package\.json && rm CHANGELOG\.md$/m);
 });
 
-test('exit 1 (named partial state): applyVersion throws part-way — the recovery lists exactly what landed', () => {
-  // the manifest file carries the version (so planning succeeds) but package.json has no token: the manifest is written, then package.json throws
+test('exit 1 (nothing written): a tokenless stack manifest is refused before any write', () => {
+  // the manifest file carries the version (so planning succeeds) but package.json has no token: applyVersion's pre-pass refuses before writing anything
   const { deps, state } = makeDeps({ files: { 'package.json': '{\n  "name": "x"\n}\n' } });
   assert.strictEqual(run([], deps), 1);
+  assert.deepStrictEqual(state.writes, []);
+  assert.match(state.err, /release-local: package\.json carries no version token to bump — nothing written/);
+  assert.ok(!state.git.some((c) => /^(add|commit|tag -a)/.test(c)));
+});
+
+test('exit 1 (named partial state): a write that fails part-way — the recovery lists exactly what landed', () => {
+  const { deps, state } = makeDeps();
+  const orig = deps.writeFile;
+  deps.writeFile = (p, text) => { if (p === 'package.json') throw new Error('EACCES: permission denied'); orig(p, text); };
+  assert.strictEqual(run([], deps), 1);
   assert.deepStrictEqual(state.writes, ['.release-please-manifest.json']);
-  assert.match(state.err, /partial: \.release-please-manifest\.json edited on disk but NOT committed \(package\.json carries no version token/);
+  assert.match(state.err, /partial: \.release-please-manifest\.json edited on disk but NOT committed \(EACCES: permission denied/);
   assert.match(state.err, /git restore --staged --worktree -- \.release-please-manifest\.json$/m);
   assert.ok(!state.git.some((c) => /^(add|commit|tag -a)/.test(c)));
 });

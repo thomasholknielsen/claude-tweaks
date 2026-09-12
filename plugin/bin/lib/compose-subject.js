@@ -159,6 +159,11 @@ function run(argv, deps = realDeps) {
 
   const subjectRecord = records[0];
   const breakingRecords = records.filter((r) => parseRecordFacets(r.labels).breaking);
+  const missing = breakingRecords.filter((r) => !extractSection(r.body, 'Breaking Change'));
+  if (missing.length) {
+    deps.stderr(`compose-subject.js: breaking is set on #${missing.map((r) => r.number).join(', #')} but the record carries no non-empty "## Breaking Change" section\n`);
+    return 1;
+  }
   const migrationNote = breakingRecords.map((r) => extractSection(r.body, 'Breaking Change')).filter(Boolean).join('\n\n');
 
   let composed;

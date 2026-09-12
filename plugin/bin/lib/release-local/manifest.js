@@ -268,18 +268,35 @@ function applyVersion(targets, to, readFile, writeFile) {
   if (oneOf.length && !oneOf.some((t) => versionOfText(t, readFile(t.path)) !== null)) {
     throw new ManifestError(`no stack manifest carried a version token (looked for ${oneOf[0].oneOf.join(', ')})`);
   }
-  const written = [];
+  // Second pre-pass, still before any write: decide every target's fate from
+  // its current text, so a refusal never lands after a sibling was written.
+  const plan = [];
   for (const target of targets) {
     const text = readFile(target.path);
-    if ((text === null || text === undefined) && !target.create) {
+    const absent = text === null || text === undefined;
+    if (absent && !target.create) {
       if (target.optional) continue;
       throw new ManifestError(`${target.path} is missing — the release-type names it as the manifest`);
     }
     const out = spliceVersion(target.kind, text, to, target);
-    if (!out.found && !target.create) throw new ManifestError(`${target.path} carries no version token to bump`);
+    if (!out.found) {
+      // A create target that already exists must carry the token it was
+      // created with — a version.txt full of something else is not "absent",
+      // and skipping it would ship a tag the file never reflects.
+      if (target.create && !absent) throw new ManifestError(`${target.path} exists but carries no version token to bump`);
+      // A one-of member without a token is fine when another member carries
+      // it (the first pre-pass proved one does): a pyproject.toml that holds
+      // only tool config beside a setup.cfg with the version.
+      if (target.oneOf && !target.create) continue;
+      if (!target.create) throw new ManifestError(`${target.path} carries no version token to bump`);
+    }
     if (out.text === text) continue;
-    writeFile(target.path, out.text);
-    written.push({ path: target.path, previous: out.previous });
+    plan.push({ target, text: out.text, previous: out.previous });
+  }
+  const written = [];
+  for (const { target, text, previous } of plan) {
+    writeFile(target.path, text);
+    written.push({ path: target.path, previous });
   }
   return written;
 }

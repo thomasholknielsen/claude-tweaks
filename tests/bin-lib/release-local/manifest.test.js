@@ -175,3 +175,30 @@ test('applyVersion: writes only files that exist (optional targets skipped, text
   assert.strictEqual(s2['version.txt'], '0.2.0\n');
   assert.throws(() => M.applyVersion(t, '1.3.0', () => '{"name":"x"}', () => {}), /no version token/);
 });
+
+test('applyVersion: a one-of member present without a token is skipped when another member carries it, and nothing is written before a refusal', () => {
+  const py = M.resolveTargets({ releaseType: 'python', extraFiles: [] });
+  const store = { '.release-please-manifest.json': '{\n  ".": "1.2.0"\n}\n', 'pyproject.toml': '[tool.ruff]\nline-length = 100\n', 'setup.cfg': '[metadata]\nname = x\nversion = 1.2.0\n' };
+  const writes = [];
+  const out = M.applyVersion(py, '1.3.0', (p) => (p in store ? store[p] : null), (p, text) => { writes.push(p); store[p] = text; });
+  assert.deepStrictEqual(writes, ['.release-please-manifest.json', 'setup.cfg']);
+  assert.deepStrictEqual(out.map((w) => w.path), ['.release-please-manifest.json', 'setup.cfg']);
+  assert.strictEqual(store['pyproject.toml'], '[tool.ruff]\nline-length = 100\n');
+  // a present-but-tokenless non-one-of target still refuses, and refuses before any sibling write
+  const node = M.resolveTargets({ releaseType: 'node', extraFiles: [] });
+  const s2 = { '.release-please-manifest.json': '{\n  ".": "1.2.0"\n}\n', 'package.json': '{"name":"x"}\n' };
+  const w2 = [];
+  assert.throws(() => M.applyVersion(node, '1.3.0', (p) => (p in s2 ? s2[p] : null), (p, text) => { w2.push(p); s2[p] = text; }), /package\.json carries no version token/);
+  assert.deepStrictEqual(w2, []);
+});
+
+test('applyVersion: an existing version.txt without a semver token refuses instead of silently shipping out of sync', () => {
+  const simple = M.resolveTargets({ releaseType: 'simple', extraFiles: [] });
+  const store = { 'version.txt': 'unreleased\n' };
+  const writes = [];
+  assert.throws(() => M.applyVersion(simple, '0.2.0', (p) => (p in store ? store[p] : null), (p, text) => { writes.push(p); store[p] = text; }), /version\.txt exists but carries no version token/);
+  assert.deepStrictEqual(writes, []);
+  const s2 = { 'version.txt': '0.1.0' };
+  M.applyVersion(simple, '0.2.0', (p) => (p in s2 ? s2[p] : null), (p, text) => { s2[p] = text; });
+  assert.strictEqual(s2['version.txt'], '0.2.0\n');
+});

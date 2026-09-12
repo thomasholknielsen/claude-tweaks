@@ -9,7 +9,7 @@
 'use strict';
 
 const fs = require('fs');
-const { bootstrapRelease } = require('./lib/init/release-bootstrap');
+const { bootstrapRelease, isValidBranchName } = require('./lib/init/release-bootstrap');
 
 const USAGE = 'usage: release-bootstrap.js --integration-model <pr-first|local-merge|unresolved> [--root <dir>] [--branch <name>] [--dry-run]\n';
 const VALUE_FLAGS = new Set(['--root', '--branch', '--integration-model']);
@@ -36,6 +36,7 @@ function parseArgs(argv) {
   if (!opts.help && !VALID_INTEGRATION_MODELS.has(opts.integrationModel)) {
     return { error: `invalid --integration-model: ${opts.integrationModel}` };
   }
+  if (!opts.help && !isValidBranchName(opts.branch)) return { error: `invalid --branch: ${opts.branch}` };
   return opts;
 }
 

@@ -157,8 +157,8 @@ test('exit 1: record with no resolvable type, or breaking without a ## Breaking 
   assert.ok(r.out.stderr.startsWith('compose-subject.js: composeSubject:'), r.out.stderr);
   r = fakeDeps();
   assert.equal(run(['2264'], r.deps), 1);
-  assert.match(r.out.stderr, /migrationNote|Breaking Change/);
-  assert.ok(r.out.stderr.startsWith('compose-subject.js: composeSubject:'), r.out.stderr);
+  assert.match(r.out.stderr, /Breaking Change/);
+  assert.ok(r.out.stderr.startsWith('compose-subject.js: breaking is set on'), r.out.stderr);
 });
 
 test('usage errors cite the failing record number', () => {
@@ -173,6 +173,13 @@ test('usage errors cite the failing record number', () => {
   assert.equal(run(['2251,2264'], r.deps), 1);
   assert.match(r.out.stderr, /#2264/);
   assert.doesNotMatch(r.out.stderr, /#2251 but/);
+});
+
+test('mixed bundle: one breaking record with a section, one without — exits 1 naming only the missing one', () => {
+  const { deps, out } = fakeDeps();
+  assert.equal(run(['2260', '2264'], deps), 1);
+  assert.match(out.stderr, /#2264/);
+  assert.doesNotMatch(out.stderr, /#2260 but/);
 });
 
 test('ComposeSubjectError is a named Error subclass', () => {

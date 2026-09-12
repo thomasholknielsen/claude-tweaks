@@ -140,7 +140,10 @@ SCANNED {HH:MM:SS} — Step 2: nothing to release since {lastTag|the first commi
 Resolve the base, then invoke:
 
 - `lastTag.ok` → base is `{lastTag.value.tag}`.
-- `lastTag` degraded (no `v*` tag reachable; `unreleased.value.since` is `null`) → base is the root commit: `$(git rev-list --max-parents=0 origin/{branch} | tail -1)`, where `{branch}` is the pack's own `branch` field.
+- `lastTag` degraded, but `proposedVersion.value.baseSource` is `manifest` → the project has released before without tagging, so the root commit would put its whole history under review. Base is the first-parent commit that last set the manifest to `{proposedVersion.value.base}` — `git log -1 --first-parent --format=%H -S'"version": "{base}"' {tipRef} -- {manifest path}`, the path the pack's own manifest probe read. Empty output falls through to the root commit below.
+- `lastTag` degraded with no manifest version either (no `v*` tag reachable; `unreleased.value.since` is `null`) → base is the root commit: `$(git rev-list --max-parents=0 origin/{branch} | tail -1)`, where `{branch}` is the pack's own `branch` field.
+
+Log which of the three resolved, and why — the review's scope is never a silent choice.
 
 Invoke `/claude-tweaks:review base:{base}` (Input rule 9 — a whole-branch scope: every first-parent commit from the base to `origin/{integration-branch}`, spanning many already-merged PRs) with `$PIPELINE_RUN_DIR={run-dir}` set, so its findings stage into this run's own `staged/` directory per `_shared/staged-patch.md` and its decisions land in this run's `decisions.md`. Review is a component skill here: it renders no Next Actions of its own.
 
@@ -185,7 +188,7 @@ Read `console.md` in this skill's directory now and render the console it define
 
 ## Step 5: Execute
 
-Read `execute.md` in this skill's directory now. It holds the engine dispatch: `gh pr merge {releasePr} --squash --repo {owner}/{repo}` under pr-first (with the `Release-As:` push and its bounded re-render poll when `--as` was given), `node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" [--dry-run]` under local-merge (no `--as` — see the Input table), and the MCP-only-sandbox posture where the merge renders as a paste-ready command instead of executing. The engine value comes from Step 1's pack (`_shared/integration-model.md`'s Consumer table), never from a fresh detection here.
+Read `execute.md` in this skill's directory now. It holds the engine dispatch: `gh pr merge {releasePr} --squash --repo {owner}/{repo}` under pr-first (with the `Release-As:` push and its bounded re-render poll when `--as` was given), `node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" [--dry-run]` under local-merge (no `--as` — see the Input table), and the MCP-only-sandbox posture where the merge renders as a paste-ready command instead of executing. The engine value comes from Step 1's pack (`_shared/integration-model.md`'s Consumer table), never from a fresh detection here. Its pre-merge PR-check read also takes the release PR's **title**, because release-please re-renders that PR as commits land: a bump part that differs from the one Step 4 measured re-runs Step 4's major-bump HARD-GATE before the merge — a major nobody gated on is `HELD` with nothing merged, anything else proceeds on the re-rendered version, logged.
 
 Under `--dry-run` this step is a no-op: no merge, no tag, no `Release-As:` commit, no engine invocation without its own `--dry-run`. Say so in the console and in Step 8's summary rather than reporting a version as released.
 
@@ -211,6 +214,7 @@ Render one summary block:
 release: {version} — {released | dry-run | HELD | PARTIAL | failed}
 engine:  {pr-first | local-merge}
 records: {n} {shipped | would ship}{, m unattributed commits}
+{bookkeeping: {k} of {n} failed — #a (read), #b (close), when Step 7 reported k > 0}
 {partial state and recovery command, when the outcome is PARTIAL}
 {gate and staged path, when the outcome is HELD}
 {the engine's or forge's own error line, when the outcome is failed}
@@ -222,9 +226,11 @@ The `records:` line varies with the outcome, because "shipped" is only true when
 - `dry-run`, `HELD`, and `PARTIAL` where Step 7 did not run (the tag has not reached origin) — `records: {n} would ship{, m unattributed commits}`. Nothing was booked in any of these, and the same form is used for all: they name the set that *would* have been booked. The key is whether Step 7 ran, never the outcome word alone.
 - `failed` — `records: 0 shipped`. Nothing landed, so there is no set to name.
 
+**The `bookkeeping:` line renders only when `{k} > 0`, and is omitted entirely when `{k}` is `0`.** Its `{k}`, `{n}` and per-record entries come from Step 7's own tally — `bookkeeping.md`'s `{n} records commented, {m} closed, {k} failed` summary line and its per-record `FAILED` lines — with each failed record named by number and by the verb from its `FAILED` line (`read`, `comment`, `close`, `shipped`, or the step-level `commit`). Without it a run whose every record failed to book still renders `released` and nothing else, and the unbooked records are discoverable only by reading `decisions.md`.
+
 The five outcomes are distinct and never folded together:
 
-- **`released`** — Step 5 landed and Step 6 verified every check.
+- **`released`** — Step 5 landed and Step 6 verified every check. It keeps that meaning exactly: the `bookkeeping:` line, when it renders, **qualifies** `released` rather than downgrading it — the release is real and verified, and some of its records are not yet booked.
 - **`dry-run`** — Step 5 was a no-op by request. `{version}` is the version that *would* have been cut.
 - **`HELD`** — a HARD-GATE fired at Step 4, **before** Step 5, in **any** mode — `--train`, `auto`, headless, or an interactive run whose gate question was answered `Stop`. Nothing was merged, nothing was tagged, nothing moved; `release-held.md` is staged in the run directory in every one of those cases (console.md's Gates section). An interactive `Proceed` answer is not `HELD` — the run continued to Step 5 and its outcome is whatever Steps 5–6 produced. A third reason carries the same word beside those two HARD-GATEs: pr-first with no `gh` on `PATH`, where Step 5 renders the merge as a paste-ready command for a human instead of executing it (`execute.md`'s Transport section) — nothing merged, nothing tagged, `release-held.md` staged, exactly the fact `HELD` asserts.
 - **`PARTIAL`** — Step 5 landed and Step 6 found a miss. The release exists; something after it did not complete. Never reported as `HELD` (which means nothing landed) and never as `released`.
@@ -246,6 +252,8 @@ Always pass the explicit `--run` with the run *directory* — `close-run` reject
 - `/claude-tweaks:help` — workflow status and what the lifecycle recommends next
 
 When the outcome was `PARTIAL`, the recovery command from Step 6 leads this block instead, as a plain line above both — it is the only action that matters until the release is whole.
+
+When Step 7 reported `{k} > 0`, the per-record recovery leads this block instead of the `backlog overview` line, one paste-ready line per failed record, in the form `bookkeeping.md`'s branch for this run's `work-backend` writes — `gh issue comment {N} …` / `gh issue close {N} --reason completed` under `github-issues`, the `markShipped` call under `local-files`. Every one of those writes is idempotent (`bookkeeping.md`: an already-commented, already-closed record is skipped), so re-booking a record that did land is safe. Re-running `/claude-tweaks:release` is **not** the recovery: the tag now exists, so Step 2 stops the run at `nothing to release` long before Step 7. The `backlog overview` line still renders below them, without its "now that the shipped records are closed" clause — it is not yet true.
 
 ## --train semantics
 

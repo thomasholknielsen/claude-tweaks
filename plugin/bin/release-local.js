@@ -251,12 +251,42 @@ function run(argv, deps) {
   }
 }
 
+// Every path the engine writes comes from committed repo content
+// (release-please-config.json's extra-files, the stack manifest names), so a
+// planted symlink is an ordinary PR away — the IL-150 class: decide on the
+// real path, never the literal one. The parent directory is realpath-resolved
+// and must sit inside the real root; the leaf is opened with O_NOFOLLOW so a
+// symlinked file is refused at the kernel (no lstat-then-write window).
+function writeInsideRoot(root, p, text) {
+  const target = path.join(root, p);
+  const realRoot = fs.realpathSync(root);
+  let realDir;
+  try {
+    realDir = fs.realpathSync(path.dirname(target));
+  } catch (e) {
+    if (e.code === 'ENOENT') throw new Error(`refusing to write ${p}: its directory does not exist`);
+    throw e;
+  }
+  if (realDir !== realRoot && !realDir.startsWith(realRoot + path.sep)) {
+    throw new Error(`refusing to write ${p}: its real location ${realDir} is outside the repo root`);
+  }
+  const { O_WRONLY, O_CREAT, O_TRUNC, O_NOFOLLOW } = fs.constants;
+  let fd;
+  try {
+    fd = fs.openSync(path.join(realDir, path.basename(target)), O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0o644);
+  } catch (e) {
+    if (e.code === 'ELOOP' || e.code === 'EMLINK') throw new Error(`refusing to write ${p}: it is a symlink`);
+    throw e;
+  }
+  try { fs.writeFileSync(fd, text); } finally { fs.closeSync(fd); }
+}
+
 function defaultDeps(root) {
   const abs = (p) => path.join(root, p);
   return {
     git: (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
     readFile: (p) => { try { return fs.readFileSync(abs(p), 'utf8'); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } },
-    writeFile: (p, text) => fs.writeFileSync(abs(p), text),
+    writeFile: (p, text) => writeInsideRoot(root, p, text),
     // precheck's plan-claim source, as plugin/bin/release.js provides it: a
     // project without docs/superpowers/plans simply has no plan claims. Read
     // and catch rather than exists-then-read — a sibling session can prune the
@@ -292,4 +322,4 @@ function main(argv) {
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
-module.exports = { run, parseArgs, defaultDeps, USAGE };
+module.exports = { run, parseArgs, defaultDeps, writeInsideRoot, USAGE };

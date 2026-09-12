@@ -134,15 +134,26 @@ The summary's outcome slot reads `failed`, not `PARTIAL`: `PARTIAL` asserts a re
 
 ```bash
 MERGE_VERIFICATION=$(node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-policy.js" --run "{run-dir}" --values merge-verification)
-gh pr view {releasePr.value.number} --repo {owner}/{repo} --json state,mergeStateStatus,headRefOid,statusCheckRollup
+gh pr view {releasePr.value.number} --repo {owner}/{repo} --json state,mergeStateStatus,headRefOid,statusCheckRollup,title
 ```
 
-An unreadable state is Step 2.5's own first row, unchanged in substance: never merge on a state this gate could not read — a read failure is not "no CI" — reported here as `failed`, reason `state-read-failed`. The four deltas, each a deliberate narrowing or substitution for the release path:
+An unreadable state is Step 2.5's own first row, unchanged in substance: never merge on a state this gate could not read — a read failure is not "no CI" — reported here as `failed`, reason `state-read-failed`. The five deltas, each a deliberate narrowing, substitution or addition for the release path:
 
 1. **`state: MERGED` is resumable, not a stop.** Step 2.5 stops on any non-`OPEN` state (`pr-not-open`) and never merges. Here a merged release PR is a state a resumed run — or a hand-run merge — legitimately lands in: skip the merge, read the shipped version from the PR title per `## Inputs`, and go to Step 6, where the tag and Release probes are the real evidence either way. A deliberate narrowing of that blanket rule, and only for `MERGED`: `state: CLOSED` keeps Step 2.5's posture as `failed` — the release PR was closed unmerged, and release-please must render a new one.
 2. **Red parks nothing.** Step 2.5's Red path applies `bot:parked` to the work-record issue(s) and comments on them; a release run holds no claimed record to park and has no dispatch resume to hand back to, so no label is applied and no park comment is posted. A red rollup — at the first read or during the watch — is simply `failed`, naming the failing check(s) by name. Everything else in that row is unchanged: under `off` the read still runs and the red classification is still logged (`off` skips the *wait*, not the read), and `off` still merges anyway.
 3. **The release never arms `--auto`.** Step 2.5's `merge-when-green` arming path is deliberately not taken here: `--auto` returns before the merge happens, and Step 6 must verify the tag, the Release and the hook **inside this run**. A run that armed and returned would report on a release that had not occurred yet. Pending under `merge-when-green` or `wait` therefore always takes Step 2.5's bounded watch (15 minutes, fixed — `gh pr checks {n} --repo {owner}/{repo}`, keyed on its exit code) rather than the arming column, and the watch's green exit keeps its `headRefOid` re-entry check unchanged: the first read above is the baseline, a moved head is re-read from the top rather than merged on the stale rollup (a second move reports `failed`, reason `moving-target`), and still-pending at the bound is `failed`, reason `checks-pending-timeout`. Pending under `off` is Step 2.5's `off` column unchanged — today's behavior, no wait.
 4. **`mergeStateStatus` is read for Step 2.5's classification only** — never to decide whether arming would hold, since delta 3 removes arming from this path entirely. It stays in the field list because that ordered classification reads it.
+5. **`title` is read too, and the bump is re-gated on it.** Step 2.5 has no such field; the release path needs it because release-please re-renders its PR as commits land on `{branch}`, and Step 3's whole-branch review plus this gate's own bounded watch can put fifteen minutes or more between the console and this merge — long enough for the PR to re-render to a version Step 4's HARD-GATE never measured. Take the `X.Y.Z` from the title read above (the `chore(main): release X.Y.Z` shape `## Inputs` names; a title yielding no single unambiguous version is not a re-render signal — leave the gating version as it stands and let `## Inputs`' post-merge branch classify it after the merge). Compute its bump part against `lastTag.value.version` exactly as `console.md`'s gate does — major, minor or patch, or `>= 1.0.0` when `lastTag` is degraded — and compare it to the part Step 4 gated on:
+   - **Same part** — nothing re-rendered that the console did not already see; merge.
+   - **Different, and not major** — the re-rendered version becomes the gating version for the rest of the run and the merge proceeds, logged.
+   - **Different, and major** — re-run Step 4's major-bump HARD-GATE on the re-rendered version and it fires: **do not merge**. Stage `release-held.md` through the Step 4 writer, naming the reason `re-rendered to a major after the console`, the re-rendered version and its base; the outcome is `HELD` and nothing moved, which is exactly what `HELD` asserts. Under `interactive`, ask once first with `console.md`'s Gates question and stage the identical file on `Stop`; under `--train`, `auto` and headless there is no question, only the staged file.
+
+   ```
+   AUTO {HH:MM:SS} — Step 5: release PR re-rendered v{gated} → v{rerendered} ({part}) before the merge; re-gated, not major — v{rerendered} is the gating version. Reversibility: n/a (gate evaluation).
+   STAGED {HH:MM:SS} — Step 5: HARD-GATE major bump — release PR re-rendered to v{rerendered} after the console; release held. Stage path: staged/release-held.md. Reversibility: high.
+   ```
+
+   The `--as` path above already polls this same title before merging, for the same reason. The two paths now agree: neither merges a release PR whose title it has not read since the gate ran.
 
 **Merge.** One call, the immediate `--squash` form of `_shared/pr-first-merge.md`'s Step 3:
 
@@ -319,7 +330,7 @@ records: 0 shipped
 
 When the shipped version differed from the gating version, the `release:` line names both — `release: {shipped} — {outcome} (gating version was {gating})` — so a reader never has to reconcile the console's number against the tag by hand.
 
-`HELD` is never produced here. It belongs to a Step 4 HARD-GATE that fires **before** Step 5 — in any mode, `--train` and interactive alike — and asserts that nothing was merged or tagged — applying it to anything this file did would be a false statement about the repository and would recommend re-running the train against a tag that already exists. Once Step 5 has landed, the only two outcomes are `released` and `PARTIAL`; when Step 5 did not land, the outcome is `failed`.
+`HELD` is only ever a **pre-merge** word here — the `gh`-absent Transport stop and delta 5's re-rendered-major re-gate, both of which move nothing — alongside the Step 4 HARD-GATEs that fire before this file runs at all. In any mode, `--train` and interactive alike, it asserts that nothing was merged or tagged, so applying it to anything this file did **after** the merge would be a false statement about the repository and would recommend re-running the train against a tag that already exists. Once Step 5 has landed, the only two outcomes are `released` and `PARTIAL`; when Step 5 did not land, the outcome is `failed`.
 
 ## Anti-Patterns
 

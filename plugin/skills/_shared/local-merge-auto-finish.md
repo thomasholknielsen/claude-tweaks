@@ -118,6 +118,13 @@ it literally into the next call; never carry it in a shell variable across calls
 $SUBJECT_BODY"
    ```
 
+   **On a composer failure** (the `|| exit 1` above fired — `compose-subject.js` printed its
+   reason to stderr and nothing has been merged): the same Park branch below applies, with
+   `{conflict|failed verification}` replaced by `"composer failed: {first stderr line}"` — a
+   record with no resolvable Type, or a `breaking` label with no `## Breaking Change` section, is
+   a shaping defect to fix on the record, not a merge problem; report `pending-review` to the
+   caller.
+
    `--no-ff` guarantees a real merge commit exists to carry the composer's `Fixes #{issue}` closing keyword (`bin/compose-subject.js` — Conventional-Commits subject, `[auto-finish]` body tag) —
    the same reason `cleanup-procedures-execution.md` Section C step 2's own carrier commit exists.
    That carrier commit already guarantees closure regardless, so this is redundant-but-safe, never

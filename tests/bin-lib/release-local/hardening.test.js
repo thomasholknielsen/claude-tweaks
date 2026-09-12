@@ -190,10 +190,10 @@ test('W7: applyVersion (simple release-type) — version.txt created, bumped fro
   const withNewline = { 'version.txt': '0.1.0\n' };
   M.applyVersion(simple, '0.2.0', (p) => (p in withNewline ? withNewline[p] : null), (p, text) => { withNewline[p] = text; });
   assert.strictEqual(withNewline['version.txt'], '0.2.0\n');
-  // no token at all: nothing is written, the file stays exactly as it was
+  // no token at all: refused before any write (run ledger row 67), the file stays exactly as it was
   const tokenless = { 'version.txt': 'unreleased\n' };
   const writes = [];
-  M.applyVersion(simple, '0.2.0', (p) => (p in tokenless ? tokenless[p] : null), (p, text) => { writes.push(p); tokenless[p] = text; });
+  assert.throws(() => M.applyVersion(simple, '0.2.0', (p) => (p in tokenless ? tokenless[p] : null), (p, text) => { writes.push(p); tokenless[p] = text; }), /version\.txt exists but carries no version token/);
   assert.deepStrictEqual(writes, []);
   assert.strictEqual(tokenless['version.txt'], 'unreleased\n');
 });

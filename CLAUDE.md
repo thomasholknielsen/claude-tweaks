@@ -38,7 +38,7 @@ SKILL.md structure, Interaction patterns (incl. the canonical CSC template), Fro
 
 ### Releasing (two repos)
 
-Invocation: `node plugin/bin/release.js <minor|patch> "<summary>"` from clean `main`. The whole-branch review gates the bump — run it before the version bump, not as a later task in the same plan. Full procedure, judgment calls, and the shipped-vs-never-shipped renumber split: `docs/releasing.md`.
+Invocation: `node plugin/bin/release.js <minor|patch> "<summary>"` from clean `main` — this repo's own path, never the consumer-facing `/claude-tweaks:release` + `bin/release-local.js` the plugin now ships (#2254/#2256), which tags and closes records on a repo whose versions are keyed off `docs/shipped-versions.tsv`; migrating this repo onto it is #2259. The whole-branch review gates the bump — run it before the version bump, not as a later task in the same plan. Full procedure, judgment calls, and the shipped-vs-never-shipped renumber split: `docs/releasing.md`.
 
 ### Cross-references
 

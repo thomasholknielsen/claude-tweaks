@@ -83,6 +83,8 @@ AUTO {HH:MM:SS} — Step 7: bookkeeping: {n} records commented, {m} closed, {k} 
 
 `{, closed}` appears only when this record's close actually ran this turn (github-issues: it was open and got closed; local-files: `closeRecord` ran) — an already-closed record, or the local-files `markShipped`-only path, omits it. The summary's `{n}`/`{m}`/`{k}` are this step's own counts across the shipped set (comments written including idempotent skips counted as commented, closes that actually ran, and failures) — a distinct tally from Step 8's `records: {n} {shipped | would ship}{, m unattributed commits}` line, which reads its `{n}` from the shipped-set size and its `{m}` from Step 4's unattributed-commits count, never from this step's counters.
 
+**Step 8's `bookkeeping:` line is the one exception to that direction.** It reads `{k}` from this step's summary line above, and the record numbers and verbs from this step's `FAILED` lines, because nothing else in the run knows that a write did not land — Step 6 verified the tag, not the books. It renders only when `{k} > 0`.
+
 ## Anti-Patterns
 
 | Pattern | Why It Fails |

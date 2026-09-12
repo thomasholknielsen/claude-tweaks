@@ -86,6 +86,35 @@ test('seedManifestVersion: newest v* tag by semver precedence, never lexicograph
   assert.equal(rb.seedManifestVersion({ tags: [], manifestVersion: null }), '0.1.0');
 });
 
+test('isValidBranchName: rejects whitespace/control chars, forbidden ref characters, "..", a leading "-", a trailing "/" or ".lock", "//", and non-strings; accepts ordinary names (ledger row 34)', () => {
+  for (const bad of ['main\n  pull_request_target:', '', 'bad branch', '-lead', 'a~b', 'a^b', 'a:b', 'a?b', 'a*b', 'a[b', 'a\\b', 'a..b', 'a/', 'a.lock', 'a//b', null, undefined, 42]) {
+    assert.equal(rb.isValidBranchName(bad), false, `expected ${JSON.stringify(bad)} to be invalid`);
+  }
+  for (const good of ['develop', 'release/2.x', 'feat.v1', 'main']) {
+    assert.equal(rb.isValidBranchName(good), true, `expected ${JSON.stringify(good)} to be valid`);
+  }
+});
+
+test('renderWorkflowYaml: throws on an invalid branch name instead of silently defaulting to main (ledger row 34)', () => {
+  assert.throws(() => rb.renderWorkflowYaml({ branch: 'main\n  pull_request_target:' }), /invalid branch name/);
+  assert.throws(() => rb.renderWorkflowYaml({ branch: '' }), /invalid branch name/);
+  assert.throws(() => rb.renderWorkflowYaml({ branch: 'bad branch' }), /invalid branch name/);
+  assert.throws(() => rb.renderWorkflowYaml({ branch: '-lead' }), /invalid branch name/);
+  assert.throws(() => rb.renderWorkflowYaml({}), /invalid branch name/);
+  assert.doesNotThrow(() => rb.renderWorkflowYaml({ branch: 'develop' }));
+  assert.doesNotThrow(() => rb.renderWorkflowYaml({ branch: 'release/2.x' }));
+  assert.doesNotThrow(() => rb.renderWorkflowYaml({ branch: 'feat.v1' }));
+});
+
+test('bootstrapRelease: refuses an invalid branch on the pr-first path before any write; local-merge ignores an invalid branch entirely (ledger row 34)', () => {
+  const root = tmp(); write(root, 'package.json', '{"name":"x"}');
+  assert.throws(() => rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'bad branch', listTags: () => [] }), /invalid branch name/);
+  assert.equal(fs.existsSync(path.join(root, 'release-please-config.json')), false);
+  const r = rb.bootstrapRelease({ root, integrationModel: 'local-merge', branch: 'bad branch', listTags: () => [] });
+  assert.equal(r.verdict, 'fresh');
+  assert.deepEqual(r.written, ['release-please-config.json', '.release-please-manifest.json']);
+});
+
 test('renderers: workflow, config, manifest, policy rows', () => {
   const wf = rb.renderWorkflowYaml({ branch: 'develop' });
   assert.match(wf, /uses: googleapis\/release-please-action@v4/);
@@ -149,32 +178,32 @@ test('bootstrapRelease: same fixture, local-merge -> config + manifest only, no 
 
 test('bootstrapRelease: .changeset/ -> conflict, nothing written; manual v* tags alone stay fresh (AC 3)', () => {
   const a = tmp(); fs.mkdirSync(path.join(a, '.changeset')); write(a, 'package.json', '{}');
-  const r = rb.bootstrapRelease({ root: a, integrationModel: 'pr-first', listTags: () => [] });
+  const r = rb.bootstrapRelease({ root: a, integrationModel: 'pr-first', branch: 'main', listTags: () => [] });
   assert.equal(r.verdict, 'conflict');
   assert.equal(r.tool, 'changesets');
   assert.deepEqual(r.written, []);
   assert.equal(fs.existsSync(path.join(a, 'release-please-config.json')), false);
   const b = tmp(); gitRepo(b); write(b, 'package.json', '{"name":"x","version":"1.0.0"}');
   git(b, 'tag', 'v1.0.0');
-  const r2 = rb.bootstrapRelease({ root: b, integrationModel: 'pr-first' }); // default listTags reads the real repo
+  const r2 = rb.bootstrapRelease({ root: b, integrationModel: 'pr-first', branch: 'main' }); // default listTags reads the real repo
   assert.equal(r2.verdict, 'fresh');
   assert.equal(r2.version, '1.0.0');
 });
 
 test('bootstrapRelease: conflict cleared on a later run proceeds to write (AC 6)', () => {
   const root = tmp(); write(root, 'package.json', '{}'); write(root, '.releaserc', '{}');
-  assert.equal(rb.bootstrapRelease({ root, integrationModel: 'pr-first', listTags: () => [] }).verdict, 'conflict');
+  assert.equal(rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => [] }).verdict, 'conflict');
   fs.unlinkSync(path.join(root, '.releaserc'));
-  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', listTags: () => [] });
+  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => [] });
   assert.equal(r.verdict, 'fresh');
   assert.equal(r.written.length, 3);
 });
 
 test('bootstrapRelease: re-running on an already-bootstrapped repo writes nothing and does not clobber (AC 7)', () => {
   const root = tmp(); write(root, 'package.json', '{}');
-  rb.bootstrapRelease({ root, integrationModel: 'pr-first', listTags: () => ['v2.0.0'] });
+  rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => ['v2.0.0'] });
   const before = read(root, '.release-please-manifest.json');
-  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', listTags: () => ['v9.9.9'] });
+  const r = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => ['v9.9.9'] });
   assert.equal(r.verdict, 'already-bootstrapped');
   assert.deepEqual(r.written, []);
   assert.equal(read(root, '.release-please-manifest.json'), before);
@@ -193,7 +222,7 @@ test('bootstrapRelease: unresolved integration-model -> skipped before any detec
   const a = tmp(); fs.mkdirSync(path.join(a, '.changeset'));
   assert.deepEqual(rb.bootstrapRelease({ root: a, integrationModel: null }), { verdict: 'skipped', reason: 'integration-model unresolved', written: [], policyRows: [] });
   const b = tmp(); write(b, 'package.json', '{}');
-  const r = rb.bootstrapRelease({ root: b, integrationModel: 'pr-first', dryRun: true, listTags: () => [] });
+  const r = rb.bootstrapRelease({ root: b, integrationModel: 'pr-first', branch: 'main', dryRun: true, listTags: () => [] });
   assert.equal(r.verdict, 'fresh');
   assert.deepEqual(r.written, ['release-please-config.json', '.release-please-manifest.json', '.github/workflows/release-please.yml']);
   assert.equal(fs.existsSync(path.join(b, 'release-please-config.json')), false);

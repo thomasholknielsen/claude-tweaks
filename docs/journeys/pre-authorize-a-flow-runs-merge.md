@@ -1,13 +1,13 @@
 ---
 files:
-  - skills/flow/manifesto.md
-  - skills/flow/manifesto-overrides.md
-  - skills/wrap-up/manifesto-authorized-merge.md
-  - skills/wrap-up/review-console.md
-  - skills/flow/summary-template.md
-  - skills/_shared/pr-first-merge.md
+  - plugin/skills/flow/manifesto.md
+  - plugin/skills/flow/manifesto-overrides.md
+  - plugin/skills/wrap-up/manifesto-authorized-merge.md
+  - plugin/skills/wrap-up/review-console.md
+  - plugin/skills/flow/summary-template.md
+  - plugin/skills/_shared/pr-first-merge.md
   - plugin/bin/compose-subject.js
-  - bin/lib/policy-schema.js
+  - plugin/bin/lib/policy-schema.js
 ---
 
 # Pre-Authorize a Flow Run's Merge, or Recover if It Doesn't Merge
