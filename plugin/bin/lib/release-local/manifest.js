@@ -176,7 +176,11 @@ function spliceVersion(kind, text, to, opts = {}) {
     case 'json-lock': return spliceJsonLock(text, to);
     case 'manifest': return spliceJsonKey(text, '.', to);
     case 'toml': return spliceToml(text, opts.sections || [], to, opts);
-    case 'py-assign': return spliceMatch(text, new RegExp(`(version\\s*=\\s*['"])(${SEMVER})(['"])`), to, 2);
+    // The key has to BE `version`, not merely end in it: `min_version = "0.1.0"`
+    // and `python_version = "3.8.0"` are commonplace in a setup.py and come first.
+    // (setup.cfg's [metadata] line needs no equivalent — spliceToml anchors it to
+    // start-of-line with optional indentation.)
+    case 'py-assign': return spliceMatch(text, new RegExp(`((?<![\\w.])version\\s*=\\s*['"])(${SEMVER})(['"])`), to, 2);
     case 'text': {
       if (text === null || text === undefined) return { text: to, found: false, previous: null };
       return spliceMatch(text, new RegExp(`()(${SEMVER})`), to, 2);

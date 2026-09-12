@@ -99,6 +99,17 @@ test('spliceVersion py-assign: the first quoted version= assignment in setup.py'
   assert.strictEqual(M.spliceVersion('py-assign', 'setup(name="x")\n', '1.3.0').found, false);
 });
 
+test('spliceVersion py-assign / toml: an identifier ENDING in "version" is never the match', () => {
+  const setup = 'min_version = "0.1.0"\npython_version = "3.8.0"\nsetup(\n    name="x",\n    version="1.2.0",\n)\n';
+  const out = M.spliceVersion('py-assign', setup, '1.3.0');
+  assert.strictEqual(out.previous, '1.2.0');
+  assert.strictEqual(out.text, setup.replace('version="1.2.0"', 'version="1.3.0"'));
+  assert.ok(out.text.includes('min_version = "0.1.0"') && out.text.includes('python_version = "3.8.0"'), out.text);
+  // setup.cfg's [metadata] line is start-of-line anchored, so the same holds there
+  const cfg = '[metadata]\nmin_version = 0.1.0\nversion = 1.2.0\n';
+  assert.strictEqual(M.spliceVersion('toml', cfg, '1.3.0', { sections: ['metadata'], unquoted: true }).text, '[metadata]\nmin_version = 0.1.0\nversion = 1.3.0\n');
+});
+
 test('applyVersion python: setup.py alone is enough; no stack manifest at all throws BEFORE any write', () => {
   const t = M.resolveTargets({ releaseType: 'python', extraFiles: [] });
   const run = (store) => {
