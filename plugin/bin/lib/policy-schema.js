@@ -188,7 +188,9 @@ const POLICY_KEYS = [
   // _shared/auto-mode-contract.md's five-site checklist does not apply.
   // Non-core by design: promoting either would widen what the Manifesto
   // surfaces by default (tests/policy-schema-metadata.test.js pins it).
-  { key: 'release-hook', type: 'string', summary: "Names the command the local release engine runs once its tag lands — publish, mirror, or deploy; ignored under pr-first.", category: 'housekeeping', tier: 'advanced' },
+  // release-hook is a shell command and may contain spaces, so it opts out
+  // of the string type's whitespace rule via allowWhitespace.
+  { key: 'release-hook', type: 'string', allowWhitespace: true, summary: "Names the command the local release engine runs once its tag lands — publish, mirror, or deploy; ignored under pr-first.", category: 'housekeeping', tier: 'advanced' },
   { key: 'release-train', type: 'boolean', default: false, summary: "Lets the unattended release train cut minor and patch releases on its own; honored only when autonomy resolves unattended.", category: 'housekeeping', tier: 'advanced' },
 ];
 
@@ -335,11 +337,14 @@ function isValidValue(schemaEntry, value) {
     case 'enum':
       return schemaEntry.values.includes(value);
     case 'string':
-      // Non-empty and whitespace-free. Enough to catch a mistyped branch name
-      // ("dev branch") without reimplementing git check-ref-format's full rules
-      // — a name git itself would reject is worth flagging, but this validator
-      // has no repo to resolve the name against.
-      return value.length > 0 && !/\s/.test(value);
+      // Non-blank (trimmed); whitespace-free by default. Enough to catch a
+      // mistyped branch name ("dev branch") without reimplementing git
+      // check-ref-format's full rules — a name git itself would reject is
+      // worth flagging, but this validator has no repo to resolve the name
+      // against. allowWhitespace: true opts a command-shaped key (e.g.
+      // release-hook) out of the whitespace-free rule, but not out of the
+      // non-blank rule — a whitespace-only value is still invalid.
+      return value.trim().length > 0 && (schemaEntry.allowWhitespace === true || !/\s/.test(value));
     case 'list':
     case 'opaque':
       return true;

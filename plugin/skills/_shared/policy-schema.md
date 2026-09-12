@@ -44,7 +44,9 @@ Consolidating the two is deferred until a further derived lever appears (#580's 
 `string`, `list`, `opaque`), and fall back to the entry's `default` whenever `rawValue` is
 absent, empty, or fails validation — never throwing on malformed input. `integer` and `boolean`
 entries are additionally coerced to their native JS type; other types pass through unchanged once
-validated. An unrecognized `key` returns `rawValue` untouched (nothing to coerce against).
+validated. A `string` entry rejects whitespace by default (a mistyped branch name); an entry carrying
+`allowWhitespace: true` — today only `release-hook`, a shell command — accepts it. An unrecognized
+`key` returns `rawValue` untouched (nothing to coerce against).
 `bin/lib/issues/trust.js`'s `resolveRevertWindowDays` is the first caller
 (`trust-revert-window-days`); any future lever of the same shape — read a policy key, coerce with a
 typed fallback to a documented default — should call `resolveValue` rather than re-deriving its own

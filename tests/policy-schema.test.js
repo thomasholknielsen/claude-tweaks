@@ -816,6 +816,18 @@ test('resolveValue never throws on a malformed value of any type', () => {
   assert.doesNotThrow(() => resolveValue('trust-revert-window-days', ['x']));
 });
 
+test('resolveValue accepts a whitespace-bearing release-hook command via allowWhitespace (#2253)', () => {
+  assert.strictEqual(resolveValue('release-hook', 'npm run deploy'), 'npm run deploy');
+});
+
+test('resolveValue still rejects a whitespace-only release-hook value — blank after trim falls back to the default', () => {
+  assert.strictEqual(resolveValue('release-hook', '   '), undefined);
+});
+
+test('resolveValue control: integration-branch has no allowWhitespace and still rejects a spaced value', () => {
+  assert.strictEqual(resolveValue('integration-branch', 'dev branch'), undefined);
+});
+
 test('specify-budget is registered as an integer defaulting to 5, sibling of dispatch-batch-size (#1491)', () => {
   const key = POLICY_KEYS.find((k) => k.key === 'specify-budget');
   assert.ok(key, 'specify-budget missing from POLICY_KEYS');
