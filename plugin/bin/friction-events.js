@@ -104,37 +104,40 @@ function readEvents(runDir, source) {
 // logged (subagent-stop.js) as its own contract-violation event sharing the
 // same transcriptPath. By the time this aggregation layer runs, the
 // transcript has usually had a chance to accumulate the dispatch's real
-// final reply — re-check it fresh here rather than trusting the write-time
-// snapshot. Grouped by transcriptPath; an event with no transcriptPath
-// (logged before this field existed) is left untouched. An unreadable
-// transcript (deleted, moved) fails open — never drop evidence we can't
-// re-verify.
+// final reply — so re-read it here rather than trusting the write-time
+// snapshot. Returns null when the transcript is unreadable (deleted, moved),
+// which the caller treats as fail-open: never drop evidence we can't re-verify.
+function readTranscriptVerdict(transcriptPath, deps) {
+  let text;
+  try { text = deps.readTranscriptText(transcriptPath); } catch { return null; }
+  if (typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  return { compliant: substop.STATUS_RE.test(trimmed), firstLine: substop.firstLineOf(trimmed) };
+}
+
+// Collapses each transcriptPath's re-fires to at most one event: none when
+// that dispatch's current final reply is compliant after all, otherwise the
+// earliest event of the group carrying the refreshed firstLine. Events left
+// untouched: any with no transcriptPath (logged before this field existed),
+// and every event of a group whose transcript no longer reads.
 function dedupeContractViolations(events, deps) {
-  const groups = new Map();
-  events.forEach((e, i) => {
-    if (e.type === 'contract-violation' && typeof e.transcriptPath === 'string' && e.transcriptPath) {
-      if (!groups.has(e.transcriptPath)) groups.set(e.transcriptPath, []);
-      groups.get(e.transcriptPath).push(i);
-    }
-  });
-  const drop = new Set();
-  const refreshed = new Map();
-  for (const [transcriptPath, indices] of groups) {
-    let text;
-    try { text = deps.readTranscriptText(transcriptPath); } catch { text = undefined; }
-    if (typeof text !== 'string') continue; // unreadable -> fail open, keep as logged
-    const trimmed = text.trim();
-    if (substop.STATUS_RE.test(trimmed)) {
-      indices.forEach((i) => drop.add(i));
+  const verdicts = new Map();
+  const carried = new Set();
+  const out = [];
+  for (const event of events) {
+    const { transcriptPath } = event;
+    if (event.type !== 'contract-violation' || typeof transcriptPath !== 'string' || !transcriptPath) {
+      out.push(event);
       continue;
     }
-    const [keep, ...rest] = indices;
-    rest.forEach((i) => drop.add(i));
-    refreshed.set(keep, trimmed.split('\n')[0].slice(0, 120));
+    if (!verdicts.has(transcriptPath)) verdicts.set(transcriptPath, readTranscriptVerdict(transcriptPath, deps));
+    const verdict = verdicts.get(transcriptPath);
+    if (!verdict) { out.push(event); continue; }
+    if (verdict.compliant || carried.has(transcriptPath)) continue;
+    carried.add(transcriptPath);
+    out.push({ ...event, firstLine: verdict.firstLine });
   }
-  return events
-    .map((e, i) => (refreshed.has(i) ? { ...e, firstLine: refreshed.get(i) } : e))
-    .filter((_, i) => !drop.has(i));
+  return out;
 }
 
 const realDeps = {
