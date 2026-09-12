@@ -209,6 +209,56 @@ test('backlog/SKILL.md line 104 states --source sweep never renders Next Actions
   );
 });
 
+// --- (8) #1883: Step 4's "## Staged for approval" block names
+// report-condensed.md, the empty-staged/ omission, and the lint call,
+// positioned after the attention render (item 2) and before Next Actions
+// (item 4) ---
+// Discrimination: before #1883, sweep/SKILL.md's Step 4 had exactly 3 items
+// (invalidate, attention render, Next Actions+log) and no mention of
+// report-condensed.md, "## Staged for approval", or tidy-report-lint.js
+// anywhere in the file.
+test('sweep/SKILL.md Step 4: "## Staged for approval" block cites report-condensed.md, the lint call, and the empty-staged/ omission', () => {
+  const source = read(SWEEP_DIR, 'SKILL.md');
+  const step4Start = source.indexOf('## Step 4: Close-out');
+  const nextActionsHeadingIdx = source.indexOf('\n## Next Actions', step4Start);
+  const step4 = source.slice(step4Start, nextActionsHeadingIdx);
+  assert.ok(
+    step4.includes('## Staged for approval'),
+    'expected Step 4 to render a "## Staged for approval" heading',
+  );
+  assert.ok(
+    step4.includes('report-condensed.md'),
+    'expected Step 4 to read report-condensed.md for the Approve section',
+  );
+  assert.ok(
+    step4.includes("falling back to `report.md`'s Approve section when the condensed file is absent"),
+    'expected the report.md fallback clause',
+  );
+  assert.ok(
+    step4.includes('When `staged/` is empty, render nothing'),
+    'expected the empty-staged/ omission rule',
+  );
+  assert.ok(
+    step4.includes('node "${CLAUDE_PLUGIN_ROOT}/bin/tidy-report-lint.js" --surface=condensed'),
+    'expected the pre-send lint call over the inlined block',
+  );
+  // Positioned after the attention render (item 2) and before Next Actions (item 4).
+  const attentionIdx = step4.indexOf('Invoke `/claude-tweaks:backlog attention`');
+  const stagedIdx = step4.indexOf('## Staged for approval');
+  const nextActionsIdx = step4.indexOf("Render sweep's `## Next Actions`");
+  assert.ok(attentionIdx >= 0 && stagedIdx > attentionIdx, 'expected the staged block after the attention render');
+  assert.ok(nextActionsIdx > stagedIdx, 'expected Next Actions rendering after the staged block');
+});
+
+// --- (9) #1883: attention's Tidy row is unchanged by this record ---
+test('backlog/attention-mode.md: Tidy row still renders a one-line cross-run count', () => {
+  const source = read(BACKLOG_DIR, 'attention-mode.md');
+  assert.ok(
+    source.includes('tidy proposal(s) staged awaiting approval'),
+    'expected attention-mode.md\'s Tidy row to remain a one-line staged-count summary',
+  );
+});
+
 // --- (7) --source sweep in both tidy's and specify's argument-hint lines ---
 test('tidy and specify argument-hint lines both carry --source sweep', () => {
   // Discrimination: base commit 0ac4d7a00's tidy argument-hint was

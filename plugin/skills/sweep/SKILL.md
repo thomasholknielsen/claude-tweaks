@@ -77,7 +77,8 @@ An unhandled error in a step halts the sequence before the next step — sweep n
 
 1. Repeat Step 1.5's invalidation command once more, so the close-out reads the run's final record state.
 2. Invoke `/claude-tweaks:backlog attention`'s render — execute `backlog/attention-mode.md`'s existing Steps 1-4 directly as the first block of sweep's own output. Do not restate its fetch/merge/rank/render logic here: any future change to attention's row types or ranking must need no edit in this file.
-3. Render sweep's `## Next Actions` (below), then log one summary line to `decisions.md` with the three steps' counts.
+3. **Staged for approval.** When `{run-dir}/staged/` is non-empty, render a `## Staged for approval` block: `{run-dir}/report-condensed.md`'s Approve section, verbatim (tidy's three-line-per-item shape with its command) — falling back to `report.md`'s Approve section when the condensed file is absent. Before sending, run `node "${CLAUDE_PLUGIN_ROOT}/bin/tidy-report-lint.js" --surface=condensed` over the block and fix any findings, the same pre-send scan `tidy/step-6-auto.md` mandates for its own chat render. When `staged/` is empty, render nothing — this block is display only; `/claude-tweaks:tidy --approve` remains the single write path. Attention's own Tidy row (Step 2 above) stays the one-line cross-run count; this block is the run's own click surface, so the items render once, not twice.
+4. Render sweep's `## Next Actions` (below), then log one summary line to `decisions.md` with the three steps' counts.
 
 ## Next Actions
 
