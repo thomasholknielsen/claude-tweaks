@@ -18,6 +18,46 @@ const path = require('node:path');
 
 const { formatEntry } = require('../plugin/bin/lib/log-decision/append');
 
+const TASK_PROMPT = path.join(__dirname, '..', 'plugin', 'skills', 'dispatch', 'task-prompt.md');
+
+// Derives the restart-log text from dispatch/task-prompt.md's own documented template rather
+// than hardcoding an independent copy of the wording -- this is what makes the fixture below
+// discriminate: if the template is ever reworded or the whole paragraph reverted, this throws
+// (a distinguishable failure, never a silent pass) instead of the fixture quietly asserting
+// against a copy of today's wording that no longer matches what the plugin actually documents.
+function buildRestartTextFromDocumentedTemplate({ old, replacement, port }) {
+  const text = fs.readFileSync(TASK_PROMPT, 'utf8');
+  const openIdx = text.indexOf('`AUTO {time} -- ephemeral server restarted:');
+  if (openIdx === -1) {
+    throw new Error(
+      "could not find the restart log-line template ('AUTO {time} -- ephemeral server restarted:') "
+      + 'in dispatch/task-prompt.md -- AC4 fixture cannot derive its expected output',
+    );
+  }
+  const closeIdx = text.indexOf('`', openIdx + 1);
+  if (closeIdx === -1) {
+    throw new Error('found the restart log-line anchor but its backtick span never closes');
+  }
+  const rawTemplate = text.slice(openIdx + 1, closeIdx).replace(/\s+/g, ' ').trim();
+  const prefixMatch = rawTemplate.match(/^AUTO \{time\} --\s*/);
+  if (!prefixMatch) {
+    throw new Error(`restart log-line template lost its expected 'AUTO {time} -- ' prefix: ${rawTemplate}`);
+  }
+  const templateBody = rawTemplate.slice(prefixMatch[0].length);
+  if (!templateBody.includes('{old}') || !templateBody.includes('{new}') || !templateBody.includes('{port}')) {
+    throw new Error(`restart log-line template is missing an expected {old}/{new}/{port} placeholder: ${templateBody}`);
+  }
+  return templateBody
+    .replace('{old}', String(old))
+    .replace('{new}', String(replacement))
+    .replace('{port}', String(port));
+}
+
+test('the documented restart-log template still names {old}/{new}/{port} (discrimination: rewording or reverting the template makes this throw, not pass)', () => {
+  const derived = buildRestartTextFromDocumentedTemplate({ old: 111, replacement: 222, port: 33333 });
+  assert.equal(derived, 'ephemeral server restarted: recorded pid 111 dead, new pid 222 on port 33333');
+});
+
 const SERVER_SCRIPT = `
 const http = require('http');
 const port = Number(process.argv[2]);
@@ -104,7 +144,10 @@ test('replay: call 1 ends (killing its un-detached server) while call 2 walks --
     await waitForUp(port2);
     fs.writeFileSync(recordPath, `${child2.pid} ${port2} ${recordedRoot} detached:no\n`);
 
-    const restartText = `ephemeral server restarted: recorded pid ${deadPid} dead, new pid ${child2.pid} on port ${port2}`;
+    // Built from task-prompt.md's own template (see buildRestartTextFromDocumentedTemplate above)
+    // rather than a copy of the wording hardcoded here -- reverting or rewording that paragraph
+    // makes this call throw instead of letting the fixture silently keep passing.
+    const restartText = buildRestartTextFromDocumentedTemplate({ old: deadPid, replacement: child2.pid, port: port2 });
     const logLine = formatEntry({ status: 'AUTO', now: Date.now(), text: restartText });
 
     // Exactly the schema `dispatch/task-prompt.md`'s second-call template names.
