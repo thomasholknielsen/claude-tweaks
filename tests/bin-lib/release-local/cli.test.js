@@ -169,6 +169,14 @@ test('exit 1 (named partial state): the push fails after the commit and tag land
   assert.deepStrictEqual(state.hooks, []);
 });
 
+test('exit 1 (named partial state): a FIRST push that fails recovers with a plain push, never a rebase against a ref that cannot exist', () => {
+  const { deps, state } = makeDeps({ lsRemote: '', gitFail: (k) => k.startsWith('push ') });
+  assert.strictEqual(run([], deps), 1);
+  assert.match(state.err, /partial: v1\.3\.0 is committed and tagged locally but NOT pushed/);
+  assert.match(state.err, /Recover: git push origin main v1\.3\.0$/m);
+  assert.ok(!/git rebase/.test(state.err), state.err);
+});
+
 test('exit 1 (named partial state): a commit failure after the files were edited', () => {
   const { deps, state } = makeDeps({ gitFail: (k) => k.startsWith('commit ') });
   assert.strictEqual(run([], deps), 1);

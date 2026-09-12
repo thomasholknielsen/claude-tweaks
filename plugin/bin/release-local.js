@@ -115,6 +115,9 @@ function run(argv, deps) {
   let createdPaths = [];
   let hook = null;
   let hasOrigin = false;
+  // Whether origin already carried <branch> when the run started — the recovery
+  // for a failed FIRST push must not name an origin/<branch> that cannot exist.
+  let remoteBranchExists = false;
   try {
     const config = manifest.readConfig(deps.readFile);
     if (!config) throw new UsageError(`${manifest.CONFIG_FILE} not found — run /claude-tweaks:init to bootstrap the release process first`);
@@ -124,7 +127,7 @@ function run(argv, deps) {
     // A remote whose <branch> was never pushed has no origin/<branch>: precheck's
     // fetch would die with "couldn't find remote ref" on an otherwise valid first
     // release. Probe once and treat it as origin-less for reading, not for pushing.
-    const remoteBranchExists = hasOrigin && deps.git(['ls-remote', '--heads', 'origin', branch]).trim() !== '';
+    remoteBranchExists = hasOrigin && deps.git(['ls-remote', '--heads', 'origin', branch]).trim() !== '';
 
     const history = conventionalHistory(deps.git);
     const part = bumpPart(history.commits);
@@ -223,9 +226,13 @@ function run(argv, deps) {
     // The rebase rewrites the chore(release) commit, so the annotated tag would keep
     // pointing at the pre-rebase object and publish an orphan — re-tag after the
     // rebase and force-publish the tag (never `git pull --rebase` + a plain push).
+    // A FIRST push has no origin/<branch> to fetch or rebase onto: retry it plain.
+    const recovery = remoteBranchExists
+      ? `git fetch origin ${branch} && git rebase origin/${branch} && git tag -f -a v${version} -m v${version} && ` +
+        `git push origin ${branch} && git push --force origin v${version}`
+      : `git push origin ${branch} v${version}`;
     deps.stderr(`partial: v${version} is committed and tagged locally but NOT pushed (${message}). ` +
-      `Do NOT re-run release-local (it would bump again). Recover: git fetch origin ${branch} && git rebase origin/${branch} && ` +
-      `git tag -f -a v${version} -m v${version} && git push origin ${branch} && git push --force origin v${version}${hook ? `, then run the hook: ${hook}` : ''}\n`);
+      `Do NOT re-run release-local (it would bump again). Recover: ${recovery}${hook ? `, then run the hook: ${hook}` : ''}\n`);
     return 1;
   }
 }
