@@ -31,6 +31,7 @@
 7. **`BREAKING-CHANGE:`** (hyphen) is accepted as a synonym of `BREAKING CHANGE:` — the Conventional Commits spec declares them equivalent.
 8. **`manifest.js` skips only path absence** (`does not exist` / `exists on disk, but not in`); a bad ref (`invalid object name`) propagates. Found by Task 3's implementer: the brief reused `manifest-path.js`'s `NOT_FOUND_ERROR_RE`, which folds both, against a test that requires the throw.
 9. **`package-lock.json` splices are structural, not counted** — the root `version` plus the `packages[""]` entry's own `version` (bounded by the first `"node_modules/` key), never a dependency's. Task 3's reviewer caught the brief's "first two occurrences" corrupting a lockfileVersion 1 file's first dependency.
+10. **Plan claims stay in the local engine's precheck**, read through `deps.listPlanFiles` (`docs/superpowers/plans/*.md` when the directory exists, exactly as `release.js` provides it; a project without that directory has none). Task 6's implementer found the brief's `deps` lacked the member precheck requires. The same round fixed AC 2's ordering assertion, which bound to precheck's own earlier fetch instead of the push path's.
 
 ---
 
@@ -1110,7 +1111,7 @@ Claude-Session: https://claude.ai/code/session_018rz67jb18j1RLSqhjEdYWH"
 
 **Interfaces:**
 - Consumes: Tasks 1–5's exports; `resolvePolicyKeys` from `plugin/bin/lib/policy-schema.js` (`release-hook`, `integration-branch`).
-- Produces: `run(argv, deps) -> exit code`, `parseArgs(argv)`, `USAGE`, `defaultDeps(root)`. `deps = { git(args), readFile(relPath) -> string|null, writeFile(relPath, text), runHook(command) -> exit code, today() -> 'YYYY-MM-DD', stdout(text), stderr(text) }`.
+- Produces: `run(argv, deps) -> exit code`, `parseArgs(argv)`, `USAGE`, `defaultDeps(root)`. `deps = { git(args), readFile(relPath) -> string|null, writeFile(relPath, text), listPlanFiles() -> relPath[] (precheck's plan-claim source; `readFile` serves those paths), runHook(command) -> exit code, today() -> 'YYYY-MM-DD', stdout(text), stderr(text) }`.
 
 **Sequence:** parse → config (missing → 2) → branch → `guardReleasableTree` → history → bump (`none` → 3) → targets/current version → `precheck` (`keySource: 'tags'`; collision → 4) → hook lookup → render section → print plan → (`--dry-run` → 0) → manifest + CHANGELOG writes → `git add` + `git commit -m "chore(release): v{version}"` → `git tag -a v{version} -m "v{version}"` → `pushAfterAncestryCheck` (skipped without `origin`; failure → named partial + 1) → `release-hook` (non-zero → named partial + 5) → 0. Any throw before the first write → 1 "nothing written"; a throw after a write → 1 with the stage-named partial state and its recovery command.
 
@@ -1150,6 +1151,7 @@ function makeDeps(o = {}) {
     },
     readFile: (p) => (p in state.files ? state.files[p] : null),
     writeFile: (p, text) => { state.writes.push(p); state.files[p] = text; },
+    listPlanFiles: () => o.plans || [],
     runHook: (cmd) => { state.hooks.push(cmd); return o.hookExit === undefined ? 0 : o.hookExit; },
     today: () => '2026-09-12',
     stdout: (t) => { state.out += t; },
@@ -1192,7 +1194,10 @@ test('AC 2 (fake runner): the live run edits both manifests and the CHANGELOG, c
   assert.strictEqual(state.files['package.json'], '{\n  "name": "x",\n  "version": "1.3.0"\n}\n');
   assert.match(state.files['CHANGELOG.md'], /^# Changelog\n\n## \[1\.3\.0\]\(https:\/\/github\.com\/o\/r\/compare\/v1\.2\.0\.\.\.v1\.3\.0\) \(2026-09-12\)\n\n\n### Features\n\n\* b \(\[1111111\]/);
   const i = (p) => state.git.findIndex((c) => c.startsWith(p));
-  assert.ok(i('add ') < i('commit -m chore(release): v1.3.0') && i('commit') < i('tag -a v1.3.0 -m v1.3.0') && i('tag -a') < i('fetch origin main') && i('fetch') < i('merge-base') && i('merge-base') < i('push origin main v1.3.0'));
+  // precheck fetches once before the plan; the push path fetches again — the ordering that matters is the LAST fetch
+  const li = (p) => state.git.length - 1 - [...state.git].reverse().findIndex((c) => c.startsWith(p));
+  assert.ok(i('fetch origin main') < i('add '), 'precheck fetch precedes any write');
+  assert.ok(i('add ') < i('commit -m chore(release): v1.3.0') && i('commit') < i('tag -a v1.3.0 -m v1.3.0') && i('tag -a') < li('fetch origin main') && li('fetch origin main') < i('merge-base') && i('merge-base') < i('push origin main v1.3.0'));
   assert.match(state.out, /released v1\.3\.0/);
 });
 
@@ -1230,6 +1235,12 @@ test('exit 4: a sibling worktree already claims 1.3.0', () => {
   assert.match(state.err, /collision on v1\.3\.0/);
   assert.match(state.err, /wt claims v1\.3\.0/);
   assert.deepStrictEqual(state.writes, []);
+});
+
+test('exit 4: a plan document claiming the candidate number (plan claims are read through deps.listPlanFiles)', () => {
+  const { deps, state } = makeDeps({ plans: ['docs/superpowers/plans/x.md'], files: { 'docs/superpowers/plans/x.md': 'ships as v1.3.0' } });
+  assert.strictEqual(run([], deps), 4);
+  assert.match(state.err, /plan-claim: docs\/superpowers\/plans\/x\.md claims v1\.3\.0/);
 });
 
 test('exit 1 (nothing written): a dirty tree, or a wrong branch', () => {
@@ -1490,6 +1501,13 @@ function defaultDeps(root) {
     git: (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
     readFile: (p) => { try { return fs.readFileSync(abs(p), 'utf8'); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } },
     writeFile: (p, text) => fs.writeFileSync(abs(p), text),
+    // precheck's plan-claim source, as plugin/bin/release.js provides it: a
+    // project without docs/superpowers/plans simply has no plan claims.
+    listPlanFiles: () => {
+      const dir = abs('docs/superpowers/plans');
+      if (!fs.existsSync(dir)) return [];
+      return fs.readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => path.join('docs/superpowers/plans', f));
+    },
     // The hook is the project's own shell command (policy release-hook) — a
     // shell string by design; its exit code becomes this CLI's exit 5.
     runHook: (cmd) => { const r = spawnSync(cmd, { cwd: root, shell: true, stdio: 'inherit' }); return r.status === null ? 1 : r.status; },
@@ -1518,7 +1536,7 @@ Note for the test's `parseArgs` assertion: `dryRun` is `true` for `--dry-run` (t
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/bin-lib/release-local/cli.test.js`
-Expected: PASS (16 tests — every exit code 0/1/2/3/4/5 exercised, AC 6)
+Expected: PASS (17 tests — every exit code 0/1/2/3/4/5 exercised, AC 6)
 
 - [ ] **Step 5: Commit**
 
