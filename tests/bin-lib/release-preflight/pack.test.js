@@ -141,3 +141,46 @@ test('isBotAuthor / isReleasePr helpers', () => {
   assert.strictEqual(isReleasePr({ headRefName: 'feature', title: 'chore(main): release 1.3.0' }), true);
   assert.strictEqual(isReleasePr({ headRefName: 'feature', title: 'chore: release notes' }), false);
 });
+
+test('releasePr (pr-first): the open release-please PR, or none', async () => {
+  const withPr = fakeDeps({ prs: [{ number: 7, state: 'OPEN', mergeable: 'MERGEABLE', headRefName: 'feature', title: 'x' }, { number: 9, state: 'OPEN', mergeable: 'CONFLICTING', headRefName: 'release-please--branches--main', title: 'chore(main): release 1.3.0' }] });
+  const a = await gatherReleasePreflight({ cwd: ROOT, deps: withPr.deps });
+  assert.deepStrictEqual(a.releasePr.value, { number: 9, state: 'OPEN', mergeable: 'CONFLICTING', headRefName: 'release-please--branches--main', title: 'chore(main): release 1.3.0' });
+  assert.ok(withPr.calls.gh.some((c) => c.startsWith('gh pr list --state open')));
+  const none = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ prs: [] }).deps });
+  assert.strictEqual(none.releasePr.value, 'none');
+  assert.strictEqual(none.openReleasePrConflict.value, false);
+});
+
+test('AC 7: openReleasePrConflict is true when the newest PR commit has a human author, false when every author is a bot', async () => {
+  const pr = [{ number: 9, state: 'OPEN', mergeable: 'MERGEABLE', headRefName: 'release-please--branches--main', title: 'chore(main): release 1.3.0' }];
+  const bot = { login: 'github-actions', name: 'github-actions[bot]', email: '41898282+github-actions[bot]@users.noreply.github.com' };
+  const human = { login: 'thomas', name: 'Thomas', email: 't@x' };
+  const clean = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ prs: pr, prCommits: [{ oid: 'a', authors: [bot] }] }).deps });
+  assert.strictEqual(clean.openReleasePrConflict.value, false);
+  const edited = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ prs: pr, prCommits: [{ oid: 'a', authors: [bot] }, { oid: 'b', authors: [human] }] }).deps });
+  assert.strictEqual(edited.openReleasePrConflict.value, true);
+});
+
+test('ciTip (pr-first): check-run counts on the tip sha; AC 3: a gh failure degrades ciTip and releasePr alone', async () => {
+  const runs = { total_count: 3, check_runs: [{ status: 'completed', conclusion: 'success' }, { status: 'completed', conclusion: 'failure' }, { status: 'in_progress', conclusion: null }] };
+  const ok = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ checkRuns: runs }).deps });
+  assert.deepStrictEqual(ok.ciTip.value, { sha: SHA, tipRef: 'origin/main', state: 'failure', total: 3, success: 1, failure: 1, pending: 1 });
+  const down = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ ghFail: 'spawn gh ENOENT', ghCode: 'ENOENT' }).deps });
+  assert.strictEqual(down.ciTip.ok, false);
+  assert.strictEqual(down.releasePr.ok, false);
+  assert.strictEqual(down.openReleasePrConflict.ok, false);
+  assert.strictEqual(down.engine.ok, true);
+  assert.strictEqual(down.proposedVersion.ok, true);
+  assert.strictEqual(down.hook.ok, true);
+});
+
+test('a hung probe is bounded by the timeout and degrades itself only', async () => {
+  const { deps } = fakeDeps();
+  deps.execFileAsync = () => new Promise(() => {});
+  deps.probeTimeoutMs = 20;
+  const pack = await gatherReleasePreflight({ cwd: ROOT, deps });
+  assert.strictEqual(pack.releasePr.ok, false);
+  assert.match(pack.releasePr.error, /timeout after 20ms/);
+  assert.strictEqual(pack.lastTag.ok, true);
+});
