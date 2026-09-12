@@ -32,7 +32,8 @@ rather than silently substituted. Never creates a directory unless `--create` is
   `{ISO-timestamp}-{name}-standalone/`, pre-populated with `decisions.md` and `staged/`. Pass
   `--mode auto` too when the caller is on the standalone-auto allowlist above (the command then
   refuses to create outside auto mode); omit `--mode` entirely for a caller that creates in every
-  mode regardless — wrap-up's own documented exception.
+  mode regardless — the two documented exceptions, `/claude-tweaks:wrap-up` and
+  `/claude-tweaks:release`, each with its own clause above.
 - `--root-only`: skips run resolution entirely and prints the anchored `$RUN_ROOT` itself — for a
   call site that only ever needed the main-checkout root (a `find` backstop scoped to the whole
   `pipelines/` tree, the transitional copy-out guard's destination computation), never a specific

@@ -1522,3 +1522,40 @@ entry and its `docs/donts.md` rule as still-active — or completes the join suc
 case retire the rule and reconsider whether `dispatch/sequential-execution.md`'s `#447`
 `cd {worktree} &&`-prefix workaround (which exists partly to route around this exact gap) can be
 simplified in favor of a direct `EnterWorktree(path=)` join.
+
+## IL-156 — A flag's refusal path specified from the human's seat would have shipped a release on a refused headless firing
+
+Surfaced by #2258's task review of the `/claude-tweaks:release` train template (ledger rows
+120-121, run `2026-09-11T204239-spec-2251-…-2258`). #2256 AC 4 specified a refused `--train` as
+"falls back to on-demand behaviour". That is accurate for a human at the keyboard, where the
+on-demand path means an interactive console and HARD-GATEs presented to a person — a visible
+stop. In the only consumer the flag was built for, a headless Routine firing, the same sentence
+means the opposite: on a clean history no HARD-GATE fires, the console renders read-only, and
+Step 5 merges and tags. A refused train would have shipped a release indistinguishable from an
+accepted one. The refusal had been written as a *degradation* rather than a *stop*, because the
+perspective that produced it was the one perspective the flag's consumer never occupies.
+
+The intermediate ruling (ledger row 120) did not catch it and made the hole harder to see: it
+reasoned that the routine kernel's unattended-firing constraint would end a refused firing as
+reported-blocked with nothing done. True only for a firing that hits a gate — exactly what a
+clean history does not produce. A gate-only constraint was read as an unconditional one.
+
+Caught one work unit after the text was written, by #2258's review rather than #2256's own.
+Cost: one task-review round, one fix commit (`release/SKILL.md`'s Refusal paragraph now splits on
+human presence — interactive/hybrid continue as an on-demand invocation; `auto` or a mode-less
+firing stops before Step 1 with outcome `failed`, nothing read and nothing moved), and one scoped
+re-review. The same split had to be restated in four more places that had copied the original
+wording — the autonomy `train (Routine firing)` row, the routine template notes, `/claude-tweaks:routine`'s
+instantiable-skills bullet, and the journey — and `routine-kickoff/SKILL.md`'s hand-maintained
+manual-execution exclusion list gained `release`, since it merges, tags and closes records.
+
+Why this is systemic rather than a single missed sentence: nothing in `/claude-tweaks:specify`'s
+shaping asks, for a deliverable that is a flag or mode whose consumer is a headless firing, what
+the refusal looks like with nobody present. The design doc handed "invokes `--train`" to unit 7
+and left refusal semantics to unit 6 without ever naming who the refuser is, so neither unit
+owned the question.
+
+**Removal condition:** retire this entry and its `docs/donts.md` rule once `/claude-tweaks:specify`'s
+shaping mode mechanically requires a stated headless-refusal outcome for any deliverable that is
+a flag or mode whose consumer is a Routine firing — at that point the spec can no longer be
+written this way and the rule is enforced rather than remembered.

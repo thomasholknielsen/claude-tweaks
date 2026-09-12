@@ -185,12 +185,14 @@ function resolve(opts = {}) {
     // clause for the standalone-auto allowlist (/tidy, /init, /capture,
     // /claude-tweaks:dispatch, /claude-tweaks:backlog, /claude-tweaks:specify,
     // /claude-tweaks:sweep).
-    // When `--mode` is OMITTED entirely, no such gate applies — that is
-    // wrap-up's own documented exception (run-dir-resolution.md resolution order step 4):
-    // wrap-up creates a standalone run dir in *every* mode, not only auto,
-    // because its Review Console runs in every mode. Callers on the
-    // standalone-auto allowlist pass `--mode auto` themselves (only once
-    // they have already confirmed auto mode); wrap-up passes neither.
+    // When `--mode` is OMITTED entirely, no such gate applies — that is the
+    // two documented exceptions' path (run-dir-resolution.md resolution order
+    // step 4's own clauses): wrap-up and /claude-tweaks:release each create a
+    // standalone run dir in *every* mode, not only auto, because wrap-up's
+    // Review Console and release's Step 4 console / release-held.md staging
+    // each run in every mode. Callers on the standalone-auto allowlist pass
+    // `--mode auto` themselves (only once they have already confirmed auto
+    // mode); wrap-up and release pass neither.
     if (opts.mode && opts.mode !== 'auto') {
       return fail(
         'mode-not-auto',
