@@ -231,6 +231,25 @@ function firstVersion(targets, read) {
 function currentVersion(targets, readFile) { return firstVersion(targets, readFile); }
 function versionAtRef(targets, show) { return firstVersion(targets, show); }
 
+// Standalone (never shared with applyVersion's own body — its decision logic
+// is duplicated here deliberately, W4/#2254): the paths a live run would
+// actually write, for the dry-run plan's `manifest:` line. A present target
+// whose text carries no version token is never written by applyVersion
+// either (it refuses instead), so it must not be listed as if it would be.
+function plannedWrites(targets, to, readFile) {
+  const paths = [];
+  for (const target of targets) {
+    const text = readFile(target.path);
+    const absent = text === null || text === undefined;
+    if (absent && !target.create) continue; // optional-missing or required-missing: nothing written
+    const out = spliceVersion(target.kind, text, to, target);
+    if (!out.found && !target.create) continue; // present but tokenless, not a create target: applyVersion refuses this one
+    if (out.text === text) continue; // no change
+    paths.push(target.path);
+  }
+  return paths;
+}
+
 function applyVersion(targets, to, readFile, writeFile) {
   // Pre-pass, before any write: a one-of stack (python) with no member carrying a
   // version token is a misconfigured repo, and half a bumped manifest set on disk
@@ -257,5 +276,5 @@ function applyVersion(targets, to, readFile, writeFile) {
 
 module.exports = {
   CONFIG_FILE, MANIFEST_FILE, STACK_TARGETS, ManifestError,
-  readConfig, resolveTargets, spliceVersion, currentVersion, versionAtRef, applyVersion,
+  readConfig, resolveTargets, spliceVersion, currentVersion, versionAtRef, plannedWrites, applyVersion,
 };

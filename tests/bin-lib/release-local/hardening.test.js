@@ -10,6 +10,7 @@ const assert = require('node:assert/strict');
 const { parseCommit } = require('../../../plugin/bin/lib/release-local/commits.js');
 const { parseGitHubRemote } = require('../../../plugin/bin/lib/release-local/changelog.js');
 const { run } = require('../../../plugin/bin/release-local.js');
+const M = require('../../../plugin/bin/lib/release-local/manifest.js');
 
 // W1 (row 48): an unconventional subject's empty BREAKING CHANGE: footer
 // falls back to the subject, same as the conventional path's own fallback.
@@ -89,4 +90,33 @@ test('W3: release-hook: false (and off/none/null, case-insensitive) reads as uns
   assert.strictEqual(run([], deps), 0);
   assert.match(state.out, /hook: npm run deploy/);
   assert.deepStrictEqual(state.hooks, ['npm run deploy']);
+});
+
+// W4 (row 51): the dry-run plan's `manifest:` line names only the files a
+// live run would actually write — a present target whose text carries no
+// version token is never listed (applyVersion refuses it instead of
+// writing it).
+test('W4: manifest.plannedWrites — a present, tokenless target is omitted from the planned-write list', () => {
+  const node = M.resolveTargets({ releaseType: 'node', extraFiles: [] });
+  const store = { '.release-please-manifest.json': '{\n  ".": "1.2.0"\n}\n', 'package.json': '{\n  "name": "x"\n}\n' };
+  const read = (p) => (p in store ? store[p] : null);
+  assert.deepStrictEqual(M.plannedWrites(node, '1.3.0', read), ['.release-please-manifest.json']);
+  // an ordinary bump: both present-and-tokened targets are listed
+  const ok = { '.release-please-manifest.json': '{\n  ".": "1.2.0"\n}\n', 'package.json': '{\n  "name": "x",\n  "version": "1.2.0"\n}\n' };
+  assert.deepStrictEqual(M.plannedWrites(node, '1.3.0', (p) => (p in ok ? ok[p] : null)), ['.release-please-manifest.json', 'package.json']);
+  // a create target that does not yet exist is still planned (it would be created)
+  const simple = M.resolveTargets({ releaseType: 'simple', extraFiles: [] });
+  assert.deepStrictEqual(M.plannedWrites(simple, '0.2.0', () => null), ['version.txt']);
+});
+
+test('W4: release-local --dry-run — a stack manifest present without a version token is omitted from the manifest: line', () => {
+  const { deps, state } = makeReleaseHookDeps();
+  deps.readFile = ((orig) => (p) => (p === 'release-please-config.json'
+    ? JSON.stringify({ packages: { '.': { 'release-type': 'node' } } })
+    : p === 'package.json' ? '{\n  "name": "x"\n}\n' : orig(p)))(deps.readFile);
+  assert.strictEqual(run(['--dry-run'], deps), 0);
+  const manifestLine = state.out.split('\n').find((l) => l.startsWith('manifest: '));
+  assert.ok(manifestLine, state.out);
+  assert.ok(!manifestLine.includes('package.json'), manifestLine);
+  assert.ok(manifestLine.includes('.release-please-manifest.json'), manifestLine);
 });

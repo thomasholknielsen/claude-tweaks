@@ -164,7 +164,7 @@ function run(argv, deps) {
     const repo = hasOrigin ? parseGitHubRemote(originRemote) : null;
     const section = renderSection({ version, previousTag: history.lastTag, date: deps.today(), commits: history.commits, repo });
     const unconventional = history.commits.filter((c) => c.unconventional);
-    const edits = targets.filter((t) => t.create || deps.readFile(t.path) !== null).map((t) => t.path);
+    const edits = manifest.plannedWrites(targets, version, deps.readFile);
     for (const line of planLines({ version, part, history, hook, edits, unconventional })) deps.stdout(`${line}\n`);
     if (hasOrigin && !remoteBranchExists) deps.stdout(`origin: ${branch} is not on origin yet — first push\n`);
     if (history.lastTag && current && current !== history.lastTag.replace(/^v/, '')) {
