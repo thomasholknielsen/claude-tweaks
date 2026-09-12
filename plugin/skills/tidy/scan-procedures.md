@@ -215,9 +215,7 @@ instead of `gh api`.)
 | Live claim (`'live'`), but its `claimedAt` fails to parse as a date | Manual review (per `bin/lib/issues/claims.js`'s `isStale` fail-closed contract — a corrupted-but-JSON-valid claim is never automatically stale; flag it explicitly rather than keeping it silently forever) |
 | Blob classified `'live'`, issue open | Keep |
 
-Releasing = the current-blob conditional overwrite with the tombstone content
-`releasePayload` generates (reason `swept: stale claim` or `swept: issue closed`). Releases
-execute only after Step 6 batch approval — breaking a lock is never autonomous in /tidy.
+Releasing (#2090): `node "${CLAUDE_PLUGIN_ROOT}/bin/release-claim.js" <n> --run <tidy-run-dir> --sweep --reason "swept: stale claim"` (or `--reason "swept: issue closed"` for the closed-issue row) — the `--sweep` flag is what lets a tidy run release a claim it does not itself own: without it, `release-claim.js`'s ordinary ownership check refuses every one of these as `skipped-not-owner`, since a tidy run's `--run` basename is never the crashed dispatcher's `runId`. The flag performs the same read → classify → tombstone `PUT` → conflict re-verify → comment → label-removal sequence as an ordinary release, resolving the issue's own open/closed state itself for the `'live'`-on-a-closed-issue row (never sweeping a `'live'` claim on an issue that is still open). Releases execute only after Step 6 batch approval — the flag makes an approved release executable, it does not make the decision autonomous.
 
 → Collect each as: `[claim] claims/issue-{n}.json — {status} — {recommendation}`
 
