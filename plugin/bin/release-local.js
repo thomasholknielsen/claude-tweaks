@@ -13,8 +13,9 @@
 // Exit codes: 0 released (or the --dry-run plan printed); 1 git/engine
 // failure — nothing written, OR a named partial state with a recovery
 // command (the commit/tag landed but the push did not; the edits are on disk
-// but not committed) — never re-run blind; 2 usage (also: no
-// release-please-config.json — run /claude-tweaks:init first); 3 nothing to
+// but not committed) — never re-run blind; 2 usage, no
+// release-please-config.json (run /claude-tweaks:init first), or a
+// malformed/unsupported config; 3 nothing to
 // release; 4 version collision (sibling worktree / plan claim); 5 the
 // release-hook failed after the tag (and its push) fully landed — the tag is
 // final, re-run the hook alone.
@@ -34,7 +35,7 @@ const { resolvePolicyKeys } = require('./lib/policy-schema.js');
 const USAGE = [
   'usage: release-local.js [--dry-run] [--root <dir>] [--branch <name>]',
   'exit 0 released (or dry-run plan printed); 1 git/engine failure — nothing written, or a NAMED PARTIAL STATE with a recovery command;',
-  '     2 usage (or no release-please-config.json — run /claude-tweaks:init first); 3 nothing to release; 4 version collision;',
+  '     2 usage, no release-please-config.json (run /claude-tweaks:init first), or a malformed/unsupported config; 3 nothing to release; 4 version collision;',
   '     5 release-hook failed after the tag (and push) landed — re-run the hook alone',
 ].join('\n');
 const VALUE_FLAGS = new Set(['--root', '--branch']);
