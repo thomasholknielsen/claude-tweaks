@@ -456,4 +456,4 @@ async function gatherPack({ runDir, cwd = process.cwd(), only = null, deps: over
   return pack;
 }
 
-module.exports = { gatherPack, resolveInputs, wrapProbe, parseLedger, PROBE_NAMES };
+module.exports = { gatherPack, resolveInputs, wrapProbe, withTimeout, parseLedger, PROBE_NAMES };
