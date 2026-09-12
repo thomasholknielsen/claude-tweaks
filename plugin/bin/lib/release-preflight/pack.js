@@ -30,7 +30,9 @@ const PR_LIST_LIMIT = 200;
 // degrades the field loudly instead of passing for an unversioned repo.
 const PATH_ABSENT_RE = /does not exist|exists on disk, but not in/i;
 const HOOK_DISABLED = new Set(['false', 'off', 'none', 'null']);
-const ON_LINE_RE = /^on:[ \t]*(.*)$/;
+// Some workflows quote the key ("on":) to dodge YAML 1.1's boolean coercion —
+// the same trigger, the same block (re-review of the #2255 fix wave).
+const ON_LINE_RE = /^(?:on|"on"|'on'):[ \t]*(.*)$/;
 const PUBLISHED_RE = /\bpublished\b/;
 
 // Ruling 10: `hook` reads the workflow's `on:` TRIGGER, never any line that

@@ -160,6 +160,9 @@ test('hook (pr-first): the `on:` trigger decides, not any release: line — bloc
   assert.strictEqual(await hookOf({ 'publish.yml': 'on: { release: { types: [published] } }\njobs: {}\n' }), true);
   assert.strictEqual(await hookOf({ 'publish.yml': 'on: release\njobs: {}\n' }), true);
   assert.strictEqual(await hookOf({ 'publish.yml': 'on: [push, release]\njobs: {}\n' }), true);
+  // a quoted key (YAML 1.1 boolean dodge) is the same trigger
+  assert.strictEqual(await hookOf({ 'publish.yml': '"on":\n  release:\n    types: [published]\njobs: {}\n' }), true);
+  assert.strictEqual(await hookOf({ 'publish.yml': "'on': release\njobs: {}\n" }), true);
   assert.strictEqual(await hookOf({ 'publish.yml': 'on:\n  release:\n    types: [created]\njobs: {}\n' }), false);
   assert.strictEqual(await hookOf({ 'ci.yml': 'on: [push]\n' }), false);
   assert.strictEqual(await hookOf({ 'ci.yml': 'on: [push]\n', 'publish.yml': 'on:\n  release:\n    types: [published]\n' }), true);
