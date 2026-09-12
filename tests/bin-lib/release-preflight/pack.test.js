@@ -222,7 +222,10 @@ test('ciTip (pr-first): the branch is asked by name, paginated, with local/remot
   const fresh = fakeDeps({ checkRuns: runs });
   const ok = await gatherReleasePreflight({ cwd: ROOT, deps: fresh.deps });
   assert.deepStrictEqual(ok.ciTip.value, { ref: 'main', headSha: SHA, localSha: SHA, tipBehind: false, state: 'failure', total: 3, success: 1, failure: 1, pending: 1, truncated: false });
-  assert.ok(fresh.calls.gh.includes('gh api repos/o/r/commits/main/check-runs -f per_page=100'), fresh.calls.gh.join(' | '));
+  // per_page in the query string, never as `-f`: an -f/-F parameter makes gh
+  // api POST, and this endpoint 404s on a POST.
+  assert.ok(fresh.calls.gh.includes('gh api repos/o/r/commits/main/check-runs?per_page=100'), fresh.calls.gh.join(' | '));
+  assert.ok(!fresh.calls.gh.some((c) => c.includes(' -f ') || c.includes(' -F ')), fresh.calls.gh.join(' | '));
   // The pack never fetches, so the local origin/main ref can trail the branch's
   // real tip at GitHub — that skew is recorded, not silently absorbed.
   const behind = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ checkRuns: { total_count: 1, check_runs: [{ status: 'completed', conclusion: 'success', head_sha: 'b'.repeat(40) }] } }).deps });

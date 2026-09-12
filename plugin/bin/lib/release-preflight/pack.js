@@ -243,7 +243,11 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
       if (needEngine() === 'local-merge') return 'n/a';
       const localSha = deps.git(['rev-parse', tipRef]).trim();
       const { nameWithOwner } = JSON.parse(await deps.execFileAsync('gh', ['repo', 'view', '--json', 'nameWithOwner']));
-      const runs = JSON.parse(await deps.execFileAsync('gh', ['api', `repos/${nameWithOwner}/commits/${branch}/check-runs`, '-f', 'per_page=100']));
+      // per_page belongs in the query string, not in `-f`: any -f/-F parameter
+      // flips `gh api` to POST, and this endpoint answers a POST with 404 (seen
+      // live against this repo before the switch). Every sibling call site in
+      // the repo spells a GET parameter the same way.
+      const runs = JSON.parse(await deps.execFileAsync('gh', ['api', `repos/${nameWithOwner}/commits/${branch}/check-runs?per_page=100`]));
       const list = runs.check_runs || [];
       const counts = { total: runs.total_count || 0, success: 0, failure: 0, pending: 0 };
       for (const r of list) {
