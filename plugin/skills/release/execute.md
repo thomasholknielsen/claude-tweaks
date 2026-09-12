@@ -119,8 +119,10 @@ Classify per `_shared/pr-first-merge.md`'s Step 2.5, in this order:
 **Merge.** One call, the immediate `--squash` form of `_shared/pr-first-merge.md`'s Step 3:
 
 ```bash
-gh pr merge {releasePr.value.number} --squash
+gh pr merge {releasePr.value.number} --squash --repo {owner}/{repo}
 ```
+
+`{owner}/{repo}` is resolved the way `_shared/pr-first-merge.md` does it — every `gh pr` call site in that procedure passes an explicit `--repo {owner}/{repo}` rather than relying on the cwd's remote, because the cwd here may be a worktree whose remote resolution is not the integration checkout's.
 
 No `-t`/`-b`: the release PR's subject is release-please's own `chore(main): release X.Y.Z`, and `bin/compose-subject.js` is not involved — this is the one pr-first merge site whose subject the engine owns.
 
@@ -155,7 +157,7 @@ Map its exit code, which is the whole verdict — do not re-derive state from th
 | Exit | State | Action |
 |---|---|---|
 | `0` | Released: the manifest bump, the CHANGELOG section, the `chore(release): v{version}` commit, the annotated tag, the push (when `origin` exists) and the `release-hook` all landed. | Read the shipped version from the `released v{version}` stdout line, reconcile per `## Inputs`, → Step 6. |
-| `1` | **Two different states — the stderr prefix says which, and it is never inferred.** `release-local: … — nothing written` → nothing was written at all. `partial: …` → a named partial state (edits on disk uncommitted, or the commit/tag landed and the push did not), with its own recovery command. | `nothing written` → outcome `failed`, stderr quoted verbatim, Step 6 does not run. `partial:` → quote the stderr line **verbatim** into the summary as `PARTIAL` and stop; Step 6 does not run either, because the stderr line already names the exact state and what to do. |
+| `1` | **Two different states — the stderr prefix says which, and it is never inferred.** `release-local: … — nothing written` → nothing was written at all. `partial: …` → a named partial state (edits on disk uncommitted, or the commit/tag landed and the push did not), with its own recovery command. | `nothing written` → outcome `failed`, stderr quoted verbatim, Step 6 does not run. `partial:` → quote the stderr line **verbatim** into the summary as `PARTIAL` and stop; Step 6 does not run either, because the stderr line already names the exact state and what to do, and **Step 7 does not run either** — the tag has not reached origin, so nothing is booked until the recovery push named in that stderr line lands (bookkeeping.md's "Never when the tag has not reached origin"). |
 | `2` | Usage, a missing `release-please-config.json` (the project was never bootstrapped), or a malformed/unsupported config. Nothing was written. | Report the stderr line verbatim and stop; outcome `failed`. |
 | `3` | Nothing to release. Step 2 should have caught this from the pack. | Report the engine's stdout line verbatim and stop; outcome `failed`, with the reason named: the pack and the engine disagree about the unreleased set. |
 | `4` | Version collision (a sibling worktree or a plan claim holds the candidate version). | Report the engine's stderr **verbatim** — it names each conflicting claim and a suggested renumber — and stop; outcome `failed`. Never pick a different version here. |
@@ -188,8 +190,10 @@ Keep only the lines whose ref is exactly `refs/tags/v{version}` or `refs/tags/v{
 Empty after the bound:
 
 ```
-PARTIAL: PR #{n} merged but v{version} is not on origin after 5 min — release-please has not tagged the merge; recover: git ls-remote --tags origin v{version}
+PARTIAL: PR #{n} merged but v{version} is not on origin after 5 min — release-please has not tagged the merge; recover: gh run list --workflow release-please* --limit 5
 ```
+
+The recovery is a *different* command from the probe, deliberately: re-running `git ls-remote` only re-asks the question this step already answered. The tagging is release-please's own workflow run, so the recovery looks at that run — substitute the repo's actual release-please workflow name for `release-please*` (the workflow this project wires to `release-please-action`) — and, when it shows a failed run, re-runs it with `gh run rerun {databaseId}`.
 
 **2. GitHub Release.** Polled on the same bound, because release-please creates the Release from the tag:
 
@@ -227,7 +231,14 @@ PARTIAL: v{version} is tagged and released but the release: published hook is st
 PARTIAL: v{version} is tagged and released but the release: published hook did not run; recover: check the workflow's release: published trigger, then gh run list --event release --limit 20
 ```
 
-**Transport.** Step 5's `gh`-absent branch stops before merging, so this step is normally unreachable without `gh`. It is reachable in one case: a resumed run whose merge was performed by hand. There, probes 2 and 3 are unrunnable — `_shared/github-write-transport.md` has no Release or workflow-run row, and states plainly that PR- and run-backed reads degrade per item rather than being skipped wholesale. Probe 1 still runs (`git ls-remote` needs no forge CLI). Report probes 2 and 3 as `unverified (gh absent)` — a named partial state, not a pass.
+**Transport.** Step 5's `gh`-absent branch stops before merging, so this step is normally unreachable without `gh`. It is reachable in one case: a resumed run whose merge was performed by hand. There, probes 2 and 3 are unrunnable — `_shared/github-write-transport.md` has no Release or workflow-run row, and states plainly that PR- and run-backed reads degrade per item rather than being skipped wholesale. Probe 1 still runs (`git ls-remote` needs no forge CLI). Report probes 2 and 3 as `unverified (gh absent)` — a named partial state, not a pass — and pair that state with the two commands a human on a machine that *has* `gh` can paste to finish the verification, each on its own line:
+
+```
+gh release view v{version} --json url,isDraft
+gh run list --event release --json databaseId,status,conclusion,name,url,headSha --limit 20
+```
+
+`unverified` without them tells the operator only that something was not checked; with them, the check is one paste away on the next machine. They are the same two probes this section could not run, quoted so they are runnable rather than described.
 
 ### local-merge
 
@@ -240,7 +251,14 @@ The engine's own exit code is the verdict for the hook; the tag is still checked
                                              # fails    → git -C "$RUN_ROOT" tag --list "v{version}"
   ```
 
-  Empty either way is a miss: `PARTIAL: the engine exited 0 but v{version} is not present; recover: git tag --list v{version}` — an exit that claims more than the repository shows is the one case worth catching here.
+  Empty either way is a miss, and the recovery differs by branch — never the probe re-run, which would only re-ask the question this step already answered:
+
+  ```
+  PARTIAL: the engine exited 0 but v{version} is not on origin; recover: git -C "$RUN_ROOT" push origin v{version}
+  PARTIAL: the engine exited 0 but v{version} does not exist locally; recover: read the engine's own stdout for what it claims it wrote, then re-run node "${CLAUDE_PLUGIN_ROOT}/bin/release-local.js" --root "$RUN_ROOT" --dry-run to see what a re-run would do
+  ```
+
+  The first is the `origin` branch: the tag was created locally and the push did not land, so pushing the tag alone completes the release. The second is the no-remote branch, where there is nothing to push and an exit that claims more than the repository shows is the one case worth catching here.
 - **GitHub Release.** `release n/a` — a `local-merge` project has no forge to publish one to.
 - **Hook.** Exit `0` means the `release-hook` (if one is configured) ran and exited `0`; exit `5` **is** the hook failure, and its stderr already carries the recovery command (`re-run the hook alone: {hook}`). Quote it verbatim as the partial state; never re-run the engine to "retry" a hook, because the tag is final and a second run would bump again.
 
@@ -272,7 +290,7 @@ records: 0 shipped
 
 When the shipped version differed from the gating version, the `release:` line names both — `release: {shipped} — {outcome} (gating version was {gating})` — so a reader never has to reconcile the console's number against the tag by hand.
 
-`HELD` is never produced here. It belongs to a `--train` HARD-GATE that fires **before** Step 5, and asserts that nothing was merged or tagged — applying it to anything this file did would be a false statement about the repository and would recommend re-running the train against a tag that already exists. Once Step 5 has landed, the only two outcomes are `released` and `PARTIAL`; when Step 5 did not land, the outcome is `failed`.
+`HELD` is never produced here. It belongs to a Step 4 HARD-GATE that fires **before** Step 5 — in any mode, `--train` and interactive alike — and asserts that nothing was merged or tagged — applying it to anything this file did would be a false statement about the repository and would recommend re-running the train against a tag that already exists. Once Step 5 has landed, the only two outcomes are `released` and `PARTIAL`; when Step 5 did not land, the outcome is `failed`.
 
 ## Anti-Patterns
 

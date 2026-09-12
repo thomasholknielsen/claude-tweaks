@@ -8,14 +8,17 @@ Read by `/claude-tweaks:release` Step 7. For each record in the shipped set, com
 
 **Never when nothing landed.** execute.md's `failed` outcome (Step 5 landed nothing) and the tag-missing `PARTIAL` state (Step 6's first probe found no tag on origin) both mean the shipped set never actually shipped — this step does not run for either.
 
-**Runs whenever the tag landed**, even when Step 6 otherwise reported `PARTIAL` — a missing/draft GitHub Release, a missing/still-running/failed `release: published` hook (pr-first), or a `release-hook` exit `5` (local-merge, hook failed after the tag was final). The tag existing is what makes the shipped set's work actually released; Step 8's summary names the partial state alongside the bookkeeping result, never in place of it.
+**Never when the tag has not reached origin.** The local-merge engine's exit `1` `partial:` state (execute.md's exit-code table — the commit and tag landed locally but the push did not) skips this step too. Step 6 never ran for that state, so nothing verified the tag anywhere a reader can see it; the recovery push named in the engine's own stderr comes first, and the records are booked by the re-run that follows it. Booking `Shipped in v{version}` against a tag that exists only in one working copy would publish a claim the forge cannot corroborate.
 
-**Never reached under `HELD`.** A `--train` HARD-GATE fires before Step 5 ever runs, so there is no Step 6 or Step 7 to reach.
+**Runs whenever the tag landed** — on origin, or locally under local-merge in a repository with no `origin` remote at all (execute.md's local-merge tag probe keys that choice on `git -C "$RUN_ROOT" remote get-url origin` failing) — even when Step 6 otherwise reported `PARTIAL` — a missing/draft GitHub Release, a missing/still-running/failed `release: published` hook (pr-first), or a `release-hook` exit `5` (local-merge, hook failed after the tag was final). The tag existing is what makes the shipped set's work actually released; Step 8's summary names the partial state alongside the bookkeeping result, never in place of it.
+
+**Never reached under `HELD`.** A HARD-GATE fires at Step 4, before Step 5 ever runs — in any mode, not only under `--train` — so there is no Step 6 or Step 7 to reach.
 
 ## Inputs
 
 - The shipped set — one entry per distinct `(#N)` suffix in `unreleased.value.commits[].subject` (`plugin/bin/lib/release-preflight/pack.js`), the same join Step 4's console row rendered, deduplicated across repeated suffixes. A commit subject carrying no `(#N)` suffix contributes no record here — it stayed in the console's nested `Unattributed commits` line, listed in Step 8's summary, never booked against a record that doesn't exist.
-- The effective version `{version}` and the Release URL: Step 6's GitHub Release `url` field under pr-first; `none` under local-merge, which has no forge Release to link.
+- The **shipped** version `{version}` — the engine's own number, reconciled at the end of Step 5 (`execute.md`'s "Two versions" section; SKILL.md's Step 5 "Two versions, reconciled once" paragraph defines the pair). Never the gating version the console rendered: when the two differ the engine's is what was tagged, and booking the other would stamp records with a version no tag carries.
+- The Release URL: Step 6's GitHub Release `url` field under pr-first; `none` under local-merge, which has no forge Release to link.
 - `work-backend` — read from the project's CLAUDE.md `## Work records` section (a missing flag is treated as `local-files`, the same convention `/claude-tweaks:capture`'s Backend Selection uses). This is the axis this step branches on, independently of the `pr-first`/`local-merge` release engine — a `local-merge` project can still carry `work-backend: github-issues`, and vice versa.
 
 ## `work-backend: github-issues`
@@ -27,6 +30,7 @@ Through `_shared/github-write-transport.md`'s CRUD mapping, so an MCP-only sandb
    ```
    Shipped in v{version} — {release url}
    ```
+   The ` — {release url}` clause appears only when a Release URL exists (pr-first, Step 6's `url` field). Under local-merge the Release URL is `none` and the body is exactly `Shipped in v{version}`, with **no** ` — none` suffix — a literal `none` in a shipped-record comment reads as a broken link rather than as "this project has no forge Release". The idempotency read at step 1 looks for whichever of the two forms this run would write.
 3. **Close**, only when the issue is still open — `gh issue close N --reason completed` (or `issue_write` (update mode, state change)). An already-closed record is commented at step 2 but never re-closed here.
 
 A record already carrying the exact comment and already closed is skipped entirely: no write, no per-record log line beyond the summary's count.

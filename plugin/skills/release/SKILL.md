@@ -41,7 +41,16 @@ usage: /claude-tweaks:release [--dry-run] [--train] [--as <version>] [--allow-bl
 
 ## Step 0: Run directory and engine
 
-Under `--train`, read `## --train semantics` first — its two policy levers are checked here, before anything else, and a refusal is logged from this step. Then resolve the run directory per `_shared/pipeline-run-dir.md` (steps 1-2: `PIPELINE_RUN_DIR`, then the most-recent matching directory), anchored to `$RUN_ROOT` per that file's Anchoring section. When neither resolves, create the standalone fallback and stamp it:
+Under `--train`, read `## --train semantics` first — its two policy levers are checked here, before anything else, and a refusal is logged from this step.
+
+**Resolve `$RUN_ROOT` first.** Every later command in this skill that names it — `git -C "$RUN_ROOT"`, `--root "$RUN_ROOT"` — re-resolves it with exactly these two lines, because an `export` does not survive into the next Bash call. This is `_shared/pipeline-run-dir.md`'s Anchoring snippet, verbatim:
+
+```bash
+RUN_ROOT=$(git rev-parse --git-common-dir)
+RUN_ROOT=$(cd "$(dirname "$RUN_ROOT")" && pwd)
+```
+
+Then resolve the run directory per `_shared/pipeline-run-dir.md` (steps 1-2: `PIPELINE_RUN_DIR`, then the most-recent matching directory), anchored to that `$RUN_ROOT`. When neither resolves, create the standalone fallback and stamp it — `release` is on that file's step-4 standalone-auto allowlist, and this stamp is the second of the two direct `run-state.json` writes it names:
 
 ```bash
 RUN_DIR=$(node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" resolve-run-dir --spec-slug release 2>/dev/null)
@@ -56,6 +65,8 @@ echo "$RUN_DIR"
 ```
 
 `$RUN_ROOT` is the main checkout, never a worktree cwd — a bare relative path silently shadows the main copy (`[IL-127]`). An `export` inside this snippet does not survive into the next Bash call; re-resolve with the same snippet in any later step that needs the path, and carry the resolved path as a fact of this run.
+
+**Determine inherited-vs-created here, once.** At this point — and only here — record which of the two branches above ran: `$PIPELINE_RUN_DIR` was already set at invocation, or an existing directory resolved at step 2 whose `run-state.json` does not carry `createdBy: release-standalone` → **inherited**; this run wrote the `createdBy: "release-standalone"` stamp above → **created**. Carry that verdict as a run-scoped fact alongside the run dir path itself and **never re-read it from disk later** — the directory can be archived out from under a re-read, exactly as `wrap-up/SKILL.md`'s identical rule records.
 
 **Every log line this skill writes goes to `{run-dir}/decisions.md` under a `## /release` section**, appended through the canonical writer per `_shared/auto-decision-log.md`'s entry schema — never hand-appended:
 
@@ -100,10 +111,10 @@ Take this path when `unreleased.value.commits` is empty, or when `proposedVersio
 release: nothing to release since {lastTag|the first commit} ({n} commit(s), none feat/fix/breaking{; N unconventional})
 ```
 
-The `; N unconventional` clause appears only when `N > 0` (count `unreleased.value.commits[].unconventional`). When **every** commit since the tag is unconventional, the line instead reads:
+The `; N unconventional` clause appears only when `N > 0` (count `unreleased.value.commits[].unconventional`). When **every** commit since the tag is unconventional, the line instead reads — with the same `{lastTag|the first commit}` fallback, because a first release has no tag to name in either sentence:
 
 ```
-release: no conventional commits since {lastTag} ({n} commit(s), none parseable as conventional)
+release: no conventional commits since {lastTag|the first commit} ({n} commit(s), none parseable as conventional)
 ```
 
 Both are honest about the same fact from different directions: the first says the conventional commits present drive no bump, the second says there are no conventional commits to read. Reporting the second as the first would send a maintainer looking for a missing `feat:` in commits that carry no types at all.
@@ -125,13 +136,20 @@ Resolve the base, then invoke:
 
 Invoke `/claude-tweaks:review base:{base}` (Input rule 9 — a whole-branch scope: every first-parent commit from the base to `origin/{integration-branch}`, spanning many already-merged PRs) with `$PIPELINE_RUN_DIR={run-dir}` set, so its findings stage into this run's own `staged/` directory per `_shared/staged-patch.md` and its decisions land in this run's `decisions.md`. Review is a component skill here: it renders no Next Actions of its own.
 
-When it returns, read `{run-dir}/decisions.md`'s `## /review` block and classify:
+When it returns, read `{run-dir}/decisions.md`'s `## /review` block and classify **against the log lines `/claude-tweaks:review` actually writes**, not against a severity field it does not emit. Its two routing shapes (`review/step3-routing.md`'s routing table) are:
+
+```
+KEPT-PROMPT {time} — Step 3 Routing: critical finding {category} at {file:line}. Surfaced inline. Reversibility: high.
+STAGED {time} — Step 3 Routing: high-severity finding {category} at {file:line}. Stage path: staged/review-{n}.patch. Reversibility: high.
+```
+
+A critical finding's line carries **no** stage-path clause — it is surfaced inline, not staged — so a classifier keyed on `Routing:` plus a `review-{n}.patch` mention would miss the most severe finding there is. The `Reproduction:` lines (`review/step3-lens-dispatch.md`) carry no severity at all — `AUTO {time} — Reproduction: lens "{lens}" finding {path}:{line} reproduced. Confirmed. …` — so `Confirmed` is not a severity signal and must not be read as one.
 
 | Verdict | Condition |
 |---------|-----------|
-| `review: blocking` | Any confirmed `critical` or `high` finding — a `Reproduction: … Confirmed` line at either severity, or a `Routing:` line staging a `review-{n}.patch` at either severity |
-| `review: findings (n medium/low, staged)` | Findings exist, none of them confirmed at `critical`/`high` |
-| `review: clean` | No findings |
+| `review: blocking` | The `## /review` block contains a line carrying the literal token `critical finding` or the literal token `high-severity finding` |
+| `review: findings (n medium/low, staged)` | No such line, but the block contains any other routed finding — a `Step 3 Routing:` line at `medium-severity finding` or `applied low-severity` |
+| `review: clean` | The block contains no `Step 3 Routing:` line at all |
 
 A `## /review` block that is absent, empty, or unparseable is **not** `review: clean` — it means the review did not complete, which is a stop, not a pass. Report which of the three it was and stop before Step 4.
 
@@ -174,21 +192,27 @@ Render one summary block:
 ```
 release: {version} — {released | dry-run | HELD | PARTIAL | failed}
 engine:  {pr-first | local-merge}
-records: {n} shipped{, m unattributed commits}
+records: {n} {shipped | would ship}{, m unattributed commits}
 {partial state and recovery command, when the outcome is PARTIAL}
 {gate and staged path, when the outcome is HELD}
 {the engine's or forge's own error line, when the outcome is failed}
 ```
 
+The `records:` line varies with the outcome, because "shipped" is only true when something shipped:
+
+- `released` and `PARTIAL` (the tag landed) — `records: {n} shipped{, m unattributed commits}`.
+- `dry-run` and `HELD` — `records: {n} would ship{, m unattributed commits}`. Nothing was booked in either case, and the same form is used for both: a held run and a dry run both name the set that *would* have been booked.
+- `failed` — `records: 0 shipped`. Nothing landed, so there is no set to name.
+
 The five outcomes are distinct and never folded together:
 
 - **`released`** — Step 5 landed and Step 6 verified every check.
 - **`dry-run`** — Step 5 was a no-op by request. `{version}` is the version that *would* have been cut.
-- **`HELD`** — a `--train` HARD-GATE fired **before** Step 5. Nothing was merged, nothing was tagged; `release-held.md` is staged in the run directory.
+- **`HELD`** — a HARD-GATE fired at Step 4, **before** Step 5, in **any** mode — `--train`, `auto`, headless, or an interactive run whose gate question was answered `Stop`. Nothing was merged, nothing was tagged, nothing moved; `release-held.md` is staged in the run directory in every one of those cases (console.md's Gates section). An interactive `Proceed` answer is not `HELD` — the run continued to Step 5 and its outcome is whatever Steps 5–6 produced.
 - **`PARTIAL`** — Step 5 landed and Step 6 found a miss. The release exists; something after it did not complete. Never reported as `HELD` (which means nothing landed) and never as `released`.
 - **`failed`** — Step 5 was attempted and landed nothing, and no HARD-GATE fired: the engine exited `1` with nothing written or `4` on a tag collision; the release PR's own checks were red, still pending past the bound, unreadable, or the PR was closed; the forge refused the merge; the `Release-As:` push was rejected or its re-render never arrived within its bound; or the shipped version was not the `--as` value. Nothing exists to verify or book; the error line is the engine's or forge's own, quoted verbatim. Never reported as `HELD` (no gate fired) and never as `PARTIAL` (nothing landed).
 
-Then render the `## Next Actions` block below — unless this run was invoked by a parent (see `## Component-Skill Contract`), in which case omit it.
+Then render the `## Next Actions` block below — unless Step 0's inherited-vs-created fact reads **inherited** (see `## Component-Skill Contract`), in which case omit it.
 
 ## Next Actions
 
@@ -208,13 +232,13 @@ When the outcome was `PARTIAL`, the recovery command from Step 6 leads this bloc
 1. **A major bump**, measured on the **effective** version — the `--as <version>` value when one was given, otherwise `proposedVersion.value.version`. `release --train --as 7.0.0` on a repo whose commits alone justify only a minor is held, because the version that would ship is the major one.
 2. **`review: blocking`** from Step 3. `--allow-blocking` does not lift this under `--train`; it is logged as ignored.
 
-Either gate composes `release-held.md` — naming which gate fired, the effective version and its base, and the blocking findings' staged paths — and stages it:
+Either gate composes `release-held.md` — naming which gate fired, the effective version and its base, and the blocking findings' staged paths — and stages it. **This composition is not `--train`-specific**: the same two gates fire at Step 4 in every mode, and the file is staged in every mode (console.md's Gates section) — under `--train` and headless/auto it is the *only* record of why the release did not go out, and in interactive mode a `Stop` answer stages the identical file. What `--train` changes is only that there is no question to answer first.
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/bin/stage-item.js" --run "{run-dir}" --id release-held --file {composed .md file}
 ```
 
-It lands at `{run-dir}/staged/release-held.md`. The run then **exits 0** with `HELD` in Step 8's summary: a held train is a correct outcome, not an error, and a nonzero exit would read to the Routine kernel as a broken firing.
+It lands at `{run-dir}/staged/release-held.md`. The run then **exits 0** with `HELD` in Step 8's summary: a held run is a correct outcome, not an error, and a nonzero exit would read to the Routine kernel as a broken firing. `HELD` itself asserts one mode-independent fact — a HARD-GATE fired at Step 4 before Step 5, and nothing was merged or tagged — so it is exactly as correct a summary word for an interactive `Stop` as for a held train.
 
 **A Step 6 miss after Step 5 has already landed is `PARTIAL`, never `HELD`.** `HELD` asserts that nothing was merged or tagged; reporting a landed release as `HELD` would be a false statement about the repository's state, and the recovery it implies (re-run the train) is the wrong action for a tag that already exists. `PARTIAL` carries Step 6's own named recovery command.
 
@@ -235,7 +259,9 @@ AUTO {HH:MM:SS} — Step 0: train: refused — release-train {value}. Proceeding
 
 ## Component-Skill Contract
 
-When `$PIPELINE_RUN_DIR` is set, `/claude-tweaks:release` is running inside a pipeline (invoked by `/claude-tweaks:wrap-up` at its suggested tier, by the release train Routine (#2258), or by another pipeline orchestrator). In that case omit the `## Next Actions` block — the parent owns the handoff. The summary block in Step 8 still renders in every case; only the handoff is the parent's.
+**Key the handoff on Step 0's inherited-vs-created fact, not on a fresh read of the environment.** **Inherited** means `/claude-tweaks:release` is running inside someone else's pipeline (invoked by `/claude-tweaks:wrap-up` at its suggested tier, by the release train Routine (#2258), or by another pipeline orchestrator): omit the `## Next Actions` block, because the parent owns the handoff. **Created** means this run minted its own standalone directory and there is no parent to hand off to: render `## Next Actions`. The summary block in Step 8 still renders in every case; only the handoff varies.
+
+Step 3 sets `$PIPELINE_RUN_DIR={run-dir}` for the `/claude-tweaks:review` invocation. That **does not** change this fact: the fact was determined once at Step 0 and is carried forward, so a `created` run stays `created` and still renders Next Actions even though `$PIPELINE_RUN_DIR` is set by the time Step 8 is reached. Re-reading the environment here would silently suppress the handoff on exactly the standalone runs that need it.
 
 Direct invocation may pass `--source <parent-skill>` as an explicit fallback when ambiguity exists (rare; `$PIPELINE_RUN_DIR` is the primary signal).
 
