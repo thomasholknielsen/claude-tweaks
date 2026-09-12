@@ -556,6 +556,13 @@ test('buildLinkedPRQuery aliases each number and requests closedByPullRequestsRe
   assert.match(q, /repository\(owner:\$owner,name:\$repo\)/);
 });
 
+test('buildLinkedPRQuery also requests the cross-reference timeline, same-repo PR sources only (#1984)', () => {
+  const q = buildLinkedPRQuery([1224]);
+  assert.match(q, /timelineItems\(itemTypes:\[CROSS_REFERENCED_EVENT\], first:20\)/);
+  assert.match(q, /\.\.\. on CrossReferencedEvent \{ source \{ \.\.\. on PullRequest/);
+  assert.match(q, /merged mergedAt repository \{ nameWithOwner \}/);
+});
+
 test('buildLinkedPRQuery returns null for an empty array', () => {
   assert.strictEqual(buildLinkedPRQuery([]), null);
 });

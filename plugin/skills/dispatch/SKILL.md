@@ -92,7 +92,20 @@ First action, before the pool is read: `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js
 
 Common to every selection form — group membership must be computed over the full current pool *before* anything is claimed (per `_shared/issue-claims.md`'s group-claim rule: group membership is computed over **unclaimed** records only, so two racing firings converge on the same winner instead of splitting a group between them).
 
-The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + no open linked PR (#1224) + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` (the Auto-merge gate's promotion of an already-existing `auto:merge-pending` to `auto:merge` is maturation of a grant already present, not origination — see `settle-and-merge.md`) — see Anti-Patterns.
+The queue: **open + `auto:build` + no `bot:*` + no open `Blocked by #N` dependency + no open linked PR (#1224) + not already shipped by a `strong`-tier merged-PR mention (#1984) + unclaimed**. Dispatch never adds `auto:build`, `auto:merge`, or `ready` (the Auto-merge gate's promotion of an already-existing `auto:merge-pending` to `auto:merge` is maturation of a grant already present, not origination — see `settle-and-merge.md`) — see Anti-Patterns.
+
+**False-positive posture (#1984).** A record whose full deliverable set is already shipped, but
+whose resolving PR never carried a closing keyword, can only be excluded here when a **merged**
+PR both mentions it AND either matches its title (Jaccard token similarity) or touches every path
+in its own `### Key Files` — two independent signals, never one alone. That exclusion costs one
+human approval (the staged Close proposal `queue-pull-script.md` stages, never an autonomous
+close) — it is never silent and it never removes a candidate from `dispatch-groups.json` without
+also naming the reason in `dispatch-shipped-excluded.json`. A `weak`-tier mention (the base signal
+alone — merged, no second signal) never blocks: the record stays fully eligible, with the mention
+carried forward as build-time context. The residual false negative — a resolving PR that never
+mentions the record at all, by number or otherwise — is accepted: there is no signal left to
+detect it from, and the status quo (dispatch discovers it at build time) is the existing, already-
+safe fallback this record improves on rather than replaces.
 
 Read `queue-pull-script.md` in this skill's directory and run its script verbatim — it produces this run's session-scoped `dispatch-groups.json` (`_shared/session-tmp-root.md`), which every selection form below reads. That file also carries the MCP-path substitution and the queue-pull-notes pointer.
 
@@ -106,9 +119,24 @@ The `bot:*` filter here is the cheap label-based pre-filter — labels are proje
 
 **Open-PR exclusion report (refs #1224).** See `open-pr-exclusion-report.md`, this skill's directory (same convention as the Blocked-exclusion report above; not a gate — the exclusion itself already happened inside `queue-pull-script.md`).
 
+**Shipped-candidate exclusion report (refs #1984).** Read `dispatch-shipped-excluded.json`
+(`queue-pull-script.md`'s output, `{number, pr, signals}[]`). Non-empty: render one line per
+entry — `#{number} excluded — already shipped by merged PR #{pr} ({signals}); a Close proposal is
+staged in this firing's run dir for approval.` — same non-gating, already-happened-in-
+`queue-pull-script.md` convention as the two reports above. A `weak`-tier mention never appears
+here — see the False-positive posture paragraph above.
+
 **Oversized-group report (refs #1228).** See `oversized-group-report.md`, this skill's directory (groups over the size guard stay selectable via `#N`/`#N,#M,...`; not a gate).
 
 **Cross-PR root-cause overlap report (refs #1579).** See `cross-pr-overlap-report.md`, this skill's directory (warning only, never a gate).
+
+**Near-duplicate candidate warning (refs #1944).** `queue-pull-script.md`'s final step runs
+`bin/lib/issues/near-duplicate.js`'s `findNearDuplicates` pairwise across every pair of records
+landing in *different* file-overlap groups, logging one `AUTO — dispatch: near-duplicate
+candidates across groups: #A / #B ({signals})` line per firing pair to stderr. Same-group pairs
+are already co-built together by Step 2's grouping and have nothing new to warn about. Warning
+only, never a gate — no selection change; a same-group pair (already covered by
+`groupByFileOverlap`) never re-fires here.
 
 **Bare (drain)** `/dispatch` — headless, no `AskUserQuestion` (skip this and the rest of Step 3 if the zero-groups case above applies). Resolve `{budget}`: `--budget <n|all>` if present (or its deprecated `--batch-size <n>`/`--concurrent <n>` aliases, each with its own notice), else `dispatch-batch-size` (or its deprecated `dispatch-pick-max-concurrent` key, same notice) — CLI arg beats project policy per `_shared/auto-mode-card.md`. `n` = attempt count; `all` drains to empty. `--budget` + `next`/`#N,#M,...`: **rejected with one notice** (bare-drain-only; `next` already means `--budget 1`).
 
@@ -125,6 +153,10 @@ Loop: run the `next` ranking below (`next-ranking.md` verbatim, oversized and th
 **Sibling-session check, before any write** — run `check-sibling-sessions --record` per group
 member and branch on its output; read `sibling-session-check.md` in this skill's directory and
 follow it.
+
+**Cross-PR overlap re-check against this drain's own in-flight PRs (refs #1985), for every group
+after the first.** Read `drain-pr-overlap.md`'s "Step 4" section, this skill's directory, and
+follow it before minting below — a warning only, never a gate.
 
 **Mint this group's run directory.** This group's **representative record** is its
 lowest-numbered member (the same rule `_shared/pr-early-run-lifecycle.md` already uses for a
@@ -186,6 +218,11 @@ Identity section.
 Each group's two `Task()` prompts are defined in `task-prompt.md` in this skill's directory — read it and inline each call's content verbatim into its own `Task()` tool call (per `_shared/subagent-output-contract.md`'s input discipline: minimal input, literal output template inlined, no conversation history). Do not paraphrase or summarize either template; the exact wording is load-bearing for the four-value status line and output format contracts downstream skills parse.
 
 **Before either call, resolve `task-prompt.md`'s own "Context pack" section (#1542)** once per group, and substitute it into both templates' `{context-pack}` placeholder — read that section for what it resolves and why.
+
+**Record this group's own PR into the firing's drain-PR list (refs #1985).** Read
+`drain-pr-overlap.md`'s "Step 5" section, this skill's directory, and follow it once either Task
+call returns — this is the list Step 4's own re-check (above) reads for every group dispatched
+after this one.
 
 ### Step 6: Settle — on pipeline failure, and the Auto-merge gate
 
