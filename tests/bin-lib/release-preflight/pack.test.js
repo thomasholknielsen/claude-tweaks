@@ -207,6 +207,21 @@ test('releasePr (pr-first): the open release-please PR, or none', async () => {
   assert.strictEqual(none.openReleasePrConflict.value, false);
 });
 
+test('releasePr: a full page with no match is inconclusive, never "none"', async () => {
+  const page = (n) => Array.from({ length: n }, (unused, i) => ({ number: i + 1, state: 'OPEN', mergeable: 'MERGEABLE', headRefName: `feature-${i}`, title: 'x' }));
+  const full = fakeDeps({ prs: page(200) });
+  const overflowed = await gatherReleasePreflight({ cwd: ROOT, deps: full.deps });
+  assert.strictEqual(overflowed.releasePr.ok, false);
+  assert.match(overflowed.releasePr.error, /release PR search inconclusive: more than 200 open PRs/);
+  assert.match(overflowed.openReleasePrConflict.error, /^releasePr unresolved: release PR search inconclusive/);
+  assert.ok(full.calls.gh.some((c) => c.includes('--limit 200')), full.calls.gh.join(' | '));
+  // A match inside a full page is a match — the limit only makes a MISS unsafe.
+  const matched = page(200);
+  matched[7] = { number: 8, state: 'OPEN', mergeable: 'MERGEABLE', headRefName: 'release-please--branches--main', title: 'chore(main): release 1.3.0' };
+  const found = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ prs: matched }).deps });
+  assert.strictEqual(found.releasePr.value.number, 8);
+});
+
 test('AC 7: openReleasePrConflict is true when the newest PR commit has a human author, false when every author is a bot', async () => {
   const pr = [{ number: 9, state: 'OPEN', mergeable: 'MERGEABLE', headRefName: 'release-please--branches--main', title: 'chore(main): release 1.3.0' }];
   const bot = { login: 'github-actions', name: 'github-actions[bot]', email: '41898282+github-actions[bot]@users.noreply.github.com' };

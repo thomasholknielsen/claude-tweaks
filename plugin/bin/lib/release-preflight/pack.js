@@ -24,6 +24,7 @@ const EXEC_OPTS = { maxBuffer: 32 * 1024 * 1024, timeout: 30000 };
 const ENGINES = new Set(['pr-first', 'local-merge']);
 const CONFIG_SOURCES = new Set(['policy', 'run-config']);
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
+const PR_LIST_LIMIT = 200;
 // Only genuine path absence at a ref reads as "no version here" — the same
 // split release-local/manifest.js draws, so a bad ref (`invalid object name`)
 // degrades the field loudly instead of passing for an unversioned repo.
@@ -218,8 +219,12 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
   const historyOf = () => dependency('history', history);
   const releasePr = memo(async () => {
     if (needEngine() === 'local-merge') return 'none';
-    const prs = JSON.parse(await deps.execFileAsync('gh', ['pr', 'list', '--state', 'open', '--limit', '50', '--json', 'number,state,mergeable,headRefName,title']));
+    const prs = JSON.parse(await deps.execFileAsync('gh', ['pr', 'list', '--state', 'open', '--limit', String(PR_LIST_LIMIT), '--json', 'number,state,mergeable,headRefName,title']));
     const pr = prs.find(isReleasePr);
+    // A miss on a full page is not "there is no release PR" — the release PR
+    // may simply be off the end of the page. Say so rather than reporting a
+    // clean `none` the skill would act on.
+    if (!pr && prs.length >= PR_LIST_LIMIT) throw new Error(`release PR search inconclusive: more than ${PR_LIST_LIMIT} open PRs`);
     return pr ? { number: pr.number, state: pr.state, mergeable: pr.mergeable, headRefName: pr.headRefName, title: pr.title } : 'none';
   });
 
