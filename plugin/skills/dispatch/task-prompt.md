@@ -2,7 +2,7 @@
 
 Referenced by `skills/dispatch/SKILL.md` Step 5. Unlike `sequential-execution.md` and `deprecated-aliases.md` (background detail, read for understanding), **each of this file's two templates must be inlined verbatim into its own `Task()` tool call** when dispatching a group — they are the operative templates, not supplementary reading. Never inline both into one call. Copy each fenced block below exactly, substituting `{issue list}`, `{minted-run-dir}`, `{plugin-root}`, `{context-pack}`, etc. as SKILL.md's Step 5 directs.
 
-Each group is dispatched as **two sequential `Task()` calls**, not one (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history). The single-assistant-message rule (`_shared/subagent-output-contract.md`'s fan-out section) creates no batching decision here — these two calls are sequential by design, never emitted together.
+Each group is dispatched as **two sequential `Task()` calls**, not one (per `_shared/subagent-output-contract.md`'s input discipline — minimal input, literal output template inlined, no conversation history). The single-assistant-message rule (`_shared/subagent-dispatch-core.md`'s fan-out section) creates no batching decision here — these two calls are sequential by design, never emitted together.
 
 ## Context pack (#1542 — resolve once, substitute into both calls)
 
@@ -152,7 +152,7 @@ review,polish,wrap-up`. Bundle -> run `PIPELINE_RUN_DIR="{minted-run-dir}"
 {minted-run-dir} value substituted into those commands is the same run directory dispatch
 minted before either call and the first call's own /flow invocation adopted; passing it on
 the command line is what makes this call resume that exact run rather than start a new one --
-_shared/pipeline-run-dir.md's resolution order step 1 (the env var, its documented preferred
+_shared/run-dir-resolution.md's resolution order step 1 (the env var, its documented preferred
 path) feeding flow/SKILL.md Step 3's adopt-if-set branch. You need no other input about what
 the prior call did or found.
 
@@ -281,4 +281,4 @@ pipeline's own steps select their own models as usual. Resolve via
 `node "{plugin-root}/bin/resolve-profile.js" standard` (contract § Model Selection).
 ```
 
-None of Templates A/B/C in `_shared/subagent-output-contract.md` fit an agent that executes pipeline stages rather than returning findings/locations/a yes-no, so these are their own minimal templates, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.
+None of Templates A/B/C (A in `_shared/subagent-dispatch-core.md`; B/C in `_shared/subagent-output-contract.md`) fit an agent that executes pipeline stages rather than returning findings/locations/a yes-no, so these are their own minimal templates, inlined verbatim at every dispatch site. The universal parts of the contract still apply: the four-value status line, minimal input, and literal (not referenced) output format.

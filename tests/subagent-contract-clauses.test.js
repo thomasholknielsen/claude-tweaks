@@ -31,6 +31,15 @@ const FILES = {
   'CLAUDE.md': fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8'),
 };
 
+// The fan-out section ("How to integrate at a dispatch site") and its "single assistant
+// message" sentence moved to subagent-dispatch-core.md at #2019 — read separately since the
+// clause-presence loop above (dispatch correctness / third-party exemption) still targets the
+// parent contract file, which keeps those two clauses.
+const DISPATCH_CORE = fs.readFileSync(
+  path.join(ROOT, 'plugin', 'skills', '_shared', 'subagent-dispatch-core.md'),
+  'utf8',
+);
+
 // The exemption's own text, isolated from the rest of the file, so the
 // structural-signal assertions below prove the condition sits *inside* the
 // exemption rather than somewhere unrelated that happens to mention `agents/`.
@@ -175,23 +184,22 @@ test('the exempt dispatch names itself in both the contract and the call site (#
 // it (never a restatement of the mechanism).
 
 test('the fan-out section states the single-assistant-message rule exactly once (#649 AC1)', () => {
-  const contract = FILES['skills/_shared/subagent-output-contract.md'];
-  const matches = contract.match(/single assistant message/g) || [];
+  const matches = DISPATCH_CORE.match(/single assistant message/g) || [];
   assert.strictEqual(
     matches.length,
     1,
-    'skills/_shared/subagent-output-contract.md must contain the exact phrase ' +
+    'skills/_shared/subagent-dispatch-core.md must contain the exact phrase ' +
       '"single assistant message" exactly once — the canonical fan-out sentence (#649). A ' +
       'second occurrence means the sentence was duplicated instead of cited; zero means it ' +
       'was dropped or reworded away from the pinned phrase.',
   );
 
-  const section = sectionRegion(contract, '## How to integrate at a dispatch site');
+  const section = sectionRegion(DISPATCH_CORE, '## How to integrate at a dispatch site');
   assert.notStrictEqual(
     section,
     '',
-    'the contract must keep its "How to integrate at a dispatch site" section — the fan-out ' +
-      'sentence lives there',
+    'subagent-dispatch-core.md must keep its "How to integrate at a dispatch site" section — ' +
+      'the fan-out sentence lives there (moved from subagent-output-contract.md at #2019)',
   );
   assert.match(
     section,
@@ -223,7 +231,7 @@ for (const [skillName, relPath] of Object.entries(FAN_OUT_SITES)) {
       readSite(relPath),
       /single-assistant-message rule/,
       `${relPath} must cite the fan-out rule by name ("single-assistant-message rule") rather ` +
-        "than leaving the fan-out mechanism unstated. Cite _shared/subagent-output-contract.md's " +
+        "than leaving the fan-out mechanism unstated. Cite _shared/subagent-dispatch-core.md's " +
         'fan-out section — do not restate the mechanism text itself (#649).',
     );
   });

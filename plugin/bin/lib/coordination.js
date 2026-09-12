@@ -82,7 +82,7 @@ function severityRank(severity) {
   return idx === -1 ? 0 : idx;
 }
 
-// Template A (skills/_shared/subagent-output-contract.md) mandates dispatched
+// Template A (skills/_shared/subagent-dispatch-core.md) mandates dispatched
 // agents return findings as a markdown table with a single combined
 // "Path:Line" column (e.g. "src/auth.ts:42"), not separate path/line fields.
 // findingsMatch/categoriseReproduction/detectCrossLensOverlap below compare

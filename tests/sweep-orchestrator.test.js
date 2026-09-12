@@ -118,17 +118,17 @@ test('sweep/SKILL.md: never-invokes-build-machinery boundary is stated in When-t
   );
 });
 
-// --- (5) _shared/pipeline-run-dir.md line-12 allowlist contains
+// --- (5) _shared/run-dir-resolution.md's standalone-auto allowlist contains
 // `/claude-tweaks:sweep`, and a sweep clause paragraph exists ---
-// Discrimination: base commit 0ac4d7a00's pipeline-run-dir.md contains ZERO
-// occurrences of "claude-tweaks:sweep" (`git show 0ac4d7a00:plugin/skills/_shared/pipeline-run-dir.md | grep -c claude-tweaks:sweep` => 0)
+// Discrimination: base commit 0ac4d7a00's pipeline-run-dir.md (the ancestor of this
+// content, moved to run-dir-resolution.md at #2019) contains ZERO occurrences of
+// "claude-tweaks:sweep" (`git show 0ac4d7a00:plugin/skills/_shared/pipeline-run-dir.md | grep -c claude-tweaks:sweep` => 0)
 // — the whole file predates sweep, so both assertions below are discriminating.
-test('_shared/pipeline-run-dir.md: line 12 allowlist names /claude-tweaks:sweep, and its own clause paragraph exists', () => {
-  const source = read(SHARED_DIR, 'pipeline-run-dir.md');
-  const lines = source.split('\n');
+test('_shared/run-dir-resolution.md: standalone-auto allowlist names /claude-tweaks:sweep, and its own clause paragraph exists', () => {
+  const source = read(SHARED_DIR, 'run-dir-resolution.md');
   assert.ok(
-    lines[11].includes('`/claude-tweaks:sweep`'),
-    `expected line 12 (the standalone-auto allowlist) to name /claude-tweaks:sweep, got: ${lines[11]}`,
+    source.includes('the standalone-auto allowlist (`/tidy`, `/init`, `/capture`, `/claude-tweaks:dispatch`, `/claude-tweaks:backlog`, `/claude-tweaks:specify`, `/claude-tweaks:sweep`)'),
+    'expected the standalone-auto allowlist line to name /claude-tweaks:sweep',
   );
   assert.ok(
     source.includes(

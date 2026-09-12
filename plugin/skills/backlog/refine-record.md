@@ -24,7 +24,7 @@ processed this run (e.g. "#{n}, #{m}: not processed — `--reset-breaker` exits 
 worklist fetch; re-run `/claude-tweaks:backlog refine #{n},#{m}` to resolve them") — never a
 silent discard of the named numbers.
 
-`/claude-tweaks:backlog` is already on `_shared/pipeline-run-dir.md`'s standalone-auto allowlist,
+`/claude-tweaks:backlog` is already on `_shared/run-dir-resolution.md`'s standalone-auto allowlist,
 so this resolves the same `{ISO}-backlog-standalone` run directory any other standalone `backlog`
 invocation does — no new run-directory mechanism needed. `merge-lane-reset.md`'s own Reset branch
 writes its one `decisions.md` AUTO line into that directory, in its own existing log-line format

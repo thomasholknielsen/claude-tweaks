@@ -89,7 +89,7 @@ applies the schema defaults, so both values are always concrete. If
 to do — ceiling is `{CEILING}`, grant-origination-enabled is
 `{OPT_IN}`" and stop this chain here — the labeling-lanes preamble above is unaffected and
 continues in the same firing; only grant origination stops.** Log one line to this run's `decisions.md`
-(standalone-auto run dir per `_shared/pipeline-run-dir.md`, resolved the same way every other
+(standalone-auto run dir per `_shared/run-dir-resolution.md`, resolved the same way every other
 standalone-auto skill on the allowlist resolves it):
 
 ```
