@@ -70,15 +70,25 @@ proofs exist, evaluated in order, and a branch proven by either is eligible:
    patch-equivalent to one on the integration branch (`git cherry`). Covers merge commits,
    rebases, cherry-picks, and a single-commit squash.
 2. **Squash provenance** — `isSquashMerged` (`squash-provenance.js`, #2252), consulted only when
-   cherry says no: the **confirmed** per-branch PR state is `MERGED` *and* that PR's own
-   `mergeCommit.oid` appears in `git rev-list --first-parent {merge-base}..{integration}`, where
-   `{merge-base}` is the branch's fork point from the integration branch. This is what
-   `gh pr merge --squash` (#2251) leaves for a multi-commit branch, whose single squash commit
-   matches none of the branch's patch-ids. The scan is **bounded to the fork point** — never a
-   full-history walk — and a rewritten/force-pushed tip that no longer carries the oid resolves
-   to `false`: not-yet-proven, never falsely proven. `mergeCommit` rides only on the per-branch
-   confirm (`resolvePrState`), not the bulk screen, so a squash candidate is always confirmed
-   before its verdict is final.
+   cherry says no: three conditions, all required. (a) The **confirmed** per-branch PR state is
+   `MERGED` — a screen-shaped prState can never satisfy this. (b) That PR's own `mergeCommit.oid`
+   appears in `git rev-list --first-parent {merge-base}..{integration}`, where `{merge-base}` is
+   the branch's fork point from the integration branch — **bounded to the fork point**, never a
+   full-history walk, so a rewritten/force-pushed tip that no longer carries the oid resolves to
+   `false`: not-yet-proven, never falsely proven. This is what `gh pr merge --squash` (#2251)
+   leaves for a multi-commit branch, whose single squash commit matches none of the branch's
+   patch-ids. (c) The branch's **current tip** reproduces the squash commit's tree: recreating the
+   merge via `git merge-tree --write-tree {mergeCommit^} {branch}` must yield the same tree as
+   `{mergeCommit}^{tree}`. A commit pushed to the branch after the merge fails this condition even
+   though (a) and (b) still hold — so the proof covers the branch as it stands today, not merely
+   that a merge once happened. `merge-tree --write-tree` needs git >= 2.38; on an older git the
+   call fails and the proof resolves to `false` — fail-safe, at the cost of recall on old git.
+   `mergeCommit` rides only on the per-branch confirm (`resolvePrState`), not the bulk screen, so a
+   squash candidate is always confirmed before its verdict is final.
+
+Both proofs judge the **local** integration ref (`{integration}`, never `origin/{integration}`) —
+the same staleness direction as `isCherryEquivalent`: fail-safe when the local ref is behind, never
+a false positive from a ref this checkout hasn't fetched yet.
 
 Reason vocabulary after #2252 — a deliberate, documented exception to #1082's "no new per-branch
 reasons" pin: `prune-remote`'s skip reason `not-cherry-equivalent` is renamed `not-proven-merged`
