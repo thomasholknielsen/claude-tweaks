@@ -77,6 +77,15 @@ the run stalls silently (#1965).
 
 {context-pack}
 
+Ephemeral dev server (only if this run's steps include a browser-driving step in a later,
+separate call -- review or stories/QA): if this call starts an ephemeral worktree dev server (a
+background dev command on a free port, recorded in `ephemeral-server.txt`), start it detached --
+POSIX: launch under `setsid` (e.g. `setsid {dev command} > {log} 2>&1 &`); Windows: no detach
+primitive exists, record `detached: no` instead -- and append a fourth field to the recorded
+line (`detached:yes`/`detached:no`). Never delete `ephemeral-server.txt` at the end of this call,
+whether or not the server is still alive -- the record belongs to the run, not to this call, and
+the second call's own liveness re-check depends on it still being there.
+
 If the build or test step hits a HARD-GATE, handle it per
 skills/dispatch/settle-and-merge.md's Settle procedure (claim ownership check against
 basename($PIPELINE_RUN_DIR), release, assess-agent-autonomy failure classification, retry
@@ -154,6 +163,13 @@ agent's completion notification; a dispatched agent that yields this way is neve
 the run stalls silently (#1965).
 
 {context-pack}
+
+Ephemeral dev server liveness (only if `{minted-run-dir}/ephemeral-server.txt` exists): before
+the first browser-driving step, and again before any `trace stop`, verify the recorded pid
+answers on the recorded port. On a dead pid, start a fresh server the same way the plugin's own
+Ephemeral server start procedure does (re-resolve the port lease, launch detached, poll until
+reachable), rewrite `ephemeral-server.txt`, and log `AUTO {time} -- ephemeral server restarted:
+recorded pid {old} dead, new pid {new} on port {port}`.
 
 CRITICAL: your review step must re-derive its verdict from raw artifacts -- the actual diff,
 the actual test-output log in the run directory -- never from a prior claim, whether that

@@ -258,11 +258,12 @@ If no worktree exists for this spec, skip this section silently.
 
 ## D. Ephemeral dev server (v4.11.0)
 
-If `/visual-review` or `/stories` auto-started a dev server during this run (`dev-url-detection.md` "Ephemeral server start"), it recorded the PID, port, and worktree root in `{run-dir}/ephemeral-server.txt`.
+If `/visual-review` or `/stories` auto-started a dev server during this run (`dev-url-detection.md` "Ephemeral server start"), it recorded the PID, port, worktree root, and detach state in `{run-dir}/ephemeral-server.txt` — read whatever it currently names, per that file's liveness-handle rule, since a dispatched second call may have restarted the server and rewritten this record since it was first written.
 
 1. **Multi-spec defer check:** if `MULTISPEC_REVIEW_DEFER=1` is set, **skip this section** — the server is shared across all specs in the run. The parent `/flow` kills it once after the consolidated Review Console (otherwise each later spec's visual review would have to restart it).
-2. Read `{run-dir}/ephemeral-server.txt`. Stop the process: `kill {pid}` — with a port-isolation lease (#1795), the recorded port is known and the PID kill alone is sufficient; the `lsof -ti tcp:{port} | xargs kill` fallback for a stale PID is a no-lease/POSIX-only path (see `dev-url-detection.md`'s Step 0.5).
-3. Confirm the port is free, then delete `ephemeral-server.txt`.
+2. Read `{run-dir}/ephemeral-server.txt` (`{pid} {port} {worktree-root} detached:{yes|no}`). Stop the process: `kill {pid}` — with a port-isolation lease (#1795), the recorded port is known and the PID kill alone is sufficient; the `lsof -ti tcp:{port} | xargs kill` fallback for a stale PID is a no-lease/POSIX-only path (see `dev-url-detection.md`'s Step 0.5). When the fourth field reads `detached:yes`, also kill the process group (`kill -- -{pid}`, the negative-pid form) so a detached dev command's own children don't outlive their leader — never do this when the field reads `detached:no`, since a non-detached server shares its process group with whatever spawned it and a group kill there could take down the caller's own shell.
+3. **An already-gone pid is not an error.** `kill {pid}` failing with "no such process" means the server already stopped (a prior cleanup attempt, or the process died on its own) — log "already stopped: pid {pid}" and continue; never surface this as a cleanup failure.
+4. Confirm the port is free, then delete `ephemeral-server.txt`.
 
 This only stops servers *this pipeline started*. A dev server the user was already running (or one on the main checkout) is never touched — it was never recorded in `ephemeral-server.txt`.
 
