@@ -19,6 +19,8 @@ test('argument-hint lists base:<ref>', () => {
 
 test('the ## Input section carries a numbered rule for base:{ref} naming the first-parent scope', () => {
   const input = SKILL.slice(SKILL.indexOf('## Input'), SKILL.indexOf('## Code-Mode Procedure'));
+  // the restatement sentence is the third mirror (#679) — pin it independently of rule 9
+  assert.match(input, /`\$ARGUMENTS` = spec number, file paths, a `base:\{ref\}` scope, mode, effort tier, or visual review target\./);
   assert.match(input, /^9\. \*\*`base:\{ref\}`\*\*/m);
   assert.match(input, /first-parent/);
   assert.match(input, /origin\/\{integration-branch\}/);
