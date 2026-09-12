@@ -358,7 +358,15 @@ function findComposeCallSites(repoRoot) {
 // restructuring the merge bundle is #2002 (filed at this record's wrap-up).
 // The stale-exception test below removes this entry's
 // reason to exist the moment `merge` fits under CEILING_BYTES on its own.
-const COMPOSED_STEP_EXCEPTIONS = { merge: 59 * 1024 };
+//
+// #2073's new "exit 5" unverified-write card (flow/claim-targets.md) and
+// scan-procedures.md's expanded transport-fallback paragraph pushed the
+// `claims` step's measured max to 42,506 B (measured here at authoring
+// time; run the informational test to reconfirm). Restructuring these two
+// sources to fit under CEILING_BYTES on their own is #2289, filed at this
+// record's merge. The stale-exception test below removes this entry's
+// reason to exist the moment `claims` fits under CEILING_BYTES on its own.
+const COMPOSED_STEP_EXCEPTIONS = { merge: 59 * 1024, claims: 45 * 1024 };
 
 // One row per compose call site in the shipped skill prose — the producer
 // set the composed-bytes hard gate (`overComposedCeiling`) runs over.

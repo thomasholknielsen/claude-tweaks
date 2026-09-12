@@ -214,10 +214,26 @@ target, exactly as before this CLI existed — read them from the composed `clai
 - **4** — transient `gh` failure, same fail-fast/all-or-abort shape as exit 3: stdout carries
   `{transient: [{issue, error}], released, releaseFailed}`, release already attempted. Render the
   transient-failure card below.
+- **5** (#2073) — a claim write reported success but the post-write read-back never confirmed it
+  (a live claim carrying this run's `runId`) — same fail-fast/all-or-abort shape as exit 3/4: stdout
+  carries `{unverified: [{issue}], released, releaseFailed}`. The unverified target itself is never
+  released by the CLI (a write it cannot confirm might still be its own valid, slow-to-replicate
+  claim — releasing it risks tombstoning a claim that is in fact live), so it is left exactly as the
+  write left it. Render:
+
+  ```markdown
+  ## Flow: Claim unverified
+
+  #{target}'s claim write reported success, but re-reading it did not confirm a live claim under
+  this run. Next: re-run the claim step, or use `/claude-tweaks:tidy` to inspect and, if warranted,
+  repair the blob.
+  ```
+
+  No `AskUserQuestion` — same as the contest and transient cards, nothing to choose between.
 - **2** — malformed invocation or missing dependency (a bad `--run-id`/`--targets` value, or repo
   resolution failed) — a bug in this call, not a claim outcome. Treat as a hard stop.
 
-**On exit 3 or 4** — release nothing further (the CLI's `released`/`releaseFailed` already covers
+**On exit 3, 4, or 5** — release nothing further (the CLI's `released`/`releaseFailed` already covers
 the attempt; a non-empty `releaseFailed` is not this step's problem to retry — the named claim
 simply rides out its TTL). When this
 invocation minted the run dir itself (`PIPELINE_RUN_DIR` was unset on entry) and it still holds no
@@ -285,17 +301,19 @@ The `released` array's write (default mode, no `--keep-going`) uses the reason
 `never-started: file-overlap group partial claim` internally, per `_shared/issue-claims.md`'s
 Failure-posture table — the CLI's own `ABORT_REASON`, not something this flow step writes itself.
 
-**`--keep-going`** — the CLI never exits 3 or 4; a per-target contest or transient failure is
-downgraded to a `skipped` entry in the exit-0 JSON envelope (`{issue, reason: 'contested', holder}`,
-`{issue, reason: 'transient', error}`, or, for a pr-opened tombstone whose linked PR is still open
+**`--keep-going`** — the CLI never exits 3, 4, or 5; a per-target contest, transient failure, or
+unverified write is downgraded to a `skipped` entry in the exit-0 JSON envelope
+(`{issue, reason: 'contested', holder}`, `{issue, reason: 'transient', error}`,
+`{issue, reason: 'unverified'}` (#2073), or, for a pr-opened tombstone whose linked PR is still open
 (#315), `{issue, reason: 'in-flight', link}`) and the CLI proceeds to the remaining targets rather
 than releasing and aborting — consistent with `--keep-going`'s existing meaning elsewhere in flow
 (`multi-spec.md`): continue past a per-target failure rather than aborting the whole run. Drop each
 skipped target from the target list for Step 3 onward. For a `reason: 'contested'` entry, gather
 liveness evidence (steps 1-5 above) and render the contest card using that entry's `holder`; for a
-`reason: 'transient'` entry, render the transient-failure card below; for a `reason: 'in-flight'`
-entry, render the in-flight card above using that entry's `link`. Each renders as one informational
-block per skipped target, not a pipeline stop, since the run proceeds with the remainder.
+`reason: 'transient'` entry, render the transient-failure card below; for a `reason: 'unverified'`
+entry, render the claim-unverified card above (no `holder`); for a `reason: 'in-flight'` entry,
+render the in-flight card above using that entry's `link`. Each renders as one informational block
+per skipped target, not a pipeline stop, since the run proceeds with the remainder.
 
 **A transient `gh` failure during claim (exit 4, not a classification-based contest)** — a network
 timeout, a transport error, or any other unclassified failure the CLI hit while reading, writing,
