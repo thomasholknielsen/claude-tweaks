@@ -828,6 +828,12 @@ test('resolveValue control: integration-branch has no allowWhitespace and still 
   assert.strictEqual(resolveValue('integration-branch', 'dev branch'), undefined);
 });
 
+test('resolveValue strips one matched pair of surrounding quotes from an allowWhitespace value before validation (F6, #2253)', () => {
+  assert.strictEqual(resolveValue('release-hook', '"npm run deploy"'), 'npm run deploy');
+  assert.strictEqual(resolveValue('release-hook', "'./publish.sh --tag'"), './publish.sh --tag');
+  assert.strictEqual(resolveValue('release-hook', '"unbalanced'), '"unbalanced');
+});
+
 test('specify-budget is registered as an integer defaulting to 5, sibling of dispatch-batch-size (#1491)', () => {
   const key = POLICY_KEYS.find((k) => k.key === 'specify-budget');
   assert.ok(key, 'specify-budget missing from POLICY_KEYS');

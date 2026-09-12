@@ -17,6 +17,7 @@ const GRAMMAR = read('plugin/skills/init/input-grammar.md');
 const INDEX = read('plugin/skills/init/bootstrap-steps.md');
 const DETECT = read('plugin/skills/init/detection-tables.md');
 const TEMPLATE = read('plugin/skills/init/claude-md-template.md');
+const FINALIZATION = read('plugin/skills/init/worktree-policy-finalization.md');
 
 test('init/SKILL.md has a Step 21 stub after Step 20 and before the finalization section, citing its sub-file and the integration-model fragment', () => {
   const step20 = SKILL.indexOf('### Step 20: Integration Model');
@@ -58,6 +59,13 @@ test('the prose stack table matches RELEASE_STACK_TABLE row for row, in order', 
   assert.deepEqual(rows.map((r) => r.releaseType), RELEASE_STACK_TABLE.map((r) => r.releaseType));
   for (let i = 0; i < rows.length; i += 1) assert.deepEqual(rows[i].markers, RELEASE_STACK_TABLE[i].markers, `markers for ${rows[i].releaseType}`);
   assert.ok(section.includes('`simple`'), 'the fall-through row is named');
+});
+
+test('worktree-policy-finalization.md flushes Step 21\'s release rows (AC 5)', () => {
+  assert.ok(FINALIZATION.includes('release-hook'), 'must name release-hook');
+  assert.ok(FINALIZATION.includes('release-train'), 'must name release-train');
+  assert.ok(FINALIZATION.includes('step-21-release.md'), 'must cite Step 21\'s sub-file');
+  assert.ok(FINALIZATION.includes('skip a line whose key already appears'), 'must state the skip-existing-key rule');
 });
 
 test('detection-tables.md routes the release-process finding to Step 21, and the CLAUDE.md template gains a Releasing section', () => {

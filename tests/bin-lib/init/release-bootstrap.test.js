@@ -94,6 +94,9 @@ test('renderers: workflow, config, manifest, policy rows', () => {
   assert.match(wf, /pull-requests: write/);
   assert.match(wf, /config-file: release-please-config\.json/);
   assert.match(wf, /manifest-file: \.release-please-manifest\.json/);
+  assert.match(wf, /target-branch: develop/); // F4
+  assert.match(wf, /# token: \$\{\{ secrets\.RELEASE_PLEASE_TOKEN \}\}/); // F5
+  assert.match(wf, /do not trigger/); // F5
   const cfg = JSON.parse(rb.renderConfig({ releaseType: 'node', extraFiles: [] }));
   assert.equal(cfg.packages['.']['release-type'], 'node');
   assert.equal(cfg.packages['.']['bump-minor-pre-major'], false);
@@ -206,4 +209,30 @@ test('bootstrapRelease: a missing manifest after a config write is a half-writte
   assert.equal(second.verdict, 'fresh');
   assert.equal(fs.existsSync(path.join(root, '.release-please-manifest.json')), true);
   assert.equal(read(root, 'release-please-config.json'), configBefore);
+});
+
+test('bootstrapRelease: a bootstrap-shaped config surviving a manifest-missing re-run is never rewritten — hand-edits to it survive (F8.5, fix round 2)', () => {
+  const root = tmp(); write(root, 'package.json', '{"name":"x"}');
+  const first = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => ['v2.0.0'] });
+  assert.equal(first.verdict, 'fresh');
+  const config = JSON.parse(read(root, 'release-please-config.json'));
+  config['extra-option'] = true;
+  fs.writeFileSync(path.join(root, 'release-please-config.json'), JSON.stringify(config, null, 2));
+  fs.unlinkSync(path.join(root, '.release-please-manifest.json'));
+  const second = rb.bootstrapRelease({ root, integrationModel: 'pr-first', branch: 'main', listTags: () => ['v2.0.0'] });
+  assert.equal(second.verdict, 'fresh');
+  assert.equal(fs.existsSync(path.join(root, '.release-please-manifest.json')), true);
+  const configAfter = JSON.parse(read(root, 'release-please-config.json'));
+  assert.equal(configAfter['extra-option'], true);
+  assert.deepEqual(second.written, ['.release-please-manifest.json', '.github/workflows/release-please.yml']);
+});
+
+test('bootstrapRelease: a missing or non-directory root throws before any detection and creates nothing (F2)', () => {
+  const root = tmp();
+  const missing = path.join(root, 'nope');
+  assert.throws(() => rb.bootstrapRelease({ root: missing, integrationModel: 'pr-first', branch: 'main', listTags: () => [] }), /not a directory/);
+  assert.equal(fs.existsSync(missing), false);
+  const filePath = path.join(root, 'not-a-dir.txt');
+  fs.writeFileSync(filePath, 'x');
+  assert.throws(() => rb.bootstrapRelease({ root: filePath, integrationModel: 'pr-first', listTags: () => [] }), /not a directory/);
 });

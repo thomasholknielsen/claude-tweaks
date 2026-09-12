@@ -8,22 +8,34 @@
 //   node bin/release-bootstrap.js --integration-model <pr-first|local-merge|unresolved> [--root <dir>] [--branch <name>] [--dry-run]
 'use strict';
 
+const fs = require('fs');
 const { bootstrapRelease } = require('./lib/init/release-bootstrap');
 
 const USAGE = 'usage: release-bootstrap.js --integration-model <pr-first|local-merge|unresolved> [--root <dir>] [--branch <name>] [--dry-run]\n';
+const VALUE_FLAGS = new Set(['--root', '--branch', '--integration-model']);
+const VALID_INTEGRATION_MODELS = new Set(['pr-first', 'local-merge', 'unresolved', '']);
 
 function parseArgs(argv) {
   const opts = { root: process.cwd(), branch: 'main', dryRun: false, integrationModel: undefined, help: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--help' || a === '-h') opts.help = true;
-    else if (a === '--dry-run') opts.dryRun = true;
-    else if (a === '--root') opts.root = argv[++i];
-    else if (a === '--branch') opts.branch = argv[++i];
-    else if (a === '--integration-model') opts.integrationModel = argv[++i];
-    else return { error: `unknown argument: ${a}` };
+    if (a === '--help' || a === '-h') { opts.help = true; continue; }
+    if (a === '--dry-run') { opts.dryRun = true; continue; }
+    if (VALUE_FLAGS.has(a)) {
+      const next = argv[i + 1];
+      if (next === undefined || next.startsWith('--')) return { error: `${a} requires a value` };
+      i += 1;
+      if (a === '--root') opts.root = next;
+      else if (a === '--branch') opts.branch = next;
+      else opts.integrationModel = next;
+      continue;
+    }
+    return { error: `unknown argument: ${a}` };
   }
   if (!opts.help && opts.integrationModel === undefined) return { error: 'missing required --integration-model' };
+  if (!opts.help && !VALID_INTEGRATION_MODELS.has(opts.integrationModel)) {
+    return { error: `invalid --integration-model: ${opts.integrationModel}` };
+  }
   return opts;
 }
 
@@ -31,6 +43,12 @@ function main(argv) {
   const opts = parseArgs(argv);
   if (opts.error) { process.stderr.write(`${opts.error}\n${USAGE}`); return 2; }
   if (opts.help) { process.stdout.write(USAGE); return 0; }
+  let stat;
+  try { stat = fs.statSync(opts.root); } catch { stat = null; }
+  if (!stat || !stat.isDirectory()) {
+    process.stderr.write(`root is not a directory: ${opts.root}\n${USAGE}`);
+    return 2;
+  }
   try {
     const result = bootstrapRelease({ root: opts.root, integrationModel: opts.integrationModel, branch: opts.branch, dryRun: opts.dryRun });
     process.stdout.write(`${JSON.stringify(result)}\n`);

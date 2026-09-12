@@ -22,6 +22,8 @@ const { execFileSync } = require('child_process');
 const { compareVersions } = require('../changelog');
 
 const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)$/;
+// Pre-release/build-metadata tags (e.g. `v2.0.0-rc.1`) are not full releases
+// and are ignored by the seed — only a bare `vMAJOR.MINOR.PATCH` tag matches.
 const V_TAG_RE = /^v(\d+\.\d+\.\d+)$/;
 
 // Canonical prose copy: bootstrap/step-21-release.md's stack table (pinned
@@ -54,8 +56,17 @@ const CONFIG_SCHEMA = 'https://raw.githubusercontent.com/googleapis/release-plea
 function rootEntries(root) {
   try {
     return fs.readdirSync(root, { withFileTypes: true }).map((e) => ({ name: e.name, isDir: e.isDirectory() }));
+  } catch (e) {
+    if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) return []; // missing root — detection/resolution are read-only probes
+    throw e;
+  }
+}
+
+function isDirectory(root) {
+  try {
+    return fs.statSync(root).isDirectory();
   } catch {
-    return [];
+    return false;
   }
 }
 
@@ -173,8 +184,12 @@ function renderWorkflowYaml({ branch } = {}) {
     '    steps:',
     '      - uses: googleapis/release-please-action@v4',
     '        with:',
+    '          # Releases created with the default GITHUB_TOKEN do not trigger other',
+    '          # workflows (a `release: published` publish/deploy hook stays silent) — set a PAT:',
+    '          # token: ${{ secrets.RELEASE_PLEASE_TOKEN }}',
     '          config-file: release-please-config.json',
     '          manifest-file: .release-please-manifest.json',
+    `          target-branch: ${b}`,
     '',
   ].join('\n');
 }
@@ -191,7 +206,7 @@ function renderManifest(version) {
 
 function renderPolicyRows() {
   return [
-    '# release-hook: <command run after the local engine tags a release — local-merge only; under pr-first the release: published workflow is the hook>',
+    '# release-hook: <command run after the local engine tags a release — local-merge only; under pr-first the release: published workflow is the hook — it needs a PAT, GITHUB_TOKEN-created releases do not trigger it>',
     '# release-train: false',
   ];
 }
@@ -212,6 +227,11 @@ function defaultListTags(root) {
 // worktree-always, the same reason Step 6 defers its own row).
 function bootstrapRelease({ root, integrationModel, branch, dryRun = false, listTags } = {}) {
   const empty = { written: [], policyRows: [] };
+  // A missing/non-directory root is a caller bug (a mistyped --root), never
+  // a state this step should detect its way around — throw before any
+  // detection so the lib can't manufacture a bootstrap out of thin air even
+  // when called without the CLI's own validation in front of it.
+  if (!isDirectory(root)) throw new Error(`root is not a directory: ${root}`);
   if (integrationModel !== 'pr-first' && integrationModel !== 'local-merge') {
     return { verdict: 'skipped', reason: 'integration-model unresolved', ...empty };
   }
@@ -220,10 +240,14 @@ function bootstrapRelease({ root, integrationModel, branch, dryRun = false, list
   const { releaseType, extraFiles } = resolveReleaseType(root);
   const tags = (listTags || defaultListTags)(root);
   const version = seedManifestVersion({ tags, manifestVersion: readStackManifestVersion(root, releaseType) });
-  const files = [
-    [CONFIG_FILE, renderConfig({ releaseType, extraFiles })],
-    [MANIFEST_FILE, renderManifest(version)],
-  ];
+  // A manifest-missing re-run (detectReleaseProcess still reports `fresh`
+  // when the config already exists in this step's own shape) must not
+  // rewrite an already-correct — possibly hand-edited — config; only the
+  // files actually missing get (re)written.
+  const configShaped = isBootstrapShaped(readJson(path.join(root, CONFIG_FILE)));
+  const files = [];
+  if (!configShaped) files.push([CONFIG_FILE, renderConfig({ releaseType, extraFiles })]);
+  files.push([MANIFEST_FILE, renderManifest(version)]);
   if (integrationModel === 'pr-first') files.push([WORKFLOW_FILE, renderWorkflowYaml({ branch })]);
   const written = [];
   for (const [rel, content] of files) {

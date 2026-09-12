@@ -368,15 +368,31 @@ function isValidValue(schemaEntry, value) {
 // programmatic (non-audit) reader — a caller with a raw policy.yml string
 // (or nothing at all) calls this once and trusts what comes back without
 // re-validating it itself.
+// Strips exactly one matched pair of surrounding quotes ("…" or '…') — an
+// unmatched leading quote (a typo, e.g. an unterminated `"foo`) is left
+// alone rather than silently dropped.
+function stripMatchedQuotes(value) {
+  if (value.length >= 2) {
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' || first === "'") && first === last) return value.slice(1, -1);
+  }
+  return value;
+}
+
 function resolveValue(key, rawValue) {
   const entry = SCHEMA_BY_KEY.get(key);
   if (!entry) return rawValue;
   if (rawValue === undefined || rawValue === null || rawValue === '') return entry.default;
-  const strValue = String(rawValue);
+  let strValue = String(rawValue);
+  // allowWhitespace entries (a shell command, e.g. release-hook) may be
+  // quoted for readability in policy.yml — strip one matched pair before
+  // validating, so a quoted command validates and resolves unquoted.
+  if (entry.allowWhitespace === true) strValue = stripMatchedQuotes(strValue.trim());
   if (!isValidValue(entry, strValue)) return entry.default;
   if (entry.type === 'integer') return parseInt(strValue, 10);
   if (entry.type === 'boolean') return strValue === 'true';
-  return rawValue;
+  return entry.allowWhitespace === true ? strValue : rawValue;
 }
 
 function hasOwn(obj, key) {
