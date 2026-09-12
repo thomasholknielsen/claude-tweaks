@@ -18,12 +18,12 @@ const {
   sniffFamily, extractFailingRegion, parseCounts, summaryLine, extractFailingFiles, stripAnsi,
 } = require('./lib/verify/extract');
 const { planRetry, runRetries, flakyCaveatLines } = require('./lib/verify/flaky');
-const { gitInfo, gitDir: resolveGitDir, composeReport } = require('./lib/verify/report');
+const { gitInfo, gitDir: resolveGitDir, composeReport, writeReportAtomic } = require('./lib/verify/report');
 const {
   readStamp: readCountStamp, detectRegression, caveatLine,
   nextFlakyHits, flakyEscalations, escalationCaveatLine,
 } = require('./lib/verify/count-stamp');
-const { writeJsonAtomic } = require('./lib/verify/atomic-write');
+const { writeFileAtomic } = require('./lib/atomic-write');
 const { composeStamp, writeStamp, readStamp: readVerifyStamp, anchorOf } = require('./lib/verify/stamp');
 const { readDeclaration } = require('./lib/verify/declaration');
 const {
@@ -367,7 +367,7 @@ async function main() {
       // unguarded: it IS the run's output, so a failure there must surface.
       try {
         fs.mkdirSync(path.dirname(countStampPath), { recursive: true });
-        writeJsonAtomic(countStampPath, toWrite);
+        writeFileAtomic(countStampPath, `${JSON.stringify(toWrite, null, 2)}\n`);
       } catch { /* best-effort persistence; next run simply has no baseline */ }
     }
   }
@@ -389,7 +389,7 @@ async function main() {
     scope: sel ? { mode: sel.mode, suites: scopeSuites, static: sel.static, base: resolvedBase, unmatched: sel.unmatched, changedFiles: files, matched: sel.matched } : null,
     flakyEscalation,
   });
-  writeJsonAtomic(jsonPath, report);
+  writeReportAtomic(report, jsonPath);
 
   // Verify event (#1928): the runner is the mechanical source for the
   // tasks→test phase boundary (bin/lib/timing/derive.js). Written only when
