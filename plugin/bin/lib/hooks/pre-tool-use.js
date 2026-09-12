@@ -647,7 +647,7 @@ function checkPipelineShadowGuard(ctx) {
 // segments run() already resolved once via resolvedGitSegments — no
 // forEachCommandSegment/resolveGitCommand call of its own (#2065's second
 // half: the second full traversal this file used to pay on every Bash call).
-function checkGitStashWarn(ctx, segments, warnings) {
+function checkGitStashWarn(segments, warnings) {
   // Caller only ever passes a real array here when ctx.input.tool_name is
   // already 'Bash' (runInner's own `segments` derivation) — re-checked
   // defensively rather than trusted, since a future caller could pass this
@@ -1482,7 +1482,7 @@ function runInner(ctx, indeterminateTargets, warnings, deps) {
   // parsing the same command/cwd through a quote-aware segment/token walk
   // three times per invocation (once per consumer) was pure repeated work.
   const segments = command ? resolvedGitSegments(command, ctx.cwd) : null;
-  checkGitStashWarn(ctx, segments, warnings);
+  checkGitStashWarn(segments, warnings);
   const commandGitTargets = segments ? gitTargetsFrom(segments) : null;
 
   const gate = checkWorktreeRequired(ctx, commandGitTargets, indeterminateTargets);
