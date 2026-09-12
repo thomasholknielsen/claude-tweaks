@@ -68,15 +68,15 @@ companion line, mirroring this file's own dual-marker scheme) rather than restat
 
 ### Step 1: Resolve identity and check for an existing PR
 
-Resolve `{owner}/{repo}` once: `gh repo view --json nameWithOwner -q .nameWithOwner`. Then check
-`run-state.json`'s own `pr` field first (a resumed run already recorded one) — if present, skip
+Resolve `{host}/{owner}/{repo}` once: `gh repo view --json nameWithOwner,url`. Then check
+`run-state.json`'s `pr` field first (a resumed run already recorded one) — if present, skip
 straight to "Resume: reconcile a recorded PR" below instead of re-deriving from scratch.
 
 No recorded `pr` field: check GitHub directly before creating anything, so a resumed or retried
 run against the same branch never duplicates:
 
 ```bash
-gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,state,isDraft
+gh pr list --repo {host}/{owner}/{repo} --head {branch} --state all --json number,url,state,isDraft
 ```
 
 - **A match with `state: OPEN`** (draft or not): reuse it. Record via `record-pr` (below) and
@@ -88,7 +88,7 @@ gh pr list --repo {owner}/{repo} --head {branch} --state all --json number,url,s
   comments land in the same thread as the prior failure(s):
 
   ```bash
-  gh pr reopen {number} --repo {owner}/{repo}
+  gh pr reopen {number} --repo {host}/{owner}/{repo}
   ```
 
   **Reopen succeeds:** record via `record-pr` and skip creation, same as the OPEN branch above.
@@ -268,7 +268,7 @@ file's first line back and confirm it is `<!-- claude-tweaks-run: {run-id} -->` 
 body.
 
 ```bash
-gh pr create --repo {owner}/{repo} --draft --base {integration-branch} --head {branch} \
+gh pr create --repo {host}/{owner}/{repo} --draft --base {integration-branch} --head {branch} \
   --title "{record title} (#{n})" --body-file /tmp/pr-early-body-{run-id}-{n}.md
 ```
 
@@ -315,7 +315,7 @@ before trusting the recorded value — the PR could have been closed or the bran
 out from under it since:
 
 ```bash
-gh pr view {recorded-number} --repo {owner}/{repo} --json state,isDraft,url
+gh pr view {recorded-number} --repo {host}/{owner}/{repo} --json state,isDraft,url
 ```
 
 - **Still open**: nothing to do — proceed to whichever phase this resume targets.
@@ -355,7 +355,7 @@ phase-exit push, `_shared/git-discipline.md`), check `run-state.json`'s `pr` fie
   this run's `{run-id}`; hard-stop this update on a mismatch rather than push a wrong body:
 
   ```bash
-  gh pr edit {number} --repo {owner}/{repo} --body-file /tmp/pr-checklist-{run-id}-{n}.md
+  gh pr edit {number} --repo {host}/{owner}/{repo} --body-file /tmp/pr-checklist-{run-id}-{n}.md
   ```
 
 <!-- when: transport=mcp -->
@@ -423,7 +423,7 @@ phase this run actually completed.
 <!-- /when -->
 4. Read the record's current title (`gh issue view {n} --json title -q .title` for the
    lowest-numbered record). If it no longer matches the PR's own title (the record was retitled
-   after PR creation), refresh it: `gh pr edit {pr-number} --repo {owner}/{repo} --title "{current record title} (#{n})"`.
+   after PR creation), refresh it: `gh pr edit {pr-number} --repo {host}/{owner}/{repo} --title "{current record title} (#{n})"`.
 5. Log: `AUTO {time} — PR-early run lifecycle: refreshed PR #{number} title/checklist before merge. Reversibility: high (gh pr edit).`
 
 Best-effort, like the phase-checklist update it extends — a failed `gh pr edit` at any step above

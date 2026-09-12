@@ -41,6 +41,31 @@ test('planRetry: the allowlist is suite-agnostic — a listed file retries under
   assert.deepStrictEqual(plan.command, [{ file: 'tests/a.test.js', cmd: 'pnpm --filter api test -- tests/a.test.js' }]);
 });
 
+test('planRetry: flaky.files entries are globs (#2029) — reuses the same engine rules[].match uses', () => {
+  // '**' spans path segments: a new file under tests/flaky/ is allowlisted
+  // without listing it by name.
+  const globAllowlist = { files: ['tests/flaky/**'], maxRetries: 1 };
+  const globPlan = planRetry({ failingFiles: ['tests/flaky/new-file.test.js'], flaky: globAllowlist, retry: RETRY, suite: 'tests' });
+  assert.strictEqual(globPlan.retry, true);
+
+  // An entry with no glob metacharacter still matches only itself (exact
+  // paths behave byte-for-byte as before globToRegExp compiled them).
+  const exactPlan = planRetry({ failingFiles: ['tests/a.test.js', 'tests/c.test.js'], flaky: FLAKY, retry: RETRY, suite: 'tests' });
+  assert.strictEqual(exactPlan.retry, false);
+  assert.deepStrictEqual(exactPlan.unlisted, ['tests/c.test.js']);
+
+  // '*' stays segment-bound — it does not match a nested file.
+  const segmentBound = { files: ['tests/*.test.js'], maxRetries: 1 };
+  const nestedPlan = planRetry({ failingFiles: ['tests/flaky/nested.test.js'], flaky: segmentBound, retry: RETRY, suite: 'tests' });
+  assert.strictEqual(nestedPlan.retry, false);
+  assert.deepStrictEqual(nestedPlan.unlisted, ['tests/flaky/nested.test.js']);
+
+  // An entry matching nothing still leaves the unlisted reason naming the file.
+  const noMatch = planRetry({ failingFiles: ['tests/other.test.js'], flaky: { files: ['tests/flaky/**'], maxRetries: 1 }, retry: RETRY, suite: 'tests' });
+  assert.strictEqual(noMatch.retry, false);
+  assert.strictEqual(noMatch.reason, 'unlisted: [tests/other.test.js]');
+});
+
 test('retryLogName namespaces per file and per attempt', () => {
   assert.strictEqual(retryLogName('tests', 'tests/bin-lib/a.test.js', 2), 'tests-retry-tests+bin-lib+a.test.js-2');
   // A dash slug would collide these two; `+` is outside the extracted-path charset (review 3c, #1925).

@@ -34,6 +34,7 @@ After per-lens reproduction completes, scan for contradictions across lenses bef
 >
 >    [Use: Frontier — debate agent. Independent run; do not see the other judge's reasoning.
 >    Degrades per the resolver's preconditions (contract § Model Selection).]
+>    Read-only.
 >    ```
 
 4. **Resolve.** Apply `resolveDebate`:
@@ -92,6 +93,8 @@ This pass is the only place in the skill where an unbounded fan-out would meet t
 >    Finding: {finding text}
 >    Cached evidence: {evidence text}
 >
+>    SCRATCH: {ctx-dir}/agent-scratch/{agent-id} — any probe script or fixture you create to verify this finding goes there (never in the repository tree) and must be deleted before your status word (`_shared/subagent-output-contract.md`'s Scratch rule).
+>
 >    [Use: Capable — refutation agent. Independent run; fresh file read, not the
 >    lens's original context. Resolve via `node "${CLAUDE_PLUGIN_ROOT}/bin/resolve-profile.js" capable` (contract § Model Selection).]
 >    ```
@@ -125,6 +128,8 @@ already cover. If you find nothing beyond what's already flagged, return "No fin
 [... CALIBRATION + OUTPUT FORMAT block, byte-identical to the per-lens dispatch contract
 in step3-lens-dispatch.md ...]
 
+SCRATCH: {ctx-dir}/agent-scratch/gap-sweep — any probe script or fixture you create to verify a finding goes there (never in the repository tree) and must be deleted before your status word (`_shared/subagent-output-contract.md`'s Scratch rule).
+
 [Use: Frontier — gap-sweep agent. Independent run; single dispatch, not a
 reproduction pair. Degrades per the resolver's preconditions (contract § Model Selection).]
 ```
@@ -132,3 +137,7 @@ reproduction pair. Degrades per the resolver's preconditions (contract § Model 
 Findings returned are tagged with an internal `source: gap-sweep` marker (parallel to how lenses tag findings with their own lens name for Step 3 Routing's Category column) and inserted directly into the `unconfirmed` bucket — the same confidence tier a single-source, non-reproduction-paired lens finding gets. They are **not** auto-promoted to `confirmed` — there's no second agent to reproduce them against, by design. This reuses `step3-routing.md`'s existing `xhigh`/`max` inline-visibility rules (unconfirmed findings surface inline at `xhigh`+) — no new routing table needed. Write `STAGED {HH:MM:SS} — Gap-sweep: {path}:{line} — {one-line finding}. Staged to Review Console as low-confidence (gap-sweep, single-source by design). Reversibility: high.`
 
 Check the agent's status line first, per the Subagent Contract: a `BLOCKED`/`NEEDS_CONTEXT` status, or a response that parses as neither a findings table nor the literal `No findings.`, means the sweep did not actually complete — write `STAGED {HH:MM:SS} — Gap-sweep: dispatch failed ({status}), sweep not genuinely performed. Reversibility: high.` so a persistently broken dispatch stays visible rather than silently reading as "we checked and found nothing." Only a genuine `DONE`/`DONE_WITH_CONCERNS` response with literal `No findings.` text logs nothing further, per the existing per-lens convention — no decision-log entry is needed for an actually-completed zero-findings pass.
+
+## Post-fan-out sweep (this file's own closing step)
+
+`step3-lens-dispatch.md` defines the post-fan-out untracked-file sweep procedure and captures the pre-dispatch baseline (`{ctx-dir}/pre-dispatch-status.txt`) before Step 3's first dispatch; that file's own sweep only runs itself at `low`/`medium` tier, since this file never loads there. At every tier that loads this file (`high` and above), run that sweep exactly once — here, after Cross-Lens Debate at `high` (this file's Step 3.5/3.6 refutation and gap-sweep never run at that tier), or after Gap-Sweep (Step 3.6) at `xhigh`/`max` — before proceeding to Step 3 Routing.

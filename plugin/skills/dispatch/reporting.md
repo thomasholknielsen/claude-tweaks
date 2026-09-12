@@ -2,6 +2,8 @@
 
 Per-firing output is one group's outcome (a drain firing with M ≤ `{budget}` groups: one report block per dispatched group) — there is **no consolidated multi-group console**. (See `SKILL.md`'s When to Use above.)
 
+**Fast-lane bundle header (#2066).** Before rendering a dispatched group's report block, check this run's `dispatch-fastlane-bundles.json` (`queue-pull-script.md`'s Step 2 output): when the group's member-number set equals (set-equality, not subset) an entry in that file, the block's header line names it a fast-lane bundle — `fast-lane bundle: #a, #b, #c — assembled by bundleFastLaneSingletons, cap {n}` — instead of the ordinary multi-spec group line. A bundle later partially excluded by the open-PR or blocked-by filters no longer equals its persisted entry, so a partial match renders as an ordinary group, never a stale bundle header.
+
 Each group's block ends with one timing line read from `{run-dir}/timing.json` (`bin/phase-timing.js --run "$PIPELINE_RUN_DIR" --markdown --transcript <call-1 transcript> --transcript <call-2 transcript>`, #1928) — never composed by hand: `timing: call-1 {m}m · call-2 {m}m · verify {n} run(s) ({modes}) · {k} tokens in / {m} out` — not `--auto-transcript`, which only sees the current session; omitted when the CLI printed a `tokens: transcript not found` note.
 
 A headless (Routine-fired) firing's report has nobody live to read it — the durable trace is the label state change, the claim-comment trail, and `decisions.md`, not a rendered console. Over time, a human sees the aggregate picture via `/claude-tweaks:tidy`'s own periodic sweep (`tidy/SKILL.md`).
