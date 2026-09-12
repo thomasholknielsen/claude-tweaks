@@ -40,6 +40,14 @@ test('spliceVersion json-lock: the first two root tokens change, nested dependen
   const out = M.spliceVersion('json-lock', text, '1.3.0');
   assert.strictEqual((out.text.match(/1\.3\.0/g) || []).length, 2);
   assert.ok(out.text.includes('"node_modules/y": {\n      "version": "1.2.0"'));
+  // lockfileVersion 1: no packages block — only the root token changes, never the first dependency's pin (ruling 9)
+  const v1 = '{\n  "name": "x",\n  "version": "1.2.0",\n  "lockfileVersion": 1,\n  "dependencies": {\n    "y": {\n      "version": "1.2.0"\n    }\n  }\n}\n';
+  const o1 = M.spliceVersion('json-lock', v1, '1.3.0');
+  assert.strictEqual((o1.text.match(/1\.3\.0/g) || []).length, 1);
+  assert.ok(o1.text.includes('"y": {\n      "version": "1.2.0"'));
+  // a packages[""] entry without its own version must not leak the second splice into a dependency
+  const noInner = '{\n  "version": "1.2.0",\n  "packages": {\n    "": {\n      "name": "x"\n    },\n    "node_modules/y": {\n      "version": "1.2.0"\n    }\n  }\n}\n';
+  assert.strictEqual((M.spliceVersion('json-lock', noInner, '1.3.0').text.match(/1\.3\.0/g) || []).length, 1);
 });
 
 test('spliceVersion toml: the version under the named section, other sections untouched', () => {

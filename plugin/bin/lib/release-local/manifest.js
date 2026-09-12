@@ -86,6 +86,24 @@ function spliceJsonKey(text, key, to, occurrences = 1) {
   return { text: out, found: found > 0, previous };
 }
 
+// package-lock.json: the root "version" plus, on lockfileVersion 2/3, the
+// packages[""] entry's own "version" — never a dependency's. A v1 lockfile
+// has no packages block, and a blind second occurrence there would be the
+// first dependency's pin (ruling 9, Task 3 review). The packages[""] search
+// is bounded by the first "node_modules/ key so an entry without a version
+// cannot leak the match into a dependency either.
+function spliceJsonLock(text, to) {
+  const root = spliceJsonKey(text, 'version', to, 1);
+  const block = /"packages"\s*:\s*\{\s*""\s*:\s*\{/.exec(root.text);
+  if (!block) return root;
+  const at = block.index + block[0].length;
+  const end = root.text.indexOf('"node_modules/', at);
+  const scope = end === -1 ? root.text.slice(at) : root.text.slice(at, end);
+  const inner = spliceJsonKey(scope, 'version', to, 1);
+  const rest = end === -1 ? '' : root.text.slice(end);
+  return { text: root.text.slice(0, at) + inner.text + rest, found: root.found || inner.found, previous: root.previous };
+}
+
 function spliceToml(text, sections, to) {
   for (const section of sections) {
     const header = new RegExp(`^\\[${escapeRe(section)}\\][ \\t]*$`, 'm').exec(text);
@@ -105,7 +123,7 @@ function spliceToml(text, sections, to) {
 function spliceVersion(kind, text, to, opts = {}) {
   switch (kind) {
     case 'json': return spliceJsonKey(text, 'version', to, 1);
-    case 'json-lock': return spliceJsonKey(text, 'version', to, 2);
+    case 'json-lock': return spliceJsonLock(text, to);
     case 'manifest': return spliceJsonKey(text, '.', to, 1);
     case 'toml': return spliceToml(text, opts.sections || [], to);
     case 'text': {
