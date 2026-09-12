@@ -11,13 +11,19 @@ const VERSION_IN_TEXT = /\bv?(\d+\.\d+\.\d+)\b/g;
 // the base instead, manifest reads go through the caller's versionAtRef, and
 // hasOrigin:false skips the fetch and the origin read. One keySource per call —
 // never both in one check (spec Gotchas).
-function highestTag(deps) {
+// Highest strict-semver token across a set of lines, via `extractVersion` —
+// shared by the tag tip (`tag -l v*`) and the shipped-versions tsv tip below.
+function highestVersion(lines, extractVersion) {
   let tip = null;
-  for (const line of deps.git(['tag', '-l', 'v*']).split('\n')) {
-    const v = line.trim().replace(/^v/, '');
+  for (const line of lines) {
+    const v = extractVersion(line);
     if (/^\d+\.\d+\.\d+$/.test(v) && (!tip || compareVersions(v, tip) > 0)) tip = v;
   }
   return tip;
+}
+
+function highestTag(deps) {
+  return highestVersion(deps.git(['tag', '-l', 'v*']).split('\n'), (line) => line.trim().replace(/^v/, ''));
 }
 
 function tsvTip(deps) {
@@ -28,19 +34,15 @@ function tsvTip(deps) {
   // renumber suggestion ever fires because the tombstone is not a "claim".
   // Observed live releasing after 6.75.0's reverted premature bump. A missing
   // tsv (a repo predating it) contributes nothing rather than aborting.
-  let tip = null;
   try {
     const tsv = deps.git(['show', 'main:docs/shipped-versions.tsv']);
-    for (const line of tsv.split('\n')) {
-      const v = line.split('\t')[0];
-      if (/^\d+\.\d+\.\d+$/.test(v) && (!tip || compareVersions(v, tip) > 0)) tip = v;
-    }
+    return highestVersion(tsv.split('\n'), (line) => line.split('\t')[0]);
   } catch (err) {
     if (!NOT_FOUND_ERROR_RE.test(String(err.message))) {
       throw new Error(`pre-check could not read docs/shipped-versions.tsv: ${err.message}`);
     }
+    return null;
   }
-  return tip;
 }
 
 function collectClaims(deps, opts = {}) {

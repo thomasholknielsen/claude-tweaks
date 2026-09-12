@@ -31,7 +31,7 @@ function pushAfterAncestryCheck(deps, { branch = 'main', refs = [branch], onDive
 }
 
 function runRelease(deps, { part, summary, date, dryRun, log, allowUnnamed = [] }) {
-  guardReleasableTree(deps, { branch: 'main' });
+  guardReleasableTree(deps);
 
   const { candidate: version, result } = precheck(deps, part);
   if (!result.ok) {
@@ -87,7 +87,6 @@ function runRelease(deps, { part, summary, date, dryRun, log, allowUnnamed = [] 
   const releaseSha = deps.git(['rev-parse', 'HEAD']).trim();
 
   pushAfterAncestryCheck(deps, {
-    branch: 'main',
     onDiverged: 'origin/main moved between pre-check and push. The release commit already exists locally — ' +
       'do NOT re-run the full release (it would bump a second time). Recover manually: ' +
       'git pull --rebase origin main, then git push origin main, then retry the marketplace mirror alone.',

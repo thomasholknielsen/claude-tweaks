@@ -124,7 +124,8 @@ function run(argv, deps) {
     if (!config) throw new UsageError(`${manifest.CONFIG_FILE} not found — run /claude-tweaks:init to bootstrap the release process first`);
     branch = opts.branch || policyValue(deps, 'integration-branch') || 'main';
     guardReleasableTree(deps, { branch });
-    hasOrigin = remoteUrl(deps) !== null;
+    const originRemote = remoteUrl(deps);
+    hasOrigin = originRemote !== null;
     // A remote whose <branch> was never pushed has no origin/<branch>: precheck's
     // fetch would die with "couldn't find remote ref" on an otherwise valid first
     // release. Probe once and treat it as origin-less for reading, not for pushing.
@@ -149,7 +150,7 @@ function run(argv, deps) {
       return 4;
     }
     hook = policyValue(deps, 'release-hook');
-    const repo = hasOrigin ? parseGitHubRemote(remoteUrl(deps)) : null;
+    const repo = hasOrigin ? parseGitHubRemote(originRemote) : null;
     const section = renderSection({ version, previousTag: history.lastTag, date: deps.today(), commits: history.commits, repo });
     const unconventional = history.commits.filter((c) => c.unconventional);
     const edits = targets.filter((t) => t.create || deps.readFile(t.path) !== null).map((t) => t.path);
