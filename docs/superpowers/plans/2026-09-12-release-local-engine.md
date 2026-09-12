@@ -30,6 +30,7 @@
 6. **Integration branch** = policy `integration-branch` when set, else `main`; overridable with `--branch`.
 7. **`BREAKING-CHANGE:`** (hyphen) is accepted as a synonym of `BREAKING CHANGE:` — the Conventional Commits spec declares them equivalent.
 8. **`manifest.js` skips only path absence** (`does not exist` / `exists on disk, but not in`); a bad ref (`invalid object name`) propagates. Found by Task 3's implementer: the brief reused `manifest-path.js`'s `NOT_FOUND_ERROR_RE`, which folds both, against a test that requires the throw.
+9. **`package-lock.json` splices are structural, not counted** — the root `version` plus the `packages[""]` entry's own `version` (bounded by the first `"node_modules/` key), never a dependency's. Task 3's reviewer caught the brief's "first two occurrences" corrupting a lockfileVersion 1 file's first dependency.
 
 ---
 
@@ -349,6 +350,14 @@ test('spliceVersion json-lock: the first two root tokens change, nested dependen
   const out = M.spliceVersion('json-lock', text, '1.3.0');
   assert.strictEqual((out.text.match(/1\.3\.0/g) || []).length, 2);
   assert.ok(out.text.includes('"node_modules/y": {\n      "version": "1.2.0"'));
+  // lockfileVersion 1: no packages block — only the root token changes, never the first dependency's pin (ruling 9)
+  const v1 = '{\n  "name": "x",\n  "version": "1.2.0",\n  "lockfileVersion": 1,\n  "dependencies": {\n    "y": {\n      "version": "1.2.0"\n    }\n  }\n}\n';
+  const o1 = M.spliceVersion('json-lock', v1, '1.3.0');
+  assert.strictEqual((o1.text.match(/1\.3\.0/g) || []).length, 1);
+  assert.ok(o1.text.includes('"y": {\n      "version": "1.2.0"'));
+  // a packages[""] entry without its own version must not leak the second splice into a dependency
+  const noInner = '{\n  "version": "1.2.0",\n  "packages": {\n    "": {\n      "name": "x"\n    },\n    "node_modules/y": {\n      "version": "1.2.0"\n    }\n  }\n}\n';
+  assert.strictEqual((M.spliceVersion('json-lock', noInner, '1.3.0').text.match(/1\.3\.0/g) || []).length, 1);
 });
 
 test('spliceVersion toml: the version under the named section, other sections untouched', () => {
@@ -492,6 +501,24 @@ function spliceJsonKey(text, key, to, occurrences = 1) {
   return { text: out, found: found > 0, previous };
 }
 
+// package-lock.json: the root "version" plus, on lockfileVersion 2/3, the
+// packages[""] entry's own "version" — never a dependency's. A v1 lockfile
+// has no packages block, and a blind second occurrence there would be the
+// first dependency's pin (ruling 9, Task 3 review). The packages[""] search
+// is bounded by the first "node_modules/ key so an entry without a version
+// cannot leak the match into a dependency either.
+function spliceJsonLock(text, to) {
+  const root = spliceJsonKey(text, 'version', to, 1);
+  const block = /"packages"\s*:\s*\{\s*""\s*:\s*\{/.exec(root.text);
+  if (!block) return root;
+  const at = block.index + block[0].length;
+  const end = root.text.indexOf('"node_modules/', at);
+  const scope = end === -1 ? root.text.slice(at) : root.text.slice(at, end);
+  const inner = spliceJsonKey(scope, 'version', to, 1);
+  const rest = end === -1 ? '' : root.text.slice(end);
+  return { text: root.text.slice(0, at) + inner.text + rest, found: root.found || inner.found, previous: root.previous };
+}
+
 function spliceToml(text, sections, to) {
   for (const section of sections) {
     const header = new RegExp(`^\\[${escapeRe(section)}\\][ \\t]*$`, 'm').exec(text);
@@ -511,7 +538,7 @@ function spliceToml(text, sections, to) {
 function spliceVersion(kind, text, to, opts = {}) {
   switch (kind) {
     case 'json': return spliceJsonKey(text, 'version', to, 1);
-    case 'json-lock': return spliceJsonKey(text, 'version', to, 2);
+    case 'json-lock': return spliceJsonLock(text, to);
     case 'manifest': return spliceJsonKey(text, '.', to, 1);
     case 'toml': return spliceToml(text, opts.sections || [], to);
     case 'text': {
@@ -1661,7 +1688,7 @@ node plugin/bin/release-local.js [--dry-run] [--root <dir>] [--branch <name>]   
 
 - [ ] **Step 4: Run the new suite and the docs pins**
 
-Run: `node --test tests/bin-lib/release-local/ tests/bin-lib/release/ tests/bin-lib/exit-code-conformance.test.js tests/skill-catalog-completeness.test.js`
+Run: `node --test tests/bin-lib/release-local/*.test.js tests/bin-lib/release/*.test.js tests/bin-lib/exit-code-conformance.test.js tests/skill-catalog-completeness.test.js` (glob form — node 22's `--test` does not expand a bare directory, as Task 5 found)
 Expected: PASS
 
 - [ ] **Step 5: Commit**
