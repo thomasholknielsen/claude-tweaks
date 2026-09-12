@@ -67,7 +67,7 @@ Read `_shared/dispatch-waiting.md` — the notification-driven resume pattern an
 
 ## Implementer Status Protocol
 
-Every dispatched agent reports one of four statuses as the first line of its reply (before the output template):
+Every dispatched agent reports one of four statuses as a labeled **trailing** line — `STATUS: {WORD}`, the reply's last non-empty line, after the output template:
 
 | Status | Meaning | Dispatcher response |
 |---|---|---|
@@ -80,25 +80,25 @@ Every dispatched agent reports one of four statuses as the first line of its rep
 
 **Finish everything the blocker doesn't gate before reporting `BLOCKED`.** A failed precondition — a worktree path that doesn't resolve, a missing fixture, an unavailable service — usually gates only *some* of the task. Analysis, measurement, verification, and drafting the exact edits are typically all still possible, and a `BLOCKED` report carrying that finished work costs the dispatcher one cheap re-dispatch instead of a full redo. This applies to the wrong-worktree case in Working Directory Discipline above: report `BLOCKED` rather than editing the wrong checkout, but do the read-only work first and hand back verified, ready-to-apply results. Do not silently downgrade to `DONE_WITH_CONCERNS` because you got most of it done — the blocker still stands, and the status line is what the dispatcher routes on.
 
-For review-style agents (Template A) the status line is followed by the findings table. For search-style (B) and scout-style (C), the status replaces any "no findings" sentinel.
+For review-style agents (Template A), the trailing status line follows the findings table (reversing the old "status line, then table" order). For search-style (B) and scout-style (C), the trailing status line follows whatever the template's own content is — the status replaces no sentinel, it comes after it.
 
 ```
-DONE
 | Severity | Path:Line | Finding | Evidence |
 |---|---|---|---|
 | ...
+STATUS: DONE
 ```
 
 ```
-BLOCKED
 Reason: couldn't locate the auth middleware referenced in the task scope.
 Tried: grep -r "authMiddleware" src/, grep -r "requireAuth" src/
 Need: actual file path of the auth middleware, or confirmation it doesn't exist.
+STATUS: BLOCKED
 ```
 
-SubagentStop hook (E3) logs replies missing the status line to the run dir's `events.jsonl` (best-effort — the event fires unreliably for Task dispatches, claude-code#27755).
+SubagentStop hook (E3) logs replies missing the status line to the run dir's `events.jsonl` (best-effort — the event fires unreliably for Task dispatches, claude-code#27755). The detector (#2265) is two-tier: an exact-canonical trailing `STATUS: {WORD}` line is fully compliant (nothing logged); a bare or off-position status word within the reply's first-or-last 3 non-empty lines is lenient-compliant (logged as an *informational* `contract-violation` variant, distinguishable in the event's own fields — never a hard failure, and never returned to the dispatcher as a warning); the status word absent from that window entirely is a genuine violation, logged exactly as before.
 
-**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) tests one regex against the last assistant text it can reach and has no way to know *which* agent replied or what contract that dispatch declared, so one non-violating case still lands in the log: a dispatch whose own template specifies a different first line (its header comment names this one). A **background-job-orchestrated session's own interim narration turn** — never a violation, since the status-line requirement above is scoped to a dispatched subagent's own *final* reply — is now filtered at the detector in both shapes the harness produces for it: an absent `agent_transcript_path` (#1928), and one identical to the same event's own `transcript_path` (#2036). A genuine subagent stop always carries its own distinct transcript file, so neither filter can suppress a real violation. A **third-party agent exempt from this contract entirely** (see Exemption below) is now filtered out at the detector itself via its `agent_type` input field (#1596), so `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch no longer needs manual triage. Triage the remaining case against the dispatch that produced it before treating it as a finding.
+**A logged `contract-violation` is evidence to read, not a confirmed violation.** The detector (`bin/lib/hooks/subagent-stop.js`) has no way to know *which* agent replied or what contract that dispatch declared, so one non-violating case still lands in the log: a dispatch whose own template specifies a different status shape (its header comment names this one). A **background-job-orchestrated session's own interim narration turn** — never a violation, since the status-line requirement above is scoped to a dispatched subagent's own *final* reply — is now filtered at the detector in both shapes the harness produces for it: an absent `agent_transcript_path` (#1928), and one identical to the same event's own `transcript_path` (#2036). A genuine subagent stop always carries its own distinct transcript file, so neither filter can suppress a real violation. A **third-party agent exempt from this contract entirely** (see Exemption below) is now filtered out at the detector itself via its `agent_type` input field (#1596), so `/claude-tweaks:simplify`'s `code-simplifier:code-simplifier` dispatch no longer needs manual triage. Triage the remaining case against the dispatch that produced it before treating it as a finding.
 
 ## Model Selection and Template A — moved
 
@@ -174,7 +174,7 @@ Do not add explanation.
 
 Cap at one retry. If still malformed, accept what you got and move on (do not loop).
 
-**Check the status word's position, not merely its presence.** A reply that opens with narration and states the status word only later ("Based on my review, DONE") violates the Implementer Status Protocol even though the literal token appears somewhere in the reply. Verify line 1 is exactly the status word before accepting it: reading a reply for its content does not check this, and a dispatcher that trusts its own read-through accepts the violation silently. Observed twice — #606's wrap-up (a lens agent accepted on token presence alone), and record #1653, where 3 of 8 `/claude-tweaks:review` lens dispatches opened with narration and all three were accepted with no re-prompt, despite every prompt carrying the explicit `WRONG: "Based on my review, DONE"` example.
+**Check the status word's position, not merely its presence.** A reply whose status word never lands as a genuine trailing marker still violates the Implementer Status Protocol even though the literal token appears somewhere in the reply. Two failure modes to watch for: a **bare trailing word** instead of the labeled `STATUS: {WORD}` line ("...the tests are done" reads as ambiguous prose, not a status marker), and a **status line that isn't truly the last non-empty line** — trailing narration or a stray blank-then-comment after it defeats the position check just as opening narration used to. Verify the reply's actual last non-empty line reads exactly `STATUS: {WORD}` before accepting it: reading a reply for its content does not check this, and a dispatcher that trusts its own read-through accepts the violation silently. Observed twice under the old first-line rule — #606's wrap-up (a lens agent accepted on token presence alone), and record #1653, where 3 of 8 `/claude-tweaks:review` lens dispatches opened with narration and all three were accepted with no re-prompt, despite every prompt carrying an explicit `WRONG:` example — the trailing-line convention and `subagent-stop.js`'s lenient fallback (#2265) exist to make both classes of drift survivable without a human catching every one by hand.
 
 ## Anti-Patterns
 
