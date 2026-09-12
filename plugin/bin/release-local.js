@@ -246,11 +246,19 @@ function defaultDeps(root) {
     readFile: (p) => { try { return fs.readFileSync(abs(p), 'utf8'); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } },
     writeFile: (p, text) => fs.writeFileSync(abs(p), text),
     // precheck's plan-claim source, as plugin/bin/release.js provides it: a
-    // project without docs/superpowers/plans simply has no plan claims.
+    // project without docs/superpowers/plans simply has no plan claims. Read
+    // and catch rather than exists-then-read — a sibling session can prune the
+    // directory between the two calls ([IL-146]); a vanished directory is "no
+    // plan claims", anything else propagates.
     listPlanFiles: () => {
-      const dir = abs('docs/superpowers/plans');
-      if (!fs.existsSync(dir)) return [];
-      return fs.readdirSync(dir).filter((f) => f.endsWith('.md')).map((f) => path.join('docs/superpowers/plans', f));
+      let entries;
+      try {
+        entries = fs.readdirSync(abs('docs/superpowers/plans'));
+      } catch (e) {
+        if (e.code === 'ENOENT' || e.code === 'ENOTDIR') return [];
+        throw e;
+      }
+      return entries.filter((f) => f.endsWith('.md')).map((f) => path.join('docs/superpowers/plans', f));
     },
     // The hook is the project's own shell command (policy release-hook) — a
     // shell string by design; its exit code becomes this CLI's exit 5.

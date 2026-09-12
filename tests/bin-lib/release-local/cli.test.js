@@ -1,7 +1,24 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { run, parseArgs } = require('../../../plugin/bin/release-local.js');
+const { run, parseArgs, defaultDeps } = require('../../../plugin/bin/release-local.js');
+
+test('defaultDeps.listPlanFiles: a missing plans directory is "no plan claims"; a present one lists its .md files', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-local-plans-'));
+  assert.deepStrictEqual(defaultDeps(root).listPlanFiles(), []);
+  fs.mkdirSync(path.join(root, 'docs/superpowers/plans'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'docs/superpowers/plans/a.md'), 'ships as v9.9.9');
+  fs.writeFileSync(path.join(root, 'docs/superpowers/plans/notes.txt'), 'x');
+  assert.deepStrictEqual(defaultDeps(root).listPlanFiles(), ['docs/superpowers/plans/a.md']);
+  // a file where the directory should be reads as "no plan claims" too (ENOTDIR), never a raw throw
+  const fileRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'release-local-plans-'));
+  fs.mkdirSync(path.join(fileRoot, 'docs/superpowers'), { recursive: true });
+  fs.writeFileSync(path.join(fileRoot, 'docs/superpowers/plans'), 'not a dir');
+  assert.deepStrictEqual(defaultDeps(fileRoot).listPlanFiles(), []);
+});
 
 const SHA = 'f'.repeat(40);
 const CONFIG = JSON.stringify({ packages: { '.': { 'release-type': 'node' } } });
