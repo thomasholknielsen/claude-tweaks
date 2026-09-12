@@ -177,19 +177,28 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
       return { version: nextVersion(base, part), part, base, tipRef };
     },
     releasePr,
+    // Ruling 11: GitHub is asked for the BRANCH by name, so it resolves its own
+    // tip — this pack never fetches, so the local origin/{branch} ref may trail
+    // it. The skew is recorded (`localSha`/`headSha`/`tipBehind`) rather than
+    // silently read as the tip, and a commit with more check runs than one page
+    // holds says so (`truncated`) instead of reporting a partial count as whole.
     ciTip: async () => {
       if (needEngine() === 'local-merge') return 'n/a';
-      const sha = deps.git(['rev-parse', tipRef]).trim();
+      const localSha = deps.git(['rev-parse', tipRef]).trim();
       const { nameWithOwner } = JSON.parse(await deps.execFileAsync('gh', ['repo', 'view', '--json', 'nameWithOwner']));
-      const runs = JSON.parse(await deps.execFileAsync('gh', ['api', `repos/${nameWithOwner}/commits/${sha}/check-runs`]));
+      const runs = JSON.parse(await deps.execFileAsync('gh', ['api', `repos/${nameWithOwner}/commits/${branch}/check-runs`, '-f', 'per_page=100']));
+      const list = runs.check_runs || [];
       const counts = { total: runs.total_count || 0, success: 0, failure: 0, pending: 0 };
-      for (const r of runs.check_runs || []) {
+      for (const r of list) {
         if (r.status !== 'completed') counts.pending += 1;
         else if (r.conclusion === 'success' || r.conclusion === 'skipped' || r.conclusion === 'neutral') counts.success += 1;
         else counts.failure += 1;
       }
+      const headSha = list.length && list[0].head_sha
+        ? String(list[0].head_sha)
+        : (await deps.execFileAsync('gh', ['api', `repos/${nameWithOwner}/commits/${branch}`, '--jq', '.sha'])).trim();
       const state = counts.total === 0 ? 'none' : counts.failure ? 'failure' : counts.pending ? 'pending' : 'success';
-      return { sha, tipRef, state, ...counts };
+      return { ref: branch, headSha, localSha, tipBehind: headSha !== localSha, state, ...counts, truncated: counts.total > list.length };
     },
     openReleasePrConflict: async () => {
       const pr = await releasePr();

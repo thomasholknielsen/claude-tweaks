@@ -32,7 +32,9 @@ function fakeDeps(o = {}) {
         if (key.startsWith('pr list')) return JSON.stringify(o.prs || []);
         if (key.startsWith('pr view')) return JSON.stringify({ commits: o.prCommits || [] });
         if (key.startsWith('repo view')) return JSON.stringify({ nameWithOwner: 'o/r' });
-        if (key.startsWith('api repos/o/r/commits/')) return JSON.stringify(o.checkRuns || { total_count: 0, check_runs: [] });
+        if (/^api repos\/o\/r\/commits\/.*\/check-runs/.test(key)) return JSON.stringify(o.checkRuns || { total_count: 0, check_runs: [] });
+        // `gh api … --jq .sha` prints the bare value, not a JSON document.
+        if (key.startsWith('api repos/o/r/commits/')) return `${o.headSha || SHA}\n`;
         throw new Error(`unexpected gh: ${key}`);
       },
       readFile: (p) => (p in files ? files[p] : null),
@@ -176,10 +178,27 @@ test('AC 7: openReleasePrConflict is true when the newest PR commit has a human 
   assert.strictEqual(edited.openReleasePrConflict.value, true);
 });
 
-test('ciTip (pr-first): check-run counts on the tip sha; AC 3: a gh failure degrades ciTip and releasePr alone', async () => {
-  const runs = { total_count: 3, check_runs: [{ status: 'completed', conclusion: 'success' }, { status: 'completed', conclusion: 'failure' }, { status: 'in_progress', conclusion: null }] };
-  const ok = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ checkRuns: runs }).deps });
-  assert.deepStrictEqual(ok.ciTip.value, { sha: SHA, tipRef: 'origin/main', state: 'failure', total: 3, success: 1, failure: 1, pending: 1 });
+test('ciTip (pr-first): the branch is asked by name, paginated, with local/remote skew recorded (ruling 11); AC 3: a gh failure degrades ciTip and releasePr alone', async () => {
+  const runs = { total_count: 3, check_runs: [{ status: 'completed', conclusion: 'success', head_sha: SHA }, { status: 'completed', conclusion: 'failure' }, { status: 'in_progress', conclusion: null }] };
+  const fresh = fakeDeps({ checkRuns: runs });
+  const ok = await gatherReleasePreflight({ cwd: ROOT, deps: fresh.deps });
+  assert.deepStrictEqual(ok.ciTip.value, { ref: 'main', headSha: SHA, localSha: SHA, tipBehind: false, state: 'failure', total: 3, success: 1, failure: 1, pending: 1, truncated: false });
+  assert.ok(fresh.calls.gh.includes('gh api repos/o/r/commits/main/check-runs -f per_page=100'), fresh.calls.gh.join(' | '));
+  // The pack never fetches, so the local origin/main ref can trail the branch's
+  // real tip at GitHub — that skew is recorded, not silently absorbed.
+  const behind = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ checkRuns: { total_count: 1, check_runs: [{ status: 'completed', conclusion: 'success', head_sha: 'b'.repeat(40) }] } }).deps });
+  assert.strictEqual(behind.ciTip.value.headSha, 'b'.repeat(40));
+  assert.strictEqual(behind.ciTip.value.localSha, SHA);
+  assert.strictEqual(behind.ciTip.value.tipBehind, true);
+  // 150 runs on the commit, 100 on the page: the counts describe the page only.
+  const many = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ checkRuns: { total_count: 150, check_runs: Array.from({ length: 100 }, () => ({ status: 'completed', conclusion: 'success', head_sha: SHA })) } }).deps });
+  assert.strictEqual(many.ciTip.value.truncated, true);
+  assert.strictEqual(many.ciTip.value.total, 150);
+  assert.strictEqual(many.ciTip.value.success, 100);
+  // No runs at all: the head sha comes from the commit itself.
+  const none = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ headSha: 'c'.repeat(40) }).deps });
+  assert.strictEqual(none.ciTip.value.state, 'none');
+  assert.strictEqual(none.ciTip.value.headSha, 'c'.repeat(40));
   const down = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ ghFail: 'spawn gh ENOENT', ghCode: 'ENOENT' }).deps });
   assert.strictEqual(down.ciTip.ok, false);
   assert.strictEqual(down.releasePr.ok, false);
