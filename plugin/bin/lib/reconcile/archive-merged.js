@@ -548,10 +548,17 @@ function revertStagedOps(root, ops) {
       const reset = runGit(['reset', '--', op.srcFile, op.destFile], root);
       if (reset.failure) { fullyReverted = false; continue; }
       try {
-        // The source dir may have been rmdir'd (empty) once every file
-        // under it resolved — recreate it before renaming back.
+        // Pre-op, srcFile and destFile were two independent physical files
+        // (identical content, but the twin's copy at destFile already
+        // existed on disk before this batch touched anything — that's what
+        // made it a twin). `git mv -f` is a single rename: only one physical
+        // file survives the forward operation, at destFile. Reverting with
+        // a rename back to srcFile would silently delete that pre-existing
+        // destFile copy — a `copyFileSync` restores srcFile while leaving
+        // destFile exactly as it was before this op, matching the real
+        // pre-op state (both files present).
         fs.mkdirSync(path.dirname(op.srcFile), { recursive: true });
-        fs.renameSync(op.destFile, op.srcFile);
+        fs.copyFileSync(op.destFile, op.srcFile);
       } catch {
         fullyReverted = false;
       }

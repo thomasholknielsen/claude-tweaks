@@ -1825,6 +1825,53 @@ test('archiveRunDir: identical work twin whose copy is untracked resolves via gi
   );
 });
 
+// Review finding: an untracked-twin resolution (`kind: 'twin-mv'`) is a
+// single `git mv -f` — a real filesystem rename, not a copy — so only ONE
+// physical file survives the forward op, at destFile. Before this fix,
+// `revertStagedOps` undid it with `fs.renameSync(destFile, srcFile)`, which
+// restores srcFile but silently deletes destFile — even though destFile
+// existed as an independent physical file (that's what made it a twin)
+// BEFORE this batch touched anything. A later failure elsewhere in the same
+// batch (here: a sibling spec's plain `git mv`) must revert back to that
+// exact pre-op state — both files present — not trade one for the other.
+test('archiveRunDir: an untracked twin-mv, reverted after a later sibling spec fails, restores BOTH the live file and the twin copy', (t) => {
+  const root = makeRepo();
+  const runId = '2026-08-01T090000-spec-1501-1502';
+  const runDir = path.join(root, '.claude-tweaks', 'pipelines', runId);
+  const archiveDir = path.join(root, '.claude-tweaks', 'pipelines', 'archive', runId);
+  // spec-1501: untracked archive twin, identical content — resolves via the
+  // twin-mv branch of resolveIdenticalWorkTwin.
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1501/work/1501-spec.md`, '# spec 1501\n');
+  fs.mkdirSync(path.join(archiveDir, 'spec-1501', 'work'), { recursive: true });
+  fs.writeFileSync(path.join(archiveDir, 'spec-1501', 'work', '1501-spec.md'), '# spec 1501\n');
+  // spec-1502: no twin — goes through the ordinary workMoves `git mv`, which
+  // is mocked to fail, forcing revertStagedOps to undo the twin-mv above too.
+  commitPath(root, `.claude-tweaks/pipelines/${runId}/spec-1502/work/1502-spec.md`, '# spec 1502\n');
+  fs.writeFileSync(path.join(runDir, 'run-state.json'), JSON.stringify({ status: 'active' }));
+
+  t.mock.method(cp, 'execFileSync', (cmd, args, opts) => {
+    const isPlainMv = cmd === 'git' && Array.isArray(args) && args[2] === 'mv' && args[3] !== '-f';
+    if (isPlainMv) throw new Error('simulated failure: git mv (spec-1502, no twin)');
+    return execFileSync(cmd, args, opts);
+  });
+
+  const result = archiveRunDir(root, runDir);
+  assert.equal(result.ok, false, JSON.stringify(result));
+
+  // The live copy is back, with its original content.
+  const srcFile = path.join(runDir, 'spec-1501', 'work', '1501-spec.md');
+  assert.equal(fs.existsSync(srcFile), true, 'srcFile must be restored on revert');
+  assert.equal(fs.readFileSync(srcFile, 'utf8'), '# spec 1501\n');
+  // The twin's own pre-existing copy must survive the revert too — the bug
+  // this test pins deleted it via a rename instead of a copy.
+  const destFile = path.join(archiveDir, 'spec-1501', 'work', '1501-spec.md');
+  assert.equal(fs.existsSync(destFile), true, 'the twin copy must NOT be deleted by a reverted twin-mv');
+  assert.equal(fs.readFileSync(destFile, 'utf8'), '# spec 1501\n');
+  // Neither copy is left staged/tracked at the wrong path.
+  assert.equal(fs.existsSync(path.join(archiveDir, 'spec-1502', 'work')), false);
+  assert.equal(fs.existsSync(path.join(runDir, 'spec-1502', 'work', '1502-spec.md')), true);
+});
+
 // compareWorkTwin's own unit coverage: a file missing at the twin path
 // counts as differing (it still needs to move, not be silently dropped).
 test('compareWorkTwin: a file present at src but missing at the twin counts as differing', () => {
