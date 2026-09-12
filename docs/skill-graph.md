@@ -397,6 +397,19 @@ is `plugin/skills/_shared/integration-branch.md`. Paths outside the payload (`do
 | `_shared/scope-resolution.md` | The no-scope input case selects its file set by this deterministic ladder, then reads those files' diffs — content analysis stays reflect's own. |
 | `/capture` | Reflect's Capture recommendation routes a tangential insight to `/capture`, which files it as a fresh backlog work record — invoked with the shaped body and `--defer-reason={value} --source reflect` (capture's Shaped-body branch). |
 
+## release
+
+| Target | Relationship |
+|---|---|
+| `/review` | Step 3 runs `/claude-tweaks:review base:{base}` (the last `v*` tag, or the root commit when none exists) — the whole-branch review before any bump (stance 8, `[IL-97]`); a confirmed critical/high finding marks the run `review: blocking`. |
+| `bin/release-preflight.js` | Step 1's fact pack (#2255): engine, last tag, unreleased commits, proposed version, release PR, CI on the tip, human-edited release PR, hook presence — read from `{run-dir}/release-preflight.json`. |
+| `bin/release-local.js` | Step 5's local-merge engine (#2254); its exit codes 0/1/3/4/5 are the skill's verdicts. |
+| `_shared/staged-patch.md` | Step 3's review findings stage through it, never a bespoke mechanism. |
+| `_shared/auto-decision-log.md` | Every Step 5–7 action writes one entry under `## /release`. |
+| `_shared/github-write-transport.md` | Step 7's record comments and closes (pr-first), MCP-mapped for gh-absent sandboxes; Step 5's merge has no MCP row — the skill stops at the console with a paste-ready command there. |
+| `_shared/integration-model.md` | Step 5 routes on the pack's `engine`, never re-detected (Consumer table row). |
+| `_shared/autonomy-ceiling.md` | `--train` reads the `train` row — merge/tag minor and patch at `unattended`; never a major, a blocking review, or past a hook failure. |
+
 ## research
 
 | Target | Relationship |
