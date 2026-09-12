@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-12T18:15:08.784Z",
+  "computedAt": "2026-09-12T18:28:40.610Z",
   "runId": "2026-09-12T121420-dispatch-standalone",
   "freshnessSignal": {
     "issues": [
@@ -69,11 +69,6 @@
         "state": "OPEN"
       },
       {
-        "number": 1970,
-        "updatedAt": "2026-09-12T04:50:48Z",
-        "state": "OPEN"
-      },
-      {
         "number": 1936,
         "updatedAt": "2026-09-12T06:37:50Z",
         "state": "OPEN"
@@ -81,11 +76,6 @@
       {
         "number": 1909,
         "updatedAt": "2026-09-08T07:30:02Z",
-        "state": "OPEN"
-      },
-      {
-        "number": 1890,
-        "updatedAt": "2026-09-12T04:50:17Z",
         "state": "OPEN"
       },
       {
@@ -588,170 +578,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": true
-        }
-      }
-    ],
-    [
-      {
-        "body": "**CLAUDE.md:** CLAUDE | **Section:** Cross-references | **Category:** template-conformance | **Classification:** restructural | **Confidence:** med\n\nVerified-as-of: a40fbdc249924ba30fd48d8018f0a3c309081220\n\n## Current State\n\nThis Cross-references bullet restates docs/donts.md's IL-40 cardinality rule (\"Don't restate a list's cardinality as a literal in prose ... Describe the count by reference\") as a second copy inside CLAUDE.md, even though CLAUDE.md's own Don'ts section already states docs/donts.md is now the single canonical home for the full rule list. Removing this one redundant pointer line both eliminates the duplication and brings the file back to exactly the 150-line budget.\n\n## Deliverables\n\n**Remove this content:**\n```\n- Prefer describing a list's size by reference (\"see the table below\") over restating it as a literal count — see the cardinality rule in `## Don'ts`\n```\n\n**Proposed:** delete it — nothing replaces it.\n\n## Acceptance Criteria\n\nCLAUDE.md is 151 lines, 1 over the harness-health-always-loaded-budget default of 150 (`wc -l CLAUDE.md` = 151; `node bin/resolve-policy.js harness-health-always-loaded-budget` = 150, source: default) — the origin template's own \"Under 150 lines\" principle (skills/init/claude-md-template.md's Principles section) is violated by exactly one line.\n\n_Filed by `/claude-tweaks:harness-health`. Close to resolve; label `wontfix` to suppress future reports of this finding._\n\n<!-- work-fingerprint: harnesshealth-2aee5a8e -->\nwork-fingerprint: harnesshealth-2aee5a8e",
-        "createdAt": "2026-09-06T05:18:39Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsDgIWw",
-            "name": "size:high",
-            "description": "Scoring: large change — consider decomposition before building",
-            "color": "BFD4F2"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvj9UVg",
-            "name": "by:harness-health",
-            "description": "",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACvkQZvw",
-            "name": "harness-health:restructural",
-            "description": "",
-            "color": "ededed"
-          }
-        ],
-        "number": 1970,
-        "state": "OPEN",
-        "title": "CLAUDE.md structure: retire dead content in CLAUDE — Cross-references",
-        "updatedAt": "2026-09-12T04:50:48Z",
-        "facets": {
-          "origin": "harness-health",
-          "risk": "medium",
-          "size": "high",
-          "ceremony": null,
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Origin: ledger resolve gate\n\nDefer-reason: blocked-dependency\n\n## Current State\n\nRecord #1302 built the WEBHOOK-TRIGGER mode (`plugin/skills/routine/webhook-trigger.md`), the `webhook_triggers` schema field, the filter grammar, and both preconditions -- all documented from `create_webhook_trigger`'s own tool description, since `RemoteTrigger` was confirmed unavailable via `ToolSearch select:RemoteTrigger` in that build session. This is the 4th consecutive session (2026-08-23 x2, 2026-08-26, 2026-09-05) to confirm the same unavailability. AC2 (\"verified against a real (or explicitly documented dry-run) call\") remains unmet: the request/response shape has never actually been confirmed against a live `create_webhook_trigger` call.\n\nA prior follow-up for this same gap, #1485, was filed and closed on 2026-08-31 -- but the closing commit (`e0d4aded`, \"[fast-lane] Dispatch-queue, worktree-guard, reconcile, and process-hygiene fixes (19 records)\") bundled 19 unrelated record numbers via `Fixes #N` and contains no work touching `webhook-trigger.md`, `RemoteTrigger`, or live-call verification. #1485 appears to have been swept into an unrelated batch closure rather than substantively resolved -- its own acceptance criterion (a live or explicit-dry-run `create_webhook_trigger` call) was never actually satisfied. This record exists so the gap is not lost a second time to the same failure mode; whoever picks this up should close it only against real evidence of a live (or explicit dry-run) call, not a batch commit that doesn't mention the file.\n\n## Deliverables\n\n- Re-run `ToolSearch select:RemoteTrigger` in a session where the tool may be reachable -- 4 consecutive interactive-session misses is a strong signal worth testing in a different session type (cloud/routine) if one becomes available.\n- Once reachable, call `create_webhook_trigger` against a real (or an explicit, logged dry-run) routine and record its actual required fields, response shape, and any App-not-installed error text.\n- Diff the actual response against what `plugin/skills/routine/webhook-trigger.md` currently documents (Step 5's assembled body, the `routine_trigger_id` field, the App-not-installed error detection) and correct any mismatch.\n- Before closing, verify the closing commit/PR actually touches `webhook-trigger.md` or names the live-verification evidence directly -- do not let this close via an unrelated batch sweep the way #1485 did.\n\n## Acceptance Criteria\n\n- A live (or explicit dry-run) `create_webhook_trigger` call has been made and its actual request/response shape is confirmed to match (or has been corrected to match) `plugin/skills/routine/webhook-trigger.md`.\n- The closing commit or PR description names this evidence directly (a transcript excerpt, a diff to `webhook-trigger.md`, or an explicit \"confirmed matching, no changes needed\" note) rather than a bare `Fixes #N` in an unrelated batch.\n\n## Technical Approach\n\nStart with `ToolSearch select:RemoteTrigger` in whichever session type is available at build time. If reachable, make one real or explicit-dry-run `create_webhook_trigger` call and capture its actual request/response shape verbatim before touching the docs. Then diff that captured shape against `webhook-trigger.md`'s current documentation section by section (assembled body, `routine_trigger_id`, App-not-installed error detection) and correct only what actually differs.\n\n### Key Files\n\n- `plugin/skills/routine/webhook-trigger.md` -- the documented request/response shape to verify and correct\n\n## Gotchas\n\n- If `RemoteTrigger`/`create_webhook_trigger` is still unreachable in whatever session builds this record, do not fabricate a \"verified\" result and do not close this record -- report the continued unavailability plainly (a 5th consecutive miss is itself a useful data point) and leave it open.\n- Do not let this close via a bulk/batch commit that references this issue number without actually touching the files above -- that is exactly how #1485 was lost.\n\n_Filed by `ledger resolve gate` via specShapedBody._\n",
-        "createdAt": "2026-09-05T09:42:23Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcvg",
-            "name": "priority:low",
-            "description": "Priority: dispatch picks last among prioritized records",
-            "color": "5319E7"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 1890,
-        "state": "OPEN",
-        "title": "Live-verify create_webhook_trigger request/response shape (#1302 follow-up, 4th recurrence)",
-        "updatedAt": "2026-09-12T04:50:17Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "low",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
         }
       }
     ],
