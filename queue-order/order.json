@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-12T06:08:44.545Z",
+  "computedAt": "2026-09-12T06:40:01.074Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -40,7 +40,7 @@
       },
       {
         "number": 2265,
-        "updatedAt": "2026-09-12T04:51:38Z",
+        "updatedAt": "2026-09-12T06:11:36Z",
         "state": "OPEN"
       },
       {
@@ -170,7 +170,7 @@
       },
       {
         "number": 2008,
-        "updatedAt": "2026-09-12T04:51:08Z",
+        "updatedAt": "2026-09-12T06:38:03Z",
         "state": "OPEN"
       },
       {
@@ -245,7 +245,7 @@
       },
       {
         "number": 1936,
-        "updatedAt": "2026-09-12T04:50:40Z",
+        "updatedAt": "2026-09-12T06:37:50Z",
         "state": "OPEN"
       },
       {
@@ -532,242 +532,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: backend\n\n## Overview\n\nThe Subagent Contract (`plugin/skills/_shared/subagent-output-contract.md`) currently requires\nevery dispatched subagent's reply to open with one of `DONE` / `DONE_WITH_CONCERNS` /\n`NEEDS_CONTEXT` / `BLOCKED` as the literal first line. This has failed in production three\nseparate times (`#606`, `#1653`, `#1868`) despite explicit `WRONG:` examples at every dispatch\nsite — models reliably produce a clear concluding verdict but are unreliable at *opening* with one\nbefore any reasoning. This unit is the keystone of a 5-unit decomposition (parent #2264): it moves\nthe canonical status signal to a labeled trailing line and makes the mechanical checker in\n`plugin/bin/lib/hooks/subagent-stop.js` lenient about exact position. Every other unit in this\ndecomposition (WU2-WU5, each `Blocked by` this one) edits inline dispatch-prompt copies of the\nsame rule, and each of those edits must match the canonical text this unit establishes — so this\nunit lands first.\n\n**Complexity:** Medium\n**Estimated tasks:** 5\n\n## Non-Goals\n\n- Changing `subagent-stop.js`'s best-effort, non-blocking posture — it remains a diagnostic log,\n  never a gate. This migration adds no new enforcement mechanism.\n- Retrofitting `plugin/skills/harness-health/judge-procedure.md` (~228) or\n  `plugin/skills/harness-health/SKILL.md` (~69) — their entire reply *is* the status line\n  (\"reply with nothing but a single status line\"), so the narration-creeps-in-before-it failure\n  mode this migration targets cannot occur there. Left as a follow-up for a later record.\n- Changing the four status words themselves, their routing meaning, or the Template A/B/C content\n  that follows the status line.\n- Editing any of the other 21 dispatch-site files that carry an inline copy of the old\n  position-asserting instruction — those are WU2 through WU5 in this same decomposition, each\n  `Blocked by` this unit.\n- Hook-side reply rewriting (stripping narration before the check runs) — rejected in the design\n  doc's Rationale: it silently edits the audit trail, so the logged reply no longer matches what\n  the subagent actually said.\n\n## Current State\n\n- Canonical rule: `plugin/skills/_shared/subagent-output-contract.md` states or depends on the\n  \"first line\" position requirement at approximately lines 80, 93, 256, 278, and 286 — including\n  the Implementer Status Protocol table's framing sentence, the \"Check the status word's position,\n  not merely its presence\" paragraph (which cites the `#606`/`#1653` incidents by name), and the\n  fan-out dispatch-shape example block.\n- Detection code: `plugin/bin/lib/hooks/subagent-stop.js` exports `STATUS_RE =\n  /^(?:-\\s+)?(?:\\*\\*Status:\\*\\*\\s+)?(DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)\\b/` and applies\n  it to the first line of the last assistant turn only (`lastAssistantText`). The file's header\n  comment documents this as an \"E3: Subagent Contract status-line check (warn tier)\" — best-effort,\n  never blocking, with two documented false-positive sources already carved out (a dispatch\n  declaring a different contract; an absent `agent_transcript_path`).\n- Test coverage: zero. No `tests/hooks-subagent-stop*.test.js` file exists, and no existing test\n  anywhere exercises `STATUS_RE`'s actual matching behavior — `contract-violation` appears in a\n  handful of other test files only as an event-name string in unrelated contexts (dispatcher\n  registration, friction-events consumption).\n\n## Deliverables\n\n- [ ] Rewrite `plugin/skills/_shared/subagent-output-contract.md`'s canonical status-line rule (all\n      5 cited locations: ~80, ~93, ~256, ~278, ~286) so the reply's **last non-empty line** must\n      read exactly `STATUS: DONE` (or `STATUS: DONE_WITH_CONCERNS` / `STATUS: NEEDS_CONTEXT` /\n      `STATUS: BLOCKED`) — a labeled line, never a bare trailing word. Update the Implementer\n      Status Protocol table's framing sentence and the \"Check the status word's position\" paragraph\n      to describe the new trailing-line convention instead of the retired first-line one. For\n      review-style agents (Template A), the trailing status line follows the findings table\n      (reversing the current \"status line, then table\" order); for search/scout-style (B/C), the\n      trailing status line follows whatever the template's own content is.\n- [ ] Update the file's `WRONG:` examples (and the fan-out dispatch-shape example block) to show\n      the *new* failure modes worth warning about — a bare trailing word instead of the labeled\n      `STATUS:` line, and a status line that isn't truly the last non-empty line of the reply —\n      rather than the retired first-line-narration example (`\"Based on my review, DONE\"`).\n- [ ] Replace `subagent-stop.js`'s `STATUS_RE`-based first-line-only check with a two-tier\n      canonical/lenient detection function: (1) canonical — does the last non-empty line match\n      `^STATUS: (DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)$` exactly? Compliant, no event\n      logged. (2) lenient fallback — does the bare status word appear as the first token of any of\n      the first 3 lines, or the last 3 lines? Compliant, but log an informational\n      `contract-violation` event variant noting the non-canonical position (distinguishable from a\n      hard violation in the logged event's fields — see Data / API Surface below). (3) neither —\n      genuine violation, log `contract-violation` exactly as today, unchanged behavior.\n- [ ] Update `subagent-stop.js`'s header comment (currently documents the first-line contract and\n      its two known false-positive sources) to describe the new two-tier detection shape.\n- [ ] Create `tests/hooks-subagent-stop.test.js` (new file — no test currently exercises this\n      hook's detection logic at all) covering all four cases in Acceptance Criteria below.\n\n## Acceptance Criteria\n\n1. `tests/hooks-subagent-stop.test.js` includes a canonical-format detection test: a reply whose\n   last non-empty line is exactly `STATUS: DONE` (and separately, one for each of\n   `DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, `BLOCKED`) is detected as compliant with no\n   `contract-violation` event logged.\n2. The same test file includes a lenient-fallback detection test: a reply whose status word\n   appears as the first token of one of the first-or-last 3 lines (but not as the canonical\n   trailing `STATUS:` line) is detected as compliant, AND the test asserts the informational\n   log variant fires — not the hard-violation `contract-violation` event.\n3. The same test file includes a genuine-violation detection test: a reply where the status word\n   appears nowhere in the first-or-last 3 lines (or not at all) is detected as non-compliant and\n   logs `contract-violation` exactly as today's behavior — unchanged from the pre-migration\n   detection.\n4. The same test file includes a migration-safety test proving the design doc's rollout-safety\n   claim directly: an old-format reply (the bare status word as the literal first line, with no\n   trailing `STATUS:` line anywhere in the reply) is STILL accepted as compliant by the new\n   lenient fallback — this is what makes the format migration itself safe with no explicit\n   transition period.\n5. `plugin/skills/_shared/subagent-output-contract.md`'s `WRONG:` examples (all instances) show the\n   new failure modes — a bare trailing word instead of the labeled `STATUS:` line, and a status\n   line that isn't truly the last non-empty line — and no longer show the retired\n   first-line-narration example as the primary illustration.\n6. `npm test` passes with no regressions after all edits in this unit land.\n7. The two-tier detection function excludes markdown table-row lines (lines starting with `|`\n   after trimming) from the tier-2 lenient-fallback candidate window, with a test proving a\n   findings-table row containing a matching word does not itself trigger a false\n   lenient-compliant match when the reply's actual trailing status line is missing.\n\n## Technical Approach\n\nExactly the design doc's Decision section (New canonical format + Checker leniency subsections) —\nreproduced here since the design doc is deleted once this decomposition lands:\n\n**New canonical format.** The reply's last non-empty line must read exactly `STATUS: {WORD}`. A\nlabeled line, not a bare trailing word, because a bare trailing word risks colliding with prose\nthat happens to end in a matching token (\"...the tests are done\" reads as ambiguous;\n\"...the tests are done\\nSTATUS: DONE\" does not). The label makes the line unambiguous and\ntrivially greppable: `grep -E '^STATUS: (DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED)$'` against\nthe last non-empty line of a reply.\n\n**Checker leniency (subsumes rollout safety).** `subagent-stop.js`'s detection changes from \"does\nthe first line match `STATUS_RE`\" to the three-tier check in Deliverables above. This single\nfallback rule does double duty: it is the mechanical leniency that tolerates ordinary model drift\n(the status word landing one line off from where the contract technically wants it), and it is\nalso what makes the format migration itself safe with no explicit transition period to manage — a\ndispatch's full round-trip (prompt sent, subagent replies, reply checked) happens within one Task\ncall, using whichever plugin version is loaded when the *check* runs, not when the *prompt* was\nsent. An in-flight dispatch given an old-format prompt (status word first) whose reply is checked\nafter this migration ships is still accepted by the lenient fallback's first-K-lines check.\n\n### Data / API Surface\n\nThe informational log variant from Deliverable 3 must be distinguishable from a hard\n`contract-violation` in the logged event's own fields (e.g. an added `variant: 'lenient'` /\n`variant: 'canonical'` / absent-for-hard-violation field, or equivalent) — the design doc's own\nwording is \"log an informational `contract-violation` event variant... visible for someone to\nnotice a dispatch site is still using the old shape, but never a hard failure.\" Name the exact\nfield/shape chosen in this deliverable's own commit; downstream consumers of the friction-events\nlog (`bin/lib/hooks/friction-events` or equivalent) are out of this unit's scope to update, per\nNon-Goals — a consumer keying on the `contract-violation` event name alone (with no `variant`\ncheck) will keep treating the informational variant as a hard violation until it is separately\nupdated; this is an accepted, intentional boundary of this unit's scope, not an oversight.\n\n### Detection Boundary Rules (resolved during Step 5 red-team review)\n\n- **Tier-2 match shape.** The lenient fallback matches either the bare status word OR a labeled\n  `STATUS: {WORD}` line (tier-1's own exact pattern, just off-position) as the first token of a\n  candidate line — after stripping the same optional `- ` / `**Status:**` prefixes the existing\n  `STATUS_RE` already strips. Either form landing in the candidate window is lenient-compliant.\n- **Window counts non-empty lines only**, matching tier-1's own \"last non-empty line\" convention —\n  blank lines never count toward the first-3/last-3 window, and the two windows may overlap for a\n  short reply (≤6 non-empty lines total); checked as a union, not a strict partition.\n- **Canonical exact-match is on the trimmed line** (trailing whitespace ignored) and is\n  case-sensitive — `STATUS: done` does not match tier 1 (it may still match tier 2's bare-word\n  check if `done` itself were a valid word, which it isn't, so an all-lowercase reply always falls\n  through to genuine-violation, unchanged from today's case-sensitive behavior).\n- **Table-row exclusion.** A candidate line that is a markdown table row (starts with `|` after\n  trimming) is excluded from the tier-2 window — this prevents a Template A findings table's own\n  cell content (which may itself contain a matching word) from producing a false lenient-compliant\n  match when the reply's real trailing status line is missing or malformed.\n- **Decorated variants are an accepted gap, not a blocking one.** A bolded canonical line (e.g.\n  `**STATUS: DONE**`) matches neither tier 1 exactly nor the existing prefix carve-outs (which\n  target a different contract's bold `**Status:**` bullet shape, not this new line) — left\n  unhandled by design, consistent with the checker's best-effort, non-blocking posture.\n- The two existing false-positive carve-outs (a dispatch declaring a different contract; an absent\n  `agent_transcript_path`) and `isExemptAgentType` are unaffected and still evaluated before either\n  detection tier runs.\n- **Template B/C placement.** The trailing status line is the reply's absolute last non-empty line,\n  after all of that template's own required content — identical to every other site's rule, just\n  with no findings table to follow it.\n\n### Key Files\n\n- `plugin/skills/_shared/subagent-output-contract.md` — canonical rule text at ~80, ~93, ~256,\n  ~278, ~286; `WRONG:` examples and the fan-out dispatch-shape example block.\n- `plugin/bin/lib/hooks/subagent-stop.js` — replace `STATUS_RE`'s first-line-only check with the\n  two-tier canonical/lenient detection function; update the header comment.\n- `tests/hooks-subagent-stop.test.js` — new file, zero prior coverage of this hook's detection\n  logic.\n\n## Gotchas\n\n- **Related:** #2036 — \"SubagentStop hook misattributes contract-violation to main-session\n  narration.\" Cross-link only, not a dependency: #2036 is a genuinely separate bug (the hook reads\n  the wrong transcript source, attributing a violation to main-session narration instead of the\n  actual subagent reply) in the same function this unit touches. Do not fold #2036's proposed\n  exemption into this unit's scope — leave its own resolution to its own record.\n- `STATUS_RE` already carries two documented false-positive carve-outs (a dispatch declaring a\n  different contract shape, e.g. `superpowers:subagent-driven-development`'s bold `**Status:**`\n  bullet; an absent `agent_transcript_path`) — preserve both when rewriting the detection function,\n  they are orthogonal to the position-leniency change this unit makes.\n- `isExemptAgentType` (third-party plugin agent exemption, `#1596`) is untouched by this migration\n  — it gates whether the check runs at all, not how the status line is located within a reply that\n  does get checked.\n- The two structurally-immune harness-health files (Non-Goals above) already comply with the *old*\n  first-line rule by construction (\"nothing but a single status line\") and will also comply with\n  the *new* trailing-line rule by the same construction (their one line is simultaneously first and\n  last) — no migration risk there, which is exactly why they're a low-priority follow-up rather\n  than in-scope here.\n- Keep `subagent-stop.js`'s best-effort, non-blocking posture completely unchanged — this is a\n  detection-shape change only, never a new gate.\n- **Accepted duplication tradeoff (raised in Step 5 red-team).** This decomposition's other 4\n  units (WU2-WU5) each carry their own inline dispatch-prompt copy of the same canonical rule\n  rather than a single centralized reference — consistent with how every dispatch site in this\n  plugin already works today (agents only see their own prompt; a shared-file reference would not\n  reach them, per the Subagent Contract's own \"Letting agents read sibling files\" anti-pattern).\n  Centralizing the canonical *text* into one file the *human maintainer* edits once (as opposed to\n  what each dispatched *agent* sees) is a real architectural question worth its own record, but is\n  out of scope for a status-line migration and not required for this unit's acceptance.\n\n## Manual Steps\n\nNone — every deliverable has a direct CLI/code path (file edits, a new test file, `npm test`).\n\n\n<!-- work-fingerprint: subagent-status-line-trailing-migration:canonical-contract-and-hook -->\nwork-fingerprint: subagent-status-line-trailing-migration:canonical-contract-and-hook",
-        "createdAt": "2026-09-11T21:56:38Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2oaA",
-            "name": "type:feature",
-            "description": "Type: new capability or enhancement",
-            "color": "FEF2C0"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          }
-        ],
-        "number": 2265,
-        "state": "OPEN",
-        "title": "Migrate Subagent Contract canonical status-line rule and subagent-stop.js detection",
-        "updatedAt": "2026-09-12T04:51:38Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": null,
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      },
-      {
-        "body": "Surface: backend\n\n## Overview\n\nPure empirical verification: `plugin/bin/lib/hooks/subagent-stop.js`'s status-line contract check (E3) reads `ctx.input.agent_transcript_path` only, with no fallback to the parent session's `transcript_path` (confirmed live in the shipped code — the fallback removal from #1928 has already landed). Nothing in this repo's history proves the harness ever actually populates `agent_transcript_path` on a real `SubagentStop` event. If it doesn't, this check silently never fires again, and the `contract-violation` event payload (`{ firstLine }`, no transcript-source field) makes that indistinguishable from \"every dispatched agent complied.\"\n\n**Status update from filing time:** the original record's own blocker (\"the probe cannot run inside this build — its own subagents are dispatched under the pre-change installed plugin, 6.116.0\") is now stale. This session's own read of `subagent-stop.js` confirms the fallback-removal fix has already shipped in the currently installed build (6.118.0). The empirical probe below can run now, in an ordinary `/claude-tweaks:dispatch` or any Task-tool dispatch under the current plugin.\n\n**Complexity:** Low\n**Estimated tasks:** 2 (a single blocking empirical Task 0, plus its conditional follow-up)\n\n## Non-Goals\n\n- Speculative code changes to `subagent-stop.js` before the probe result is known — the record's own \"Why no code change\" section already states correctly that a `source` field reading `agent_transcript_path` alone (the only value it could ever hold post-#1928) proves nothing about harness behavior. Do not add one as a substitute for the actual observation.\n- Investigating or fixing `claude-code#27755` (SubagentStop firing unreliably for Task dispatches) directly — it's a harness issue, not this plugin's code; this spec only accounts for it methodologically in Task 0's dispatch count (below), it doesn't attempt to fix it.\n\n## Current State\n\n- `plugin/bin/lib/hooks/subagent-stop.js` (~line 12, ~line 110): `const transcriptPath = ctx.input.agent_transcript_path;` — no fallback. The file's own header comment confirms the fallback removal already shipped as part of #1928.\n- `plugin/bin/lib/hooks/subagent-stop.js` (~line 26): `STATUS_RE` — the exact regex a dispatched agent's first reply line must match to be considered compliant: an optional `- ` bullet prefix, an optional bold `**Status:** ` label, then one of `DONE`, `DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, `BLOCKED`. Task 0's probe subagent must reply with a first line that matches NONE of these shapes, to deliberately trigger a contract violation if the check is actually live.\n- `plugin/bin/lib/hooks/subagent-stop.js` (~line 116): `ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: trimmedText.split('\\n')[0].slice(0, 120) }, ownedRun.attribution)` — the event this Task 0 checks for, written to the owning run's `events.jsonl`.\n- The file's own header cites `claude-code#27755`: SubagentStop fires unreliably for Task dispatches — a confound Task 0's dispatch count must account for (a single non-firing dispatch is ambiguous between \"hook didn't fire at all\" and \"hook fired, `agent_transcript_path` absent, check no-op'd\").\n\n## Deliverables\n\n- [ ] **Task 0 (blocking, empirical):** dispatch at least 3 independent Task-tool subagents (mitigating the `claude-code#27755` firing-unreliability confound — a single dispatch's silence is ambiguous, three independent silences are stronger evidence), each instructed to reply with a first line that clearly violates `STATUS_RE` (e.g. plain prose with no status word, or a status word buried mid-sentence rather than at the start). Immediately after each dispatch completes, read that run's `events.jsonl` and check for a `contract-violation` event.\n- [ ] Record the literal observed result verbatim in this spec's own `## Gotchas` before considering this closed: how many of the 3+ dispatches produced a `contract-violation` event, and (if any did) whether the event's `firstLine` matches the deliberately-violating reply — confirming the check fired for the right reason, not a coincidental unrelated log line.\n- [ ] **Conditional on zero violations detected across all dispatches:** file this as a new, separate finding (not fixed inline in this spec) — `agent_transcript_path` is not delivered by the harness in this environment, and `subagent-stop.js`'s E3 check needs a different input signal entirely. Do not guess at what that signal should be here; that's a new design question for a follow-up record.\n- [ ] **Conditional on at least one violation detected:** close this spec as confirmed-working — the check is live, no code change needed. State this plainly rather than treating \"we found nothing wrong\" as an unsatisfying result; a clean confirmation is exactly what this spec exists to produce.\n\n## Acceptance Criteria\n\n1. At least 3 independent Task-tool dispatches were made, each with a reply deliberately violating `STATUS_RE`.\n2. Each dispatch's owning run's `events.jsonl` was checked for a `contract-violation` event, and the count of dispatches that did/did not produce one is stated exactly (e.g. \"3 of 3\", \"0 of 3\", \"1 of 3\") — not rounded to \"some\"/\"most\".\n3. The literal observed result is recorded in this spec's `## Gotchas` (or, once resolved, in the closing PR/commit description) before this record closes.\n4. If zero violations were detected, a new record is filed via `/claude-tweaks:capture` naming the confirmed gap and proposing the next investigation step (what alternative input signal might work) — not fixed inline here.\n\n## Technical Approach\n\nNo code changes are anticipated unless Task 0 confirms the check is inert, in which case the conditional deliverable routes to a new record rather than expanding this spec's own scope. This keeps the empirical result and any resulting design work cleanly separated — this spec's only job is to produce the observation.\n\n### Key Files\n\n- `plugin/bin/lib/hooks/subagent-stop.js` — read-only reference for `STATUS_RE` and the `contract-violation` event shape; no edits anticipated here\n- `{owning run directory}/events.jsonl` — read target for Task 0's check, path varies per dispatch\n\n## Gotchas\n\n- {Task 0's literal observed result goes here once run: N of 3+ dispatches produced a contract-violation event, and whether each event's firstLine matched the deliberately-violating reply.}\n- Do not add a `source` field to the `contract-violation` event as a substitute for running Task 0 — the record's own original analysis (preserved below) already explains why that would prove nothing under the current code.\n- `claude-code#27755` means a single non-firing dispatch is not conclusive on its own — Task 0's 3+ dispatch count exists specifically to distinguish \"harness didn't fire the hook this one time\" from \"hook fired but the field was absent.\"\n\n## Original request\n\n# #1928 leftover — is the SubagentStop status-line check now silently inert?\n\n**What changed:** `plugin/bin/lib/hooks/subagent-stop.js` no longer falls back to the parent session's `transcript_path` when `agent_transcript_path` is absent (spec Deliverable 5, AC5). The whole-branch review sampled 1,887 archived `contract-violation` events — every one was orchestrator narration graded through that fallback; none carried an agent-scoped transcript.\n\n**What is not proven:** nothing in the corpus shows `agent_transcript_path` ever being populated by the harness. If it is not, the check is now a no-op and nobody would notice — the event payload records no transcript source, so absence of events is indistinguishable from \"every agent complied\".\n\n**Why no code change in this run:** a `source` field on the event would only ever read `agent_transcript_path` now (the fallback is gone), so it proves nothing about the harness; the only evidence is one observed true positive after this ships.\n\n**Proposed console action:** file a follow-up record via `/claude-tweaks:capture` — \"After #1928 ships, dispatch one subagent whose reply deliberately omits the status line and confirm a `contract-violation` event lands in the owning run's `events.jsonl`; if none does, `agent_transcript_path` is not delivered by the harness and the check needs a different input.\" `Defer-reason: needs-live-observation` — the probe cannot run inside this build (its own subagents are dispatched under the pre-change installed plugin, 6.116.0).\n\n\n_Created by the consolidated Review Console of multi-spec run 2026-09-05T193518 (auto-resolved under the unattended ceiling; proposal: `spec-1928/staged/leftover-contract-violation-inertness.md`)._\n\nhttps://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB\n",
-        "createdAt": "2026-09-06T21:24:45Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyq1w",
-            "name": "risk:low",
-            "description": "Scoring: low blast radius — safe for autonomous build",
-            "color": "D93F0B"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEquA",
-            "name": "auto:merge",
-            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
-            "color": "BFDADC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
-            "name": "priority:high",
-            "description": "Priority: dispatch picks this band first",
-            "color": "FBCA04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszED4w",
-            "name": "ceremony:fast-lane",
-            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
-            "color": "BFDADC"
-          }
-        ],
-        "number": 2008,
-        "state": "OPEN",
-        "title": "Confirm the SubagentStop status-line check still fires after the parent-transcript fallback removal (#1928)",
-        "updatedAt": "2026-09-12T04:51:08Z",
-        "facets": {
-          "origin": null,
-          "risk": "low",
-          "size": "low",
-          "ceremony": "fast-lane",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "high",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": true
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": false
-        }
-      },
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`plugin/bin/lib/hooks/subagent-stop.js` (E3, warn tier) reads the stopping subagent's transcript, exempts third-party `agent_type`s (#1596), and on a missing status line appends one `contract-violation` event to the owning run's `events.jsonl`; its header states \"Never blocks\" and that the event fires unreliably for Task dispatches (claude-code#27755). On a violation it returns a warn-tier `systemMessage` naming the missing status line; on every other path it returns `{}`. `plugin/hooks/hooks.json` registers it under `SubagentStop`. `_shared/subagent-output-contract.md` documents the hook as best-effort logging and tells the dispatcher to re-prompt by hand. #1596 (closed) shipped the exemption and a stronger dispatch template and deferred in-run enforcement because two lookups of the Claude Code hooks reference disagreed on whether `SubagentStop` accepts a blocking decision.\n\nLead, not yet the answer: the hooks reference (`https://code.claude.com/docs/en/hooks`, read 2026-09-09) lists `SubagentStop` in its exit-code-2 table as \"Prevents the subagent from stopping\" and describes a `hookSpecificOutput` block with a `blockSubagentStop`-style flag and reason field; `permissionDecision` is documented for the tool events only, so the field names #1596 tested were the wrong ones. The exact field names and whether the blocked subagent actually continues must be captured from a live run, not from a summary. #1868 (open, `needs:definition`) holds the wider \"which enforcement point\" question for status-word violations; this record is the mechanical probe that decides whether the hook-side option is available at all.\n\nTests: `tests/subagent-contract-clauses.test.js` pins the contract prose; `subagent-stop.js`'s exemption logic is tested with fake `ctx` objects in `tests/hooks-log-modules.test.js`.\n\n## Deliverables\n\n- [ ] **Task 0 — empirical premise check (blocking).** Dispatch one throwaway Task subagent whose prompt makes its first line deliberately narrative, with a temporary `subagent-stop.js` variant that returns the documented blocking output (try, in order, `hookSpecificOutput: { hookEventName: 'SubagentStop', blockSubagentStop: true, blockSubagentStopReason: … }`, then the `decision: 'block'` + `reason` shape, then exit code 2). Capture verbatim: the hook's stdin payload field names, the output that worked, and the subagent's transcript showing whether it continued and re-replied. Mandatory teardown: restore `subagent-stop.js` unconditionally, delete the throwaway transcript, and confirm no `contract-violation` event from the probe remains in any live run dir. Record the literal captured behavior in `subagent-stop.js`'s header comment and in this issue.\n- [ ] **If supported: forced retry with a one-retry cap.** On a violation from a non-exempt `agent_type`, return the blocking output with a reason that quotes the contract's status-line rule and the offending first line; count retries per `(session_id, agent_id)` in `${os.tmpdir()}/ct-contract-retries-${sessionId}.json` (the `resolve-profile.js` blacklist-file convention); on the second violation of the same agent, log the event as today and let it stop. A failed counter write counts as \"already retried\" so a broken tmp dir can never loop. Update the header comment's \"Never blocks\" sentence and `_shared/subagent-output-contract.md`'s E3 paragraph and Anti-Patterns to describe the one forced retry; `docs/hooks.md` gains one sentence naming the tier change (warn → one-shot block).\n- [ ] **If unsupported: close with the limitation recorded**, and file one follow-up under #1868 proposing the dispatcher-facing alternative (surfacing `contract-violation` via `hookSpecificOutput.additionalContext` on a dispatcher-side event) so the definition there has the evidence.\n- [ ] **Tests (supported branch).** Fake-`ctx` cases beside the existing exemption tests: first violation → blocking output with the reason; second violation same `(session_id, agent_id)` → `{}` plus the logged event; exempt `agent_type` → `{}` with no counter write; counter write throwing → treated as already retried; a compliant reply → `{}` and no counter file. `tests/subagent-contract-clauses.test.js` updated for the revised E3 clause.\n\n## Acceptance Criteria\n\n1. `subagent-stop.js`'s header comment and this issue carry the Task 0 capture: the exact input field names observed, the exact output shape that blocked (or the evidence that none did), and the transcript excerpt showing the subagent's behavior after the block.\n2. Supported branch: a non-exempt violating subagent is blocked exactly once per `(session_id, agent_id)`; the second violation stops normally with the event logged; exempt agents are never blocked; the probe's teardown left no plugin file modified (`git status` clean on `plugin/`).\n3. Unsupported branch: this record is closed with the captured evidence and one follow-up record exists under #1868 naming the dispatcher-facing alternative.\n4. `npm test` green; the existing exemption tests pass unchanged.\n5. `_shared/subagent-output-contract.md`, `docs/hooks.md`, and the hook's header agree on the tier (one forced retry, or warn-only with the limitation named).\n\n## Technical Approach\n\nProbe before code, per `spec-template.md`'s Empirical Premise-Check Deliverables: the doc lead above is a hypothesis with field names from a summary, and the hook's own history (#1928, claude-code#27755) shows this event's behavior drifts. Keep the block one-shot and counter-backed so the never-break-a-session invariant holds even when the harness re-fires the event; keep the exemption check first so third-party agents never see a block. The wider enforcement-point decision stays with #1868; this record only settles whether the hook-side option exists and, if so, ships its minimal form.\n\n### Key Files\n\n- `plugin/bin/lib/hooks/subagent-stop.js` — Task 0 capture in the header; blocking output; retry counter\n- `plugin/skills/_shared/subagent-output-contract.md` — E3 paragraph and Anti-Patterns\n- `docs/hooks.md` — tier sentence\n- `tests/hooks-log-modules.test.js` (fake-`ctx` hook cases) and `tests/subagent-contract-clauses.test.js` — new cases\n\n## Gotchas\n\n- The probe mutates a hook that fires for every subagent in the session; run it in an isolated worktree session with the plugin loaded from that checkout (`claude --plugin-dir ./plugin`), never against the installed build.\n- `SubagentStop` \"fires unreliably for Task dispatches\" (claude-code#27755): a probe that sees no event at all is inconclusive, not \"unsupported\"; repeat once before concluding.\n- The counter file is per session; a blocked subagent that is re-dispatched with a new `agent_id` is a new agent by design.\n- Never block on an absent `agent_transcript_path` (#1928's fix): no transcript means no evidence, and the hook must still return `{}` there.\n\n## Original request\n\n# In-run enforcement follow-up from #1596\n\n**Origin:** #1596 build (deferred, scope-down decision — see that record's Blocked / Future Work section and its materialized spec at `.claude-tweaks/pipelines/2026-09-05T174526-record-1596/work/1596-spec.md`)\n\n## Current State\n\n#1596 shipped an `agent_type` exemption fix to `plugin/bin/lib/hooks/subagent-stop.js` and a\nstrengthened dispatch template in `plugin/skills/_shared/subagent-output-contract.md`, but did not\nimplement forcing a violating subagent to retry in-run via the `SubagentStop` hook's own\ndecision-control output. Whether `SubagentStop`'s JSON output actually supports\n`permissionDecision: \"block\"` / `permissionDecisionReason` (the way `Stop`'s documented decision\ncontrol does) was not confirmed within that build's investigation budget — two lookups against\nClaude Code's own hooks reference (`https://code.claude.com/docs/en/hooks`) disagreed, and the\nsession hit a rate limit before a third, decisive lookup could run.\n\n## Deliverables\n\n- Resolve the platform-support question definitively: a live probe (dispatch one throwaway Task\n  subagent whose reply is deliberately malformed, have `subagent-stop.js` attempt the\n  `permissionDecision: 'block'` response, and confirm from the subagent's own transcript/behavior\n  whether it was actually forced to continue rather than stopping) before implementing the\n  forced-retry mechanism either way.\n- If confirmed supported: implement the forced-retry mechanism in `subagent-stop.js`, scoped to\n  non-exempt `agent_type`s only (reuse #1596's exemption check), with a one-retry cap per\n  `(session_id, agent_id)` — mirror `resolve-profile.js`'s session-scoped model-failure-blacklist\n  convention (`${os.tmpdir()}/ct-model-failures-${sessionId}.json`) for the retry-count file\n  (`${os.tmpdir()}/ct-contract-retries-${sessionId}.json`), to avoid an infinite retry loop if the\n  write itself fails.\n- If confirmed unsupported: close this record noting the platform limitation, and consider\n  whether `friction-events.js`'s existing `contract-violation` detection could instead be surfaced\n  back to the *dispatching* agent in-run some other way (e.g. via `hookSpecificOutput.additionalContext`\n  on a different, dispatcher-facing hook event) rather than acting on the violating subagent itself.\n\n## Acceptance Criteria\n\n1. A definitive, sourced answer to \"does `SubagentStop`'s JSON output support a blocking decision\n   field,\" recorded in this issue or in `subagent-stop.js`'s own comments.\n2. If yes: a working forced-retry implementation with a one-retry cap, tested the same way\n   #1596's `tests/hooks-subagent-stop.test.js` tests its exemption logic (fake `ctx` objects, no\n   live harness dependency).\n\n",
-        "createdAt": "2026-09-05T19:05:05Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
-            "name": "size:medium",
-            "description": "Size: medium effort",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2myw",
-            "name": "by:capture",
-            "description": "Origin: filed via /capture",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2pJg",
-            "name": "type:task",
-            "description": "Type: maintenance, refactor, docs, or chore work",
-            "color": "ededed"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1936,
-        "state": "OPEN",
-        "title": "Resolve SubagentStop blocking-decision platform support and implement forced in-run retry (follow-up from #1596)",
-        "updatedAt": "2026-09-12T04:50:40Z",
-        "facets": {
-          "origin": "capture",
-          "risk": "medium",
-          "size": "medium",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
         }
       }
     ],
@@ -1520,6 +1284,174 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": false
+        }
+      }
+    ],
+    [
+      {
+        "body": "Surface: backend\n\n## Overview\n\nPure empirical verification: `plugin/bin/lib/hooks/subagent-stop.js`'s status-line contract check (E3) reads `ctx.input.agent_transcript_path` only, with no fallback to the parent session's `transcript_path` (confirmed live in the shipped code — the fallback removal from #1928 has already landed). Nothing in this repo's history proves the harness ever actually populates `agent_transcript_path` on a real `SubagentStop` event. If it doesn't, this check silently never fires again, and the `contract-violation` event payload (`{ firstLine }`, no transcript-source field) makes that indistinguishable from \"every dispatched agent complied.\"\n\n**Status update from filing time:** the original record's own blocker (\"the probe cannot run inside this build — its own subagents are dispatched under the pre-change installed plugin, 6.116.0\") is now stale. This session's own read of `subagent-stop.js` confirms the fallback-removal fix has already shipped in the currently installed build (6.118.0). The empirical probe below can run now, in an ordinary `/claude-tweaks:dispatch` or any Task-tool dispatch under the current plugin.\n\n**Complexity:** Low\n**Estimated tasks:** 2 (a single blocking empirical Task 0, plus its conditional follow-up)\n\n## Non-Goals\n\n- Speculative code changes to `subagent-stop.js` before the probe result is known — the record's own \"Why no code change\" section already states correctly that a `source` field reading `agent_transcript_path` alone (the only value it could ever hold post-#1928) proves nothing about harness behavior. Do not add one as a substitute for the actual observation.\n- Investigating or fixing `claude-code#27755` (SubagentStop firing unreliably for Task dispatches) directly — it's a harness issue, not this plugin's code; this spec only accounts for it methodologically in Task 0's dispatch count (below), it doesn't attempt to fix it.\n\n## Current State\n\n- `plugin/bin/lib/hooks/subagent-stop.js` (~line 12, ~line 110): `const transcriptPath = ctx.input.agent_transcript_path;` — no fallback. The file's own header comment confirms the fallback removal already shipped as part of #1928.\n- `plugin/bin/lib/hooks/subagent-stop.js` (~line 26): `STATUS_RE` — the exact regex a dispatched agent's first reply line must match to be considered compliant: an optional `- ` bullet prefix, an optional bold `**Status:** ` label, then one of `DONE`, `DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, `BLOCKED`. Task 0's probe subagent must reply with a first line that matches NONE of these shapes, to deliberately trigger a contract violation if the check is actually live.\n- `plugin/bin/lib/hooks/subagent-stop.js` (~line 116): `ctxLib.appendEvent(ownedRun.dir, 'contract-violation', { firstLine: trimmedText.split('\\n')[0].slice(0, 120) }, ownedRun.attribution)` — the event this Task 0 checks for, written to the owning run's `events.jsonl`.\n- The file's own header cites `claude-code#27755`: SubagentStop fires unreliably for Task dispatches — a confound Task 0's dispatch count must account for (a single non-firing dispatch is ambiguous between \"hook didn't fire at all\" and \"hook fired, `agent_transcript_path` absent, check no-op'd\").\n\n## Deliverables\n\n- [ ] **Task 0 (blocking, empirical):** dispatch at least 3 independent Task-tool subagents (mitigating the `claude-code#27755` firing-unreliability confound — a single dispatch's silence is ambiguous, three independent silences are stronger evidence), each instructed to reply with a first line that clearly violates `STATUS_RE` (e.g. plain prose with no status word, or a status word buried mid-sentence rather than at the start). Immediately after each dispatch completes, read that run's `events.jsonl` and check for a `contract-violation` event.\n- [ ] Record the literal observed result verbatim in this spec's own `## Gotchas` before considering this closed: how many of the 3+ dispatches produced a `contract-violation` event, and (if any did) whether the event's `firstLine` matches the deliberately-violating reply — confirming the check fired for the right reason, not a coincidental unrelated log line.\n- [ ] **Conditional on zero violations detected across all dispatches:** file this as a new, separate finding (not fixed inline in this spec) — `agent_transcript_path` is not delivered by the harness in this environment, and `subagent-stop.js`'s E3 check needs a different input signal entirely. Do not guess at what that signal should be here; that's a new design question for a follow-up record.\n- [ ] **Conditional on at least one violation detected:** close this spec as confirmed-working — the check is live, no code change needed. State this plainly rather than treating \"we found nothing wrong\" as an unsatisfying result; a clean confirmation is exactly what this spec exists to produce.\n\n## Acceptance Criteria\n\n1. At least 3 independent Task-tool dispatches were made, each with a reply deliberately violating `STATUS_RE`.\n2. Each dispatch's owning run's `events.jsonl` was checked for a `contract-violation` event, and the count of dispatches that did/did not produce one is stated exactly (e.g. \"3 of 3\", \"0 of 3\", \"1 of 3\") — not rounded to \"some\"/\"most\".\n3. The literal observed result is recorded in this spec's `## Gotchas` (or, once resolved, in the closing PR/commit description) before this record closes.\n4. If zero violations were detected, a new record is filed via `/claude-tweaks:capture` naming the confirmed gap and proposing the next investigation step (what alternative input signal might work) — not fixed inline here.\n\n## Technical Approach\n\nNo code changes are anticipated unless Task 0 confirms the check is inert, in which case the conditional deliverable routes to a new record rather than expanding this spec's own scope. This keeps the empirical result and any resulting design work cleanly separated — this spec's only job is to produce the observation.\n\n### Key Files\n\n- `plugin/bin/lib/hooks/subagent-stop.js` — read-only reference for `STATUS_RE` and the `contract-violation` event shape; no edits anticipated here\n- `{owning run directory}/events.jsonl` — read target for Task 0's check, path varies per dispatch\n\n## Gotchas\n\n- {Task 0's literal observed result goes here once run: N of 3+ dispatches produced a contract-violation event, and whether each event's firstLine matched the deliberately-violating reply.}\n- Do not add a `source` field to the `contract-violation` event as a substitute for running Task 0 — the record's own original analysis (preserved below) already explains why that would prove nothing under the current code.\n- `claude-code#27755` means a single non-firing dispatch is not conclusive on its own — Task 0's 3+ dispatch count exists specifically to distinguish \"harness didn't fire the hook this one time\" from \"hook fired but the field was absent.\"\n\n## Original request\n\n# #1928 leftover — is the SubagentStop status-line check now silently inert?\n\n**What changed:** `plugin/bin/lib/hooks/subagent-stop.js` no longer falls back to the parent session's `transcript_path` when `agent_transcript_path` is absent (spec Deliverable 5, AC5). The whole-branch review sampled 1,887 archived `contract-violation` events — every one was orchestrator narration graded through that fallback; none carried an agent-scoped transcript.\n\n**What is not proven:** nothing in the corpus shows `agent_transcript_path` ever being populated by the harness. If it is not, the check is now a no-op and nobody would notice — the event payload records no transcript source, so absence of events is indistinguishable from \"every agent complied\".\n\n**Why no code change in this run:** a `source` field on the event would only ever read `agent_transcript_path` now (the fallback is gone), so it proves nothing about the harness; the only evidence is one observed true positive after this ships.\n\n**Proposed console action:** file a follow-up record via `/claude-tweaks:capture` — \"After #1928 ships, dispatch one subagent whose reply deliberately omits the status line and confirm a `contract-violation` event lands in the owning run's `events.jsonl`; if none does, `agent_transcript_path` is not delivered by the harness and the check needs a different input.\" `Defer-reason: needs-live-observation` — the probe cannot run inside this build (its own subagents are dispatched under the pre-change installed plugin, 6.116.0).\n\n\n_Created by the consolidated Review Console of multi-spec run 2026-09-05T193518 (auto-resolved under the unattended ceiling; proposal: `spec-1928/staged/leftover-contract-violation-inertness.md`)._\n\nhttps://claude.ai/code/session_01L9hhTyzis8dqW87Qhy96DB\n",
+        "createdAt": "2026-09-06T21:24:45Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyq1w",
+            "name": "risk:low",
+            "description": "Scoring: low blast radius — safe for autonomous build",
+            "color": "D93F0B"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyrJA",
+            "name": "size:low",
+            "description": "Scoring: small, agent-sized change",
+            "color": "E99695"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEquA",
+            "name": "auto:merge",
+            "description": "Grant: a clean autonomous run may merge unreviewed (stacks on auto:build; alone inert)",
+            "color": "BFDADC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHb2Q",
+            "name": "priority:high",
+            "description": "Priority: dispatch picks this band first",
+            "color": "FBCA04"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszED4w",
+            "name": "ceremony:fast-lane",
+            "description": "Ceremony: small/clean record — proportionately fewer review & wrap-up steps",
+            "color": "BFDADC"
+          }
+        ],
+        "number": 2008,
+        "state": "OPEN",
+        "title": "Confirm the SubagentStop status-line check still fires after the parent-transcript fallback removal (#1928)",
+        "updatedAt": "2026-09-12T06:38:03Z",
+        "facets": {
+          "origin": null,
+          "risk": "low",
+          "size": "low",
+          "ceremony": "fast-lane",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "high",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": true
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": false
+        }
+      },
+      {
+        "body": "Surface: infra\n\n## Current State\n\n`plugin/bin/lib/hooks/subagent-stop.js` (E3, warn tier) reads the stopping subagent's transcript, exempts third-party `agent_type`s (#1596), and on a missing status line appends one `contract-violation` event to the owning run's `events.jsonl`; its header states \"Never blocks\" and that the event fires unreliably for Task dispatches (claude-code#27755). On a violation it returns a warn-tier `systemMessage` naming the missing status line; on every other path it returns `{}`. `plugin/hooks/hooks.json` registers it under `SubagentStop`. `_shared/subagent-output-contract.md` documents the hook as best-effort logging and tells the dispatcher to re-prompt by hand. #1596 (closed) shipped the exemption and a stronger dispatch template and deferred in-run enforcement because two lookups of the Claude Code hooks reference disagreed on whether `SubagentStop` accepts a blocking decision.\n\nLead, not yet the answer: the hooks reference (`https://code.claude.com/docs/en/hooks`, read 2026-09-09) lists `SubagentStop` in its exit-code-2 table as \"Prevents the subagent from stopping\" and describes a `hookSpecificOutput` block with a `blockSubagentStop`-style flag and reason field; `permissionDecision` is documented for the tool events only, so the field names #1596 tested were the wrong ones. The exact field names and whether the blocked subagent actually continues must be captured from a live run, not from a summary. #1868 (open, `needs:definition`) holds the wider \"which enforcement point\" question for status-word violations; this record is the mechanical probe that decides whether the hook-side option is available at all.\n\nTests: `tests/subagent-contract-clauses.test.js` pins the contract prose; `subagent-stop.js`'s exemption logic is tested with fake `ctx` objects in `tests/hooks-log-modules.test.js`.\n\n## Deliverables\n\n- [ ] **Task 0 — empirical premise check (blocking).** Dispatch one throwaway Task subagent whose prompt makes its first line deliberately narrative, with a temporary `subagent-stop.js` variant that returns the documented blocking output (try, in order, `hookSpecificOutput: { hookEventName: 'SubagentStop', blockSubagentStop: true, blockSubagentStopReason: … }`, then the `decision: 'block'` + `reason` shape, then exit code 2). Capture verbatim: the hook's stdin payload field names, the output that worked, and the subagent's transcript showing whether it continued and re-replied. Mandatory teardown: restore `subagent-stop.js` unconditionally, delete the throwaway transcript, and confirm no `contract-violation` event from the probe remains in any live run dir. Record the literal captured behavior in `subagent-stop.js`'s header comment and in this issue.\n- [ ] **If supported: forced retry with a one-retry cap.** On a violation from a non-exempt `agent_type`, return the blocking output with a reason that quotes the contract's status-line rule and the offending first line; count retries per `(session_id, agent_id)` in `${os.tmpdir()}/ct-contract-retries-${sessionId}.json` (the `resolve-profile.js` blacklist-file convention); on the second violation of the same agent, log the event as today and let it stop. A failed counter write counts as \"already retried\" so a broken tmp dir can never loop. Update the header comment's \"Never blocks\" sentence and `_shared/subagent-output-contract.md`'s E3 paragraph and Anti-Patterns to describe the one forced retry; `docs/hooks.md` gains one sentence naming the tier change (warn → one-shot block).\n- [ ] **If unsupported: close with the limitation recorded**, and file one follow-up under #1868 proposing the dispatcher-facing alternative (surfacing `contract-violation` via `hookSpecificOutput.additionalContext` on a dispatcher-side event) so the definition there has the evidence.\n- [ ] **Tests (supported branch).** Fake-`ctx` cases beside the existing exemption tests: first violation → blocking output with the reason; second violation same `(session_id, agent_id)` → `{}` plus the logged event; exempt `agent_type` → `{}` with no counter write; counter write throwing → treated as already retried; a compliant reply → `{}` and no counter file. `tests/subagent-contract-clauses.test.js` updated for the revised E3 clause.\n\n## Acceptance Criteria\n\n1. `subagent-stop.js`'s header comment and this issue carry the Task 0 capture: the exact input field names observed, the exact output shape that blocked (or the evidence that none did), and the transcript excerpt showing the subagent's behavior after the block.\n2. Supported branch: a non-exempt violating subagent is blocked exactly once per `(session_id, agent_id)`; the second violation stops normally with the event logged; exempt agents are never blocked; the probe's teardown left no plugin file modified (`git status` clean on `plugin/`).\n3. Unsupported branch: this record is closed with the captured evidence and one follow-up record exists under #1868 naming the dispatcher-facing alternative.\n4. `npm test` green; the existing exemption tests pass unchanged.\n5. `_shared/subagent-output-contract.md`, `docs/hooks.md`, and the hook's header agree on the tier (one forced retry, or warn-only with the limitation named).\n\n## Technical Approach\n\nProbe before code, per `spec-template.md`'s Empirical Premise-Check Deliverables: the doc lead above is a hypothesis with field names from a summary, and the hook's own history (#1928, claude-code#27755) shows this event's behavior drifts. Keep the block one-shot and counter-backed so the never-break-a-session invariant holds even when the harness re-fires the event; keep the exemption check first so third-party agents never see a block. The wider enforcement-point decision stays with #1868; this record only settles whether the hook-side option exists and, if so, ships its minimal form.\n\n### Key Files\n\n- `plugin/bin/lib/hooks/subagent-stop.js` — Task 0 capture in the header; blocking output; retry counter\n- `plugin/skills/_shared/subagent-output-contract.md` — E3 paragraph and Anti-Patterns\n- `docs/hooks.md` — tier sentence\n- `tests/hooks-log-modules.test.js` (fake-`ctx` hook cases) and `tests/subagent-contract-clauses.test.js` — new cases\n\n## Gotchas\n\n- The probe mutates a hook that fires for every subagent in the session; run it in an isolated worktree session with the plugin loaded from that checkout (`claude --plugin-dir ./plugin`), never against the installed build.\n- `SubagentStop` \"fires unreliably for Task dispatches\" (claude-code#27755): a probe that sees no event at all is inconclusive, not \"unsupported\"; repeat once before concluding.\n- The counter file is per session; a blocked subagent that is re-dispatched with a new `agent_id` is a new agent by design.\n- Never block on an absent `agent_transcript_path` (#1928's fix): no transcript means no evidence, and the hook must still return `{}` there.\n\n## Original request\n\n# In-run enforcement follow-up from #1596\n\n**Origin:** #1596 build (deferred, scope-down decision — see that record's Blocked / Future Work section and its materialized spec at `.claude-tweaks/pipelines/2026-09-05T174526-record-1596/work/1596-spec.md`)\n\n## Current State\n\n#1596 shipped an `agent_type` exemption fix to `plugin/bin/lib/hooks/subagent-stop.js` and a\nstrengthened dispatch template in `plugin/skills/_shared/subagent-output-contract.md`, but did not\nimplement forcing a violating subagent to retry in-run via the `SubagentStop` hook's own\ndecision-control output. Whether `SubagentStop`'s JSON output actually supports\n`permissionDecision: \"block\"` / `permissionDecisionReason` (the way `Stop`'s documented decision\ncontrol does) was not confirmed within that build's investigation budget — two lookups against\nClaude Code's own hooks reference (`https://code.claude.com/docs/en/hooks`) disagreed, and the\nsession hit a rate limit before a third, decisive lookup could run.\n\n## Deliverables\n\n- Resolve the platform-support question definitively: a live probe (dispatch one throwaway Task\n  subagent whose reply is deliberately malformed, have `subagent-stop.js` attempt the\n  `permissionDecision: 'block'` response, and confirm from the subagent's own transcript/behavior\n  whether it was actually forced to continue rather than stopping) before implementing the\n  forced-retry mechanism either way.\n- If confirmed supported: implement the forced-retry mechanism in `subagent-stop.js`, scoped to\n  non-exempt `agent_type`s only (reuse #1596's exemption check), with a one-retry cap per\n  `(session_id, agent_id)` — mirror `resolve-profile.js`'s session-scoped model-failure-blacklist\n  convention (`${os.tmpdir()}/ct-model-failures-${sessionId}.json`) for the retry-count file\n  (`${os.tmpdir()}/ct-contract-retries-${sessionId}.json`), to avoid an infinite retry loop if the\n  write itself fails.\n- If confirmed unsupported: close this record noting the platform limitation, and consider\n  whether `friction-events.js`'s existing `contract-violation` detection could instead be surfaced\n  back to the *dispatching* agent in-run some other way (e.g. via `hookSpecificOutput.additionalContext`\n  on a different, dispatcher-facing hook event) rather than acting on the violating subagent itself.\n\n## Acceptance Criteria\n\n1. A definitive, sourced answer to \"does `SubagentStop`'s JSON output support a blocking decision\n   field,\" recorded in this issue or in `subagent-stop.js`'s own comments.\n2. If yes: a working forced-retry implementation with a one-retry cap, tested the same way\n   #1596's `tests/hooks-subagent-stop.test.js` tests its exemption logic (fake `ctx` objects, no\n   live harness dependency).\n\n",
+        "createdAt": "2026-09-05T19:05:05Z",
+        "labels": [
+          {
+            "id": "LA_kwDORUwzVM8AAAACruyqXw",
+            "name": "ready",
+            "description": "Stage: ready for dispatch",
+            "color": "0e8a16"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACruzLxQ",
+            "name": "size:medium",
+            "description": "Size: medium effort",
+            "color": "fbca04"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2myw",
+            "name": "by:capture",
+            "description": "Origin: filed via /capture",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACry2pJg",
+            "name": "type:task",
+            "description": "Type: maintenance, refactor, docs, or chore work",
+            "color": "ededed"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
+            "name": "auto:build",
+            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
+            "color": "F9D0C4"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
+            "name": "priority:medium",
+            "description": "Priority: dispatch picks after priority:high",
+            "color": "0052CC"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
+            "name": "risk:medium",
+            "description": "Risk: medium blast radius",
+            "color": "fbca04"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
+            "name": "ceremony:standard",
+            "description": "Ceremony: standard review",
+            "color": "c5def5"
+          },
+          {
+            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
+            "name": "shaped:headless",
+            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
+            "color": "ededed"
+          }
+        ],
+        "number": 1936,
+        "state": "OPEN",
+        "title": "Resolve SubagentStop blocking-decision platform support and implement forced in-run retry (follow-up from #1596)",
+        "updatedAt": "2026-09-12T06:37:50Z",
+        "facets": {
+          "origin": "capture",
+          "risk": "medium",
+          "size": "medium",
+          "ceremony": "standard",
+          "solutionUnjustified": false,
+          "needsDefinition": false,
+          "priority": "medium",
+          "stage": "ready",
+          "grants": {
+            "build": true,
+            "merge": false
+          },
+          "bot": {
+            "inProgress": false,
+            "blocked": false
+          },
+          "acceptance": null,
+          "isParentIssue": false,
+          "notPlanned": false,
+          "shapedHeadless": true
         }
       }
     ],
