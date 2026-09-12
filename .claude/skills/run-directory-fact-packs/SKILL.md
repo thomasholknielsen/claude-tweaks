@@ -12,7 +12,8 @@ judgment. Three are shipped — `plugin/bin/lib/wrap-up/pack.js` + `plugin/bin/w
 (wrap-up Phases 3-4, eight probes), `plugin/bin/lib/flow/preflight.js` +
 `plugin/bin/flow-preflight.js` (`/flow`'s second call) and
 `plugin/bin/lib/release-preflight/pack.js` + `plugin/bin/release-preflight.js`
-(release preflight, eight probes) — and they agree on every rule below.
+(release preflight, eight probes) — and they agree on every rule below
+except selective-probe filtering (see the `--only` bullet).
 Read them before writing a fourth.
 
 ## The shape
@@ -34,7 +35,11 @@ Read them before writing a fourth.
   claim, archives, posts, or edits a record — a pack is re-runnable at any point in the phase.
 - **Write atomically** (`lib/atomic-write.js`), because a consumer may be reading the previous
   pack while this one is written.
-- **`--only <probe,...>`** so a consumer that needs one field does not pay for eight.
+- **`--only <probe,...>`** so a consumer that needs one field does not pay for eight —
+  `wrap-up-pack.js`/`pack.js` and `release-preflight.js` only; `flow-preflight.js` has no `--only` flag, and
+  `flow/preflight.js`'s `gatherPreflight` computes every probe unconditionally regardless of
+  `--steps` (its own parse-error text calls `--steps` "metadata — every field is computed
+  regardless"), since `/flow`'s second call always needs the full set.
 
 ## Every field owes a location, a freshness, and a phase — traced before it is written
 

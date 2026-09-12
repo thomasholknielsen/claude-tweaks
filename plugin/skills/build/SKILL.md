@@ -194,7 +194,9 @@ For a surface routed to pre-build — `surface` ∈ `web | mobile | desktop | te
 
 Execution depends on the chosen execution strategy (see Build Options). **These two are the only licensed strategies** — read `execution-mode-policy.md` in this skill's directory (record #491) for why an interactive session executing the plan directly, bypassing Task dispatch entirely, is never a third option — applies identically to standalone `/build` and `/flow`-orchestrated `/build`.
 
-> **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-output-contract.md` for the full pattern.
+> **Working Directory Discipline:** Before any commit (and before dispatching subagents that run `git` or `node --test`), anchor the working directory explicitly — `pwd` + `git rev-parse --show-toplevel` must match the worktree path (or the project root in `current-branch` strategy). When dispatching subagents, require them to use `cd "$WORKTREE" && …` or `git -C "$WORKTREE" …`. See the Working Directory Discipline section of `_shared/subagent-dispatch-core.md` for the full pattern.
+
+> **Cherry-pick source-branch PR check (#1957):** worktree strategy only. After each commit lands in this worktree, before moving to the next task, run `worktree-setup.md`'s "Cherry-pick source-branch PR check" section — a git-native `(cherry picked from commit {sha})` trailer scan that stops the build (not a silenceable auto-mode lever) when the cherry-picked source is also reachable from another record's branch that backs a still-open PR (#1821's incident). No trailer on the commit means no added work — the check is a no-op for the common case of an ordinary authored commit.
 
 **subagent** (default): read `dispatch.md` in this skill's directory and follow its full dispatch procedure — profile resolution, `tier=` alias handling, AC-forwarding, and review-model pinning. After the final code review completes, **stop the skill and return here** — do not let it invoke `/superpowers:finishing-a-development-branch`.
 
@@ -287,7 +289,7 @@ If `docs/REGISTRY.md` exists, read `docs-sync.md` in this skill's directory for 
 
 After successful build, read `handoff-template.md` in this skill's directory and render the handoff using that template. The template covers verification status, what was built, simplification summary, journeys, documentation changes, blocked items, manual steps, and the Actions Performed table.
 
-**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-early-run-lifecycle.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode. **On skip**, write a `SKIP` entry — see `_shared/git-discipline.md`'s Phase-exit push section for the exact command.
+**Phase exit (`worktree` mode, `integration-model: pr-first` — `_shared/integration-model.md`):** push the branch and flip this phase's PR checklist row — `_shared/git-discipline.md`'s Phase-exit push section and `_shared/pr-checklist-refresh.md`'s Phase-checklist update section. A no-op under `local-merge` or `current-branch` mode. **On skip**, write a `SKIP` entry — see `_shared/git-discipline.md`'s Phase-exit push section for the exact command.
 
 ## Git Strategy
 
