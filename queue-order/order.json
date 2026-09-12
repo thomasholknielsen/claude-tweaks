@@ -1,5 +1,5 @@
 {
-  "computedAt": "2026-09-12T08:19:37.817Z",
+  "computedAt": "2026-09-12T08:49:27.169Z",
   "runId": null,
   "freshnessSignal": {
     "issues": [
@@ -240,7 +240,7 @@
       },
       {
         "number": 1937,
-        "updatedAt": "2026-09-12T04:50:42Z",
+        "updatedAt": "2026-09-12T08:22:26Z",
         "state": "OPEN"
       },
       {
@@ -2126,94 +2126,6 @@
           "isParentIssue": false,
           "notPlanned": false,
           "shapedHeadless": false
-        }
-      }
-    ],
-    [
-      {
-        "body": "Surface: infra\n\n## Current State\n\n`_shared/dev-url-detection.md`'s \"Ephemeral server start\" (steps 1-5) tells the caller to run the dev command in the background from the worktree root, poll the port, and record `{pid} {port} {worktree-root}` in `{run-dir}/ephemeral-server.txt` \"for teardown\"; its Cleanup section makes `/claude-tweaks:wrap-up`'s Section D (`cleanup-procedures.md` item 6, executed per `cleanup-procedures-execution.md`) the only stop path and says the file's pid is trusted as written. Nothing in that file states who owns the process: a Bash background task belongs to the agent turn that spawned it, and when that agent is a dispatched Task call the process ends with the call. `dispatch/task-prompt.md` now requires foreground execution for long-running commands (#1965, commit `ddfb663ce`) but says nothing about a dev server, which must be a background process by nature, and carries no liveness re-check before browser-driving steps in the second call. The visual-review and `/review full` paths read `APP_URL` once and walk with it.\n\nObserved on plugin 6.114.1 (evidence in the run's `decisions.md`): call 1 (`build,test`) started the server and recorded it; call 2's visual review reused it for 13 screenshots, then the server died when call 1's agent finished, `trace stop` failed three times, the trace artifact was lost, call 1's agent deleted `ephemeral-server.txt`, and wrap-up's Section D had nothing to tear down. No gate or log line names the cause.\n\nTests: `tests/dev-url-detection-lease-conformance.test.js` pins the Ephemeral server start and Cleanup prose; `tests/foreground-execution-instruction.test.js` pins the #1965 instruction.\n\n## Deliverables\n\n- [ ] **Ownership rule, stated once.** `dev-url-detection.md`'s Ephemeral server start gains a paragraph: a server started as a background task lives only as long as the agent turn that spawned it; a server that must outlive a dispatched Task call is detached at start (`setsid` on POSIX, with a stated Windows fallback of \"not detachable — record `detached: no`\") and the record line gains a fourth field `detached: yes|no`. Step 4's \"for teardown\" sentence says the file is also the liveness handle, not a promise the server is up.\n- [ ] **Detach in dispatch's first call.** `dispatch/task-prompt.md`'s `build,test` template: when the run's steps include `review` or `stories`/QA in the second call, start the ephemeral server detached (per the rule above) and never delete `ephemeral-server.txt` at call end; the record is the run's, not the call's. One sentence in the second-call template: before the first browser-driving step, and again before any `trace stop`, verify the recorded pid answers on the recorded port; on a dead pid, re-run `dev-url-detection.md`'s procedure (which starts a fresh server and rewrites the record) and log `AUTO … — ephemeral server restarted: recorded pid {old} dead, new pid {new} on port {port}`.\n- [ ] **Section D tolerates a restart.** `cleanup-procedures-execution.md` Section D kills the pid currently in the file and, when the file names `detached: yes`, also kills the process group; a pid that is already gone is logged as \"already stopped\", never as an error.\n- [ ] **Tests.** Extend `dev-url-detection-lease-conformance.test.js` (or a sibling) to pin: the ownership paragraph, the `detached` field on the record line, the Cleanup sentence; `foreground-execution-instruction.test.js` (or a sibling) to pin the dispatch templates' detach-and-keep and liveness-recheck sentences; a Section D prose pin for the process-group and already-stopped clauses.\n\n## Acceptance Criteria\n\n1. `dev-url-detection.md` states the ownership rule, the detach procedure with its POSIX/Windows split, and the four-field record line; the Cleanup section calls the file the liveness handle.\n2. `dispatch/task-prompt.md`'s first-call template detaches the server and forbids deleting `ephemeral-server.txt`; its second-call template re-checks liveness before the first browser step and before `trace stop`, and restarts via the shared procedure on a dead pid with the log line above.\n3. Section D kills the recorded pid (and process group when detached) and logs an already-stopped pid without error.\n4. A replay of the reported sequence (call 1 ends while call 2 walks) in a fixture ends with the walk completing on a restarted server and one restart log line; quoted in the PR description.\n5. `npm test` green; the existing lease-conformance and foreground-execution tests pass with only additive assertions.\n\n## Technical Approach\n\nTake both of the record's alternatives because they cover different failures: detaching keeps the common case alive across the hand-off; the liveness re-check catches a server that died for any other reason (crash, port reclaimed) and is what turns a silent loss into a logged restart. Keep the record file as the single source of truth and let the second call rewrite it, so Section D's contract (\"trust the pid in the file\") holds unchanged.\n\n### Key Files\n\n- `plugin/skills/_shared/dev-url-detection.md` — ownership paragraph; detach step; `detached` field; Cleanup sentence\n- `plugin/skills/dispatch/task-prompt.md` — first-call detach-and-keep; second-call liveness re-check and restart log line\n- `plugin/skills/wrap-up/cleanup-procedures-execution.md` — Section D process-group kill and already-stopped handling\n- `tests/dev-url-detection-lease-conformance.test.js`, `tests/foreground-execution-instruction.test.js` — prose pins (or siblings)\n\n## Gotchas\n\n- `#1965`'s foreground rule and this record's background server are not in tension: the rule covers commands the agent waits on; the server is started, polled, and left running. Say so in the template so a literal reader does not foreground the server.\n- The leased port (`bin/ports.js env`) is re-resolved at start time; a restart in call 2 must re-run the lease read, not reuse call 1's port blindly.\n- Killing a process group on a non-detached server could take the agent's own shell; only use the group kill when the record says `detached: yes`.\n- `ephemeral-server.txt` lives in the anchored run dir under the main checkout, so both calls see the same file.\n\n## Original request\n\n**Summary:** An ephemeral worktree dev server started as a Bash background task inside dispatch's first Task call (`build,test` — the `/stories` step's detected dev command on a free port, recorded in `ephemeral-server.txt`) is owned by that call's agent; it was killed when the first call finally ended, part-way through the second call's `/review full` visual-review journey walk, and the first call's agent then deleted `ephemeral-server.txt`. `dispatch/task-prompt.md` tells the second call to \"reuse it if alive\", and the second call did — right up until the walk's `trace stop`, which failed three times against a dead daemon.\n\n**Kind:** Gap\n\n**Affected component:** `_shared/dev-url-detection.md` (\"Ephemeral server start\" — the recorded pid/port is presented as durable across the run) and `dispatch/task-prompt.md` (the second Task call's \"reuse it if alive\" instruction, with no re-check before each browser step)\n\n**Use case:** A dispatched two-call run on a private project: call 1 started the worktree server for story generation and QA; call 2's visual review reused it for 13 screenshots, then the server vanished mid-walk (no trace could be saved; the polish re-verify did not need it). Nothing in either contract says a Bash background task dies with the Task agent that spawned it, tells call 2 to re-run dev-URL detection (and start its own server) when the recorded pid stops answering, or tells call 1 to detach the process (`nohup`/`setsid`) if the server is meant to outlive it. The visual review lost its trace artifact and wrap-up's Section D had nothing left to tear down — a quiet failure with no gate.\n\n**Repro (observed once, evidence in the run's decisions.md):** dispatch a `build,test` call that auto-starts an ephemeral server; let it end; the second call's `curl` to the recorded port returns 000 and `lsof` shows no listener, while `ephemeral-server.txt` still names the dead pid until the first agent's own correction removes it.\n\n**Suggested resolution:** state the ownership rule in `dev-url-detection.md` (a server started inside a Task call is not guaranteed to survive that call), and either (a) have the second call re-run detection before each browser-driving step and restart on a dead pid, or (b) detach the process when recording it, with the reconciler/wrap-up Section D still the teardown path.\n\n**Definition:** Clear\n\n**Plugin version:** 6.114.1\n\n---\nFiled via /claude-tweaks:feedback.\n<!-- fingerprint: feedback-918f669b -->\n\n",
-        "createdAt": "2026-09-05T19:38:16Z",
-        "labels": [
-          {
-            "id": "LA_kwDORUwzVM8AAAACYw9-KA",
-            "name": "enhancement",
-            "description": "New feature or request",
-            "color": "a2eeef"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyqXw",
-            "name": "ready",
-            "description": "Stage: ready for dispatch",
-            "color": "0e8a16"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACruyrJA",
-            "name": "size:low",
-            "description": "Scoring: small, agent-sized change",
-            "color": "E99695"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACry2nbg",
-            "name": "type:bug",
-            "description": "Type: defect in existing behavior",
-            "color": "d73a4a"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACrzEqFA",
-            "name": "auto:build",
-            "description": "Grant: agents may build this record autonomously (human-granted; machinery only removes)",
-            "color": "F9D0C4"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXHcMQ",
-            "name": "priority:medium",
-            "description": "Priority: dispatch picks after priority:high",
-            "color": "0052CC"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACsXMS4Q",
-            "name": "risk:medium",
-            "description": "Risk: medium blast radius",
-            "color": "fbca04"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACszEEfQ",
-            "name": "ceremony:standard",
-            "description": "Ceremony: standard review",
-            "color": "c5def5"
-          },
-          {
-            "id": "LA_kwDORUwzVM8AAAACxyFo1g",
-            "name": "shaped:headless",
-            "description": "Provenance: shaped by /specify's headless next unit — no human reviewed the spec body",
-            "color": "ededed"
-          }
-        ],
-        "number": 1937,
-        "state": "OPEN",
-        "title": "dev-url-detection / dispatch two-call hand-off: an ephemeral worktree dev server started in the first Task call does not survive into the second",
-        "updatedAt": "2026-09-12T04:50:42Z",
-        "facets": {
-          "origin": null,
-          "risk": "medium",
-          "size": "low",
-          "ceremony": "standard",
-          "solutionUnjustified": false,
-          "needsDefinition": false,
-          "priority": "medium",
-          "stage": "ready",
-          "grants": {
-            "build": true,
-            "merge": false
-          },
-          "bot": {
-            "inProgress": false,
-            "blocked": false
-          },
-          "acceptance": null,
-          "isParentIssue": false,
-          "notPlanned": false,
-          "shapedHeadless": true
         }
       }
     ],
