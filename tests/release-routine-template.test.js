@@ -21,9 +21,12 @@ test('the template kicks off release --train — the skill directory first, the 
   assert.equal(TEMPLATE.template_version, 1);
 });
 
-test('the template carries the write tools a release needs, not specify\'s read-only set', () => {
-  for (const tool of ['Bash', 'Edit', 'Write', 'Task']) {
+test('the template carries Bash (every write is a CLI or git/gh call) and Task (Step 3 dispatches lenses), never Edit/Write', () => {
+  for (const tool of ['Bash', 'Read', 'Task']) {
     assert.ok(TEMPLATE.allowed_tools.includes(tool), `allowed_tools lacks ${tool}`);
+  }
+  for (const tool of ['Edit', 'Write']) {
+    assert.ok(!TEMPLATE.allowed_tools.includes(tool), `allowed_tools grants ${tool} to an unattended merge-capable firing that never uses it`);
   }
   assert.match(TEMPLATE.default_schedule.cron_expression, /^\S+ \S+ \* \* 1-5$/, 'daily on weekdays');
 });
