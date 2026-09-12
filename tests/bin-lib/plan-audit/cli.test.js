@@ -266,6 +266,82 @@ test('AC7: a fixture plan touching a compose call site with a malformed sibling 
   }
 });
 
+// #1999 — an append-shaped task (Step 1 appends to an existing, passing
+// test file named by both a Modify: bullet and Step 2's Run: command)
+test('AC8 (#1999): an append-shaped task reports appendShaped and the summary line names the count, still exits 0', () => {
+  const repo = makeTmpRepo();
+  fs.mkdirSync(path.join(repo, 'tests'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'tests', 'existing.test.js'), '// existing, passes today\n');
+  try {
+    const plan = writePlan(repo, [
+      '### Task 1: Append tests',
+      '**Files:**',
+      '- Modify: `tests/existing.test.js`',
+      '',
+      '- [ ] **Step 1: Append the new cases**',
+      '',
+      'Append cases to `tests/existing.test.js`.',
+      '',
+      '- [ ] **Step 2: Run test to verify it fails**',
+      '',
+      'Run: `node --test tests/existing.test.js`',
+      'Expected: FAIL — new cases not yet true',
+    ].join('\n'));
+    const { exitCode, stdout } = runCli(plan, repo);
+    assert.strictEqual(exitCode, 0);
+    const [jsonLine, summaryLine] = stdout.split('\n');
+    const report = JSON.parse(jsonLine);
+    assert.strictEqual(report.checkC.ok, true);
+    assert.strictEqual(report.checkC.appendShaped.length, 1);
+    assert.match(summaryLine, /append-shaped/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+// #2000 — Check D wired into the full envelope and the --bytes verb
+test('#2000: a fixture plan with a raw NUL fails checkD and exits 1 under both the full audit and --bytes', () => {
+  const repo = makeTmpRepo();
+  try {
+    const plan = path.join(repo, 'plan.md');
+    fs.writeFileSync(plan, Buffer.from(`### Task 1: X\n**Files:**\n- Modify: \`plan.md\`\n\nsecond${'\0'}line\n`));
+    const full = runCli(plan, repo);
+    assert.notStrictEqual(full.exitCode, 0);
+    const fullReport = JSON.parse(full.stdout.split('\n')[0]);
+    assert.strictEqual(fullReport.checkD.ok, false);
+    assert.strictEqual(fullReport.checkD.findings[0].line, 5);
+
+    let bytesResult;
+    try {
+      execFileSync('node', [CLI, plan, '--bytes'], { encoding: 'utf8' });
+      assert.fail('expected --bytes to exit non-zero');
+    } catch (err) {
+      bytesResult = err;
+    }
+    assert.strictEqual(bytesResult.status, 1);
+    const bytesReport = JSON.parse((bytesResult.stdout || '').split('\n')[0]);
+    assert.strictEqual(bytesReport.checkD.ok, false);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('#2000: a clean plan reports checkD.ok === true under the full audit and --bytes', () => {
+  const repo = makeTmpRepo();
+  fs.mkdirSync(path.join(repo, 'plugin', 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'plugin', 'bin', 'existing.js'), '// existing\n');
+  try {
+    const plan = writePlan(repo, ['### Task 1: Do a thing', '**Files:**', '- Modify: `plugin/bin/existing.js`'].join('\n'));
+    const { stdout } = runCli(plan, repo);
+    const report = JSON.parse(stdout.split('\n')[0]);
+    assert.strictEqual(report.checkD.ok, true);
+    const bytesOut = execFileSync('node', [CLI, plan, '--bytes'], { encoding: 'utf8' });
+    assert.deepStrictEqual(JSON.parse(bytesOut.trim()), { checkD: { ok: true, findings: [] } });
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('usage error on a missing plan-file argument exits 2', () => {
   try {
     execFileSync('node', [CLI], { encoding: 'utf8' });

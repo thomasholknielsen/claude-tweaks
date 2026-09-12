@@ -347,18 +347,23 @@ function findComposeCallSites(repoRoot) {
   return out;
 }
 
-// #1989's PR-time measurement (parent #1987 promise F4) reported 55,995 B
-// under pr-first+gh — but that was one combination, not the worst case: the
-// real corpus's actual max across all four integration-model x transport
-// combinations is 58,755 B, at local-merge+mcp, and the `unresolved`
-// both-branches row a standalone run reads is 58,761 B (measured here at
-// #1990's authoring time; run the informational test to reconfirm). Either way it's
-// over CEILING_BYTES before this record exists. This record's Non-Goals say
-// it only measures, so the gate cannot demand a restructure it forbids;
-// restructuring the merge bundle is #2002 (filed at this record's wrap-up).
-// The stale-exception test below removes this entry's
-// reason to exist the moment `merge` fits under CEILING_BYTES on its own.
-const COMPOSED_STEP_EXCEPTIONS = { merge: 59 * 1024 };
+// #2002 removed the `merge` exception: the reader-need split of
+// `_shared/pr-early-run-lifecycle.md` (run-start-only Steps 1-4/Root
+// cause/Resume kept there; the merge-time content — Phase-checklist update,
+// Pre-merge title/description refresh, and the merge-time gh-absent degrade
+// row — moved to the new `_shared/pr-checklist-refresh.md`) brought the
+// `merge` step's real max to 39,917 B, under CEILING_BYTES on its own. See
+// `_shared/pr-checklist-refresh.md` and the two updated compose call sites
+// (`wrap-up/auto-merge-short-circuit.md`, `wrap-up/review-console.md`).
+//
+// #2073's new "exit 5" unverified-write card (flow/claim-targets.md) and
+// scan-procedures.md's expanded transport-fallback paragraph pushed the
+// `claims` step's measured max to 42,506 B (measured here at authoring
+// time; run the informational test to reconfirm). Restructuring these two
+// sources to fit under CEILING_BYTES on their own is #2289, filed at this
+// record's merge. The stale-exception test below removes this entry's
+// reason to exist the moment `claims` fits under CEILING_BYTES on its own.
+const COMPOSED_STEP_EXCEPTIONS = { claims: 45 * 1024 };
 
 // One row per compose call site in the shipped skill prose — the producer
 // set the composed-bytes hard gate (`overComposedCeiling`) runs over.

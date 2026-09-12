@@ -60,6 +60,38 @@ against reality than trusting it in the abstract; do that for whichever check yo
      interacts with console execution.
    - The check's own `tests/bin-lib/reconcile/{check}.test.js`.
 
+## Archive skip reasons and residue pruning (#1892)
+
+`archive-merged.js`'s `archiveRunDir` normally moves a run dir's git-tracked `work/` (or
+`spec-{n}/work/`) subtree via a whole-dir `git mv` — idempotent only when the archive twin doesn't
+already exist. Two additional reasons cover the split-state case (a prior pass, or a merged
+worktree PR, already archived the gitignored half while the tracked headers stayed live):
+
+- **`work-twin-conflict`** — the archive twin already holds a `work/` (or `spec-{n}/work/`) whose
+  content genuinely differs from the live copy (compared file-by-file via `git hash-object`).
+  Refuses the whole archival rather than guessing which copy is canonical; `result.conflict` names
+  both paths and the differing relative files. An *identical* twin is not a conflict — it resolves
+  automatically (`git rm` when the twin's own copy is already tracked, `git mv -f` when it isn't)
+  and the archival proceeds.
+- **`archived-pending-tracked-move`** — the split state itself: the archive twin exists AND the
+  live run dir holds nothing but tracked `work/` headers (no gitignored entries remain).  Under
+  `worktree-always: true` this sweep never commits the tracked-header move itself — it skips with
+  this reason and a paste-ready `node "${CLAUDE_PLUGIN_ROOT}/bin/hooks.js" archive-run --run
+  "<dir>"` command in `skipped[].command` instead of counting toward `move-failed` escalation.
+  Without `worktree-always`, the sweep completes the move itself via `archiveRunDir`'s normal
+  twin-resolution path above.
+
+**Residue pruning.** After every `archive` pass, `cache.js`'s `pruneResidueFailures` drops any
+`residueFailures` entry (reason-agnostic — `move-failed`, `structurally-stuck`, any future reason)
+whose tracked path no longer exists on disk: a path can never fail or succeed there again, so it
+must stop counting toward a fresh escalation streak. An entry that was already `escalated` also
+gets its filed backlog record resolved — `escalate-residue.js`'s `resolveResidue` comments ("no
+longer exists on disk — resolved by other means") and closes it, best-effort (a resolution failure
+still drops the cache entry; the record is left for a human to close manually). Escalation itself
+(`escalateResidue`) now dedups against **closed** records too, not just open ones: a marker match
+that is already closed gets a comment + reopened rather than a duplicate filing — one record per
+path across its whole open/closed/reopened lifetime.
+
 ## Referenced by
 
 `CLAUDE.md`'s `### Reconcile` subsection points here for anyone touching

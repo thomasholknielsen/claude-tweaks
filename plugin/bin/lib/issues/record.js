@@ -39,6 +39,7 @@ const LABELS = {
   AUTO_MERGE: 'auto:merge',
   BOT_IN_PROGRESS: 'bot:in-progress',
   BOT_BLOCKED: 'bot:blocked',
+  BOT_PARKED: 'bot:parked',
   WONTFIX: 'wontfix',
   SOLUTION_UNJUSTIFIED: 'solution:unjustified',
   // Read-side legacy fallback — PERMANENT cross-project support (other repos' records keep framing:baked labels, pre-rename); removable only at a major version that drops pre-rename repo support. [IL-85] Never emitted.
@@ -328,6 +329,10 @@ function parseRecordFacets(labels) {
       facets.bot.blocked = true;
       continue;
     }
+    if (name === LABELS.BOT_PARKED) {
+      facets.bot.parked = true;
+      continue;
+    }
     if (name === LABELS.WONTFIX) {
       facets.notPlanned = true;
       continue;
@@ -536,10 +541,21 @@ function partitionByOpenNativeBlockers(candidates, repoData) {
 // tracking policy: it exists purely to stop wasted re-dispatch of a record
 // that already has a build in flight. Same alias/null conventions as
 // buildNativeDependencyQuery above.
+// Also carries each candidate's cross-reference timeline (#1984) — every PR
+// that has ever mentioned the issue, closing keyword or not — beside the
+// closedByPullRequestsReferences connection above. This is the "mentioned
+// but never closed" case buildLinkedPRQuery's own connection can't see: a
+// merged PR whose body says "refs #N" with no closing keyword leaves the
+// record open with a live grant despite the work already having shipped
+// (#1791/#1803, #1484/#1857). `source { ... on PullRequest { ... } }`
+// resolves to null for a cross-reference from another Issue (not a PR),
+// which linked-prs.js's fetchLinkedPRs filters out; `repository{
+// nameWithOwner }` lets it filter to same-repo mentions only (a
+// CrossReferencedEvent's source can live in an unrelated repository).
 function buildLinkedPRQuery(numbers) {
   if (!Array.isArray(numbers) || numbers.length === 0) return null;
   const fields = numbers
-    .map((n) => `i${n}: issue(number:${n}){ number closedByPullRequestsReferences(first:10){ nodes{ number state } } }`)
+    .map((n) => `i${n}: issue(number:${n}){ number closedByPullRequestsReferences(first:10){ nodes{ number state } } timelineItems(itemTypes:[CROSS_REFERENCED_EVENT], first:20){ nodes{ ... on CrossReferencedEvent { source { ... on PullRequest { number title state merged mergedAt repository { nameWithOwner } } } } } } }`)
     .join('\n      ');
   return `query($owner:String!,$repo:String!){\n  repository(owner:$owner,name:$repo){\n      ${fields}\n  }\n}`;
 }
