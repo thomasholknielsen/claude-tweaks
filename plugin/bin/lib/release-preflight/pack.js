@@ -13,6 +13,8 @@ const { promisify } = require('util');
 const { conventionalHistory } = require('../release-local/commits.js');
 const { bumpPart } = require('../release-local/bump.js');
 const { nextVersion } = require('../release/compose.js');
+const { readConfig, resolveTargets, versionAtRef, MANIFEST_FILE } = require('../release-local/manifest.js');
+const { compareVersions } = require('../changelog.js');
 const { resolvePolicyConfig } = require('../policy-schema.js');
 const { wrapProbe, withTimeout } = require('../wrap-up/pack.js');
 
@@ -21,6 +23,11 @@ const PROBE_TIMEOUT_MS = 60000;
 const EXEC_OPTS = { maxBuffer: 32 * 1024 * 1024, timeout: 30000 };
 const ENGINES = new Set(['pr-first', 'local-merge']);
 const CONFIG_SOURCES = new Set(['policy', 'run-config']);
+const SEMVER_RE = /^\d+\.\d+\.\d+$/;
+// Only genuine path absence at a ref reads as "no version here" — the same
+// split release-local/manifest.js draws, so a bad ref (`invalid object name`)
+// degrades the field loudly instead of passing for an unversioned repo.
+const PATH_ABSENT_RE = /does not exist|exists on disk, but not in/i;
 const HOOK_DISABLED = new Set(['false', 'off', 'none', 'null']);
 const ON_LINE_RE = /^on:[ \t]*(.*)$/;
 const PUBLISHED_RE = /\bpublished\b/;
@@ -150,6 +157,52 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
   const engine = engineEntry && CONFIG_SOURCES.has(engineEntry.source) && ENGINES.has(engineEntry.value) ? engineEntry.value : null;
   const needEngine = () => { if (!engine) throw new Error('engine unresolved'); return engine; };
 
+  // Ruling 12: the base is derived exactly as the release engines derive it —
+  // the highest strict `v*` tag (a tag off the first-parent chain counts),
+  // the manifest version at tipRef, and the first-parent tag. `git show` is
+  // the reader, so the base describes the ref the pack reports on, not the
+  // working tree. A path that is absent at that ref reads as "no version"; any
+  // other git error (a bad ref) propagates and degrades the field.
+  const showAtTip = (p) => {
+    try { return deps.git(['show', `${tipRef}:${p}`]); } catch (err) {
+      if (PATH_ABSENT_RE.test(String(err.message || err))) return null;
+      throw err;
+    }
+  };
+  const manifestVersion = () => {
+    const config = readConfig(showAtTip);
+    if (config) return versionAtRef(resolveTargets(config), showAtTip);
+    const raw = showAtTip(MANIFEST_FILE);
+    if (raw === null) return null;
+    // F11: a hand-broken manifest is "no version here", not a thrown probe.
+    try {
+      const value = JSON.parse(raw)['.'];
+      return SEMVER_RE.test(String(value || '')) ? value : null;
+    } catch { return null; }
+  };
+  const highestTagVersion = () => {
+    let tip = null;
+    for (const line of deps.git(['tag', '-l', 'v*']).split('\n')) {
+      const v = line.trim().replace(/^v/, '');
+      if (SEMVER_RE.test(v) && (!tip || compareVersions(v, tip) > 0)) tip = v;
+    }
+    return tip;
+  };
+  const versionBase = (lastTag) => {
+    const candidates = [
+      { baseSource: 'tag', base: highestTagVersion() },
+      { baseSource: 'manifest', base: manifestVersion() },
+      { baseSource: 'first-parent-tag', base: lastTag ? lastTag.replace(/^v/, '') : null },
+    ];
+    let best = null;
+    for (const candidate of candidates) {
+      if (!candidate.base || !SEMVER_RE.test(candidate.base)) continue;
+      if (!best || compareVersions(candidate.base, best.base) > 0) best = candidate;
+    }
+    if (!best) throw new Error(`no version base resolvable (no v* tag, no manifest at ${tipRef})`);
+    return best;
+  };
+
   const history = memo(() => conventionalHistory(deps.git, tipRef));
   const releasePr = memo(async () => {
     if (needEngine() === 'local-merge') return 'none';
@@ -173,14 +226,8 @@ async function gatherReleasePreflight({ cwd = process.cwd(), only = null, deps: 
       const { lastTag, commits } = await history();
       const part = bumpPart(commits);
       if (part === 'none') throw new Error(`nothing to release: ${commits.length} commit(s) since ${lastTag || 'the first commit'}, none feat/fix/breaking`);
-      let base = lastTag ? lastTag.replace(/^v/, '') : null;
-      if (!base) {
-        // Ruling 7: the first release computes from the bootstrap-seeded manifest, else 0.0.0.
-        const manifest = deps.readFile(path.join(root, '.release-please-manifest.json'));
-        const m = manifest && /"\.":\s*"(\d+\.\d+\.\d+)"/.exec(manifest);
-        base = m ? m[1] : '0.0.0';
-      }
-      return { version: nextVersion(base, part), part, base, tipRef };
+      const { base, baseSource } = versionBase(lastTag);
+      return { version: nextVersion(base, part), part, base, baseSource, tipRef };
     },
     releasePr,
     // Ruling 11: GitHub is asked for the BRANCH by name, so it resolves its own

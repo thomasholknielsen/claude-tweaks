@@ -23,6 +23,13 @@ function fakeDeps(o = {}) {
         if (key.startsWith('rev-parse ')) return `${SHA}\n`;
         if (key.startsWith('describe')) { if (o.noTag) throw new Error('fatal: No names found, cannot describe anything.'); return 'v1.2.0\n'; }
         if (key.startsWith('log --first-parent')) return LOG(o.subjects === undefined ? ['feat: a'] : o.subjects);
+        if (key === 'tag -l v*') return `${(o.tags === undefined ? ['v1.2.0'] : o.tags).join('\n')}\n`;
+        if (key.startsWith('show ')) {
+          const spec = args[1];
+          const text = (o.show || {})[spec];
+          if (text === undefined) throw new Error(`fatal: path '${spec.split(':')[1]}' does not exist in '${spec.split(':')[0]}'`);
+          return text;
+        }
         throw new Error(`unexpected git: ${key}`);
       },
       execFileAsync: async (cmd, args) => {
@@ -57,7 +64,7 @@ test('AC 1 (pr-first): one unreleased feat since v1.2.0 → proposedVersion 1.3.
   assert.deepStrictEqual(pack.lastTag.value, { tag: 'v1.2.0', version: '1.2.0', tipRef: 'origin/main' });
   assert.strictEqual(pack.unreleased.value.commits.length, 1);
   assert.strictEqual(pack.unreleased.value.commits[0].type, 'feat');
-  assert.deepStrictEqual(pack.proposedVersion.value, { version: '1.3.0', part: 'minor', base: '1.2.0', tipRef: 'origin/main' });
+  assert.deepStrictEqual(pack.proposedVersion.value, { version: '1.3.0', part: 'minor', base: '1.2.0', baseSource: 'tag', tipRef: 'origin/main' });
   for (const k of PROBE_NAMES) assert.ok(k in pack && typeof pack[k].ok === 'boolean', k);
 });
 
@@ -72,7 +79,7 @@ test('AC 2: zero commits since the tag → unreleased is empty and proposedVersi
 test('AC 8 (local-merge): the same fixture yields the same unreleased/proposedVersion shape; releasePr is none, ciTip n/a, hook follows the policy key', async () => {
   const a = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ policy: 'integration-model: local-merge\nrelease-hook: ./publish.sh\n' }).deps });
   assert.strictEqual(a.engine.value, 'local-merge');
-  assert.deepStrictEqual(a.proposedVersion.value, { version: '1.3.0', part: 'minor', base: '1.2.0', tipRef: 'origin/main' });
+  assert.deepStrictEqual(a.proposedVersion.value, { version: '1.3.0', part: 'minor', base: '1.2.0', baseSource: 'tag', tipRef: 'origin/main' });
   assert.strictEqual(a.unreleased.value.commits[0].type, 'feat');
   assert.deepStrictEqual(a.releasePr, { ok: true, value: 'none', durationMs: 0 });
   assert.deepStrictEqual(a.ciTip, { ok: true, value: 'n/a', durationMs: 0 });
@@ -101,15 +108,35 @@ test('ruling 3: without origin/{branch} the tip is refs/heads/{branch}; integrat
   assert.ok(calls.git.some((c) => c === 'rev-parse --verify --quiet refs/remotes/origin/develop'));
 });
 
-test('ruling 7: no prior tag → lastTag degrades, unreleased covers the full history, base is the manifest file or 0.0.0', async () => {
-  const withManifest = fakeDeps({ noTag: true, subjects: ['feat: first'], files: { [path.join(ROOT, '.release-please-manifest.json')]: '{\n  ".": "0.1.0"\n}\n' } });
+test('ruling 12: the base is the highest of the v* tags, the manifest at tipRef and the first-parent tag — never a guessed 0.0.0', async () => {
+  // No tag anywhere, a bootstrap-seeded manifest at the tip: the manifest is
+  // the base, read through `git show {tipRef}:` rather than the worktree.
+  const withManifest = fakeDeps({ noTag: true, tags: [], subjects: ['feat: first'], show: { 'origin/main:.release-please-manifest.json': '{\n  ".": "0.1.0"\n}\n' } });
   const a = await gatherReleasePreflight({ cwd: ROOT, deps: withManifest.deps });
   assert.strictEqual(a.lastTag.ok, false);
   assert.match(a.lastTag.error, /no v\* tag reachable from origin\/main/);
   assert.ok(withManifest.calls.git.some((c) => c.startsWith('log --first-parent') && c.endsWith(' origin/main')));
-  assert.deepStrictEqual(a.proposedVersion.value, { version: '0.2.0', part: 'minor', base: '0.1.0', tipRef: 'origin/main' });
-  const bare = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ noTag: true, subjects: ['fix: x'] }).deps });
-  assert.strictEqual(bare.proposedVersion.value.version, '0.0.1');
+  assert.deepStrictEqual(a.proposedVersion.value, { version: '0.2.0', part: 'minor', base: '0.1.0', baseSource: 'manifest', tipRef: 'origin/main' });
+  // A manifest ahead of every tag wins over the tag.
+  const ahead = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ tags: ['v1.2.0'], show: { 'origin/main:.release-please-manifest.json': '{ ".": "1.5.0" }' } }).deps });
+  assert.deepStrictEqual(ahead.proposedVersion.value, { version: '1.6.0', part: 'minor', base: '1.5.0', baseSource: 'manifest', tipRef: 'origin/main' });
+  // A higher tag that is NOT on the first-parent chain (describe never sees it)
+  // still raises the base above the reachable one.
+  const offChain = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ tags: ['v1.2.0', 'v2.0.0', 'vnope'] }).deps });
+  assert.deepStrictEqual(offChain.proposedVersion.value, { version: '2.1.0', part: 'minor', base: '2.0.0', baseSource: 'tag', tipRef: 'origin/main' });
+  // Nothing resolves a base: degrade, never offer 0.0.1.
+  const bare = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ noTag: true, tags: [], subjects: ['fix: x'] }).deps });
+  assert.strictEqual(bare.proposedVersion.ok, false);
+  assert.match(bare.proposedVersion.error, /no version base resolvable \(no v\* tag, no manifest at origin\/main\)/);
+});
+
+test('ruling 12: a release-please-config.json at tipRef routes the manifest read through release-local/manifest.js', async () => {
+  const show = {
+    'origin/main:release-please-config.json': '{ "packages": { ".": { "release-type": "node" } } }',
+    'origin/main:package.json': '{\n  "name": "x",\n  "version": "3.4.0"\n}\n',
+  };
+  const pack = await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ tags: ['v1.2.0'], show }).deps });
+  assert.deepStrictEqual(pack.proposedVersion.value, { version: '3.5.0', part: 'minor', base: '3.4.0', baseSource: 'manifest', tipRef: 'origin/main' });
 });
 
 const hookOf = async (workflows) => (await gatherReleasePreflight({ cwd: ROOT, deps: fakeDeps({ workflows }).deps })).hook.value;
