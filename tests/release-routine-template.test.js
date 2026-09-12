@@ -62,6 +62,9 @@ test('the skill graph states the edge once in each direction — routine → rel
     const next = graph.indexOf('\n## ', start + 1);
     return graph.slice(start, next < 0 ? undefined : next);
   };
-  assert.match(block('routine'), /^\| `\/release` \| .*routine-template\.yml/m);
+  const routineRow = block('routine').split('\n').find((l) => l.startsWith('| `/release` |'));
+  assert.ok(routineRow && routineRow.includes('routine-template.yml'), 'no /release consumer row in ## routine');
+  assert.ok(routineRow.includes('`failed`'), 'the consumer row must name the refused-firing outcome word `failed`, never "no-op"');
+  assert.ok(!/refused no-op/.test(routineRow), 'the consumer row must not call the refused stop a no-op');
   assert.match(block('release'), /^\| `\/routine` \| .*routine-template\.yml/m);
 });
