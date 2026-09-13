@@ -63,8 +63,7 @@ function capDirtyFiles(lines, cap = DIRTY_FILES_CAP) {
   if (!Array.isArray(lines)) return lines;
   if (lines.length <= cap) return lines;
   if (lines.length === cap + 1 && DIRTY_FILES_TAIL_RE.test(lines[lines.length - 1])) return lines;
-  const rest = lines.length - cap;
-  return [...lines.slice(0, cap), `… and ${rest} more`];
+  return [...lines.slice(0, cap), `… and ${lines.length - cap} more`];
 }
 
 // #1796 Deliverable 3 — the reaper never gains `--force`; this is advice for
@@ -82,11 +81,10 @@ function dirtyFilesDispositionHint(targetPath) {
 // "nothing to report").
 function dirtyFilesBlock(dirtyFiles, targetPath) {
   const header = '**Dirty files (`git status --porcelain` at the last failed pass):**';
-  if (dirtyFiles == null) {
-    return [header, '', 'could not read — git status failed', '', dirtyFilesDispositionHint(targetPath)];
-  }
-  const capped = capDirtyFiles(dirtyFiles);
-  return [header, '```', ...capped, '```', '', dirtyFilesDispositionHint(targetPath)];
+  const evidence = dirtyFiles == null
+    ? ['', 'could not read — git status failed']
+    : ['```', ...capDirtyFiles(dirtyFiles), '```'];
+  return [header, ...evidence, '', dirtyFilesDispositionHint(targetPath)];
 }
 
 // { repo, marker, runner } -> matching issue { number, title, body,
@@ -110,9 +108,7 @@ function findResidueDuplicate({ repo, marker, runner = defaultRunner }) {
 // fix to a `bin/lib/reconcile/` that doesn't exist in the consumer's own repo.
 const ATTRIBUTION_LINE = 'Filed automatically by the claude-tweaks plugin\'s reconcile pass. The removal/move logic named above lives in `bin/lib/reconcile/` of `thomasholknielsen/claude-tweaks` — not a path in this repository — so a fix, if any, belongs upstream: see thomasholknielsen/claude-tweaks#644. This record is the human handoff for the path named above.';
 
-function residueBody({
-  reason, targetPath, count, firstFailedAt, lastError, dirtyFiles,
-}) {
+function residueBody({ reason, targetPath, count, firstFailedAt, lastError, dirtyFiles }) {
   const marker = `<!-- fingerprint: ${residueFingerprint(reason, targetPath)} -->`;
   const lines = [
     `Reconcile has failed \`${reason}\` on this path for ${count} consecutive passes` +
@@ -145,15 +141,9 @@ function residueBody({
 // not one per escalation streak. (`--state all` above mirrors the shared
 // `findDuplicate`'s own already-`--state all` behavior, not a widening from
 // an open-only search bug — see #2334.)
-function escalateResidue({
-  repo, reason, targetPath, count, firstFailedAt, lastError, dirtyFiles, runner = defaultRunner,
-}) {
+function escalateResidue({ repo, reason, targetPath, count, firstFailedAt, lastError, dirtyFiles, runner = defaultRunner }) {
   if (!repo) return { status: 'escalation-failed', reason: 'no-repo-slug' };
-  const {
-    body, marker,
-  } = residueBody({
-    reason, targetPath, count, firstFailedAt, lastError, dirtyFiles,
-  });
+  const { body, marker } = residueBody({ reason, targetPath, count, firstFailedAt, lastError, dirtyFiles });
   const title = `reconcile: ${reason} stuck on ${targetPath}`;
 
   let hit;
@@ -216,13 +206,6 @@ function resolveResidue({ repo, reason, targetPath, runner = defaultRunner }) {
 }
 
 module.exports = {
-  escalateResidue,
-  resolveResidue,
-  residueFingerprint,
-  residueBody,
-  findResidueDuplicate,
-  defaultRunner,
-  errorText,
-  capDirtyFiles,
-  DIRTY_FILES_CAP,
+  escalateResidue, resolveResidue, residueFingerprint, residueBody, findResidueDuplicate,
+  defaultRunner, errorText, capDirtyFiles, DIRTY_FILES_CAP,
 };
