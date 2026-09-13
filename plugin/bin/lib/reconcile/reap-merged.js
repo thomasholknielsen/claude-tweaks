@@ -22,7 +22,8 @@ const { resolvePrState } = require('./pr-state');
 const { findRunByWorktreePath, appendEvent } = require('../hooks/context');
 const { release: releasePortsDefault } = require('../ports/registry');
 const { trackResidue } = require('./cache');
-const { escalateResidue } = require('./escalate-residue');
+const { escalateResidue, capDirtyFiles } = require('./escalate-residue');
+const { readPorcelainStatus } = require('../residue/probes/worktrees');
 const { repoSlugOf } = require('./release-merged');
 
 // Best-effort audit-trail write to the OWNING run's own events.jsonl, so
@@ -73,8 +74,8 @@ function decideReap(prState) {
 // duplicating the success/fail branch. `escalate` stays injectable so a test
 // can assert escalation fired (and how many times) without touching real
 // `gh`.
-function trackReapResidue(root, repoSlug, real, { failed, lastError }, { escalate = escalateResidue } = {}) {
-  trackResidue(root, repoSlug, 'removal-failed', real, { failed, lastError }, { escalate });
+function trackReapResidue(root, repoSlug, real, { failed, lastError, dirtyFiles }, { escalate = escalateResidue } = {}) {
+  trackResidue(root, repoSlug, 'removal-failed', real, { failed, lastError, dirtyFiles }, { escalate });
 }
 
 // A candidate worktree the CALLING process is standing inside (or under),
@@ -138,10 +139,19 @@ function reapMerged({ cwd, dryRun = false, releasePorts = releasePortsDefault } 
     if (rm.failure) {
       skipped.push({ path: real, reason: 'removal-failed', prNumber: prState.number });
       logReapEvent(owningRunDir, 'worktree-reap-skipped', { reason: 'removal-failed', prNumber: prState.number });
+      // #1796 — one `git status --porcelain` read against the worktree that
+      // just refused removal, so the escalation issue (if this streak
+      // reaches threshold) can tell a human "disposable untracked ledger"
+      // from "real uncommitted work" without them shelling into the host.
+      // Capped here (not left for escalate-residue.js's own render-time cap
+      // to do all the work) so cache.js never persists an unbounded array —
+      // capDirtyFiles is idempotent, so escalateResidue's own defensive cap
+      // downstream is a no-op against this already-capped value.
+      const dirtyFiles = capDirtyFiles(readPorcelainStatus(real));
       // #1341 — carry git's real stderr as lastError, falling back to the
       // bare category only when git produced no stderr at all (e.g. an
       // indeterminate timeout/spawn failure with nothing to say).
-      trackReapResidue(root, repoSlug, real, { failed: true, lastError: rm.stderr || rm.failure });
+      trackReapResidue(root, repoSlug, real, { failed: true, lastError: rm.stderr || rm.failure, dirtyFiles });
       continue;
     }
     // A path that just succeeded has no more residue to track (#644) — clear
