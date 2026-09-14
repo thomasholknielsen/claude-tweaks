@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { toIssuePayload } = require('../../../plugin/bin/lib/harness-health/issue-payload');
-const { extractFingerprint, extractVerifiedAsOf } = require('../../../plugin/bin/lib/issues/record');
+const { extractFingerprint, extractVerifiedAsOf, extractTemplateStamp } = require('../../../plugin/bin/lib/issues/record');
 
 function patchFinding(overrides = {}) {
   return {
@@ -287,4 +287,36 @@ test('toIssuePayload with no verifiedAsOf argument omits the stamp (existing cal
 test('toIssuePayload threads verifiedAsOf through to the composed body', () => {
   const payload = toIssuePayload(patchFinding(), 'abc1234');
   assert.strictEqual(extractVerifiedAsOf(payload.body), 'abc1234');
+});
+
+// ── template snapshot (#1840) ───────────────────────────────────────────────
+
+test('toIssuePayload: Template: line + snapshot sentence present for a template-conformance finding with templateSource + pluginVersion', () => {
+  const payload = toIssuePayload(
+    patchFinding({ category: 'template-conformance', assetType: 'claude-md', templateSource: 'skills/init/claude-md-template.md' }),
+    'abc1234',
+    '6.114.1',
+  );
+  assert.strictEqual(extractTemplateStamp(payload.body).path, 'skills/init/claude-md-template.md');
+  assert.strictEqual(extractTemplateStamp(payload.body).version, '6.114.1');
+  assert.match(payload.body, /is a snapshot of `skills\/init\/claude-md-template\.md` as rendered at plugin version 6\.114\.1/);
+  assert.match(payload.body, /re-derive the replacement from the \*installed\* template/);
+});
+
+test('toIssuePayload: no Template: line for a skill drift finding (never carries templateSource)', () => {
+  const payload = toIssuePayload(patchFinding({ category: 'drift' }), 'abc1234', '6.114.1');
+  assert.strictEqual(extractTemplateStamp(payload.body), null);
+});
+
+test('toIssuePayload: no Template: line when templateSource is set but pluginVersion is not supplied', () => {
+  const payload = toIssuePayload(
+    patchFinding({ category: 'best-practice', assetType: 'rule', templateSource: 'skills/init/rules-template.md' }),
+    'abc1234',
+  );
+  assert.strictEqual(extractTemplateStamp(payload.body), null);
+});
+
+test('toIssuePayload: no Template: line for a new-skill finding (no templateSource concept there)', () => {
+  const payload = toIssuePayload(newSkillFinding(), 'abc1234', '6.114.1');
+  assert.strictEqual(extractTemplateStamp(payload.body), null);
 });
